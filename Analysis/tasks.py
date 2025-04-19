@@ -326,7 +326,7 @@ class MergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         customisation_dict['apply_btag_shape_weights']=='True' if 'apply_btag_shape_weights' in customisation_dict.keys() else self.global_params.get('apply_btag_shape_weights', False)
         uncNames = ['Central']
         unc_cfg_dict = load_unc_config(unc_config)
-        uncs_to_exclude = self.global_params['uncs_to_exclude'][self.period]
+        uncs_to_exclude = self.global_params['uncs_to_exclude'][self.period] if "uncs_to_exclude" in self.global_params.keys() else []
 
         compute_unc_histograms = customisation_dict['compute_unc_histograms']=='True' if 'compute_unc_histograms' in customisation_dict.keys() else self.global_params.get('compute_unc_histograms', False)
         if compute_unc_histograms:

@@ -174,17 +174,19 @@ if __name__ == "__main__":
         print("unknown unc source {args.uncSource}")
 
     categories = list(global_cfg_dict['categories'])
-    boosted_categories = list(global_cfg_dict['boosted_categories'])
-    QCDregions = list(global_cfg_dict['QCDRegions'])
+
+    boosted_categories = list(global_cfg_dict.get('apply_btag_shape_weights', [])) # list(global_cfg_dict['boosted_categories'])
+    QCDregions =  list(global_cfg_dict['SignRegions']) # list(global_cfg_dict['QCDRegions'])
+
     #Controlregions = list(global_cfg_dict['ControlRegions']) #Later maybe we want to separate Controls from QCDs
     global_cfg_dict['channelSelection']=args.channels.split(',')
 
     channels = global_cfg_dict['channelSelection']
     # print(channels)
 
-    signals = list(global_cfg_dict['signal_types'])
-    unc_to_not_consider_boosted = list(global_cfg_dict['unc_to_not_consider_boosted'])
-    boosted_variables = list(global_cfg_dict['var_only_boosted'])
+    signals = list(global_cfg_dict.get('signal_types', []))
+    unc_to_not_consider_boosted = list(global_cfg_dict.get('unc_to_not_consider_boosted', []))
+    boosted_variables = list(global_cfg_dict.get('var_only_boosted', []))
 
     all_categories = categories + boosted_categories
     if args.var in boosted_variables:
@@ -242,8 +244,9 @@ if __name__ == "__main__":
         all_histograms_1D=GetBTagWeightDict(args.var,all_histograms, categories, boosted_categories, boosted_variables)
     else:
         all_histograms_1D = all_histograms
-    fixNegativeContributions = False
-    error_on_qcdnorm,error_on_qcdnorm_varied = AddQCDInHistDict(args.var, all_histograms_1D, channels, all_categories, args.uncSource, all_samples_types.keys(), scales, wantNegativeContributions=False)
+    if not analysis_import == "Analysis.H_mumu":
+        fixNegativeContributions = False
+        error_on_qcdnorm,error_on_qcdnorm_varied = AddQCDInHistDict(args.var, all_histograms_1D, channels, all_categories, args.uncSource, all_samples_types.keys(), scales, wantNegativeContributions=False)
 
     outFile = ROOT.TFile(args.outFile, "RECREATE")
 

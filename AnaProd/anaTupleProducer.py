@@ -30,6 +30,7 @@ def createAnatuple(inFile, treeName, outDir, setup, sample_name, anaCache, snaps
     compression_settings = snapshotOptions.fCompressionAlgorithm * 100 + snapshotOptions.fCompressionLevel
     period = setup.global_params["era"]
     sample_config = setup.samples[sample_name]
+    sample_type = sample_config["sampleType"]
     mass = -1 if 'mass' not in sample_config else sample_config['mass']
     spin = -100 if 'spin' not in sample_config else sample_config['spin']
     isHH = True if mass > 0 else False
@@ -38,7 +39,7 @@ def createAnatuple(inFile, treeName, outDir, setup, sample_name, anaCache, snaps
     loadHHBtag = anaTupleDef.loadHHBtag
     lepton_legs = anaTupleDef.lepton_legs
     Baseline.Initialize(loadTF, loadHHBtag)
-    Corrections.initializeGlobal(setup.global_params, sample_name, isData=isData, load_corr_lib=True)
+    Corrections.initializeGlobal(setup.global_params, sample_name, sample_type, isData=isData, load_corr_lib=True)
     corrections = Corrections.getGlobal()
     triggerFile = setup.global_params.get('triggerFile')
     if triggerFile is not None:

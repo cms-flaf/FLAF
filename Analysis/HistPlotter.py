@@ -166,7 +166,7 @@ if __name__ == "__main__":
 
     with open(page_cfg_custom, 'r') as f:
         page_cfg_custom_dict = yaml.safe_load(f)
-    inputs_cfg = os.path.join(os.environ['ANALYSIS_PATH'],"config", "plot/inputs.yaml")
+    inputs_cfg = os.path.join(os.environ['ANALYSIS_PATH'],"config", "plot","inputs.yaml")
     with open(inputs_cfg, 'r') as f:
         inputs_cfg_dict = yaml.safe_load(f)
 
@@ -291,6 +291,7 @@ if __name__ == "__main__":
         sample_type = sample_content['type']
         sample_plot_name = sample_content['plot']
         if args.uncSource != 'Central': continue # to be fixed
+
         sample_histname = (GetHistName(sample_name, sample_type, 'Central','Central', global_cfg_dict))
         if sample_histname not in dir_1.GetListOfKeys():
             print(f"ERRORE: {sample_histname} non è nelle keys")

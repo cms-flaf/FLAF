@@ -32,14 +32,21 @@ jobs:
             });
             console.log(`Total files changed: ${files.length}`);
             const changedFiles = files.map(file => file.filename);
-            core.setOutput('files', changedFiles.join(' '));
+            core.setOutput('files', changedFiles.join('\n'));
 
       - name: Install black
         run: pip install black
 
       - name: Check Python formatting
         run: |
-          echo "${{ steps.changed-files.outputs.files }}" | tr ' ' '\n' | grep '\.py$' | xargs -r black --check --diff
+          IFS=$'\n'
+          declare -a FILES=()
+          for file in ${{ steps.changed-files.outputs.files }}; do
+            if [[ -f "$file" && "$file" == *.py ]]; then
+              FILES+=("$file")
+            fi
+          done
+          black --check --diff "${FILES[@]}"
 
       - name: Install yamllint
         run: pip install yamllint

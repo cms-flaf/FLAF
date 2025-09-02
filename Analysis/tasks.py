@@ -506,18 +506,17 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             ]
             if compute_unc_histograms:
                 HistFromNtupleProducer_cmd.extend(
-                        [
-                            "--compute_rel_weights",
-                            "True",
-                            "--compute_unc_variations",
-                            "True",
-                        ]
-                    )
+                    [
+                        "--compute_rel_weights",
+                        "True",
+                        "--compute_unc_variations",
+                        "True",
+                    ]
+                )
             if self.customisations:
                 HistFromNtupleProducer_cmd.extend(
                     [f"--customisations", self.customisations]
                 )
-
 
             HistFromNtupleProducer_cmd.extend(local_inputs)
             ps_call(HistFromNtupleProducer_cmd, verbose=1)
@@ -526,7 +525,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             out_local_path = tmp_local_file.path
             shutil.move(tmpFile, out_local_path)
 
-        delete_after_merge = False # var == self.global_config["vars_to_save"][-1] --> find more robust condition
+        delete_after_merge = False  # var == self.global_config["vars_to_save"][-1] --> find more robust condition
         if delete_after_merge:
             print(f"Finished HistogramProducer, lets delete remote targets")
             for remote_target in input_list_remote_target:
@@ -537,6 +536,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         if remove_job_home:
             shutil.rmtree(job_home)
+
 
 class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
@@ -573,7 +573,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
         }
 
-
     def requires(self):
         var_name, br_indices, samples = self.branch_data
         reqs = [
@@ -602,11 +601,17 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         self.cache_branch_map = True
         if hasattr(self, "_branches_backup"):
             self.branches = self._branches_backup
-        HistFromNtupleProducerTask_branch_map = HistFromNtupleProducerTask.req(self, branches=()).create_branch_map()
+        HistFromNtupleProducerTask_branch_map = HistFromNtupleProducerTask.req(
+            self, branches=()
+        ).create_branch_map()
         all_samples = {}
         branches = {}
         k = 0
-        for br_idx, (var_name, prod_br_list, current_sample) in HistFromNtupleProducerTask_branch_map.items():
+        for br_idx, (
+            var_name,
+            prod_br_list,
+            current_sample,
+        ) in HistFromNtupleProducerTask_branch_map.items():
             if var_name not in all_samples.keys():
                 all_samples[var_name] = []
             all_samples[var_name].append((br_idx, current_sample))
@@ -614,7 +619,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             br_indices = []
             samples = []
             for key in br_list:
-                idx,sample_name = key
+                idx, sample_name = key
                 br_indices.append(idx)
                 samples.append(sample_name)
             branches[k] = (var_name, br_indices, samples)
@@ -624,9 +629,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     def output(self):
         var_name, br_indices, samples = self.branch_data
-        output_path = os.path.join(
-            "merged_hists", self.version, self.period, var_name
-        )
+        output_path = os.path.join("merged_hists", self.version, self.period, var_name)
         output_file_name = os.path.join(output_path, f"{var_name}.root")
         return self.remote_target(output_file_name, fs=self.fs_HistTuple)
 
@@ -676,19 +679,15 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         )
 
         # job_home, remove_job_home = self.law_job_home()
-        input_dir = os.path.join(
-                "hists", self.version, self.period, var_name
-            )
-        input_dir_remote = self.remote_dir_target(
-                        input_dir, fs=self.fs_HistTuple
-                    )
+        input_dir = os.path.join("hists", self.version, self.period, var_name)
+        input_dir_remote = self.remote_dir_target(input_dir, fs=self.fs_HistTuple)
         all_datasets = []
         local_inputs = []
         with contextlib.ExitStack() as stack:
             for inp in self.input():
                 sample_name = os.path.basename(inp.path)
-                print(sample_name.strip('.root'))
-                all_datasets.append(sample_name.strip('.root'))
+                print(sample_name.strip(".root"))
+                all_datasets.append(sample_name.strip(".root"))
                 local_inputs.append(stack.enter_context(inp.localize("r")).path)
             dataset_names = ",".join(smpl for smpl in all_datasets)
             all_outputs_merged = []
@@ -726,28 +725,30 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         "w"
                     ) as tmp_outfile_merge_unc:
                         MergerProducer_cmd = [
-                        "python3",
-                        MergerProducer,
-                        "--outFile",
-                        tmp_outfile_merge_unc.path,
-                        "--var",
-                        var_name,
-                        "--dataset_names",
-                        dataset_names,
-                        "--uncSource",
-                        uncName,
-                        "--channels",
-                        channels,
-                        "--period",
-                        self.period,
-                    ]
+                            "python3",
+                            MergerProducer,
+                            "--outFile",
+                            tmp_outfile_merge_unc.path,
+                            "--var",
+                            var_name,
+                            "--dataset_names",
+                            dataset_names,
+                            "--uncSource",
+                            uncName,
+                            "--channels",
+                            channels,
+                            "--period",
+                            self.period,
+                        ]
                         MergerProducer_cmd.extend(local_inputs)
                         ps_call(MergerProducer_cmd, verbose=1)
                         all_outputs_merged.append(tmp_outfile_merge)
             if len(uncNames) > 1:
                 all_uncertainties_string = ",".join(unc for unc in uncNames)
                 tmp_outFile = self.remote_target(
-                    os.path.join(outdir_histograms, f"all_histograms_{var}_hadded.root"),
+                    os.path.join(
+                        outdir_histograms, f"all_histograms_{var}_hadded.root"
+                    ),
                     fs=self.fs_histograms,
                 )
                 with contextlib.ExitStack() as stack:
@@ -757,14 +758,16 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             infile_merged, fs=self.fs_histograms
                         )
                         local_merged_files.append(
-                            stack.enter_context(tmp_outfile_merge_remote.localize("r")).path
+                            stack.enter_context(
+                                tmp_outfile_merge_remote.localize("r")
+                            ).path
                         )
-                    with self.output().localize() as outFile: #tmp_outFile.localize("w") as tmpFile:
+                    with self.output().localize() as outFile:  # tmp_outFile.localize("w") as tmpFile:
                         HaddMergedHistsProducer_cmd = [
                             "python3",
                             HaddMergedHistsProducer,
                             "--outFile",
-                            outFile.path, #tmpFile.path,
+                            outFile.path,  # tmpFile.path,
                             "--var",
                             var,
                         ]
@@ -791,11 +794,8 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         #         ]
         #         ps_call(RenameHistsProducer_cmd, verbose=1)
 
-
     #     if remove_job_home:
     #         shutil.rmtree(job_home)
-
-
 
 
 class HistProducerFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):

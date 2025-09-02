@@ -39,6 +39,7 @@ def find_keys(inFiles_list):
         rf.Close()
     return sorted(unique_keys)
 
+
 ROOT.gInterpreter.Declare(
     """
 #include <vector>
@@ -94,13 +95,10 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale):
 def GetBinValues(rdf, hist_cfg_dict, var):
     """Aggiunge le colonne con i valori dei bin all'RDataFrame."""
     edges_vector = GetBinVec(hist_cfg_dict, var)
-    rdf = (
-        rdf.Define(
-            f"{var}_edges_vector",
-            f"""std::vector<float> edges_vector({edges_vector}); return edges_vector;"""
-        )
-        .Define(f"{var}", f"GetBinValue({var}_bin, {var}_edges_vector)")
-    )
+    rdf = rdf.Define(
+        f"{var}_edges_vector",
+        f"""std::vector<float> edges_vector({edges_vector}); return edges_vector;""",
+    ).Define(f"{var}", f"GetBinValue({var}_bin, {var}_edges_vector)")
     return rdf
 
 
@@ -113,7 +111,18 @@ def GetHist(rdf, var, filter_to_apply, weight_name, unc, scale):
     return histo
 
 
-def SaveSingleHistSet(all_trees, var, filter_expr, unc, scale, key, outFile, is_shift_unc, treeName, further_cut_name=None):
+def SaveSingleHistSet(
+    all_trees,
+    var,
+    filter_expr,
+    unc,
+    scale,
+    key,
+    outFile,
+    is_shift_unc,
+    treeName,
+    further_cut_name=None,
+):
     hist_list = []
     if is_shift_unc:
         tree_prefix = f"Events_{unc}{scale}"
@@ -123,11 +132,15 @@ def SaveSingleHistSet(all_trees, var, filter_expr, unc, scale, key, outFile, is_
             if tree_name_full not in all_trees:
                 continue
             rdf_shift = all_trees[tree_name_full]
-            hist_list.append(GetHist(rdf_shift, var, filter_expr, "weight_Central", unc, scale))
+            hist_list.append(
+                GetHist(rdf_shift, var, filter_expr, "weight_Central", unc, scale)
+            )
     else:
         weight_name = f"weight_{unc}_{scale}" if unc != "Central" else "weight_Central"
         rdf_central = all_trees[treeName]
-        hist_list.append(GetHist(rdf_central, var, filter_expr, weight_name, unc, scale))
+        hist_list.append(
+            GetHist(rdf_central, var, filter_expr, weight_name, unc, scale)
+        )
 
     if hist_list:
         key_tuple = key
@@ -136,7 +149,16 @@ def SaveSingleHistSet(all_trees, var, filter_expr, unc, scale, key, outFile, is_
         SaveHist(key_tuple, outFile, hist_list, var, unc, scale)
 
 
-def SaveTmpFileUnc(tmp_files, uncs_to_compute, unc_cfg_dict, all_trees, var, key_filter_dict, further_cuts, treeName):
+def SaveTmpFileUnc(
+    tmp_files,
+    uncs_to_compute,
+    unc_cfg_dict,
+    all_trees,
+    var,
+    key_filter_dict,
+    further_cuts,
+    treeName,
+):
     for unc, scales in uncs_to_compute.items():
         tmp_file = f"tmp_{var}_{unc}.root"
         tmp_file_root = ROOT.TFile(tmp_file, "RECREATE")
@@ -148,10 +170,33 @@ def SaveTmpFileUnc(tmp_files, uncs_to_compute, unc_cfg_dict, all_trees, var, key
                 filter_to_apply_final = filter_to_apply_base
                 if further_cuts:
                     for further_cut_name in further_cuts.keys():
-                        filter_to_apply_final = f"{filter_to_apply_base} && {further_cut_name}"
-                        SaveSingleHistSet(all_trees, var, filter_to_apply_final, unc, scale, key, tmp_file_root, is_shift_unc, treeName, further_cut_name)
+                        filter_to_apply_final = (
+                            f"{filter_to_apply_base} && {further_cut_name}"
+                        )
+                        SaveSingleHistSet(
+                            all_trees,
+                            var,
+                            filter_to_apply_final,
+                            unc,
+                            scale,
+                            key,
+                            tmp_file_root,
+                            is_shift_unc,
+                            treeName,
+                            further_cut_name,
+                        )
                 else:
-                    SaveSingleHistSet(all_trees, var, filter_to_apply_final, unc, scale, key, tmp_file_root, is_shift_unc, treeName)
+                    SaveSingleHistSet(
+                        all_trees,
+                        var,
+                        filter_to_apply_final,
+                        unc,
+                        scale,
+                        key,
+                        tmp_file_root,
+                        is_shift_unc,
+                        treeName,
+                    )
         tmp_file_root.Close()
         tmp_files.append(tmp_file)
 
@@ -199,7 +244,11 @@ if __name__ == "__main__":
 
     hist_cfg_dict = setup.hists
 
-    channels = args.channels.split(",") if args.channels else setup.global_params["channelSelection"]
+    channels = (
+        args.channels.split(",")
+        if args.channels
+        else setup.global_params["channelSelection"]
+    )
     setup.global_params["channels_to_consider"] = channels
 
     further_cuts = {}
@@ -208,7 +257,9 @@ if __name__ == "__main__":
     if "further_cuts" in setup.global_params and setup.global_params["further_cuts"]:
         further_cuts.update(setup.global_params["further_cuts"])
     print(further_cuts)
-    key_filter_dict = analysis.createKeyFilterDict(setup.global_params, setup.global_params["era"])
+    key_filter_dict = analysis.createKeyFilterDict(
+        setup.global_params, setup.global_params["era"]
+    )
 
     vars_to_save = setup.global_params["vars_to_save"]
     vars_needed = set(vars_to_save)
@@ -229,13 +280,26 @@ if __name__ == "__main__":
         all_trees[tree_name] = rdf
     uncs_to_compute = {}
     if args.compute_rel_weights:
-        uncs_to_compute.update({key: setup.global_params["scales"] for key in unc_cfg_dict["norm"].keys()})
+        uncs_to_compute.update(
+            {key: setup.global_params["scales"] for key in unc_cfg_dict["norm"].keys()}
+        )
     if args.compute_unc_variations:
-        uncs_to_compute.update({key: setup.global_params["scales"] for key in unc_cfg_dict["shape"]})
+        uncs_to_compute.update(
+            {key: setup.global_params["scales"] for key in unc_cfg_dict["shape"]}
+        )
     uncs_to_compute["Central"] = ["Central"]
 
     tmp_files = []
-    SaveTmpFileUnc(tmp_files, uncs_to_compute, unc_cfg_dict, all_trees, args.var, key_filter_dict, further_cuts, treeName)
+    SaveTmpFileUnc(
+        tmp_files,
+        uncs_to_compute,
+        unc_cfg_dict,
+        all_trees,
+        args.var,
+        key_filter_dict,
+        further_cuts,
+        treeName,
+    )
 
     if tmp_files:
         hadd_str = f"hadd -f -j -O {args.outFile} " + " ".join(tmp_files)
@@ -246,4 +310,3 @@ if __name__ == "__main__":
             os.remove(f)
     time_elapsed = time.time() - start
     print(f"execution time = {time_elapsed} ")
-

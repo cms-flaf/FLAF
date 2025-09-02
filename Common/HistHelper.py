@@ -38,6 +38,7 @@ def load_all_items(file_path):
     inFile.Close()
     return items
 
+
 def save_items_to_root(items_dict, out_file_path):
     outFile = ROOT.TFile(out_file_path, "RECREATE")
     for path_tuple, obj in items_dict.items():
@@ -192,6 +193,7 @@ def FixNegativeContributions(histogram):
     RenormalizeHistogram(histogram, original_Integral, True)
     return True, ss_debug, ss_negative
 
+
 def getNewBins(bins):
     if isinstance(bins, list):
         return bins
@@ -201,6 +203,7 @@ def getNewBins(bins):
     step = (stop - start) / int(n_bins)
 
     return [start + i * step for i in range(int(n_bins) + 1)]
+
 
 def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=False):
     new_binning_array = array.array("d", new_binning)
@@ -222,7 +225,9 @@ def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=Fal
 
     if verbose:
         for nbin in range(len(new_binning)):
-            print(f"bin {nbin}, content = {new_hist.GetBinContent(nbin)}, error = {new_hist.GetBinError(nbin)}")
+            print(
+                f"bin {nbin}, content = {new_hist.GetBinContent(nbin)}, error = {new_hist.GetBinError(nbin)}"
+            )
 
     # Fix possible negative bins
     fix_ok, debug_info, negative_bins = FixNegativeContributions(new_hist)
@@ -230,9 +235,12 @@ def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=Fal
         print("Negative bins not fixed:", debug_info, negative_bins)
         for nbin in range(new_hist.GetNbinsX() + 1):
             if new_hist.GetBinContent(nbin) < 0:
-                print(f"{sample}, bin {nbin} content is < 0: {new_hist.GetBinContent(nbin)}")
+                print(
+                    f"{sample}, bin {nbin} content is < 0: {new_hist.GetBinContent(nbin)}"
+                )
 
     return new_hist
+
 
 def GetBinVec(hist_cfg, var):
     x_bins = hist_cfg[var]["x_bins"]

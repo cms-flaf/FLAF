@@ -79,7 +79,7 @@ def createHistTuple(
     compute_unc_variations,
     compute_rel_weights,
     histTupleDef,
-    inFile_keys
+    inFile_keys,
 ):
     start_time = datetime.datetime.now()
     # compression_settings = snapshotOptions.fCompressionAlgorithm * 100 + snapshotOptions.fCompressionLevel
@@ -127,7 +127,6 @@ def createHistTuple(
         elif type(setup.global_params["additional_vars"]) == dict:
             additional_vars = setup.global_params["additional_vars"].keys()
 
-
     dfw_central = histTupleDef.GetDfw(df_central, df_cache_central, setup.global_params)
 
     col_names_central = dfw_central.colNames
@@ -142,22 +141,16 @@ def createHistTuple(
             df_central, col_types_central, col_names_central
         )
         # If original count is already 0, then you don't need to raise error
-        if (
-            df_central
-            .Filter("map_placeholder > 0")
-            .Count()
-            .GetValue()
-            <= 0
-        ):
+        if df_central.Filter("map_placeholder > 0").Count().GetValue() <= 0:
             raise RuntimeError("no events passed map placeolder")
         all_shifts_to_compute.extend(unc_cfg_dict["shape"])
-
-
 
     for unc in ["Central"] + all_rel_uncs_to_compute:
         scales = setup.global_params["scales"] if unc != "Central" else ["Central"]
         for scale in scales:
-            final_weight_name = f"weight_{unc}_{scale}" if unc!="Central" else "weight_Central"
+            final_weight_name = (
+                f"weight_{unc}_{scale}" if unc != "Central" else "weight_Central"
+            )
             histTupleDef.DefineWeightForHistograms(
                 dfw_central,
                 unc,
@@ -180,13 +173,10 @@ def createHistTuple(
     tmp_fileName = f"{treeName}.root"
     tmp_fileNames.append(tmp_fileName)
     snaps.append(
-        dfw_central.df.Snapshot(
-            treeName, tmp_fileName, varToSave, snapshotOptions
-        )
+        dfw_central.df.Snapshot(treeName, tmp_fileName, varToSave, snapshotOptions)
     )
 
     #### shifted trees
-
 
     for unc in all_shifts_to_compute:
         scales = setup.global_params["scales"]
@@ -215,7 +205,7 @@ def createHistTuple(
                         col_types_central,
                         f"cache_map_{unc}{scale}_{shift}",
                     )
-                    final_weight_name="weight_Central"
+                    final_weight_name = "weight_Central"
 
                     # Definizione pesi
                     histTupleDef.DefineWeightForHistograms(
@@ -232,7 +222,9 @@ def createHistTuple(
                     # Aggiunta colonne
                     # dfw.colToSave.append("weight_Central")
                     for var in vars_to_save:
-                        dfw_shift.df = dfw_shift.df.Define(f"{var}_bin", f"get_{var}_bin({var})")
+                        dfw_shift.df = dfw_shift.df.Define(
+                            f"{var}_bin", f"get_{var}_bin({var})"
+                        )
                         dfw_shift.colToSave.append(f"{var}_bin")
                     dfw_shift.colToSave.extend(additional_vars)
 
@@ -252,7 +244,6 @@ def createHistTuple(
                             snapshotOptions,
                         )
                     )
-
 
     if snapshotOptions.fLazy == True:
         ROOT.RDF.RunGraphs(snaps)
@@ -283,9 +274,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    setup = Setup.getGlobal(
-        os.environ["ANALYSIS_PATH"], args.period, ""
-    )
+    setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period, "")
 
     treeName = setup.global_params[
         "treeName"
@@ -318,10 +307,8 @@ if __name__ == "__main__":
         df_empty = True
     dont_create_HistTuple = key_not_exist or df_empty
 
-
     unc_cfg_dict = setup.weights_config
     hist_cfg_dict = setup.hists
-
 
     histTupleDef = Utilities.load_module(args.histTupleDef)
     if not dont_create_HistTuple:
@@ -344,7 +331,7 @@ if __name__ == "__main__":
             args.compute_unc_variations,
             args.compute_rel_weights,
             histTupleDef,
-            inFile_keys
+            inFile_keys,
         )
         if tmp_fileNames:
             hadd_str = f"hadd -f -j -O {args.outFile} "

@@ -44,10 +44,19 @@ def checkFile(inFileRoot, channels, qcdRegions, categories):
     return True
 
 
-def fill_all_hists_dict(items_dict, all_hist_dict_per_var_and_sampletype, var_input, unc_source="Central", scale="Central"):
+def fill_all_hists_dict(
+    items_dict,
+    all_hist_dict_per_var_and_sampletype,
+    var_input,
+    unc_source="Central",
+    scale="Central",
+):
     for key_tuple, hist_map in items_dict.items():
         for var, var_hist in hist_map.items():
-            if var != var_input : print(f"var from hist map is {var} while var from hist dict is {var_input}")
+            if var != var_input:
+                print(
+                    f"var from hist map is {var} while var from hist dict is {var_input}"
+                )
             final_key = (key_tuple, (unc_source, scale))
             if final_key not in all_hist_dict_per_var_and_sampletype:
                 all_hist_dict_per_var_and_sampletype[final_key] = []
@@ -151,7 +160,9 @@ if __name__ == "__main__":
 
     all_samples_dict = bckg_cfg_dict.copy()
     all_samples_dict.update(sig_cfg_dict)
-    data_dict = {"data": {"sampleType": "data"}} # if needed other custom dict need to think how to include it. --> maybe in config?
+    data_dict = {
+        "data": {"sampleType": "data"}
+    }  # if needed other custom dict need to think how to include it. --> maybe in config?
     all_samples_dict.update(data_dict)
 
     uncNameTypes = GetUncNameTypes(unc_cfg_dict)
@@ -219,13 +230,13 @@ if __name__ == "__main__":
 
     # vars_to_select = [v for v in global_cfg_dict["vars_to_save"]]
     # if args.vars=="all":
-        # vars_to_select = []
+    # vars_to_select = []
     # if args.vars != 'all' and args.vars is not None:
     #     vars_to_select = args.vars.split(",")
     # for var in vars_to_select:
-        # if var not in all_hists_dict.keys():
+    # if var not in all_hists_dict.keys():
     all_samples = args.dataset_names.split(",")
-    for sample_name,inFile_path in zip(all_samples,args.inFiles):
+    for sample_name, inFile_path in zip(all_samples, args.inFiles):
         if unc_exception.keys():
             for unc_condition in unc_exception.keys():
                 if unc_condition and args.uncSource in unc_exception[key]:
@@ -253,12 +264,14 @@ if __name__ == "__main__":
 
         all_items = load_all_items(inFile_path)
         # print(all_items)
-        fill_all_hists_dict(all_items, all_hists_dict[sample_type], args.var) # to add: , unc_source="Central", scale="Central"
+        fill_all_hists_dict(
+            all_items, all_hists_dict[sample_type], args.var
+        )  # to add: , unc_source="Central", scale="Central"
     MergeHistogramsPerType(all_hists_dict)
 
     # here there should be the custom applications - e.g. GetBTagWeightDict, AddQCDInHistDict, etc.
     # analysis.ApplyMergeCustomisations() # --> here go the QCD and bTag functions
-    '''
+    """
     if global_cfg_dict["ApplyBweight"] == True:
         all_hists_dict_1D = GetBTagWeightDict(
             args.var, all_hists_dict, categories, boosted_categories, boosted_variables
@@ -278,7 +291,7 @@ if __name__ == "__main__":
             scales,
             wantNegativeContributions=False,
         )
-    '''
+    """
 
     # outDir_var = os.path.join(args.outDir, var)
     # os.makedirs(outDir_var, exist_ok=True)
@@ -287,7 +300,7 @@ if __name__ == "__main__":
     outFile = ROOT.TFile(args.outFile, "RECREATE")
     for sample_type in all_hists_dict.keys():
         for key in all_hists_dict[sample_type].keys():
-            (key_dir,(uncName, uncScale)) = key
+            (key_dir, (uncName, uncScale)) = key
             # here there can be some custom requirements - e.g. regions / categories to not merge, samples to ignore
             dir_name = "/".join(key_dir)
             dir_ptr = Utilities.mkdir(outFile, dir_name)

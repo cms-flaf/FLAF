@@ -125,7 +125,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             # Get all the producers to require for this dummy branch
             producer_set = set()
             var_produced_by = self.setup.var_producer_map
-            for var_name in self.global_params["vars_to_plot"]:
+            for var_name in self.global_params["vars_to_save"]:
                 need_cache = True if var_name in var_produced_by else False
                 producer_to_run = (
                     var_produced_by[var_name] if var_name in var_produced_by else None
@@ -408,7 +408,6 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     def requires(self):
         var, prod_br_list, sample_name = self.branch_data
         reqs = []
-        # if var == self.global_params["vars_to_save"][0]:
         reqs.append(
             HistTupleProducerTask.req(
                 self,
@@ -544,6 +543,8 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
 
     def workflow_requires(self):
+        branch_map = self.create_branch_map()
+
         merge_organization_complete = AnaTupleFileListTask.req(
             self, branches=()
         ).complete()
@@ -557,158 +558,242 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 )
             }
 
+        branch_set = set()
+        all_samples = {}
+        for br_idx, (var, prod_br_list, sample_names) in self.branch_map.items():
+            all_samples[var] = prod_br_list
+
+        new_branchset = set()
+        for var in all_samples.keys():
+            new_branchset.update(all_samples[var])
+
         return {
-            "histproducersample":HistFromNtupleProducerTask.req(
-            self, branch=-1, branches=(), customisations=self.customisations
+            "HistFromNTupleProducerTask": HistFromNtupleProducerTask.req(
+                self, branches=list(new_branchset)
             )
         }
 
 
     def requires(self):
+        var_name, br_indices, samples = self.branch_data
         reqs = [
-            HistTupleProducerTask.req(
+            HistFromNtupleProducerTask.req(
                 self,
-                max_runtime=HistTupleProducerTask.max_runtime._default,
-                branches=(),
+                max_runtime=HistFromNtupleProducerTask.max_runtime._default,
+                branch=prod_br,
+                branches=(prod_br,),
                 customisations=self.customisations,
             )
+            for prod_br in tuple(set(br_indices))
         ]
+
+        return reqs
         return reqs
 
-    def create_branch_map(self): # TO BE FIXED!!
-        return {0:""}
-        # merge_organization_complete = AnaTupleFileListTask.req(
-        #     self, branches=()
-        # ).complete()
-        # if not merge_organization_complete:
-        #     self.cache_branch_map = False
-        #     if not hasattr(self, "_branches_backup"):
-        #         self._branches_backup = copy.deepcopy(self.branches)
-        #     return {0: ()}
-        # self.cache_branch_map = True
-        # if hasattr(self, "_branches_backup"):
-        #     self.branches = self._branches_backup
-        # histProducerSample_map = HistFromNtupleProducerTask.req(
-        #     self, branch=-1, branches=(), customisations=self.customisations
-        # ).create_branch_map()
-        # all_samples = {}
-        # branches = {}
-        # for br_idx, (smpl_name, idx_list, var_list) in histProducerSample_map.items():
-        #     for idx, var in enumerate(var_list):
-        #         var_key = f"{var}:{idx}"
-        #         if var_key not in all_samples:
-        #             all_samples[var_key] = []
-        #         all_samples[var_key].append(br_idx)
-        # k = 0
-        # for n, key in enumerate(all_samples.items()):
-        #     var_key, branches_idx = key
-        #     var = var_key.split(":")[0]  # Get the variable name without the index
-        #     idx = var_key.split(":")[1]  # Get the index without the variable name
-        #     branches[k] = (var, idx, branches_idx)
-        #     k += 1
-        # return branches
+    def create_branch_map(self):
+        merge_organization_complete = AnaTupleFileListTask.req(
+            self, branches=()
+        ).complete()
+        if not merge_organization_complete:
+            self.cache_branch_map = False
+            if not hasattr(self, "_branches_backup"):
+                self._branches_backup = copy.deepcopy(self.branches)
+            return {0: ()}
+        self.cache_branch_map = True
+        if hasattr(self, "_branches_backup"):
+            self.branches = self._branches_backup
+        HistFromNtupleProducerTask_branch_map = HistFromNtupleProducerTask.req(self, branches=()).create_branch_map()
+        all_samples = {}
+        branches = {}
+        k = 0
+        for br_idx, (var_name, prod_br_list, current_sample) in HistFromNtupleProducerTask_branch_map.items():
+            if var_name not in all_samples.keys():
+                all_samples[var_name] = []
+            all_samples[var_name].append((br_idx, current_sample))
+        for var_name, br_list in all_samples.items():
+            br_indices = []
+            samples = []
+            for key in br_list:
+                idx,sample_name = key
+                br_indices.append(idx)
+                samples.append(sample_name)
+            branches[k] = (var_name, br_indices, samples)
+            k += 1
+        # print(branches)
+        return branches
 
     def output(self):
+        var_name, br_indices, samples = self.branch_data
         output_path = os.path.join(
-            "merged_hists", self.version, self.period
+            "merged_hists", self.version, self.period, var_name
         )
-        return self.remote_dir_target(output_path, fs=self.fs_HistTuple)
+        output_file_name = os.path.join(output_path, f"{var_name}.root")
+        return self.remote_target(output_file_name, fs=self.fs_HistTuple)
 
     def run(self):
-        output_path_hist_prod_sample_data = os.path.join(
-            "hists", self.version, self.period, f"data.root"
-        )
-        output_path_hist_prod_sample_data = os.path.join(
-            "hists", self.version, self.period, f"data.root"
-        )
-        all_inputs = [
-            (
-                self.remote_target(
-                    output_path_hist_prod_sample_data, fs=self.fs_HistTuple
-                ),
-                "data",
-            )
-        ]
-        samples_to_consider = GetSamples(
-            self.samples, self.setup.backgrounds, self.global_params["signal_types"]
-        )
-        for sample_name in self.samples.keys():
-            if sample_name not in samples_to_consider:
-                continue
-            output_path_hist_prod_sample = os.path.join(
-                "hists", self.version, self.period, f"{sample_name}.root"
-            )
-            all_inputs.append(
-                (
-                    self.remote_target(
-                        output_path_hist_prod_sample, fs=self.fs_HistTuple
-                    ),
-                    sample_name,
-                )
-            )
-        all_datasets = []
-        all_outputs_merged = []
-
-
-        # input_file = self.input()[0][prod_br]
-        job_home, remove_job_home = self.law_job_home()
+        var_name, br_indices, samples = self.branch_data
         customisation_dict = getCustomisationSplit(self.customisations)
-        compute_unc_histograms = False  # tmp #customisation_dict['compute_unc_histograms']=='True' if 'compute_unc_histograms' in customisation_dict.keys() else self.global_params.get('compute_unc_histograms', False)
+
         channels = (
             customisation_dict["channels"]
             if "channels" in customisation_dict.keys()
             else self.global_params["channelSelection"]
         )
-
         # Channels from the yaml are a list, but the format we need for the ps_call later is 'ch1,ch2,ch3', basically join into a string separated by comma
         if type(channels) == list:
             channels = ",".join(channels)
-        HistMerger = os.path.join(
+
+        uncNames = ["Central"]
+        unc_config = os.path.join(
+            self.ana_path(), "config", self.period, f"weights.yaml"
+        )
+        unc_cfg_dict = load_unc_config(unc_config)
+        uncs_to_exclude = (
+            self.global_params["uncs_to_exclude"][self.period]
+            if "uncs_to_exclude" in self.global_params.keys()
+            else []
+        )
+        compute_unc_histograms = (
+            customisation_dict["compute_unc_histograms"] == "True"
+            if "compute_unc_histograms" in customisation_dict.keys()
+            else self.global_params.get("compute_unc_histograms", False)
+        )
+        if compute_unc_histograms:
+            for uncName in list(unc_cfg_dict["norm"].keys()) + unc_cfg_dict["shape"]:
+                if uncName in uncs_to_exclude:
+                    continue
+                uncNames.append(uncName)
+        print(uncNames)
+
+        MergerProducer = os.path.join(
             self.ana_path(), "FLAF", "Analysis", "HistMergerFromHists.py"
         )
-        outDir = os.path.join(job_home, "merged_hists", self.version, self.period)
-        input_list_remote_target = [inp for inp in self.input()]
+        HaddMergedHistsProducer = os.path.join(
+            self.ana_path(), "FLAF", "Analysis", "hadd_merged_hists.py"
+        )
+        RenameHistsProducer = os.path.join(
+            self.ana_path(), "FLAF", "Analysis", "renameHists.py"
+        )
 
-        with self.output().localize("w") as tmp_local_dir:
-            output_dir_for_merger = os.path.join(tmp_local_dir.path, "merged_hists", self.version, self.period)
-            os.makedirs(output_dir_for_merger, exist_ok=True)
-            local_inputs = []
-            for inp, smpl in all_inputs:
-                # Assicurati che la directory di destinazione dei link simbolici esista
-                local_inputs.append(contextlib.ExitStack().enter_context(inp.localize("r")).path)
-                all_datasets.append(smpl)
+        # job_home, remove_job_home = self.law_job_home()
+        input_dir = os.path.join(
+                "hists", self.version, self.period, var_name
+            )
+        input_dir_remote = self.remote_dir_target(
+                        input_dir, fs=self.fs_HistTuple
+                    )
+        all_datasets = []
+        local_inputs = []
+        with contextlib.ExitStack() as stack:
+            for inp in self.input():
+                sample_name = os.path.basename(inp.path)
+                print(sample_name.strip('.root'))
+                all_datasets.append(sample_name.strip('.root'))
+                local_inputs.append(stack.enter_context(inp.localize("r")).path)
             dataset_names = ",".join(smpl for smpl in all_datasets)
+            all_outputs_merged = []
 
-            HistMerger_cmd = [
-                "python3",
-                HistMerger,
-                "--period",
-                self.period,
-                "--outDir",
-                output_dir_for_merger,
-                "--datasetFile",
-                dataset_names,
-                "--channels",
-                channels,
-                "--vars",
-                vars_to_save
-            ]
-
-            if compute_unc_histograms:
-                HistMerger_cmd.extend(
-                    [
-                        "--compute_rel_weights",
-                        "True",
-                        "--compute_unc_variations",
-                        "True",
+            if len(uncNames) == 1:
+                with self.output().localize("w") as outFile:
+                    MergerProducer_cmd = [
+                        "python3",
+                        MergerProducer,
+                        "--outFile",
+                        outFile.path,
+                        "--var",
+                        var_name,
+                        "--dataset_names",
+                        dataset_names,
+                        "--uncSource",
+                        uncNames[0],
+                        "--channels",
+                        channels,
+                        "--period",
+                        self.period,
                     ]
+                    MergerProducer_cmd.extend(local_inputs)
+                    # print(MergerProducer_cmd)
+                    ps_call(MergerProducer_cmd, verbose=1)
+            else:
+                for uncName in uncNames:
+                    print(uncName)
+                    final_histname = f"{var}_{uncName}.root"
+                    tmp_outfile_merge = os.path.join(outdir_histograms, final_histname)
+                    tmp_outfile_merge_remote = self.remote_target(
+                        tmp_outfile_merge, fs=self.fs_histograms
+                    )
+                    with tmp_outfile_merge_remote.localize(
+                        "w"
+                    ) as tmp_outfile_merge_unc:
+                        MergerProducer_cmd = [
+                        "python3",
+                        MergerProducer,
+                        "--outFile",
+                        tmp_outfile_merge_unc.path,
+                        "--var",
+                        var_name,
+                        "--dataset_names",
+                        dataset_names,
+                        "--uncSource",
+                        uncName,
+                        "--channels",
+                        channels,
+                        "--period",
+                        self.period,
+                    ]
+                        MergerProducer_cmd.extend(local_inputs)
+                        ps_call(MergerProducer_cmd, verbose=1)
+                        all_outputs_merged.append(tmp_outfile_merge)
+            if len(uncNames) > 1:
+                all_uncertainties_string = ",".join(unc for unc in uncNames)
+                tmp_outFile = self.remote_target(
+                    os.path.join(outdir_histograms, f"all_histograms_{var}_hadded.root"),
+                    fs=self.fs_histograms,
                 )
+                with contextlib.ExitStack() as stack:
+                    local_merged_files = []
+                    for infile_merged in all_outputs_merged:
+                        tmp_outfile_merge_remote = self.remote_target(
+                            infile_merged, fs=self.fs_histograms
+                        )
+                        local_merged_files.append(
+                            stack.enter_context(tmp_outfile_merge_remote.localize("r")).path
+                        )
+                    with self.output().localize() as outFile: #tmp_outFile.localize("w") as tmpFile:
+                        HaddMergedHistsProducer_cmd = [
+                            "python3",
+                            HaddMergedHistsProducer,
+                            "--outFile",
+                            outFile.path, #tmpFile.path,
+                            "--var",
+                            var,
+                        ]
+                        HaddMergedHistsProducer_cmd.extend(local_merged_files)
+                        ps_call(HaddMergedHistsProducer_cmd, verbose=1)
+        #     with tmp_outFile.localize("r") as tmpFile, self.output().localize(
+        #         "w"
+        #     ) as outFile:
+        #         RenameHistsProducer_cmd = [
+        #             "python3",
+        #             RenameHistsProducer,
+        #             "--inFile",
+        #             tmpFile.path,
+        #             "--outFile",
+        #             outFile.path,
+        #             "--var",
+        #             var,
+        #             "--year",
+        #             getYear(self.period),
+        #             "--ana_path",
+        #             self.ana_path(),
+        #             "--period",
+        #             self.period,
+        #         ]
+        #         ps_call(RenameHistsProducer_cmd, verbose=1)
 
-            HistMerger_cmd.extend(local_inputs)
-            ps_call(HistMerger_cmd, verbose=1)
 
-        if remove_job_home:
-            shutil.rmtree(job_home)
+    #     if remove_job_home:
+    #         shutil.rmtree(job_home)
 
 
 

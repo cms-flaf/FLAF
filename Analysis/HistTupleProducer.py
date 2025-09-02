@@ -347,7 +347,7 @@ if __name__ == "__main__":
             inFile_keys
         )
         if tmp_fileNames:
-            hadd_str = f"hadd -f209 -j -O {args.outFile} "
+            hadd_str = f"hadd -f -j -O {args.outFile} "
             hadd_str += " ".join(f for f in tmp_fileNames)
             print(f"hadd_str is {hadd_str}")
             ps_call([hadd_str], True)

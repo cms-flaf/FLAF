@@ -113,7 +113,7 @@ def GetHist(rdf, var, filter_to_apply, weight_name, unc, scale):
     return histo
 
 
-def SaveSingleHistSet(all_trees, var, filter_expr, unc, scale, key, further_cut_name, outFile, is_shift_unc, treeName):
+def SaveSingleHistSet(all_trees, var, filter_expr, unc, scale, key, outFile, is_shift_unc, treeName, further_cut_name=None):
     hist_list = []
     if is_shift_unc:
         tree_prefix = f"Events_{unc}{scale}"
@@ -129,8 +129,10 @@ def SaveSingleHistSet(all_trees, var, filter_expr, unc, scale, key, further_cut_
         rdf_central = all_trees[treeName]
         hist_list.append(GetHist(rdf_central, var, filter_expr, weight_name, unc, scale))
 
-    if hist_list and further_cut_name:
-        key_tuple = key + (further_cut_name,)
+    if hist_list:
+        key_tuple = key
+        if further_cut_name:
+            key_tuple = key + (further_cut_name,)
         SaveHist(key_tuple, outFile, hist_list, var, unc, scale)
 
 
@@ -143,11 +145,13 @@ def SaveTmpFileUnc(tmp_files, uncs_to_compute, unc_cfg_dict, all_trees, var, key
         for scale in scales:
             for key, filter_to_apply_base in key_filter_dict.items():
                 # only with further cuts
+                filter_to_apply_final = filter_to_apply_base
                 if further_cuts:
                     for further_cut_name in further_cuts.keys():
                         filter_to_apply_final = f"{filter_to_apply_base} && {further_cut_name}"
-                        SaveSingleHistSet(all_trees, var, filter_to_apply_final, unc, scale, key, further_cut_name, tmp_file_root, is_shift_unc, treeName)
-
+                        SaveSingleHistSet(all_trees, var, filter_to_apply_final, unc, scale, key, tmp_file_root, is_shift_unc, treeName, further_cut_name)
+                else:
+                    SaveSingleHistSet(all_trees, var, filter_to_apply_final, unc, scale, key, tmp_file_root, is_shift_unc, treeName)
         tmp_file_root.Close()
         tmp_files.append(tmp_file)
 
@@ -203,7 +207,7 @@ if __name__ == "__main__":
         further_cuts = {f: (f, f) for f in args.furtherCut.split(",")}
     if "further_cuts" in setup.global_params and setup.global_params["further_cuts"]:
         further_cuts.update(setup.global_params["further_cuts"])
-
+    print(further_cuts)
     key_filter_dict = analysis.createKeyFilterDict(setup.global_params, setup.global_params["era"])
 
     vars_to_save = setup.global_params["vars_to_save"]
@@ -240,5 +244,6 @@ if __name__ == "__main__":
     for f in tmp_files:
         if os.path.exists(f):
             os.remove(f)
+    time_elapsed = time.time() - start
     print(f"execution time = {time_elapsed} ")
 

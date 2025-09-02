@@ -32,7 +32,7 @@ jobs:
             });
             console.log(`Total files changed: ${files.length}`);
             const changedFiles = files.map(file => file.filename);
-            core.setOutput('files', changedFiles.join('\n'));
+            core.setOutput('files', btoa(changedFiles.join('\n')));
 
       - name: Install black
         run: pip install black
@@ -41,7 +41,7 @@ jobs:
         run: |
           IFS=$'\n'
           declare -a FILES=()
-          for file in "${{ steps.changed-files.outputs.files }}"; do
+          for file in $(echo ${{ steps.changed-files.outputs.files }} | base64 -d); do
             if [[ -f "$file" && "$file" == *.py ]]; then
               FILES+=("$file")
             fi

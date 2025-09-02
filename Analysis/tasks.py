@@ -1755,64 +1755,80 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             job_home, remove_job_home = self.law_job_home()
             print(f"At job_home {job_home}")
             for idx in range(nInputs):
-                if len(self.input()) > 1:
-                    raise NotImplementedError(
-                        "Using multiple inputs per analysis job is not yet implemented"
+                with contextlib.ExitStack() as stack:
+                    # Enter a stack to maybe load the analysis cache files
+                    input_file = self.input()[0][idx]
+                    local_cache_files = ""
+                    if len(self.input()) > 1:
+                        local_cache_files = [
+                            stack.enter_context(inp[idx].localize("r")).path
+                            for inp in self.input()[1:]
+                        ]
+
+                    print(f"Task has cache input files {local_cache_files}")
+                    output_file = self.output()[idx]
+                    print(
+                        f"considering sample {sample_name}, {sample_type} and file {input_file.path}"
                     )
-                input_file = self.input()[0][idx]
-                output_file = self.output()[idx]
-                print(
-                    f"considering sample {sample_name}, {sample_type} and file {input_file.path}"
-                )
-                customisation_dict = getCustomisationSplit(self.customisations)
-                deepTauVersion = (
-                    customisation_dict["deepTauVersion"]
-                    if "deepTauVersion" in customisation_dict.keys()
-                    else ""
-                )
-                tmpFile = os.path.join(job_home, f"HistProducerFileTask.root")
-                with input_file.localize("r") as local_input:
-                    analysisCacheProducer_cmd = [
-                        "python3",
-                        analysis_cache_producer,
-                        "--inFileName",
-                        local_input.path,
-                        "--outFileName",
-                        tmpFile,
-                        "--uncConfig",
-                        unc_config,
-                        "--globalConfig",
-                        global_config,
-                        "--channels",
-                        channels,
-                        "--producer",
-                        self.producer_to_run,
-                        "--workingDir",
-                        job_home,
-                    ]
-                    if self.global_params["store_noncentral"] and sample_type != "data":
-                        analysisCacheProducer_cmd.extend(
-                            ["--compute_unc_variations", "True"]
-                        )
-                    if deepTauVersion != "":
-                        analysisCacheProducer_cmd.extend(
-                            ["--deepTauVersion", deepTauVersion]
-                        )
-                    # Check if cmssw env is required
-                    prod_env = (
-                        self.cmssw_env
-                        if self.global_params["payload_producers"][
-                            self.producer_to_run
-                        ].get("cmssw_env", False)
-                        else None
+                    if output_file.exists():
+                        print(f"Output file {output_file} already exists, continue")
+                        continue
+                    customisation_dict = getCustomisationSplit(self.customisations)
+                    deepTauVersion = (
+                        customisation_dict["deepTauVersion"]
+                        if "deepTauVersion" in customisation_dict.keys()
+                        else ""
                     )
-                    ps_call(analysisCacheProducer_cmd, env=prod_env, verbose=1)
-                print(
-                    f"Finished producing payload for producer={self.producer_to_run} with name={sample_name}, type={sample_type}, file={input_file.path}"
-                )
-                with output_file.localize("w") as tmp_local_file:
-                    out_local_path = tmp_local_file.path
-                    shutil.move(tmpFile, out_local_path)
+                    tmpFile = os.path.join(job_home, f"HistProducerFileTask.root")
+                    with input_file.localize("r") as local_input:
+                        analysisCacheProducer_cmd = [
+                            "python3",
+                            analysis_cache_producer,
+                            "--inFileName",
+                            local_input.path,
+                            "--outFileName",
+                            tmpFile,
+                            "--uncConfig",
+                            unc_config,
+                            "--globalConfig",
+                            global_config,
+                            "--channels",
+                            channels,
+                            "--producer",
+                            self.producer_to_run,
+                            "--workingDir",
+                            job_home,
+                        ]
+                        if (
+                            self.global_params["store_noncentral"]
+                            and sample_type != "data"
+                        ):
+                            analysisCacheProducer_cmd.extend(
+                                ["--compute_unc_variations", "True"]
+                            )
+                        if deepTauVersion != "":
+                            analysisCacheProducer_cmd.extend(
+                                ["--deepTauVersion", deepTauVersion]
+                            )
+                        if len(self.input()) > 1:
+                            analysisCacheProducer_cmd.extend(
+                                ["--cacheFileNames", ",".join(local_cache_files)]
+                            )
+                        # Check if cmssw env is required
+                        prod_env = (
+                            self.cmssw_env
+                            if self.global_params["payload_producers"][
+                                self.producer_to_run
+                            ].get("cmssw_env", False)
+                            else None
+                        )
+                        ps_call(analysisCacheProducer_cmd, env=prod_env, verbose=1)
+                    print(
+                        f"Finished producing payload for producer={self.producer_to_run} with name={sample_name}, type={sample_type}, file={input_file.path}"
+                    )
+                    with output_file.localize("w") as tmp_local_file:
+                        out_local_path = tmp_local_file.path
+                        shutil.move(tmpFile, out_local_path)
             if remove_job_home:
                 shutil.rmtree(job_home)
 

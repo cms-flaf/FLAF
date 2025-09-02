@@ -219,7 +219,7 @@ class DataFrameBuilderBase:
                 f"""analysis::GetEntriesMap()[FullEventId]->GetValue<{central_col_types[central_col_idx]}>({central_col_idx})""",
             )
 
-    def AddCacheColumns(self, cache_cols, cache_col_types):
+    def AddCacheColumns(self, cache_cols, cache_col_types, cache_name):
         for cache_col_idx, cache_col in enumerate(cache_cols):
             if cache_col in self.df.GetColumnNames():
                 continue
@@ -227,7 +227,7 @@ class DataFrameBuilderBase:
                 continue
             self.df = self.df.Define(
                 cache_col.replace(".", "_"),
-                f"""analysis::GetCacheEntriesMap().at(FullEventId)->GetValue<{cache_col_types[cache_col_idx]}>({cache_col_idx})""",
+                f"""analysis::GetCacheEntriesMap("{cache_name}").at(FullEventId)->GetValue<{cache_col_types[cache_col_idx]}>({cache_col_idx})""",
             )
 
 

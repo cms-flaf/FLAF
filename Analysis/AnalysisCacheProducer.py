@@ -15,6 +15,7 @@ from FLAF.Common.Utilities import DeclareHeader
 from FLAF.RunKit.run_tools import ps_call
 import FLAF.Common.LegacyVariables as LegacyVariables
 import FLAF.Common.Utilities as Utilities
+from FLAF.Analysis.HistProducerFile import AddCacheColumnsInDf
 
 defaultColToSave = ["FullEventId"]
 scales = ["Up", "Down"]
@@ -119,6 +120,16 @@ def run_producer(
         dfw.df.Snapshot(treeName, outFileName, varToSave, snapshotOptions)
 
 
+def merge_cache_files(inFileName, cacheFileNames, treeName):
+    dfw = Utilities.DataFrameBuilderBase(ROOT.RDataFrame(treeName, inFileName))
+    if len(cacheFileNames) == 0:
+        return dfw.df
+    for i, cacheFileName in enumerate(cacheFileNames):
+        cache = Utilities.DataFrameBuilderBase(ROOT.RDataFrame(treeName, cacheFileName))
+        AddCacheColumnsInDf(dfw, cache, f"cache_map_Central_{i}", f"_cache_entry_{i}")
+    return dfw.df
+
+
 # add extra argument to this function - which payload producer to run
 def createAnalysisCache(
     inFileName,
@@ -131,6 +142,7 @@ def createAnalysisCache(
     producer_to_run,
     uprootCompression,
     workingDir,
+    cacheFileNames="",
 ):
     start_time = datetime.datetime.now()
     verbosity = ROOT.Experimental.RLogScopedVerbosity(
@@ -139,9 +151,13 @@ def createAnalysisCache(
     snaps = []
     all_files = []
     file_keys = getKeyNames(inFileName)
-    df = ROOT.RDataFrame("Events", inFileName)
-    df_begin = df
-    dfw = Utilities.DataFrameWrapper(df_begin, defaultColToSave)
+
+    df = merge_cache_files(inFileName, cacheFileNames, "Events")
+    dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
+
+    # df = ROOT.RDataFrame('Events', inFileName)
+    # df_begin = df
+    # dfw = Utilities.DataFrameWrapper(df_begin,defaultColToSave)
 
     if not producer_to_run:
         raise RuntimeError("Producer must be specified to compute analysis cache")
@@ -165,10 +181,10 @@ def createAnalysisCache(
     all_files.append(f"{outFileName}_Central.root")
 
     if compute_unc_variations:
-        dfWrapped_central = Utilities.DataFrameBuilderBase(df_begin)
+        dfWrapped_central = Utilities.DataFrameBuilderBase(df)
         colNames = dfWrapped_central.colNames
         colTypes = dfWrapped_central.colTypes
-        dfWrapped_central.df = createCentralQuantities(df_begin, colTypes, colNames)
+        dfWrapped_central.df = createCentralQuantities(df, colTypes, colNames)
         if dfWrapped_central.df.Filter("map_placeholder > 0").Count().GetValue() <= 0:
             raise RuntimeError("no events passed map placeolder")
         print("finished defining central quantities")
@@ -177,7 +193,9 @@ def createAnalysisCache(
                 treeName = f"Events_{uncName}{scale}"
                 treeName_noDiff = f"{treeName}_noDiff"
                 if treeName_noDiff in file_keys:
-                    df_noDiff = ROOT.RDataFrame(treeName_noDiff, inFileName)
+                    df_noDiff = merge_cache_files(
+                        inFileName, cacheFileNames, treeName_noDiff
+                    )
                     dfWrapped_noDiff = Utilities.DataFrameBuilderBase(df_noDiff)
                     dfWrapped_noDiff.CreateFromDelta(colNames, colTypes)
                     dfWrapped_noDiff.AddMissingColumns(colNames, colTypes)
@@ -197,7 +215,9 @@ def createAnalysisCache(
                     all_files.append(f"{outFileName}_{uncName}{scale}_noDiff.root")
                 treeName_Valid = f"{treeName}_Valid"
                 if treeName_Valid in file_keys:
-                    df_Valid = ROOT.RDataFrame(treeName_Valid, inFileName)
+                    df_Valid = merge_cache_files(
+                        inFileName, cacheFileNames, treeName_Valid
+                    )
                     dfWrapped_Valid = Utilities.DataFrameBuilderBase(df_Valid)
                     dfWrapped_Valid.CreateFromDelta(colNames, colTypes)
                     dfWrapped_Valid.AddMissingColumns(colNames, colTypes)
@@ -217,7 +237,9 @@ def createAnalysisCache(
                     all_files.append(f"{outFileName}_{uncName}{scale}_Valid.root")
                 treeName_nonValid = f"{treeName}_nonValid"
                 if treeName_nonValid in file_keys:
-                    df_nonValid = ROOT.RDataFrame(treeName_nonValid, inFileName)
+                    df_nonValid = merge_cache_files(
+                        inFileName, cacheFileNames, treeName_nonValid
+                    )
                     dfWrapped_nonValid = Utilities.DataFrameBuilderBase(df_nonValid)
                     dfWrapped_nonValid.AddMissingColumns(colNames, colTypes)
                     dfW_nonValid = Utilities.DataFrameWrapper(
@@ -253,6 +275,7 @@ if __name__ == "__main__":
     parser.add_argument("--channels", type=str, default=None)
     parser.add_argument("--producer", type=str, default=None)
     parser.add_argument("--workingDir", required=True, type=str)
+    parser.add_argument("--cacheFileNames", required=False, type=str)
     args = parser.parse_args()
 
     ana_path = os.environ["ANALYSIS_PATH"]
@@ -287,6 +310,7 @@ if __name__ == "__main__":
             args.channels.split(",") if type(args.channels) == str else args.channels
         )
     outFileNameFinal = f"{args.outFileName}"
+    cacheFileNames = args.cacheFileNames.split(",") if args.cacheFileNames else ""
     all_files = createAnalysisCache(
         args.inFileName,
         args.outFileName,
@@ -298,6 +322,7 @@ if __name__ == "__main__":
         args.producer,
         uprootCompression,
         args.workingDir,
+        cacheFileNames,
     )
     hadd_str = f"hadd -f209 -n10 {outFileNameFinal} "
     hadd_str += " ".join(f for f in all_files)

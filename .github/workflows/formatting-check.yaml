@@ -47,7 +47,9 @@ jobs:
               echo "$file"
             fi
           done
-          black --check --diff "${FILES[@]}"
+          if [[ ${#FILES[@]} > 0 ]]; then
+            black --check --diff "${FILES[@]}"
+          fi
 
       - name: Install yamllint
         run: pip install yamllint
@@ -65,12 +67,14 @@ jobs:
           IFS=$'\n'
           declare -a FILES=()
           for file in $(echo ${{ steps.changed-files.outputs.files }} | base64 -d); do
-            if [[ -f "$file" && "$file" =~ '\.(yaml|yml|yamllint)$' ]]; then
+            if [[ -f "$file" && "$file" =~ \.(yaml|yml|yamllint)$ ]]; then
               FILES+=("$file")
               echo "$file"
             fi
           done
-          yamllint -s -c ${yamllint_config} "${FILES[@]}"
+          if [[ ${#FILES[@]} > 0 ]]; then
+            yamllint -s -c ${yamllint_config} "${FILES[@]}"
+          fi
 
       - name: Install clang-format
         run: sudo apt-get update && sudo apt-get install clang-format
@@ -88,9 +92,11 @@ jobs:
           IFS=$'\n'
           declare -a FILES=()
           for file in $(echo ${{ steps.changed-files.outputs.files }} | base64 -d); do
-            if [[ -f "$file" && "$file" =~ '\.(cpp|h|hpp|cc)$' ]]; then
+            if [[ -f "$file" && "$file" =~ \.(cpp|h|hpp|cc)$ ]]; then
               FILES+=("$file")
               echo "$file"
             fi
           done
-          clang-format --dry-run --Werror --style "file:${clang_format_style}" "${FILES[@]}"
+          if [[ ${#FILES[@]} > 0 ]]; then
+            clang-format --dry-run --Werror --style "file:${clang_format_style}" "${FILES[@]}"
+          fi

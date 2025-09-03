@@ -1,0 +1,102 @@
+name: Formatting Check
+
+on:
+  pull_request:
+    types: [ "opened", "synchronize", "reopened", "labeled" ]
+    branches: [ "main" ]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  formatting-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: cms-flaf/FLAF/.github/actions/checkout-flaf@main
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Get changed files
+        id: changed-files
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+            console.log(`Total files changed: ${files.length}`);
+            const changedFiles = files.map(file => file.filename);
+            core.setOutput('files', btoa(changedFiles.join('\n')));
+
+      - name: Install black
+        run: pip install black
+
+      - name: Check Python formatting
+        run: |
+          IFS=$'\n'
+          declare -a FILES=()
+          for file in $(echo ${{ steps.changed-files.outputs.files }} | base64 -d); do
+            if [[ -f "$file" && "$file" == *.py ]]; then
+              FILES+=("$file")
+              echo "$file"
+            fi
+          done
+          if [[ ${#FILES[@]} > 0 ]]; then
+            black --check --diff "${FILES[@]}"
+          fi
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Check YAML formatting
+        run: |
+          if [ -f ".yamllint" ]; then
+            yamllint_config=".yamllint"
+          elif [ -f "FLAF/.yamllint" ]; then
+            yamllint_config="FLAF/.yamllint"
+          else
+            echo "No yamllint configuration file found."
+            exit 1
+          fi
+          IFS=$'\n'
+          declare -a FILES=()
+          for file in $(echo ${{ steps.changed-files.outputs.files }} | base64 -d); do
+            if [[ -f "$file" && "$file" =~ \.(yaml|yml|yamllint)$ ]]; then
+              FILES+=("$file")
+              echo "$file"
+            fi
+          done
+          if [[ ${#FILES[@]} > 0 ]]; then
+            yamllint -s -c ${yamllint_config} "${FILES[@]}"
+          fi
+
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install clang-format
+
+      - name: Check C++ formatting
+        run: |
+          if [ -f ".clang-format" ]; then
+            clang_format_style=".clang-format"
+          elif [ -f "FLAF/.clang-format" ]; then
+            clang_format_style="FLAF/.clang-format"
+          else
+            echo "No clang-format configuration file found."
+            exit 1
+          fi
+          IFS=$'\n'
+          declare -a FILES=()
+          for file in $(echo ${{ steps.changed-files.outputs.files }} | base64 -d); do
+            if [[ -f "$file" && "$file" =~ \.(cpp|h|hpp|cc)$ ]]; then
+              FILES+=("$file")
+              echo "$file"
+            fi
+          done
+          if [[ ${#FILES[@]} > 0 ]]; then
+            clang-format --dry-run --Werror --style "file:${clang_format_style}" "${FILES[@]}"
+          fi

@@ -12,10 +12,12 @@ from FLAF.Common.Setup import Setup
 
 law.contrib.load("htcondor")
 
+
 def copy_param(ref_param, new_default):
-  param = copy.deepcopy(ref_param)
-  param._default = new_default
-  return param
+    param = copy.deepcopy(ref_param)
+    param._default = new_default
+    return param
+
 
 def get_param_value(cls, param_name):
     try:
@@ -24,25 +26,30 @@ def get_param_value(cls, param_name):
     except:
         return None
 
+
 # def get_param_value(cls, param_name):
 #     param = getattr(cls, param_name)
 #     return param.task_value(cls.__name__, param_name)
+
 
 class Task(law.Task):
     """
     Base task that we use to force a version parameter on all inheriting tasks, and that provides
     some convenience methods to create local file and directory targets at the default data path.
     """
+
     version = luigi.Parameter()
-    prefer_params_cli = [ 'version' ]
+    prefer_params_cli = ["version"]
     period = luigi.Parameter()
-    customisations =luigi.Parameter(default="")
+    customisations = luigi.Parameter(default="")
     test = luigi.BoolParameter(default=False)
     sample = luigi.Parameter(default="")
 
     def __init__(self, *args, **kwargs):
         super(Task, self).__init__(*args, **kwargs)
-        self.setup = Setup.getGlobal(os.getenv("ANALYSIS_PATH"), self.period, self.sample, self.customisations)
+        self.setup = Setup.getGlobal(
+            os.getenv("ANALYSIS_PATH"), self.period, self.sample, self.customisations
+        )
 
     def store_parts(self):
         return (self.__class__.__name__, self.version, self.period)
@@ -61,31 +68,31 @@ class Task(law.Task):
 
     @property
     def fs_nanoAOD(self):
-        return self.setup.get_fs('nanoAOD')
+        return self.setup.get_fs("nanoAOD")
 
     @property
     def fs_anaCache(self):
-        return self.setup.get_fs('anaCache')
+        return self.setup.get_fs("anaCache")
 
     @property
     def fs_anaTuple(self):
-        return self.setup.get_fs('anaTuple')
+        return self.setup.get_fs("anaTuple")
 
     @property
     def fs_anaCacheTuple(self):
-        return self.setup.get_fs('anaCacheTuple')
+        return self.setup.get_fs("anaCacheTuple")
 
     @property
     def fs_nnCacheTuple(self):
-        return self.setup.get_fs('nnCacheTuple')
+        return self.setup.get_fs("nnCacheTuple")
 
     @property
     def fs_histograms(self):
-        return self.setup.get_fs('histograms')
+        return self.setup.get_fs("histograms")
 
     @property
     def fs_plots(self):
-        return self.setup.get_fs('plots')
+        return self.setup.get_fs("plots")
 
     def ana_path(self):
         return os.getenv("ANALYSIS_PATH")
@@ -109,8 +116,8 @@ class Task(law.Task):
         return WLCGFileTarget(path, fs)
 
     def law_job_home(self):
-        if 'LAW_JOB_HOME' in os.environ:
-            return os.environ['LAW_JOB_HOME'], False
+        if "LAW_JOB_HOME" in os.environ:
+            return os.environ["LAW_JOB_HOME"], False
         os.makedirs(self.local_path(), exist_ok=True)
         return tempfile.mkdtemp(dir=self.local_path()), True
 
@@ -122,8 +129,6 @@ class Task(law.Task):
             yield sample_id, sample_name
 
 
-
-
 class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     """
     Batch systems are typically very heterogeneous by design, and so is HTCondor. Law does not aim
@@ -133,12 +138,19 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     configuration is required.
     """
 
-    max_runtime = law.DurationParameter(default=12.0, unit="h", significant=False,
-                                        description="maximum runtime, default unit is hours")
+    max_runtime = law.DurationParameter(
+        default=12.0,
+        unit="h",
+        significant=False,
+        description="maximum runtime, default unit is hours",
+    )
     n_cpus = luigi.IntParameter(default=1, description="number of cpus")
     poll_interval = copy_param(law.htcondor.HTCondorWorkflow.poll_interval, 2)
-    transfer_logs = luigi.BoolParameter(default=True, significant=False,
-                                        description="transfer job logs to the output directory")
+    transfer_logs = luigi.BoolParameter(
+        default=True,
+        significant=False,
+        description="transfer job logs to the output directory",
+    )
 
     def htcondor_check_job_completeness(self):
         return False
@@ -157,9 +169,13 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         # render_variables are rendered into all files sent with a job
         config.render_variables["analysis_path"] = ana_path
         # force to run on CC7, https://batchdocs.web.cern.ch/local/submit.html
-        config.custom_content.append(("requirements", 'TARGET.OpSysAndVer =?= "AlmaLinux9"'))
+        config.custom_content.append(
+            ("requirements", 'TARGET.OpSysAndVer =?= "AlmaLinux9"')
+        )
 
         # maximum runtime
-        config.custom_content.append(("+MaxRuntime", int(math.floor(self.max_runtime * 3600)) - 1))
+        config.custom_content.append(
+            ("+MaxRuntime", int(math.floor(self.max_runtime * 3600)) - 1)
+        )
         config.custom_content.append(("RequestCpus", self.n_cpus))
         return config

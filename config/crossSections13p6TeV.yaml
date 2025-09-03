@@ -166,6 +166,15 @@ DYto2L_M_50_PTLL_600_2J_amcatnloFXFX:
   reference: XSDB DYto2L-2Jets_MLL-50_PTLL-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:36
   unc: 0.0003334 / 3
 
+DYto2Mu_MLL_105to160_amcatnloFXFX:
+  crossSec: 49.21
+  reference: XSDB DYto2Mu-2Jets_MLL-105To160_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-12-20 07:59:27
+  unc: 0.209
+
+DYToMuMu-M105-180_13p6TeV_MiNNLO_pythia8:
+  crossSec: 48.60
+  reference: internal from private prod
+  unc: 0.01
 DYto2Mu_MLL_10to50_powheg:
   crossSec: 6744.0
   reference: XSDB DYto2Mu_MLL-10to50_TuneCP5_13p6TeV_powheg-pythia8 modifiedOn 2024-04-03 19:20:02
@@ -253,6 +262,27 @@ DYto2TautoMuTauh_M_50_madgraphMLM:
   reference: XSDB DYto2TautoMuTauh_M-50_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2023-03-26 13:56:19
   unc: 0.5212
 
+
+LLJJ_SM_M105-160_MJJ120_13p6TeV_dipole:
+  crossSec: 0.06
+  reference: internal from private prod
+  unc:
+
+
+LLJJ_SM_M105-160_MJJ120_13p6TeV_dipole_vbffilter:
+  crossSec: 0.06
+  reference: internal from private prod
+  unc:
+
+LLJJ_SM_M-50_MJJ120_13p6TeV_dipole:
+  crossSec: 0.88
+  reference: internal from private prod
+  unc:
+
+LLJJ_SM_M-50_MJJ120_13p6TeV_herwig7:
+  crossSec: 0.88
+  reference: internal from private prod
+  unc:
 
 GluGluHto2Mu:
   crossSec: 52.23 * (0.0002176)
@@ -540,7 +570,7 @@ TTtoLNu2Q:
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/TtbarNNLO#Updated_reference_cross_sections
   unc: +22.6 -33.4 (scale) +/-  22.8 (PDF alphas) -24.6 +25.4 (mass) (to be multiplied by the BR)
 
-TTZToQQ:
+TTZ_Zto2Q:
   crossSec: 0.6603
   reference: XSDB TTZ-ZtoQQ-1Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:49:29
   unc: 0.003767
@@ -594,12 +624,12 @@ VBFHToWWTo2L2Nu_M125:
   unc: +0.5% -0.3% (QCD Scale) +-2.1% (PDF alpha s) +-2.1% (PDF) +-0.5 (alpha s)
 
 WminusH_Hto2Mu_WtoAll:
-  crossSec: 0.5677 * (0.0002176) # 1.457 (total)
+  crossSec: 0.5677 * (0.0002176)  # 1.457 (total)
   reference: https://indico.cern.ch/event/1119741/contributions/4715908/attachments/2383849/4073592/YR4_13p6_VH_update.pdf
   unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s) ; +1.23% -1.2% (theory) +0.97% -0.99% (mq) +0.59% -0.64% (alphas)
 
 WplusH_Hto2Mu_WtoAll:
-  crossSec: 0.8889 * (0.0002176) # 1.457 (total)
+  crossSec: 0.8889 * (0.0002176)  # 1.457 (total)
   reference: https://indico.cern.ch/event/1119741/contributions/4715908/attachments/2383849/4073592/YR4_13p6_VH_update.pdf
   unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s) ; +1.23% -1.2% (theory) +0.97% -0.99% (mq) +0.59% -0.64% (alphas)
 
@@ -696,7 +726,7 @@ WZto3LNu_amcatnloFXFX:
   crossSec: 5.315
   reference: XSDB WZto3LNu-1Jets-4FS_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 20:06:16
   unc: 0.01577
-WZto3LNu_powheg:
+WZtoL3Nu_powheg:
   crossSec: 4.924
   reference: XSDB WZto3LNu_TuneCP5_13p6TeV_powheg-pythia8 modifiedOn 2024-04-03 20:06:18
   unc: 0.00237
@@ -729,10 +759,6 @@ WWtoLNu2Q-1Jets:
   reference: XSDB WWtoLNu2Q-1Jets-4FS_TuneCP5_13p6TeV modifiedOn 2024-04-03 20:06:12
   unc: 0.1795
 
-WZZ:
-  crossSec: 0.06206
-  reference: XSDB WZZ_TuneCP5_13p6TeV_amcatnlo-pythia8 modifiedOn 2023-05-26 21:19:28
-  unc: 3.689e-05
 
 ZH_Hbb_Zll:
   crossSec: 9.439e-1 * 0.5824 * 3 * 0.033658

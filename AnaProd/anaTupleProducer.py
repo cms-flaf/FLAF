@@ -54,11 +54,11 @@ def createAnatuple(
     )
     period = setup.global_params["era"]
     sample_config = setup.samples[sample_name]
-    sample_type = sample_config["sampleType"]
     mass = -1 if "mass" not in sample_config else sample_config["mass"]
     spin = -100 if "spin" not in sample_config else sample_config["spin"]
     isHH = True if mass > 0 else False
-    isData = True if sample_config["sampleType"] == "data" else False
+    isData = sample_config["process_group"] == "data"
+    isSignal = sample_config["process_group"] == "signals"
     loadTF = anaTupleDef.loadTF
     loadHHBtag = anaTupleDef.loadHHBtag
     lepton_legs = anaTupleDef.lepton_legs
@@ -102,10 +102,7 @@ def createAnatuple(
     if isData and "lumiFile" in setup.global_params:
         lumiFilter = LumiFilter(setup.global_params["lumiFile"])
         df = lumiFilter.filter(df)
-    df = df.Define(
-        "sample_type", f"static_cast<int>(SampleType::{sample_config['sampleType']})"
-    )
-    isSignal = sample_config["sampleType"] in setup.global_params["signal_types"]
+    # isSignal = sample_type in setup.global_params["signal_types"]
     applyTriggerFilter = sample_config.get("applyTriggerFilter", True)
     df = df.Define("period", f"static_cast<int>(Period::{period})")
     df = df.Define(
@@ -150,9 +147,10 @@ def createAnatuple(
         suffix = "" if is_central else f"_{syst_name}"
         if len(suffix) and not store_noncentral:
             continue
-        dfw = Utilities.DataFrameWrapper(
-            df_empty, anaTupleDef.getDefaultColumnsToSave(isData)
-        )
+        columns_to_save = anaTupleDef.getDefaultColumnsToSave(isData)
+        if "sample_type" in columns_to_save:
+            columns_to_save.remove("sample_type")
+        dfw = Utilities.DataFrameWrapper(df_empty, columns_to_save)
         dfw.Apply(Baseline.SelectRecoP4, syst_name, setup.global_params["nano_version"])
         # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFilters#Analysis_Recommendations_for_any
         if "MET_flags" in setup.global_params:

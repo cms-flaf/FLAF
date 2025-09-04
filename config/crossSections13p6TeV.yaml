@@ -65,24 +65,24 @@ DYto2L_M_50_0J_amcatnloFXFX:
   unc: 8.007 / 3
 DYto2Tau_M_50_0J_amcatnloFXFX:
   crossSec: 5378.0 / 3
-  reference: XSDB DYto2Tau-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8  # To modify when XSDB will be updated
+  reference: XSDB DYto2L-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:07
   unc: 8.007 / 3
 DYto2Tau_M_50_0J_Filtered_amcatnloFXFX:
-  crossSec: 5378.0 / 3
-  reference: XSDB DYto2Tau-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8  # To modify when XSDB will be updated
-  unc: 8.007 / 3
+  crossSec: 847.035 / 3
+  reference: GenXSecAnalyzer /DYto2Tau-2Jets_M-50_0J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v3/MINIAODSIM
+  unc: 14.152 / 3
 DYto2L_M_50_1J_amcatnloFXFX:
   crossSec: 1017.0 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:09
   unc: 6.264 / 3
 DYto2Tau_M_50_1J_amcatnloFXFX:
   crossSec: 1017.0 / 3
-  reference: XSDB DYto2Tau-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8  # To modify when XSDB will be updated
+  reference: XSDB DYto2Tau-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8
   unc: 6.264 / 3
 DYto2Tau_M_50_1J_Filtered_amcatnloFXFX:
-  crossSec: 1017.0 / 3
-  reference: XSDB DYto2Tau-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8  # To modify when XSDB will be updated
-  unc: 6.264 / 3
+  crossSec: 210.112 / 3
+  reference: GenXSecAnalyzer /DYto2Tau-2Jets_M-50_1J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v3/MINIAODSIM
+  unc: 11.8 / 3
 DYto2L_M_50_1J_madgraphMLM:
   crossSec: 973.1
   reference: XSDB DYto2L-4Jets_MLL-50_1J_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 19:19:40
@@ -93,12 +93,12 @@ DYto2L_M_50_2J_amcatnloFXFX:
   unc: 3.858 / 3
 DYto2Tau_M_50_2J_amcatnloFXFX:
   crossSec: 385.5 / 3
-  reference: XSDB DYto2Tau-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8  # To modify when XSDB will be updated
+  reference: XSDB DYto2L-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:12
   unc: 3.858 / 3
 DYto2Tau_M_50_2J_Filtered_amcatnloFXFX:
-  crossSec: 385.5 / 3
-  reference: XSDB DYto2Tau-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8  # To modify when XSDB will be updated
-  unc: 3.858 / 3
+  crossSec: 83.268 / 3
+  reference: GenXSecAnalyzer /DYto2Tau-2Jets_M-50_2J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v4/MINIAODSIM
+  unc: 8.875 / 3
 DYto2L_M_50_2J_madgraphMLM:
   crossSec: 312.4 / 3
   reference: XSDB DYto2L-4Jets_MLL-50_2J_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 19:19:42
@@ -306,6 +306,15 @@ VBFHToBB_M125:
   crossSec: 4.078 * (0.5824)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +0.5% -0.3% (QCD Scale) +-2.1% (PDF alpha s) +-2.1% (PDF) +-0.5 (alpha s)
+VBFHto2Tau_UncorrelatedDecay_UnFiltered:
+  crossSec: 4.18
+  reference: XSDB VBFHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-pythia8 modifiedOn 2025-09-04 12:43:24
+  unc: 0.006886
+VBFHto2Tau_UncorrelatedDecay_Filtered:
+  crossSec: 1.717	
+  reference: XSDB VBFHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-pythia8 modifiedOn 2025-09-04 12:43:22
+  unc: 0.005038
+
 WminusH_Hbb_Wlnu:
   crossSec: 0.5677 * 0.5824 * 3 * 0.1086
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
@@ -314,6 +323,14 @@ WminusH_Hbb_Wqq:
   crossSec: 0.5677 * 0.5824 * (1 - 3 * 0.1086)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
+WminusHto2Tau_UncorrelatedDecay_Filtered:
+  crossSec: 0.2307
+  reference: XSDB WminusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 modifiedOn 2025-09-04 12:43:26
+  unc: 0.0005923
+WminusHto2Tau_UncorrelatedDecay_UnFiltered:
+  crossSec: 0.5788
+  reference: XSDB WminusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 modifiedOn 2025-09-04 12:43:28
+  unc: 0.00001752
 WplusH_Hbb_Wlnu:
   crossSec: 0.8889 * 0.5824 * 3 * 0.1086  # 1.457 (total)
   reference: https://indico.cern.ch/event/1119741/contributions/4715908/attachments/2383849/4073592/YR4_13p6_VH_update.pdf
@@ -322,6 +339,14 @@ WplusH_Hbb_Wqq:
   crossSec: 0.8889 * 0.5824 * (1 - 3 * 0.1086)  # 1.457 (total)
   reference: https://indico.cern.ch/event/1119741/contributions/4715908/attachments/2383849/4073592/YR4_13p6_VH_update.pdf
   unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
+WplusHto2Tau_UncorrelatedDecay_Filtered:
+  crossSec: 0.3504
+  reference: XSDB WplusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 modifiedOn 2025-09-04 12:43:29
+  unc: 0.0009183
+WplusHto2Tau_UncorrelatedDecay_UnFiltered:
+  crossSec: 0.9273
+  reference: XSDB WplusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 modifiedOn 2025-09-04 12:43:31
+  unc: 0.0001175
 
 QCD_HT40to70_MLM:
   crossSec: 311400000.0

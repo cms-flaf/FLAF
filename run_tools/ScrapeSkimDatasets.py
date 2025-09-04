@@ -261,31 +261,41 @@ def ScrapeSkimDatasets(input_dir, output):
         if sampleType == "test":
             bad_cases.append(dataset)
 
-
-
-        if dataset.startswith('DYto2L'):
-            prod_reports = ['prodReport_nanoEE.json', 'prodReport_nanoMuMu.json', 'prodReport_nanoTauTau.json']
+        if dataset.startswith("DYto2L"):
+            prod_reports = [
+                "prodReport_nanoEE.json",
+                "prodReport_nanoMuMu.json",
+                "prodReport_nanoTauTau.json",
+            ]
             for prod_report_file in prod_reports:
-                prod_report_path = os.path.join(skim_storage_dir, dataset, prod_report_file)
+                prod_report_path = os.path.join(
+                    skim_storage_dir, dataset, prod_report_file
+                )
                 if not os.path.exists(prod_report_path):
                     continue
                 with open(prod_report_path) as prodReport:
                     prodReport_data = json.load(prodReport)
-                    dataset_name = prodReport_data['inputDataset']
-                    generator = ((dataset_name.split('/')[1]).split('_')[-1]).split('-')[0]
-                    dict_for_yaml[f"{dataset}_{prod_report_file.replace('.json','').replace('prodReport_','')}"] = {
-                    'sampleType': sampleType,
-                    'crossSectionStitch': crossSection,
-                    'generator': generator,
-                    'miniAOD': dataset_name
+                    dataset_name = prodReport_data["inputDataset"]
+                    generator = ((dataset_name.split("/")[1]).split("_")[-1]).split(
+                        "-"
+                    )[0]
+                    dict_for_yaml[
+                        f"{dataset}_{prod_report_file.replace('.json','').replace('prodReport_','')}"
+                    ] = {
+                        "sampleType": sampleType,
+                        "crossSectionStitch": crossSection,
+                        "generator": generator,
+                        "miniAOD": dataset_name,
                     }
             # Skip the rest of the loop for DY, as we've already handled all prodReports
             continue
         else:
-            prodReport = open(os.path.join(skim_storage_dir, dataset, 'prodReport_nano.json'))
+            prodReport = open(
+                os.path.join(skim_storage_dir, dataset, "prodReport_nano.json")
+            )
             prodReport_data = json.load(prodReport)
-            dataset_name = prodReport_data['inputDataset']
-            generator = ((dataset_name.split('/')[1]).split('_')[-1]).split('-')[0]
+            dataset_name = prodReport_data["inputDataset"]
+            generator = ((dataset_name.split("/")[1]).split("_")[-1]).split("-")[0]
 
         dict_for_xsec[crossSection] = {"crossSec": xSec, "reference": ref, "unc": unc}
 

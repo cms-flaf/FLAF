@@ -143,7 +143,7 @@ DYto2L_M_50_PTLL_600_2J_amcatnloFXFX:
   unc: 0.0003334
 
 DYto2Mu_MLL_105to160_amcatnloFXFX:
-  crossSec: (49.21 * 2094 * 3 / (5378 + 1017 + 385.5) ) # internal cross section  times the k-factor for higher order precision --> k factor corresponds to cross sections (sigma(DY_NNLO_QCD+NLO_EW) / sigma(DY_0J + DY_1J + DY_2J))
+  crossSec: (49.21 * 2094 * 3 / (5378 + 1017 + 385.5) )  # internal cross section  times the k-factor for higher order precision --> k factor corresponds to cross sections (sigma(DY_NNLO_QCD+NLO_EW) / sigma(DY_0J + DY_1J + DY_2J))
   reference: XSDB DYto2Mu-2Jets_MLL-105To160_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-12-20 07:59:27
   unc: 0.209
 
@@ -272,7 +272,7 @@ GluGluHto2Mu:
 ggZH_Hto2B_Zto2L:
   crossSec: 1.360e-1 * 0.5824 * 3 * 0.033658
   reference: https://indico.cern.ch/event/1119741/contributions/4715908/attachments/2383849/4073592/YR4_13p6_VH_update.pdf and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
-  unc: # to be added
+  unc:  # to be added
 
 ggZH_Hto2B_Zto2Q:
   crossSec: 1.360e-1 * 0.5824 * 0.69911

@@ -197,7 +197,7 @@ if __name__ == "__main__":
     #     if not custom_categories:
     #         print("No custom categories found")
 
-    all_categories = categories #+ custom_categories
+    all_categories = categories  # + custom_categories
 
     setup.global_params["channels_to_consider"] = (
         args.channels.split(",")
@@ -314,7 +314,9 @@ if __name__ == "__main__":
                     continue
                 if uncName not in all_unc_dict.keys():
                     print(f"unknown unc name {uncName}")
-                additional_name += f"""_{all_unc_dict[uncName]["name"].format(uncScale)}"""
+                additional_name += (
+                    f"""_{all_unc_dict[uncName]["name"].format(uncScale)}"""
+                )
             else:
                 if uncScale != "Central":
                     continue

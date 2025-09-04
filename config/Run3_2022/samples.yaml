@@ -8,14 +8,14 @@ GLOBAL:
   use_stitching: false
   met_type: PFMET
   MET_flags:  # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersRun2#Run_3_2022_and_2023_data_and_MC
-    - Flag_goodVertices
-    - Flag_globalSuperTightHalo2016Filter
-    - Flag_EcalDeadCellTriggerPrimitiveFilter
-    - Flag_BadPFMuonFilter
-    - Flag_BadPFMuonDzFilter
-    - Flag_hfNoisyHitsFilter
-    - Flag_eeBadScFilter
-    - Flag_ecalBadCalibFilter
+  - Flag_goodVertices
+  - Flag_globalSuperTightHalo2016Filter
+  - Flag_EcalDeadCellTriggerPrimitiveFilter
+  - Flag_BadPFMuonFilter
+  - Flag_BadPFMuonDzFilter
+  - Flag_hfNoisyHitsFilter
+  - Flag_eeBadScFilter
+  - Flag_ecalBadCalibFilter
   lumiFile: /eos/user/c/cmsdqm/www/CAF/certification/Collisions22/Cert_Collisions2022_355100_362760_Golden.json
 
 ############## Data ##############
@@ -666,7 +666,7 @@ WminusH_Hto2B_Wto2Q_ext1:
   miniAOD: /WminusH_Hto2B_Wto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v2/MINIAODSIM
 WminusHto2Tau_UncorrelatedDecay_Filtered:
   sampleType: H
-  crossSection: 
+  crossSection:
   generator: powheg
   miniAOD: /WminusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 WminusHto2Tau_UncorrelatedDecay_UnFiltered:
@@ -696,7 +696,7 @@ WplusH_Hto2B_Wto2Q_ext1:
   miniAOD: /WplusH_Hto2B_Wto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v2/MINIAODSIM
 WplusHto2Tau_UncorrelatedDecay_Filtered:
   sampleType: H
-  crossSection: 
+  crossSection:
   generator: powheg
   miniAOD: /WplusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 WplusHto2Tau_UncorrelatedDecay_UnFiltered:
@@ -939,7 +939,7 @@ QCD_PT_3200:
   sampleType: QCD_PT
 
 ############## ST ##############
-TbarBtoLminusNuB_s_channel_4FS: 
+TbarBtoLminusNuB_s_channel_4FS:
   crossSection: TbarBtoLminusNuB_s_channel_4FS
   generator: amcatnlo
   miniAOD: /TbarBtoLminusNuB-s-channel-4FS_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
@@ -1108,7 +1108,7 @@ VBFHto2Tau_M125:
   generator: powheg
   miniAOD: /VBFHToTauTau_M125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
   sampleType: H
-VBFHto2Wto2L2Nu_M125:  
+VBFHto2Wto2L2Nu_M125:
   crossSection: VBFHToWWTo2L2Nu_M125
   generator: powheg
   miniAOD: /VBFHto2Wto2L2Nu_M-125_TuneCP5_13p6TeV_powheg-jhugen752-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM

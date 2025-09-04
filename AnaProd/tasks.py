@@ -23,7 +23,7 @@ import re
 
 def getCustomisationSplit(customisations):
     customisation_dict = {}
-    if customisations is None or len(customisations) == 0: 
+    if customisations is None or len(customisations) == 0:
         return {}
     if type(customisations) == str:
         customisations = customisations.split(";")
@@ -55,8 +55,8 @@ class InputFileTask(Task, law.LocalWorkflow):
     def run(self):
         sample_name = self.branch_data
         folder_name = (
-            self.samples[sample_name]['dirName'] 
-            if 'dirName' in self.samples[sample_name] 
+            self.samples[sample_name]["dirName"]
+            if "dirName" in self.samples[sample_name]
             else sample_name
         )
         print(f"Creating inputFile for sample {sample_name} into {self.output().path}")

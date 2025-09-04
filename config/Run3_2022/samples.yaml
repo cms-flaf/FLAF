@@ -1,13 +1,13 @@
 GLOBAL:
   era: Run3_2022
-  luminosity: 7980.4 # pb-1
+  luminosity: 7980.4  # pb-1
   fs_nanoAOD:
   - 'T2_CH_CERN:/store/group/phys_higgs/HLepRare/skim_2025_v1/Run3_2022'
   nano_version: v14
-  crossSectionsFile : FLAF/config/crossSections13p6TeV.yaml
+  crossSectionsFile: FLAF/config/crossSections13p6TeV.yaml
   use_stitching: false
   met_type: PFMET
-  MET_flags: #https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersRun2#Run_3_2022_and_2023_data_and_MC
+  MET_flags:  # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersRun2#Run_3_2022_and_2023_data_and_MC
     - Flag_goodVertices
     - Flag_globalSuperTightHalo2016Filter
     - Flag_EcalDeadCellTriggerPrimitiveFilter
@@ -606,12 +606,12 @@ VBFHto2B_M125:
   miniAOD: /VBFHto2B_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 VBFHto2Tau_UncorrelatedDecay_UnFiltered:
   sampleType: H
-  crossSection: 
+  crossSection:
   generator: powheg
   miniAOD: /VBFHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 VBFHto2Tau_UncorrelatedDecay_Filtered:
   sampleType: H
-  crossSection: 
+  crossSection:
   generator: powheg
   miniAOD: VBFHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 GluGluHto2Wto2L2Nu_M125:
@@ -624,11 +624,6 @@ GluGlutoContinto2Zto2E2Nu:
   crossSection: GluGlutoContinto2Zto2E2Nu
   generator: mcfm701
   miniAOD: /GluGluToContinto2Zto2E2Nu_TuneCP5_13p6TeV_mcfm701-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v4/MINIAODSIM
-VBFHto2Wto2L2Nu_M125:
-  sampleType: H
-  crossSection: VBFHToWWTo2L2Nu_M125
-  generator: powheg
-  miniAOD: /VBFHto2Wto2L2Nu_M-125_TuneCP5_13p6TeV_powheg-jhugen752-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 ggZH_Hto2B_Zto2L:
   sampleType: H
   crossSection: ggZH_Hbb_Zll
@@ -676,7 +671,7 @@ WminusHto2Tau_UncorrelatedDecay_Filtered:
   miniAOD: /WminusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 WminusHto2Tau_UncorrelatedDecay_UnFiltered:
   sampleType: H
-  crossSection: 
+  crossSection:
   generator: powheg
   miniAOD: /WminusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 WplusH_Hto2B_WtoLNu:
@@ -706,7 +701,7 @@ WplusHto2Tau_UncorrelatedDecay_Filtered:
   miniAOD: /WplusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 WplusHto2Tau_UncorrelatedDecay_UnFiltered:
   sampleType: H
-  crossSection: 
+  crossSection:
   generator: powheg
   miniAOD: /WplusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 ############## QCD ##############

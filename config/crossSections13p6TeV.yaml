@@ -65,11 +65,11 @@ DYto2L_M_50_0J_amcatnloFXFX:
   unc: 8.007 / 3
 DYto2Tau_M_50_0J_amcatnloFXFX:
   crossSec: 5378.0 / 3
-  reference: XSDB DYto2Tau-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 # To modify when XSDB will be updated
+  reference: XSDB DYto2Tau-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8  # To modify when XSDB will be updated
   unc: 8.007 / 3
 DYto2Tau_M_50_0J_Filtered_amcatnloFXFX:
   crossSec: 5378.0 / 3
-  reference: XSDB DYto2Tau-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 # To modify when XSDB will be updated
+  reference: XSDB DYto2Tau-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8  # To modify when XSDB will be updated
   unc: 8.007 / 3
 DYto2L_M_50_1J_amcatnloFXFX:
   crossSec: 1017.0 / 3
@@ -77,11 +77,11 @@ DYto2L_M_50_1J_amcatnloFXFX:
   unc: 6.264 / 3
 DYto2Tau_M_50_1J_amcatnloFXFX:
   crossSec: 1017.0 / 3
-  reference: XSDB DYto2Tau-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 # To modify when XSDB will be updated
+  reference: XSDB DYto2Tau-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8  # To modify when XSDB will be updated
   unc: 6.264 / 3
 DYto2Tau_M_50_1J_Filtered_amcatnloFXFX:
   crossSec: 1017.0 / 3
-  reference: XSDB DYto2Tau-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 # To modify when XSDB will be updated
+  reference: XSDB DYto2Tau-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8  # To modify when XSDB will be updated
   unc: 6.264 / 3
 DYto2L_M_50_1J_madgraphMLM:
   crossSec: 973.1
@@ -93,18 +93,18 @@ DYto2L_M_50_2J_amcatnloFXFX:
   unc: 3.858 / 3
 DYto2Tau_M_50_2J_amcatnloFXFX:
   crossSec: 385.5 / 3
-  reference: XSDB DYto2Tau-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 # To modify when XSDB will be updated
+  reference: XSDB DYto2Tau-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8  # To modify when XSDB will be updated
   unc: 3.858 / 3
 DYto2Tau_M_50_2J_Filtered_amcatnloFXFX:
   crossSec: 385.5 / 3
-  reference: XSDB DYto2Tau-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 # To modify when XSDB will be updated
+  reference: XSDB DYto2Tau-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8  # To modify when XSDB will be updated
   unc: 3.858 / 3
 DYto2L_M_50_2J_madgraphMLM:
-  crossSec: 312.4 / 3 
+  crossSec: 312.4 / 3
   reference: XSDB DYto2L-4Jets_MLL-50_2J_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 19:19:42
   unc: 0.915 / 3
 DYto2L_M_50_3J_madgraphMLM:
-  crossSec: 93.93 
+  crossSec: 93.93
   reference: XSDB DYto2L-4Jets_MLL-50_3J_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 19:19:44
   unc: 0.2858
 DYto2L_M_50_4J_madgraphMLM:
@@ -514,11 +514,11 @@ QCD_PT_3200:
 TbarBtoLminusNuB_s_channel_4FS:
   crossSec: 4.534 * (1-0.6741)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef#Single_top_quark_t_channel_cross top ratio taken from XSDB, BR taken from W->LNu pdg (t->Wb 100%)
-  unc: +0.059 -0.043 (scale) # These are the combined values, as of 9May2025 they are still not available
+  unc: +0.059 -0.043 (scale)  # These are the combined values, as of 9May2025 they are still not available
 TBbartoLplusNuBbar_s_channel_4FS:
   crossSec: 7.244 * (1-0.6741)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef#Single_top_quark_t_channel_cross top ratio taken from XSDB, BR taken from W->LNu pdg (t->Wb 100%)
-  unc: +0.059 - 0.043 (scale) # These are the combined values, as of 9May2025 they are still not available
+  unc: +0.059 - 0.043 (scale)  # These are the combined values, as of 9May2025 they are still not available
 TbarBQ_t_channel_4FS:
   crossSec: '87.2'
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef

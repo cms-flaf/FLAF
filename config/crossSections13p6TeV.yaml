@@ -311,7 +311,7 @@ VBFHto2Tau_UncorrelatedDecay_UnFiltered:
   reference: XSDB VBFHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-pythia8 modifiedOn 2025-09-04 12:43:24
   unc: 0.006886
 VBFHto2Tau_UncorrelatedDecay_Filtered:
-  crossSec: 1.717	
+  crossSec: 1.717
   reference: XSDB VBFHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-pythia8 modifiedOn 2025-09-04 12:43:22
   unc: 0.005038
 

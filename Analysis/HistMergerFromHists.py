@@ -180,24 +180,24 @@ if __name__ == "__main__":
     # )  # list(global_cfg_dict['boosted_categories'])
     # Controlregions = list(global_cfg_dict['ControlRegions']) #Later maybe we want to separate Controls from QCDs
 
-    custom_regions_name = global_cfg_dict.get(
-        "custom_regions", None
+    regions_name = global_cfg_dict.get(
+        "regions", None
     )  # can be extended to list of names, if for example adding QCD regions + other control regions
-    custom_categories_name = global_cfg_dict.get(
-        "custom_categories", None
-    )  # can be extended to list of names
-    custom_categories = []
-    custom_regions = []
-    if custom_regions_name:
-        custom_regions = list(global_cfg_dict.get(custom_regions_name, []))
-        if not custom_regions:
+    # custom_categories_name = global_cfg_dict.get(
+    #     "custom_categories", None
+    # )  # can be extended to list of names
+    # custom_categories = []
+    regions = []
+    if regions_name:
+        regions = list(global_cfg_dict.get(regions_name, []))
+        if not regions:
             print("No custom regions found")
-    if custom_categories_name:
-        custom_categories = list(global_cfg_dict.get(custom_categories_name, []))
-        if not custom_categories:
-            print("No custom categories found")
+    # if custom_categories_name:
+    #     custom_categories = list(global_cfg_dict.get(custom_categories_name, []))
+    #     if not custom_categories:
+    #         print("No custom categories found")
 
-    all_categories = categories + custom_categories
+    all_categories = categories #+ custom_categories
 
     setup.global_params["channels_to_consider"] = (
         args.channels.split(",")
@@ -252,7 +252,7 @@ if __name__ == "__main__":
             os.remove(inFile_path)
             ignore_samples.append(sample_name)
             raise RuntimeError(f"{inFile_path} is Zombie")
-        if not checkFile(inFile, channels, custom_regions, all_categories):
+        if not checkFile(inFile, channels, regions, all_categories):
             print(f"{sample_name} has void file")
             ignore_samples.append(sample_name)
             inFile.Close()
@@ -292,11 +292,9 @@ if __name__ == "__main__":
             wantNegativeContributions=False,
         )
     """
+    all_unc_dict = unc_cfg_dict["norm"].copy()
+    all_unc_dict.update(unc_cfg_dict["shape"])
 
-    # outDir_var = os.path.join(args.outDir, var)
-    # os.makedirs(outDir_var, exist_ok=True)
-    # fileName = f"{var}_{args.uncSource}.root"
-    # outFileName = os.path.join(outDir_var, fileName)
     outFile = ROOT.TFile(args.outFile, "RECREATE")
     for sample_type in all_hists_dict.keys():
         for key in all_hists_dict[sample_type].keys():
@@ -306,6 +304,7 @@ if __name__ == "__main__":
             dir_ptr = Utilities.mkdir(outFile, dir_name)
             hist = all_hists_dict[sample_type][key]
             hist_name = sample_type
+            additional_name = ""
             if uncName != args.uncSource:
                 continue
             if uncName != "Central":
@@ -313,7 +312,9 @@ if __name__ == "__main__":
                     continue
                 if uncScale == "Central":
                     continue
-                hist_name += f"_{uncName}_{uncScale}"
+                if uncName not in all_unc_dict.keys():
+                    print(f"unknown unc name {uncName}")
+                additional_name += f"""_{all_unc_dict[uncName]["name"].format(uncScale)}"""
             else:
                 if uncScale != "Central":
                     continue

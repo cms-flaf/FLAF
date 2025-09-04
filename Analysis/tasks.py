@@ -666,7 +666,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 if uncName in uncs_to_exclude:
                     continue
                 uncNames.append(uncName)
-        print(uncNames)
 
         MergerProducer = os.path.join(
             self.ana_path(), "FLAF", "Analysis", "HistMergerFromHists.py"
@@ -686,7 +685,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         with contextlib.ExitStack() as stack:
             for inp in self.input():
                 sample_name = os.path.basename(inp.path)
-                print(sample_name.strip(".root"))
                 all_datasets.append(sample_name.strip(".root"))
                 local_inputs.append(stack.enter_context(inp.localize("r")).path)
             dataset_names = ",".join(smpl for smpl in all_datasets)
@@ -715,7 +713,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     ps_call(MergerProducer_cmd, verbose=1)
             else:
                 for uncName in uncNames:
-                    print(uncName)
                     final_histname = f"{var}_{uncName}.root"
                     tmp_outfile_merge = os.path.join(outdir_histograms, final_histname)
                     tmp_outfile_merge_remote = self.remote_target(

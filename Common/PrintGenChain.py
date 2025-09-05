@@ -23,7 +23,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--particleFile",
         type=str,
-        default=f"{os.environ['ANALYSIS_PATH']}/config/pdg_name_type_charge.txt",
+        default=f"{os.environ['ANALYSIS_PATH']}/FLAF/config/pdg_name_type_charge.txt",
     )
     args = parser.parse_args()
 

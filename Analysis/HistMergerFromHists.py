@@ -228,7 +228,7 @@ if __name__ == "__main__":
     regions = []
     # file structure : channel - region - category - varName_unc (if not central, else only varName)
 
-    # vars_to_select = [v for v in global_cfg_dict["vars_to_save"]]
+    # vars_to_select = [v for v in global_cfg_dict["variables"]]
     # if args.vars=="all":
     # vars_to_select = []
     # if args.vars != 'all' and args.vars is not None:

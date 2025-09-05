@@ -261,8 +261,8 @@ if __name__ == "__main__":
         setup.global_params, setup.global_params["era"]
     )
 
-    vars_to_save = setup.global_params["vars_to_save"]
-    vars_needed = set(vars_to_save)
+    variables = setup.global_params["variables"]
+    vars_needed = set(variables)
     for further_cut_name, (var_for_cut, _) in further_cuts.items():
         if var_for_cut:
             vars_needed.add(var_for_cut)

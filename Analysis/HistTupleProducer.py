@@ -95,7 +95,7 @@ def createHistTuple(
     snaps = []
     reports = []
     outfilesNames = []
-    vars_to_save = []
+    variables = []
     tmp_fileNames = []
     if treeName not in inFile_keys:
         print(f"ERRORE, {treeName} non esiste nel file, ritorno il nulla")
@@ -116,10 +116,10 @@ def createHistTuple(
 
     # Central + weights shifting:
 
-    if type(setup.global_params["vars_to_save"]) == list:
-        vars_to_save = setup.global_params["vars_to_save"]
-    elif type(setup.global_params["vars_to_save"]) == dict:
-        vars_to_save = setup.global_params["vars_to_save"].keys()
+    if type(setup.global_params["variables"]) == list:
+        variables = setup.global_params["variables"]
+    elif type(setup.global_params["variables"]) == dict:
+        variables = setup.global_params["variables"].keys()
     additional_vars = []
     if setup.global_params["additional_vars"]:
         if type(setup.global_params["additional_vars"]) == list:
@@ -163,7 +163,7 @@ def createHistTuple(
             )
             dfw_central.colToSave.append(final_weight_name)
     dfw_central.colToSave.extend(additional_vars)
-    for var in vars_to_save:
+    for var in variables:
         DefineBinnedColumn(hist_cfg_dict, var)
         dfw_central.df = dfw_central.df.Define(f"{var}_bin", f"get_{var}_bin({var})")
         dfw_central.colToSave.append(f"{var}_bin")
@@ -221,7 +221,7 @@ def createHistTuple(
                     dfw_shift.colToSave.append(final_weight_name)
                     # Aggiunta colonne
                     # dfw.colToSave.append("weight_Central")
-                    for var in vars_to_save:
+                    for var in variables:
                         dfw_shift.df = dfw_shift.df.Define(
                             f"{var}_bin", f"get_{var}_bin({var})"
                         )

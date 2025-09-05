@@ -125,7 +125,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             # Get all the producers to require for this dummy branch
             producer_set = set()
             var_produced_by = self.setup.var_producer_map
-            for var_name in self.global_params["vars_to_save"]:
+            for var_name in self.global_params["variables"]:
                 need_cache = True if var_name in var_produced_by else False
                 producer_to_run = (
                     var_produced_by[var_name] if var_name in var_produced_by else None
@@ -262,7 +262,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         producer_list = []
 
         for var_name in self.global_params[
-            "vars_to_save"
+            "variables"
         ]:  # this will be different than vars to plot
             need_cache = True if var_name in var_produced_by else False
             producer_to_run = var_produced_by.get(var_name, None)
@@ -395,7 +395,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         branch_set = set()
         branches_required = {}
         for br_idx, (var, prod_br_list, sample_names) in self.branch_map.items():
-            if var == self.global_params["vars_to_save"][0]:
+            if var == self.global_params["variables"][0]:
                 branch_set.update(prod_br_list)
         branches = tuple(branch_set)
         deps = {
@@ -429,7 +429,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         HistTupleBranchMap = HistTupleProducerTask.req(
             self, branches=()
         ).create_branch_map()
-        for var_name in self.global_params["vars_to_save"]:
+        for var_name in self.global_params["variables"]:
             for prod_br, (
                 histTuple_sample_name,
                 histTuple_prod_br,
@@ -525,7 +525,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             out_local_path = tmp_local_file.path
             shutil.move(tmpFile, out_local_path)
 
-        delete_after_merge = False  # var == self.global_config["vars_to_save"][-1] --> find more robust condition
+        delete_after_merge = False  # var == self.global_config["variables"][-1] --> find more robust condition
         if delete_after_merge:
             print(f"Finished HistogramProducer, lets delete remote targets")
             for remote_target in input_list_remote_target:
@@ -821,7 +821,7 @@ class HistProducerFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             # Get all the producers to require for this dummy branch
             producer_set = set()
             var_produced_by = self.setup.var_producer_map
-            for var_name in self.global_params["vars_to_plot"]:
+            for var_name in self.global_params["variables"]:
                 need_cache = True if var_name in var_produced_by else False
                 producer_to_run = (
                     var_produced_by[var_name] if var_name in var_produced_by else None
@@ -957,7 +957,7 @@ class HistProducerFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         need_cache_global = False
         producer_list = []
 
-        for var_name in self.global_params["vars_to_plot"]:
+        for var_name in self.global_params["variables"]:
             need_cache = True if var_name in var_produced_by else False
             producer_to_run = (
                 var_produced_by[var_name] if var_name in var_produced_by else None

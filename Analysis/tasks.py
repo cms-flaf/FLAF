@@ -974,7 +974,7 @@ class HistProducerFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         samples_to_consider = GetSamples(
             self.samples, self.setup.backgrounds, self.global_params["signal_types"]
         )
-        # var_list = []
+        var_list = []
         need_cache_list = []
         need_cache_global = False
         producer_list = []

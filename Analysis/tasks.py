@@ -873,7 +873,7 @@ class HistProducerFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             input_index,
         ) in self.branch_map.items():
             branch_set.add(br)
-            if need_cache_global:
+            if any(need_cache_list):
                 branch_set_cache.add(br)
                 for producer_name in (p for p in producer_list if p is not None):
                     producer_set.add(producer_name)
@@ -976,7 +976,6 @@ class HistProducerFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         )
         var_list = []
         need_cache_list = []
-        need_cache_global = False
         producer_list = []
 
         for var_name in self.global_params["vars_to_plot"]:

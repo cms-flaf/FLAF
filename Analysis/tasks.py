@@ -392,6 +392,20 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
 
     def workflow_requires(self):
+        merge_organization_complete = AnaTupleFileListTask.req(
+            self, branches=()
+        ).complete()
+        if not merge_organization_complete:
+            return {
+                "AnaTupleFileListTask": AnaTupleFileListTask.req(
+                    self,
+                    branches=(),
+                    max_runtime=AnaTupleFileListTask.max_runtime._default,
+                    n_cpus=AnaTupleFileListTask.n_cpus._default,
+                ),
+                "HistProducerFileTask": HistProducerFileTask.req(self, branches=()),
+            }
+
         branch_set = set()
         branches_required = {}
         for br_idx, (var, prod_br_list, sample_names) in self.branch_map.items():
@@ -425,6 +439,15 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         prod_br_list = []
         current_sample = None
         n = 0
+
+        merge_organization_complete = AnaTupleFileListTask.req(
+            self, branches=()
+        ).complete()
+        if not merge_organization_complete:
+            self.cache_branch_map = False
+            if not hasattr(self, "_branches_backup"):
+                self._branches_backup = copy.deepcopy(self.branches)
+            return {0: ()}
 
         HistTupleBranchMap = HistTupleProducerTask.req(
             self, branches=()

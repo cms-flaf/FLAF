@@ -844,7 +844,7 @@ class HistProducerFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             # Get all the producers to require for this dummy branch
             producer_set = set()
             var_produced_by = self.setup.var_producer_map
-            for var_name in self.global_params["variables"]:
+            for var_name in self.global_params["vars_to_plot"]:
                 need_cache = True if var_name in var_produced_by else False
                 producer_to_run = (
                     var_produced_by[var_name] if var_name in var_produced_by else None
@@ -980,7 +980,7 @@ class HistProducerFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         need_cache_global = False
         producer_list = []
 
-        for var_name in self.global_params["variables"]:
+        for var_name in self.global_params["vars_to_plot"]:
             need_cache = True if var_name in var_produced_by else False
             producer_to_run = (
                 var_produced_by[var_name] if var_name in var_produced_by else None

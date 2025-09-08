@@ -403,7 +403,6 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     max_runtime=AnaTupleFileListTask.max_runtime._default,
                     n_cpus=AnaTupleFileListTask.n_cpus._default,
                 ),
-                "HistProducerFileTask": HistProducerFileTask.req(self, branches=()),
             }
 
         branch_set = set()

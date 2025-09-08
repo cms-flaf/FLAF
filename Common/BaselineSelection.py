@@ -24,10 +24,10 @@ ana_reco_object_collections = {
         "Jet",
         "FatJet",
         "SubJet",
-        # "PFMET",
-        # "PuppiMET",
-        # "DeepMETResponseTune",
-        # "DeepMETResolutionTune",
+        "PFMET",
+        "PuppiMET",
+        "DeepMETResponseTune",
+        "DeepMETResolutionTune",
     ],
 }
 deepTauVersions = {"2p1": "2017", "2p5": "2018"}

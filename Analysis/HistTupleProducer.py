@@ -121,7 +121,7 @@ def createHistTuple(
     elif type(setup.global_params["variables"]) == dict:
         variables = setup.global_params["variables"].keys()
     additional_vars = []
-    if setup.global_params["additional_vars"]:
+    if "additional_vars" in setup.global_params.keys():
         if type(setup.global_params["additional_vars"]) == list:
             additional_vars = setup.global_params["additional_vars"]
         elif type(setup.global_params["additional_vars"]) == dict:

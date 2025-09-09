@@ -403,6 +403,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     max_runtime=AnaTupleFileListTask.max_runtime._default,
                     n_cpus=AnaTupleFileListTask.n_cpus._default,
                 ),
+                "HistTupleProducerTask": HistTupleProducerTask.req(self, branches=()),
             }
 
         branch_set = set()
@@ -590,7 +591,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             new_branchset.update(all_samples[var])
 
         return {
-            "HistFromNTupleProducerTask": HistFromNtupleProducerTask.req(
+            "HistFromNtupleProducerTask": HistFromNtupleProducerTask.req(
                 self, branches=list(new_branchset)
             )
         }

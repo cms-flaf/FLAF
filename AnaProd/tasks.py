@@ -18,7 +18,22 @@ from FLAF.run_tools.law_customizations import (
 )
 from FLAF.Common.Utilities import SerializeObjectToString, getCustomisationSplit
 from FLAF.AnaProd.anaCacheProducer import addAnaCaches
+import re
 
+def getCustomisationSplit(customisations):
+    customisation_dict = {}
+    if customisations is None or len(customisations) == 0:
+        return {}
+    if type(customisations) == str:
+        customisations = customisations.split(";")
+    if type(customisations) != list:
+        raise RuntimeError(f"Invalid type of customisations: {type(customisations)}")
+    for customisation in customisations:
+        substrings = customisation.split("=")
+        if len(substrings) != 2:
+            raise RuntimeError("len of substring is not 2!")
+        customisation_dict[substrings[0]] = substrings[1]
+    return customisation_dict
 
 class InputFileTask(Task, law.LocalWorkflow):
     def __init__(self, *args, **kwargs):
@@ -37,24 +52,17 @@ class InputFileTask(Task, law.LocalWorkflow):
 
     def run(self):
         sample_name = self.branch_data
+        folder_name = (
+            self.samples[sample_name]["dirName"]
+            if "dirName" in self.samples[sample_name]
+            else sample_name
+        )
         print(f"Creating inputFile for sample {sample_name} into {self.output().path}")
         with self.output().localize("w") as out_local_file:
             input_files = []
-            fs_nanoAOD = self.fs_nanoAOD
-            if self.samples[sample_name].get("fs_nanoAOD", None) is not None:
-                fs_nanoAOD = self.setup.get_fs(
-                    f"fs_nanoAOD_{sample_name}", self.samples[sample_name]["fs_nanoAOD"]
-                )
-            if fs_nanoAOD is None:
-                raise RuntimeError(
-                    f"fs_nanoAOD is not defined for sample {sample_name}"
-                )
-            dir_to_list = self.samples[sample_name].get("dir_to_list", sample_name)
-            print(sample_name, fs_nanoAOD)
-            print(dir_to_list)
-
-            for file in natural_sort(fs_nanoAOD.listdir(dir_to_list)):
-                if file.endswith(".root"):
+            pattern = self.samples[sample_name].get("fileNamePattern", r".*\.root$")
+            for file in natural_sort(self.fs_nanoAOD.listdir(folder_name)):
+                if re.match(pattern, file):
                     input_files.append(file)
             with open(out_local_file.path, "w") as inputFileTxt:
                 for input_line in input_files:

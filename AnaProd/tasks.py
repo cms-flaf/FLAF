@@ -20,6 +20,7 @@ from FLAF.Common.Utilities import SerializeObjectToString, getCustomisationSplit
 from FLAF.AnaProd.anaCacheProducer import addAnaCaches
 import re
 
+
 def getCustomisationSplit(customisations):
     customisation_dict = {}
     if customisations is None or len(customisations) == 0:
@@ -34,6 +35,7 @@ def getCustomisationSplit(customisations):
             raise RuntimeError("len of substring is not 2!")
         customisation_dict[substrings[0]] = substrings[1]
     return customisation_dict
+
 
 class InputFileTask(Task, law.LocalWorkflow):
     def __init__(self, *args, **kwargs):

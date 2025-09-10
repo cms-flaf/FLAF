@@ -261,7 +261,7 @@ def ScrapeSkimDatasets(input_dir, output):
         if sampleType == "test":
             bad_cases.append(dataset)
 
-                if dataset.startswith("DYto2L"):
+        if dataset.startswith("DYto2L"):
             prod_reports = [
                 "prodReport_nanoEE.json",
                 "prodReport_nanoMuMu.json",

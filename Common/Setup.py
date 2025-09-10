@@ -231,12 +231,8 @@ class Setup:
                     proc_name = meta_setup["process_name"]
                     plot_name = meta_setup["name_pattern"]
                     for i, param in enumerate(meta_setup["parameters"]):
-                        proc_name = proc_name.replace(
-                            f"${{{param}}}", str(cand_key[i])
-                        )
-                        plot_name = plot_name.replace(
-                            f"${{{param}}}", str(cand_key[i])
-                        )
+                        proc_name = proc_name.replace(f"${{{param}}}", str(cand_key[i]))
+                        plot_name = plot_name.replace(f"${{{param}}}", str(cand_key[i]))
                     new_process["process_name"] = proc_name
                     new_process["datasets"] = datasets
                     new_process["name"] = plot_name
@@ -245,9 +241,9 @@ class Setup:
                     )
                     new_process["color"] = "kBlack"
                     if new_process["to_plot"]:
-                        new_process["color"] = new_process["meta_setup"][
-                            "plot_color"
-                        ][plot_color_idx]
+                        new_process["color"] = new_process["meta_setup"]["plot_color"][
+                            plot_color_idx
+                        ]
                         plot_color_idx += 1
                     del new_process["meta_setup"]
                     del new_process["is_meta_process"]
@@ -257,12 +253,8 @@ class Setup:
                 for group in self.phys_model:
                     if key in self.phys_model[group]:
                         key_index = self.phys_model[group].index(key)
-                        for new_process_name in reversed(
-                            new_process_names_for_model
-                        ):
-                            self.phys_model[group].insert(
-                                key_index, new_process_name
-                            )
+                        for new_process_name in reversed(new_process_names_for_model):
+                            self.phys_model[group].insert(key_index, new_process_name)
                         self.phys_model[group].remove(key)
 
             else:

@@ -103,12 +103,19 @@ class Setup:
         sample_config_path = os.path.join(
             ana_path, "FLAF", "config", period, "samples.yaml"
         )
+
         self.analysis_config_area = os.path.join(
             ana_path, user_config["analysis_config_area"]
         )
         ana_global_config_path = os.path.join(self.analysis_config_area, "global.yaml")
         ana_sample_config_path = os.path.join(
             self.analysis_config_area, period, "samples.yaml"
+        )
+        ana_bckg_config_path = os.path.join(
+            self.analysis_config_area, "background_samples.yaml"
+        )
+        ana_signal_config_path = os.path.join(
+            self.analysis_config_area, "signal_samples.yaml"
         )
         weights_config_path = os.path.join(ana_path, "config", period, "weights.yaml")
 
@@ -126,6 +133,20 @@ class Setup:
                 ana_global_config = yaml.safe_load(f)
         else:
             ana_global_config = {}
+
+        if os.path.exists(ana_bckg_config_path):
+            with open(ana_bckg_config_path, "r") as f:
+                ana_bckg_config = yaml.safe_load(f)
+        else:
+            ana_bckg_config = {}
+        self.bckg_config = ana_bckg_config
+
+        if os.path.exists(ana_signal_config_path):
+            with open(ana_signal_config_path, "r") as f:
+                ana_signal_config = yaml.safe_load(f)
+        else:
+            ana_signal_config = {}
+        self.signal_config = ana_signal_config
 
         with open(weights_config_path, "r") as f:
             weights_config = yaml.safe_load(f)

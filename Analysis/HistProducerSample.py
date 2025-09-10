@@ -11,7 +11,7 @@ if __name__ == "__main__":
 # HistProducerSample.py --histDir my/hist/dir --outDir my/out/dir --hists m_tautau,tau1_pt --file-name-pattern 'nano_{id}.root' --file-ids '0-100'
 
 import FLAF.Common.Utilities as Utilities
-from FLAF.Analysis.HistHelper import *
+from FLAF.Common.HistHelper import *
 
 if __name__ == "__main__":
     import argparse

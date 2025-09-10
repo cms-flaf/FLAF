@@ -50,8 +50,6 @@ class InputFileTask(Task, law.LocalWorkflow):
                     f"fs_nanoAOD is not defined for sample {sample_name}"
                 )
             dir_to_list = self.samples[sample_name].get("dir_to_list", sample_name)
-            print(sample_name, fs_nanoAOD)
-            print(dir_to_list)
 
             for file in natural_sort(fs_nanoAOD.listdir(dir_to_list)):
                 if file.endswith(".root"):

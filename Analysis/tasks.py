@@ -69,8 +69,8 @@ def GetSamples(
     samples_to_consider = ["data"]
 
     for sample_name in samples.keys():
-        sample_type = samples[sample_name]["sampleType"]
-        if sample_type in signals or sample_name in backgrounds:
+        process_name = samples[sample_name]["process_name"]
+        if process_name in signals or sample_name in backgrounds:
             samples_to_consider.append(sample_name)
     return samples_to_consider
 
@@ -229,9 +229,12 @@ class HistProducerFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         anaProd_branch_map = AnaTupleMergeTask.req(
             self, branch=-1, branches=()
         ).create_branch_map()
-        samples_to_consider = GetSamples(
-            self.samples, self.setup.backgrounds, self.global_params["signal_types"]
-        )
+        samples_to_consider = [
+            key
+            for key in self.samples.keys()
+            if self.samples[key]["process_group"] != "data"
+        ]
+        samples_to_consider.append("data")
         var_list = []
         need_cache_list = []
         producer_list = []
@@ -246,7 +249,7 @@ class HistProducerFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             producer_list.append(producer_to_run)
         for prod_br, (
             sample_name,
-            sample_type,
+            process_group,
             input_file_list,
             output_file_list,
         ) in anaProd_branch_map.items():
@@ -330,8 +333,10 @@ class HistProducerFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         unc_config = os.path.join(
             self.ana_path(), "config", self.period, f"weights.yaml"
         )
-        sample_type = (
-            self.samples[sample_name]["sampleType"] if sample_name != "data" else "data"
+        process_group = (
+            self.samples[sample_name]["process_group"]
+            if sample_name != "data"
+            else "data"
         )
         HistProducerFile = os.path.join(
             self.ana_path(), "FLAF", "Analysis", "HistProducerFile.py"
@@ -373,7 +378,7 @@ class HistProducerFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     "--histConfig",
                     self.setup.hist_config_path,
                     "--sampleType",
-                    sample_type,
+                    process_group,
                     "--globalConfig",
                     global_config,
                     "--var",
@@ -478,9 +483,12 @@ class HistProducerSampleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self, branch=-1, branches=()
         ).create_branch_map()
         all_samples = {}
-        samples_to_consider = GetSamples(
-            self.samples, self.setup.backgrounds, self.global_params["signal_types"]
-        )
+        samples_to_consider = [
+            key
+            for key in self.samples.keys()
+            if self.samples[key]["process_group"] != "data"
+        ]
+        samples_to_consider.append("data")
         for n_branch, (
             sample_name,
             prod_br,
@@ -523,7 +531,7 @@ class HistProducerSampleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             for idx, var in enumerate(var_list):
                 if (self.output()[idx]).exists():
                     print(
-                        f"Output for {var} {self.ouptut()[idx]} already exists! Continue"
+                        f"Output for {var} {self.output()[idx]} already exists! Continue"
                     )
                     continue
                 local_inputs = [
@@ -706,23 +714,18 @@ class MergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self.ana_path(), "FLAF", "Analysis", "renameHists.py"
         )
 
-        output_path_hist_prod_sample_data = os.path.join(
-            self.version, self.period, "split", var, f"data.root"
-        )
-        all_inputs = [
-            (
-                self.remote_target(
-                    output_path_hist_prod_sample_data, fs=self.fs_histograms
-                ),
-                "data",
-            )
-        ]
+        all_inputs = []
         samples_to_consider = GetSamples(
             self.samples, self.setup.backgrounds, self.global_params["signal_types"]
         )
-        for sample_name in self.samples.keys():
-            if sample_name not in samples_to_consider:
-                continue
+        samples_to_consider = [
+            key
+            for key in self.samples.keys()
+            if self.samples[key]["process_group"] != "data"
+        ]
+        samples_to_consider.append("data")
+        for sample_name in samples_to_consider:
+            print(sample_name)
             output_path_hist_prod_sample = os.path.join(
                 self.version, self.period, "split", var, f"{sample_name}.root"
             )
@@ -978,17 +981,17 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ).branch_map
         for br_idx, (
             sample_name,
-            sample_type,
+            process_group,
             input_file_list,
             output_file_list,
         ) in anaProd_branch_map.items():
-            branches[br_idx] = (sample_name, sample_type, len(output_file_list))
+            branches[br_idx] = (sample_name, process_group, len(output_file_list))
         return branches
 
     def output(self):
         if len(self.branch_data) == 0:
             return self.local_target("dummy.txt")
-        sample_name, sample_type, nInputs = self.branch_data
+        sample_name, process_group, nInputs = self.branch_data
         return_list = []
         for idx in range(nInputs):
             outFileName = os.path.basename(self.input()[0][idx].path)
@@ -1008,7 +1011,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return return_list
 
     def run(self):
-        sample_name, sample_type, nInputs = self.branch_data
+        sample_name, process_group, nInputs = self.branch_data
         unc_config = os.path.join(
             self.ana_path(), "config", self.period, f"weights.yaml"
         )
@@ -1044,7 +1047,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     print(f"Task has cache input files {local_cache_files}")
                     output_file = self.output()[idx]
                     print(
-                        f"considering sample {sample_name}, {sample_type} and file {input_file.path}"
+                        f"considering sample {sample_name}, {process_group} and file {input_file.path}"
                     )
                     if output_file.exists():
                         print(f"Output file {output_file} already exists, continue")
@@ -1077,7 +1080,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         ]
                         if (
                             self.global_params["store_noncentral"]
-                            and sample_type != "data"
+                            and process_group != "data"
                         ):
                             analysisCacheProducer_cmd.extend(
                                 ["--compute_unc_variations", "True"]
@@ -1100,7 +1103,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         )
                         ps_call(analysisCacheProducer_cmd, env=prod_env, verbose=1)
                     print(
-                        f"Finished producing payload for producer={self.producer_to_run} with name={sample_name}, type={sample_type}, file={input_file.path}"
+                        f"Finished producing payload for producer={self.producer_to_run} with name={sample_name}, group={process_group}, file={input_file.path}"
                     )
                     with output_file.localize("w") as tmp_local_file:
                         out_local_path = tmp_local_file.path
@@ -1145,8 +1148,8 @@ class AnalysisCacheMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self, branch=-1, branches=(), producer_to_run=self.producer_to_run
         ).branch_map
         prod_branches = []
-        for prod_br, (sample_name, sample_type) in anaProd_branch_map.items():
-            if sample_type == "data":
+        for prod_br, (sample_name, process_group) in anaProd_branch_map.items():
+            if process_group == "data":
                 prod_branches.append(prod_br)
         return {0: prod_branches}
 
@@ -1322,6 +1325,10 @@ class PlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         era,
                         "--analysis",
                         plot_analysis,
+                        "--ana_path",
+                        self.ana_path(),
+                        "--period",
+                        self.period,
                     ]
                     if plot_wantData:
                         cmd.append("--wantData")

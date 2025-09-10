@@ -9,6 +9,7 @@ if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
 import FLAF.Common.Utilities as Utilities
+import FLAF.Common.Setup as Setup
 from FLAF.Analysis.HistHelper import *
 from FLAF.Analysis.HistMerger import *
 
@@ -181,6 +182,8 @@ if __name__ == "__main__":
     parser.add_argument("--year", required=False, type=str, default="Run2_2018")
     parser.add_argument("--rebin", required=False, type=bool, default=False)
     parser.add_argument("--analysis", required=False, type=str, default="")
+    parser.add_argument("--ana_path", required=True, type=str)
+    parser.add_argument("--period", required=True, type=str)
 
     args = parser.parse_args()
 
@@ -193,6 +196,8 @@ if __name__ == "__main__":
     hist_cfg = os.path.join(
         os.environ["ANALYSIS_PATH"], "config", "plot/histograms.yaml"
     )
+
+    setup = Setup.Setup(args.ana_path, args.period)
 
     #### config opening ####
     with open(hist_cfg, "r") as f:
@@ -252,46 +257,36 @@ if __name__ == "__main__":
             if input_dict["name"] == "QCD":
                 del inputs_cfg_dict[input_dict_idx]
 
-    for sample_name in bckg_cfg_dict.keys():
-        if "sampleType" not in bckg_cfg_dict[sample_name].keys():
+    all_samples_dict = {}
+    all_samples_dict["data"] = {
+        "process_name": "data",
+        "process_group": "data",
+        "plot_name": "data",
+        "plot_color": "kBlack",
+    }
+    for sample_name in setup.samples.keys():
+        process_name = setup.samples[sample_name]["process_name"]
+        process_group = setup.samples[sample_name]["process_group"]
+        if process_group == "data":
             continue
-        bckg_sample_type = bckg_cfg_dict[sample_name]["sampleType"]
-        bckg_sample_name = (
-            bckg_sample_type
-            if bckg_sample_type in global_cfg_dict["sample_types_to_merge"]
-            else sample_name
-        )
-        if bckg_sample_name in all_samples_types.keys():
-            continue
-        all_samples_types[bckg_sample_name] = {}
-        all_samples_types[bckg_sample_name]["type"] = bckg_sample_type
-        for sample_for_plot_dict in inputs_cfg_dict:
-            plot_types = sample_for_plot_dict["types"]
-            if bckg_sample_type in plot_types:
-                all_samples_types[bckg_sample_name]["plot"] = sample_for_plot_dict[
-                    "name"
-                ]
-        if "plot" not in all_samples_types[bckg_sample_name].keys():
-            all_samples_types[bckg_sample_name]["plot"] = "Other"
 
-    for sig_sample_name in sig_cfg_dict.keys():
-        if "sampleType" not in sig_cfg_dict[sig_sample_name].keys():
-            continue
-        sig_sample_type = sig_cfg_dict[sig_sample_name]["sampleType"]
-        if sig_sample_type not in global_cfg_dict["signal_types"]:
-            continue
-        for sample_for_plot_dict in inputs_cfg_dict:
-            if sample_for_plot_dict["name"] == sig_sample_name:
-                all_samples_types[sig_sample_name] = {
-                    "type": sig_sample_type,
-                    "plot": sig_sample_name,
-                }
+        all_samples_key = process_name
+
+        if setup.processes[process_name].get("to_plot", True):
+            all_samples_dict[all_samples_key] = {}
+            all_samples_dict[all_samples_key]["process_name"] = process_name
+            all_samples_dict[all_samples_key]["process_group"] = process_group
+            all_samples_dict[all_samples_key]["plot_name"] = setup.processes[
+                process_name
+            ]["name"]
+            all_samples_dict[all_samples_key]["plot_color"] = setup.processes[
+                process_name
+            ]["color"]
 
     plotter = Plotter.Plotter(
         page_cfg=page_cfg,
         page_cfg_custom=page_cfg_custom,
         hist_cfg=hist_cfg_dict,
-        inputs_cfg=inputs_cfg_dict,
     )
     cat_txt = args.category.replace("_masswindow", "")
     cat_txt = cat_txt.replace("_cat2", "")
@@ -341,14 +336,21 @@ if __name__ == "__main__":
         )
     new_bins = getNewBins(bins_to_compute)
 
-    for sample_name, sample_content in all_samples_types.items():
-        sample_type = sample_content["type"]
-        sample_plot_name = sample_content["plot"]
+    for sample_name, sample_content in all_samples_dict.items():
+        sample_process_name = sample_content["process_name"]
+        sample_process_group = sample_content["process_group"]
+        sample_plot_name = sample_content["plot_name"]
+        sample_plot_color = sample_content["plot_color"]
+
         if args.uncSource != "Central":
             continue  # to be fixed
 
         sample_histname = GetHistName(
-            sample_name, sample_type, "Central", "Central", global_cfg_dict
+            sample_process_name,
+            sample_process_group,
+            "Central",
+            "Central",
+            global_cfg_dict,
         )
         if sample_histname not in dir_1.GetListOfKeys():
             print(f"ERRORE: {sample_histname} non è nelle keys")
@@ -358,19 +360,36 @@ if __name__ == "__main__":
             print(f"ERRORE: {sample_histname} non è un istogramma")
         obj.SetDirectory(0)
 
-        if sample_plot_name not in hists_to_plot_unbinned.keys():
-            hists_to_plot_unbinned[sample_plot_name] = obj
+        if sample_process_name in hists_to_plot_unbinned.keys():
+            print(hists_to_plot_unbinned[sample_process_name])
+
+        if sample_process_name not in hists_to_plot_unbinned.keys():
+            hists_to_plot_unbinned[sample_process_name] = (
+                obj,
+                sample_plot_name,
+                sample_plot_color,
+                sample_process_group,
+            )
         else:
-            hists_to_plot_unbinned[sample_plot_name].Add(
-                hists_to_plot_unbinned[sample_plot_name], obj
+            hists_to_plot_unbinned[sample_process_name][0].Add(
+                hists_to_plot_unbinned[sample_process_name][0], obj
             )
     hists_to_plot_binned = {}
-    for hist_key, hist_unbinned in hists_to_plot_unbinned.items():
+    for hist_key, (
+        hist_unbinned,
+        plot_name,
+        plot_color,
+        sample_process_group,
+    ) in hists_to_plot_unbinned.items():
         old_hist = hist_unbinned
         new_hist = RebinHisto(
             old_hist, new_bins, hist_key, wantOverflow=args.wantOverflow, verbose=False
         )
-        hists_to_plot_binned[hist_key] = new_hist if rebin_condition else old_hist
+        hists_to_plot_binned[hist_key] = (
+            (new_hist, plot_name, plot_color, sample_process_group)
+            if rebin_condition
+            else (old_hist, plot_name, plot_color, sample_process_group)
+        )
 
     plotter.plot(
         args.var,

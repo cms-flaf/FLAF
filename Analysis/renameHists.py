@@ -242,7 +242,12 @@ analysis_import = setup.global_params["analysis_import"]
 analysis = importlib.import_module(f"{analysis_import}")
 
 
-samples_to_consider = setup.global_params["sample_types_to_merge"]
+samples_to_consider = (
+    setup.global_params["sample_types_to_merge"]
+    if not setup.phys_model
+    else list(setup.phys_model["signals"]) + list(setup.phys_model["backgrounds"])
+)
+
 if type(samples_to_consider) == list:
     samples_to_consider.append("data")
     for signal_name in setup.signal_samples:

@@ -241,7 +241,7 @@ if __name__ == "__main__":
         list(global_cfg_dict["sample_types_to_merge"])
         if not setup.phys_model
         else list(
-            set([samp["process_name"] for key, samp in setup.samples.items()])
+            set([samp["process_name"] for samp in setup.samples.values()])
         )  # With new processes, this is redundant since the phys_model already lists the samples and their datasets
     )
     scales = list(global_cfg_dict["scales"])

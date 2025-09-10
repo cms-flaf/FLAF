@@ -714,17 +714,6 @@ class MergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self.ana_path(), "FLAF", "Analysis", "renameHists.py"
         )
 
-        # output_path_hist_prod_sample_data = os.path.join(
-        #     self.version, self.period, "split", var, f"data.root"
-        # )
-        # all_inputs = [
-        #     (
-        #         self.remote_target(
-        #             output_path_hist_prod_sample_data, fs=self.fs_histograms
-        #         ),
-        #         "data",
-        #     )
-        # ]
         all_inputs = []
         samples_to_consider = GetSamples(
             self.samples, self.setup.backgrounds, self.global_params["signal_types"]
@@ -1274,7 +1263,7 @@ class PlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
 
         plot_unc = bool_flag("plot_unc", True)
-        plot_wantData = bool_flag(f"plot_wantData_{var}", False)
+        plot_wantData = bool_flag(f"plot_wantData_{var}", True)
         plot_wantSignals = bool_flag("plot_wantSignals", False)
         plot_wantQCD = bool_flag("plot_wantQCD", False)
         plot_rebin = bool_flag("plot_rebin", False)

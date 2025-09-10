@@ -242,7 +242,6 @@ analysis_import = setup.global_params["analysis_import"]
 analysis = importlib.import_module(f"{analysis_import}")
 
 
-samples_to_consider = setup.global_params["sample_types_to_merge"]
 samples_to_consider = (
     setup.global_params["sample_types_to_merge"]
     if not setup.phys_model

@@ -269,9 +269,7 @@ if __name__ == "__main__":
         process_group = setup.samples[sample_name]["process_group"]
         if process_group == "data":
             continue
-        all_samples_key = (
-            process_name if process_group == "backgrounds" else sample_name
-        )
+
         all_samples_key = process_name
 
         if setup.processes[process_name].get("to_plot", True):
@@ -284,69 +282,6 @@ if __name__ == "__main__":
             all_samples_dict[all_samples_key]["plot_color"] = setup.processes[
                 process_name
             ]["color"]
-
-        # if process_group == "signals":
-        #     print(setup.processes[process_name]["datasets_to_plot"])
-        #     if (
-        #         sample_name
-        #         not in setup.processes[process_name]["datasets_to_plot"].keys()
-        #     ):
-        #         continue
-        #     all_samples_dict[all_samples_key] = {}
-        #     all_samples_dict[all_samples_key]["process_name"] = process_name
-        #     all_samples_dict[all_samples_key]["process_group"] = process_group
-        #     all_samples_dict[all_samples_key]["plot_name"] = setup.processes[
-        #         process_name
-        #     ]["datasets_to_plot"][sample_name]["name"]
-        #     all_samples_dict[all_samples_key]["plot_color"] = setup.processes[
-        #         process_name
-        #     ]["datasets_to_plot"][sample_name]["color"]
-        # else:
-        #     all_samples_dict[all_samples_key] = {}
-        #     all_samples_dict[all_samples_key]["process_name"] = process_name
-        #     all_samples_dict[all_samples_key]["process_group"] = process_group
-        #     all_samples_dict[all_samples_key]["plot_name"] = setup.processes[
-        #         process_name
-        #     ]["name"]
-        #     all_samples_dict[all_samples_key]["plot_color"] = setup.processes[
-        #         process_name
-        #     ]["color"]
-
-    # for sample_name in bckg_cfg_dict.keys():
-    #     if "sampleType" not in bckg_cfg_dict[sample_name].keys():
-    #         continue
-    #     bckg_sample_type = bckg_cfg_dict[sample_name]["sampleType"]
-    #     bckg_sample_name = (
-    #         bckg_sample_type
-    #         if bckg_sample_type in global_cfg_dict["sample_types_to_merge"]
-    #         else sample_name
-    #     )
-    #     if bckg_sample_name in all_samples_types.keys():
-    #         continue
-    #     all_samples_types[bckg_sample_name] = {}
-    #     all_samples_types[bckg_sample_name]["type"] = bckg_sample_type
-    #     print(inputs_cfg_dict)
-    #     for sample_for_plot_dict in inputs_cfg_dict:
-    #         plot_types = sample_for_plot_dict["types"]
-    #         if bckg_sample_type in plot_types:
-    #             all_samples_types[bckg_sample_name]["plot"] = sample_for_plot_dict[
-    #                 "name"
-    #             ]
-    #     if "plot" not in all_samples_types[bckg_sample_name].keys():
-    #         all_samples_types[bckg_sample_name]["plot"] = "Other"
-
-    # for sig_sample_name in sig_cfg_dict.keys():
-    #     if "sampleType" not in sig_cfg_dict[sig_sample_name].keys():
-    #         continue
-    #     sig_sample_type = sig_cfg_dict[sig_sample_name]["sampleType"]
-    #     if sig_sample_type not in global_cfg_dict["signal_types"]:
-    #         continue
-    #     for sample_for_plot_dict in inputs_cfg_dict:
-    #         if sample_for_plot_dict["name"] == sig_sample_name:
-    #             all_samples_types[sig_sample_name] = {
-    #                 "type": sig_sample_type,
-    #                 "plot": sig_sample_name,
-    #             }
 
     plotter = Plotter.Plotter(
         page_cfg=page_cfg,
@@ -437,7 +372,7 @@ if __name__ == "__main__":
             )
         else:
             hists_to_plot_unbinned[sample_process_name][0].Add(
-                hists_to_plot_unbinned[sample_process_name], obj
+                hists_to_plot_unbinned[sample_process_name][0], obj
             )
     hists_to_plot_binned = {}
     for hist_key, (

@@ -61,7 +61,7 @@ def select_processes(samples, phys_model, processes):
     for bkg_process in phys_model.get("backgrounds", []):
         if bkg_process not in processes:
             raise RuntimeError(
-                f"Background process '{bkg_name}' not found in processes configuration."
+                f"Background process '{bkg_process}' not found in processes configuration."
             )
         for bkg_name in processes.get(bkg_process, {}).get("datasets", []):
             if bkg_name not in samples.keys():
@@ -102,22 +102,6 @@ def select_processes(samples, phys_model, processes):
             selected_processes.append(data_name)
 
     return new_samples, selected_processes
-
-
-def add_process_items(samples):
-    new_samples = samples.copy()
-    for sample_name, sample_entry in samples.items():
-        process_name = sample_entry["sampleType"]
-        # Do this in two lines because I don't know how to do an elif in a single line
-        process_group = (
-            "signals"
-            if process_name in self.global_params["signal_types"]
-            else "backgrounds"
-        )
-        process_group = "data" if process_name == "data" else process_group
-        new_samples[sample_name]["process_name"] = process_name
-        new_samples[sample_name]["process_group"] = process_group
-    return new_samples
 
 
 def load_parameters(*sources, keys_to_ignore=None):
@@ -212,77 +196,77 @@ class Setup:
 
         self.phys_model = None  # Init nones so we can check later if exists
         self.processes = None
-        if "phys_model" in self.global_params:
-            # Must move all of this under an if statement since other analyses will not have phys models and processes yet
-            phys_models_path = os.path.join(ana_path, "config", "phys_models.yaml")
-            processes_path = os.path.join(ana_path, "config", period, "processes.yaml")
+        if "phys_model" not in self.global_params:
+            raise RuntimeError("'phys_model' not defined in global configuration.")
+        phys_models_path = os.path.join(ana_path, "config", "phys_models.yaml")
+        processes_path = os.path.join(ana_path, "config", period, "processes.yaml")
 
-            with open(phys_models_path, "r") as f:
-                phys_models = yaml.safe_load(f)
+        with open(phys_models_path, "r") as f:
+            phys_models = yaml.safe_load(f)
 
-            with open(processes_path, "r") as f:
-                processes = yaml.safe_load(f)
+        with open(processes_path, "r") as f:
+            processes = yaml.safe_load(f)
 
-            phys_model_name = self.global_params.get("phys_model", "BaseModel")
-            self.phys_model = phys_models.get(phys_model_name)
-            self.processes = {}
-            for key, item in processes.items():
-                if item.get("is_meta_process", False):
-                    new_process_names_for_model = []
-                    meta_setup = item["meta_setup"]
-                    dataset_name_pattern = meta_setup["dataset_name_pattern"]
-                    candidates = {}
-                    plot_color_idx = 0  # Used for indexing signal 'to_plot' colors
-                    for dataset in item["datasets"]:
-                        cand_key = re.match(dataset_name_pattern, dataset).groups()
-                        if len(cand_key) != len(meta_setup["parameters"]):
-                            raise RuntimeError(
-                                f"Dataset '{dataset}' does not match pattern '{dataset_name_pattern}'."
-                            )
-                        if not cand_key in candidates:
-                            candidates[cand_key] = []
-                        candidates[cand_key].append(dataset)
-                    for cand_key, datasets in candidates.items():
-                        new_process = copy.deepcopy(item)
-                        proc_name = meta_setup["process_name"]
-                        plot_name = meta_setup["name_pattern"]
-                        for i, param in enumerate(meta_setup["parameters"]):
-                            proc_name = proc_name.replace(
-                                f"${{{param}}}", str(cand_key[i])
-                            )
-                            plot_name = proc_name.replace(
-                                f"${{{param}}}", str(cand_key[i])
-                            )
-                        new_process["process_name"] = proc_name
-                        new_process["datasets"] = datasets
-                        new_process["name"] = plot_name
-                        new_process["to_plot"] = (
-                            int(cand_key[0]) in new_process["meta_setup"]["to_plot"]
+        phys_model_name = self.global_params.get("phys_model", "BaseModel")
+        self.phys_model = phys_models.get(phys_model_name)
+        self.processes = {}
+        for key, item in processes.items():
+            if item.get("is_meta_process", False):
+                new_process_names_for_model = []
+                meta_setup = item["meta_setup"]
+                dataset_name_pattern = meta_setup["dataset_name_pattern"]
+                candidates = {}
+                plot_color_idx = 0  # Used for indexing signal 'to_plot' colors
+                for dataset in item["datasets"]:
+                    cand_key = re.match(dataset_name_pattern, dataset).groups()
+                    if len(cand_key) != len(meta_setup["parameters"]):
+                        raise RuntimeError(
+                            f"Dataset '{dataset}' does not match pattern '{dataset_name_pattern}'."
                         )
-                        new_process["color"] = "kBlack"
-                        if new_process["to_plot"]:
-                            new_process["color"] = new_process["meta_setup"][
-                                "plot_color"
-                            ][plot_color_idx]
-                            plot_color_idx += 1
-                        del new_process["meta_setup"]
-                        del new_process["is_meta_process"]
-                        self.processes[proc_name] = new_process
-                        new_process_names_for_model.append(proc_name)
+                    if not cand_key in candidates:
+                        candidates[cand_key] = []
+                    candidates[cand_key].append(dataset)
+                for cand_key, datasets in candidates.items():
+                    new_process = copy.deepcopy(item)
+                    proc_name = meta_setup["process_name"]
+                    plot_name = meta_setup["name_pattern"]
+                    for i, param in enumerate(meta_setup["parameters"]):
+                        proc_name = proc_name.replace(
+                            f"${{{param}}}", str(cand_key[i])
+                        )
+                        plot_name = plot_name.replace(
+                            f"${{{param}}}", str(cand_key[i])
+                        )
+                    new_process["process_name"] = proc_name
+                    new_process["datasets"] = datasets
+                    new_process["name"] = plot_name
+                    new_process["to_plot"] = (
+                        int(cand_key[0]) in new_process["meta_setup"]["to_plot"]
+                    )
+                    new_process["color"] = "kBlack"
+                    if new_process["to_plot"]:
+                        new_process["color"] = new_process["meta_setup"][
+                            "plot_color"
+                        ][plot_color_idx]
+                        plot_color_idx += 1
+                    del new_process["meta_setup"]
+                    del new_process["is_meta_process"]
+                    self.processes[proc_name] = new_process
+                    new_process_names_for_model.append(proc_name)
 
-                    for group in self.phys_model:
-                        if key in self.phys_model[group]:
-                            key_index = self.phys_model[group].index(key)
-                            for new_process_name in reversed(
-                                new_process_names_for_model
-                            ):
-                                self.phys_model[group].insert(
-                                    key_index, new_process_name
-                                )
-                            self.phys_model[group].remove(key)
+                for group in self.phys_model:
+                    if key in self.phys_model[group]:
+                        key_index = self.phys_model[group].index(key)
+                        for new_process_name in reversed(
+                            new_process_names_for_model
+                        ):
+                            self.phys_model[group].insert(
+                                key_index, new_process_name
+                            )
+                        self.phys_model[group].remove(key)
 
-                else:
-                    self.processes[key] = item
+            else:
+                self.processes[key] = item
 
         # create payload -> what producer delivers it
         # will be used to check if cache is needed
@@ -304,19 +288,11 @@ class Setup:
                     f'Invalid sample definition period="{period}", sample_name="{sample_name}"'
                 )
 
-        if self.phys_model and self.processes:
-            # Return samples (with process_name key) and selected list to keep similar format to old method
-            # Honestly should only return samples later after version 1
-            samples, selected_samples = select_processes(
-                samples, self.phys_model, self.processes
-            )
-        else:
-            selected_samples = select_items(
-                samples.keys(), self.global_params.get("sampleSelection", [])
-            )
-            samples = add_process_items(
-                samples
-            )  # Temporary code for version 1 to convert to process based methods
+        # Return samples (with process_name key) and selected list to keep similar format to old method
+        # Honestly should only return samples later after version 1
+        samples, selected_samples = select_processes(
+            samples, self.phys_model, self.processes
+        )
 
         if sample:  # If you define a user sample, then only that sample is selected
             selected_samples = select_items(
@@ -341,18 +317,11 @@ class Setup:
 
         self.cmssw_env_ = None
 
-        if self.phys_model and self.processes:
-            self.signal_samples = [
-                key
-                for key in self.samples
-                if self.samples[key]["process_group"] == "signals"
-            ]
-        else:
-            self.signal_samples = [
-                key
-                for key in self.samples
-                if self.samples[key]["sampleType"] in self.global_params["signal_types"]
-            ]
+        self.signal_samples = [
+            key
+            for key in self.samples
+            if self.samples[key]["process_group"] == "signals"
+        ]
 
         self.anaTupleFiles = {}
 

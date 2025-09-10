@@ -341,5 +341,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     input_dir = args.input_dir
     output = args.output
-
     ScrapeSkimDatasets(input_dir, output)

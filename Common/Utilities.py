@@ -199,11 +199,17 @@ class DataFrameBuilderBase:
                 raise RuntimeError(
                     f"CreateFromDelta: {central_columns[central_col_idx]} != {var_name_forDelta}"
                 )
-            self.df = self.df.Define(
-                f"{var_name_forDelta}",
-                f"""analysis::FromDelta({var_name},
-                                     analysis::GetEntriesMap()[FullEventId]->GetValue<{self.colTypes[var_idx]}>({central_col_idx}) )""",
-            )
+            if var_name_forDelta in self.df.GetColumnNames():
+                print(f"{var_name_forDelta} already exists, redefining it")
+                if var_name_forDelta.startswith("n"):
+                    self.df = self.df.Redefine(f"{var_name_forDelta}", f"""analysis::FromDelta({var_name}, analysis::GetEntriesMap()[FullEventId]->GetValue<{self.colTypes[var_idx]}>({central_col_idx}) )""")
+                else: continue
+            else:
+                self.df = self.df.Define(
+                    f"{var_name_forDelta}",
+                    f"""analysis::FromDelta({var_name},
+                                        analysis::GetEntriesMap()[FullEventId]->GetValue<{self.colTypes[var_idx]}>({central_col_idx}) )""",
+                )
             var_list.append(f"{var_name_forDelta}")
 
     def AddMissingColumns(self, central_columns, central_col_types, verbose=0):

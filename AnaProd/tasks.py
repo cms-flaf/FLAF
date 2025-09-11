@@ -72,15 +72,15 @@ class InputFileTask(Task, law.LocalWorkflow):
         print(f"inputFile for sample {sample_name} is created in {self.output().path}")
 
     @staticmethod
-    def load_input_files(input_file_list, sample_name, fs=None, return_uri=False):
+    def load_input_files(input_file_list, folder_name, fs=None, return_uri=False):
         input_files = []
         with open(input_file_list, "r") as txt_file:
             for file in txt_file.readlines():
-                file_path = os.path.join(sample_name, file.strip())
+                file_path = os.path.join(folder_name, file.strip())
                 file_full_path = fs.uri(file_path) if return_uri else file_path
                 input_files.append(file_full_path)
         if len(input_files) == 0:
-            raise RuntimeError(f"No input files found for {sample_name}")
+            raise RuntimeError(f"No input files found for {folder_name}")
         return input_files
 
 
@@ -115,7 +115,11 @@ class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         producer = os.path.join(
             self.ana_path(), "FLAF", "AnaProd", "anaCacheProducer.py"
         )
-        dir_to_list = self.samples[sample_name].get("dir_to_list", sample_name)
+        dir_to_list = (
+            self.samples[sample_name]["dirName"]
+            if "dirName" in self.samples[sample_name]
+            else sample_name
+        )
         input_files = InputFileTask.load_input_files(self.input()[0].path, dir_to_list)
         ana_caches = []
         generator_name = self.samples[sample_name]["generator"] if not isData else ""
@@ -184,7 +188,11 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 fs_nanoAOD = self.setup.get_fs(
                     f"fs_nanoAOD_{sample_name}", self.samples[sample_name]["fs_nanoAOD"]
                 )
-            dir_to_list = self.samples[sample_name].get("dir_to_list", sample_name)
+            dir_to_list = (
+                self.samples[sample_name]["dirName"]
+                if "dirName" in self.samples[sample_name]
+                else sample_name
+            )
             input_file_list = (
                 InputFileTask.req(self, branch=sample_id, branches=(sample_id,))
                 .output()

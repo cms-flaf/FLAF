@@ -63,26 +63,32 @@ DYto2L_M_50_0J_amcatnloFXFX:
   crossSec: 5378.0 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:07
   unc: 8.007 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 DYto2Tau_M_50_0J_amcatnloFXFX:
   crossSec: 5378.0 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:07
   unc: 8.007 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 DYto2Tau_M_50_0J_Filtered_amcatnloFXFX:
   crossSec: 847.035 / 3
   reference: GenXSecAnalyzer /DYto2Tau-2Jets_M-50_0J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v3/MINIAODSIM
   unc: 14.152 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 DYto2L_M_50_1J_amcatnloFXFX:
   crossSec: 1017.0 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:09
   unc: 6.264 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 DYto2Tau_M_50_1J_amcatnloFXFX:
   crossSec: 1017.0 / 3
   reference: XSDB DYto2Tau-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8
   unc: 6.264 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 DYto2Tau_M_50_1J_Filtered_amcatnloFXFX:
   crossSec: 210.112 / 3
   reference: GenXSecAnalyzer /DYto2Tau-2Jets_M-50_1J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v3/MINIAODSIM
   unc: 11.8 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 DYto2L_M_50_1J_madgraphMLM:
   crossSec: 973.1
   reference: XSDB DYto2L-4Jets_MLL-50_1J_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 19:19:40
@@ -91,14 +97,17 @@ DYto2L_M_50_2J_amcatnloFXFX:
   crossSec: 385.5 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:12
   unc: 3.858 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 DYto2Tau_M_50_2J_amcatnloFXFX:
   crossSec: 385.5 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:12
   unc: 3.858 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 DYto2Tau_M_50_2J_Filtered_amcatnloFXFX:
   crossSec: 83.268 / 3
   reference: GenXSecAnalyzer /DYto2Tau-2Jets_M-50_2J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v4/MINIAODSIM
   unc: 8.875 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 DYto2L_M_50_2J_madgraphMLM:
   crossSec: 312.4 / 3
   reference: XSDB DYto2L-4Jets_MLL-50_2J_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 19:19:42
@@ -116,6 +125,7 @@ DYto2L_M_50_amcatnloFXFX:
   crossSec: 6688.0 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2023-03-26 13:56:19
   unc: 83.99 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 DYto2L_M_50_madgraphMLM:
   crossSec: 5467.0
   reference: XSDB DYto2L-4Jets_MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 19:19:49
@@ -125,46 +135,57 @@ DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX:
   crossSec: 475.3 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_PTLL-40to100_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:27
   unc: 2.811 / 3
+  comments: "divided by 3 to account for e, mu, tau"
+
 DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX:
   crossSec: 179.3 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_PTLL-40to100_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:29
   unc: 1.827 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 
 DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX:
   crossSec: 45.42 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_PTLL-100to200_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:15
   unc: 0.2314 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX:
   crossSec: 51.68 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_PTLL-100to200_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:16
   unc: 0.4864 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 
 DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX:
   crossSec: 3.382 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_PTLL-200to400_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:18
   unc: 0.01443 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX:
   crossSec: 7.159 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_PTLL-200to400_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:19
   unc: 0.05581 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 
 DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX:
   crossSec: 0.1162 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_PTLL-400to600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:21
   unc: 0.0004367 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX:
   crossSec: 0.4157 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_PTLL-400to600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:23
   unc: 0.002364 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 
 DYto2L_M_50_PTLL_600_1J_amcatnloFXFX:
   crossSec: 0.01392 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_PTLL-600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:34
   unc: 5.797e-05 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 DYto2L_M_50_PTLL_600_2J_amcatnloFXFX:
   crossSec: 0.07019 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_PTLL-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:36
   unc: 0.0003334 / 3
+  comments: "divided by 3 to account for e, mu, tau"
 
 DYto2Mu_MLL_105to160_amcatnloFXFX:
   crossSec: 49.21

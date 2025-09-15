@@ -26,7 +26,6 @@ struct FitResults {
 
 using RVecF = ROOT::VecOps::RVec<float>;
 using RVecB = ROOT::VecOps::RVec<bool>;
-using RVecB = ROOT::VecOps::RVec<bool>;
 using RVecI = ROOT::VecOps::RVec<int>;
 using RVecUC = ROOT::VecOps::RVec<unsigned char>;
 using RVecUL = ROOT::VecOps::RVec<unsigned long>;

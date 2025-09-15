@@ -14,101 +14,109 @@ from FLAF.Common.Setup import Setup
 from FLAF.RunKit.run_tools import ps_call
 
 
-def filter_files_with_tree(file_list, treeName):
-    valid_files = []
-    for f in file_list:
-        rf = ROOT.TFile.Open(f)
-        if not rf or rf.IsZombie():
-            rf.Close()
-            continue
-        if rf.Get(treeName):
-            valid_files.append(f)
-        rf.Close()
-    return valid_files
-
-
 def find_keys(inFiles_list):
     """Trova e restituisce tutte le chiavi (tree) uniche dai file di input."""
     unique_keys = set()
     for infile in inFiles_list:
         rf = ROOT.TFile.Open(infile)
         if not rf or rf.IsZombie():
-            continue
+            raise RuntimeError(f"Unable to open {infile}")
         for key in rf.GetListOfKeys():
             unique_keys.add(key.GetName())
         rf.Close()
     return sorted(unique_keys)
 
 
-ROOT.gInterpreter.Declare(
-    """
-#include <vector>
-#include <cmath>
-#include <algorithm>
-#include "ROOT/RVec.hxx"
+# ROOT.gInterpreter.Declare(
+#     """
+# #include <vector>
+# #include <cmath>
+# #include <algorithm>
+# #include "ROOT/RVec.hxx"
 
-template <typename T>
-float GetBinValue(const T& bin, const std::vector<float>& edges) {
-    int ibin = static_cast<int>(bin);
-    float max_val = *std::max_element(edges.begin(), edges.end());
-    if (std::abs(ibin) >= static_cast<int>(edges.size()))
-        return std::copysign(max_val, bin);
-    else if (ibin <= 0)
-        return 0.f;
-    else
-        return edges.at(ibin);
-}
+# template <typename T>
+# float GetBinValue(const T& bin, const std::vector<float>& edges) {
+#     int ibin = static_cast<int>(bin);
+#     float max_val = *std::max_element(edges.begin(), edges.end());
+#     if (std::abs(ibin) >= static_cast<int>(edges.size()))
+#         return std::copysign(max_val, bin);
+#     else if (ibin <= 0)
+#         return 0.f;
+#     else
+#         return edges.at(ibin);
+# }
 
-template <typename T>
-ROOT::VecOps::RVec<float> GetBinValue(const ROOT::VecOps::RVec<T>& bins, const std::vector<float>& edges) {
-    ROOT::VecOps::RVec<float> result;
-    float max_val = *std::max_element(edges.begin(), edges.end());
-    for (const auto& bin : bins) {
-        int ibin = static_cast<int>(bin);
-        if (std::abs(ibin) >= static_cast<int>(edges.size()))
-            result.push_back(std::copysign(max_val, bin));
-        else if (ibin <= 0)
-            continue;
-        else
-            result.push_back(edges.at(ibin));
-    }
-    return result;
-}
-"""
-)
+# template <typename T>
+# ROOT::VecOps::RVec<float> GetBinValue(const ROOT::VecOps::RVec<T>& bins, const std::vector<float>& edges) {
+#     ROOT::VecOps::RVec<float> result;
+#     float max_val = *std::max_element(edges.begin(), edges.end());
+#     for (const auto& bin : bins) {
+#         int ibin = static_cast<int>(bin);
+#         if (std::abs(ibin) >= static_cast<int>(edges.size()))
+#             result.push_back(std::copysign(max_val, bin));
+#         else if (ibin <= 0)
+#             continue;
+#         else
+#             result.push_back(edges.at(ibin));
+#     }
+#     return result;
+# }
+# """
+# )
+
 
 
 def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale):
     """Salva gli istogrammi uniti in un file ROOT nella directory corrispondente."""
     dir_name = "/".join(key_tuple)
     dir_ptr = Utilities.mkdir(outFile, dir_name)
-    merged_hist = hist_list[0].GetValue()
-    if len(hist_list) > 1:
-        for hist in hist_list[1:]:
-            merged_hist.Add(hist.GetValue())
+    model, unit_hist = hist_list[0]
+    merged_hist = model.GetHistogram().Clone()
+    for i in range(0, unit_hist.GetNbinsX() + 2):
+        bin_content = unit_hist.GetBinContent(i)
+        bin_error = unit_hist.GetBinError(i)
+        merged_hist.SetBinContent(i, bin_content)
+        merged_hist.SetBinError(i, bin_error)
 
+    # merged_hist = hist_list[0].GetValue()
+    if len(hist_list) > 1:
+        for model, unit_hist in hist_list[1:]:
+            hist = model.GetHistogram()
+            for i in range(0, unit_hist.GetNbinsX() + 2):
+                bin_content = unit_hist.GetBinContent(i)
+                bin_error = unit_hist.GetBinError(i)
+                hist.SetBinContent(i, bin_content)
+                hist.SetBinError(i, bin_error)
+                merged_hist.Add(hist)
     isCentral = unc == "Central"
     final_hist_name = hist_name if isCentral else f"{hist_name}_{unc}_{scale}"
     dir_ptr.WriteTObject(merged_hist, final_hist_name, "Overwrite")
 
 
-def GetBinValues(rdf, hist_cfg_dict, var):
-    """Aggiunge le colonne con i valori dei bin all'RDataFrame."""
-    edges_vector = GetBinVec(hist_cfg_dict, var)
-    rdf = rdf.Define(
-        f"{var}_edges_vector",
-        f"""std::vector<float> edges_vector({edges_vector}); return edges_vector;""",
-    ).Define(f"{var}", f"GetBinValue({var}_bin, {var}_edges_vector)")
-    return rdf
+# def GetBinValues(rdf, hist_cfg_dict, var):
+#     """Aggiunge le colonne con i valori dei bin all'RDataFrame."""
+#     edges_vector = GetBinVec(hist_cfg_dict, var)
+#     rdf = rdf.Define(
+#         f"{var}_edges_vector",
+#         f"""std::vector<float> edges_vector({edges_vector}); return edges_vector;""",
+#     ).Define(f"{var}", f"GetBinValue({var}_bin, {var}_edges_vector)")
+#     return rdf
 
 
-def GetHist(rdf, var, filter_to_apply, weight_name, unc, scale):
-    histo = rdf.Filter(filter_to_apply).Histo1D(
-        GetModel(hist_cfg_dict, f"{var}"), f"{var}", weight_name
+# def GetHist(rdf, var, filter_to_apply, weight_name, unc, scale):
+#     histo = rdf.Filter(filter_to_apply).Histo1D(
+#         GetModel(hist_cfg_dict, f"{var}"), f"{var}", weight_name
+#     )
+#     histo.SetName(f"{var}_{unc}_{scale}")
+#     histo.SetTitle(f"{var}_{unc}_{scale}")
+#     return histo
+
+def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
+    model, unit_bin_model = GetModel(hist_cfg_dict, var, return_unit_bin_model=True)
+    unit_hist = rdf.Filter(filter_to_apply).Histo1D(
+        unit_bin_model, f"{var}_bin", weight_name
     )
-    histo.SetName(f"{var}_{unc}_{scale}")
-    histo.SetTitle(f"{var}_{unc}_{scale}")
-    return histo
+    return model, unit_hist
 
 
 def SaveSingleHistSet(
@@ -132,15 +140,13 @@ def SaveSingleHistSet(
             if tree_name_full not in all_trees:
                 continue
             rdf_shift = all_trees[tree_name_full]
-            hist_list.append(
-                GetHist(rdf_shift, var, filter_expr, "weight_Central", unc, scale)
-            )
+            model, unit_hist = GetUnitBinHist(rdf_shift, var, filter_expr, "weight_Central",  unc, scale)
+            hist_list.append( (model, unit_hist) )
     else:
         weight_name = f"weight_{unc}_{scale}" if unc != "Central" else "weight_Central"
         rdf_central = all_trees[treeName]
-        hist_list.append(
-            GetHist(rdf_central, var, filter_expr, weight_name, unc, scale)
-        )
+        model, unit_hist = GetUnitBinHist(rdf_central, var, filter_expr, weight_name, unc, scale)
+        hist_list.append( (model, unit_hist) )
 
     if hist_list:
         key_tuple = key
@@ -201,7 +207,6 @@ def SaveTmpFileUnc(
         tmp_files.append(tmp_file)
 
 
-# -------------------- MAIN --------------------
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("inputFiles", nargs="+", type=str)
@@ -267,11 +272,13 @@ if __name__ == "__main__":
         if var_for_cut:
             vars_needed.add(var_for_cut)
 
+
     all_trees = {}
     for tree_name, rdf in base_rdfs.items():
         for var in vars_needed:
             if var not in rdf.GetColumnNames():
-                rdf = GetBinValues(rdf, hist_cfg_dict, var)
+                print(f"attenzione, {var} not in column names")
+                # rdf = GetBinValues(rdf, hist_cfg_dict, var)
 
         for further_cut_name, (var_for_cut, cut_expr) in further_cuts.items():
             if further_cut_name not in rdf.GetColumnNames():

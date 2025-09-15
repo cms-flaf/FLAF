@@ -64,14 +64,6 @@ def getYear(period):
         "Run3_2022EE": "2022EE",
         "Run3_2023": "2023",
         "Run3_2023BPix": "2023BPix",
-        "Run2_2016_HIPM": "2016_HIPM",
-        "Run2_2016": "2016",
-        "Run2_2017": "2017",
-        "Run2_2018": "2018",
-        "Run3_2022": "2022",
-        "Run3_2022EE": "2022EE",
-        "Run3_2023": "2023",
-        "Run3_2023BPix": "2023BPix",
     }
     return year_dict[period]
 
@@ -372,6 +364,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             # here go the customisations (to make more general to any analysis, they will be defined in the histTupleDef.py)
             if self.customisations:
                 HistTupleProducer_cmd.extend([f"--customisations", self.customisations])
+            ana_cache_input_counter = 1
             if need_cache_global:
                 anaCache_file = self.input()[ana_cache_input_counter][input_index]
                 ana_cache_input_counter += (
@@ -610,7 +603,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ]
 
         return reqs
-        return reqs
 
     def create_branch_map(self):
         merge_organization_complete = AnaTupleFileListTask.req(
@@ -767,7 +759,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 all_uncertainties_string = ",".join(unc for unc in uncNames)
                 tmp_outFile = self.remote_target(
                     os.path.join(
-                        outdir_histograms, f"all_histograms_{var}_hadded.root"
+                        outdir_histograms, f"all_histograms_{var_name}_hadded.root"
                     ),
                     fs=self.fs_histograms,
                 )
@@ -789,7 +781,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             "--outFile",
                             outFile.path,  # tmpFile.path,
                             "--var",
-                            var,
+                            var_name,
                         ]
                         HaddMergedHistsProducer_cmd.extend(local_merged_files)
                         ps_call(HaddMergedHistsProducer_cmd, verbose=1)

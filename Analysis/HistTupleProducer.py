@@ -23,11 +23,6 @@ from FLAF.Common.Utilities import getCustomisationSplit
 ROOT.EnableThreadSafety()
 
 
-def create_file(file_name, times=None):
-    with open(file_name, "w"):
-        os.utime(file_name, times)
-
-
 def DefineBinnedColumn(hist_cfg_dict, var):
     x_bins = hist_cfg_dict[var]["x_bins"]
     func_name = f"get_{var}_bin"
@@ -126,6 +121,8 @@ def createHistTuple(
             additional_vars = setup.global_params["additional_vars"]
         elif type(setup.global_params["additional_vars"]) == dict:
             additional_vars = setup.global_params["additional_vars"].keys()
+
+    setup.global_params["wantTriggerSFErrors"] = compute_rel_weights and not isData
 
     dfw_central = histTupleDef.GetDfw(df_central, df_cache_central, setup.global_params)
 

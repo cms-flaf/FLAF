@@ -325,10 +325,10 @@ GluGluToContinto2Zto2Mu2Tau:
   crossSec: 6.242
   unc: 0.0006294
   reference: XSDB  GluGluToContinto2Zto2Mu2Tau_TuneCP5_13p6TeV_mcfm701-pythia8ModifiedOn 2024-03-02 04:32:51
-GluGlutoContinto2Zto2E2Tau:
-  crossSec: 6.115
-  unc: 0.0009061
-  reference: XSDB  GluGlutoContinto2Zto2E2Tau_TuneCP5_13p6TeV_mcfm701-pythia8ModifiedOn 2024-03-02 04:35:26
+# GluGluToContinto2Zto2E2Tau:
+#   crossSec: 6.115
+#   unc: 0.0009061
+#   reference: XSDB  GluGlutoContinto2Zto2E2Tau_TuneCP5_13p6TeV_mcfm701-pythia8ModifiedOn 2024-03-02 04:35:26
 GluGlutoContinto2Zto2Mu2Tau:
   crossSec: 6.115
   unc: 0.0009061

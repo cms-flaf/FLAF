@@ -207,7 +207,7 @@ class DataFrameBuilderBase:
                         f"""analysis::FromDelta({var_name}, analysis::GetEntriesMap()[FullEventId]->GetValue<{self.colTypes[var_idx]}>({central_col_idx}) )""",
                     )
                 else:
-                    continue
+                    raise RuntimeError(f"Re-definition of {var_name_forDelta}")
             else:
                 self.df = self.df.Define(
                     f"{var_name_forDelta}",
@@ -254,11 +254,6 @@ def GetKeyNames(file, dir=""):
     if dir != "":
         file.cd(dir)
     return [str(key.GetName()) for key in ROOT.gDirectory.GetListOfKeys()]
-
-
-def create_file(file_name, times=None):
-    with open(file_name, "w"):
-        os.utime(file_name, times)
 
 
 def SerializeObjectToString(obj):

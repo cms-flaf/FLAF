@@ -78,7 +78,7 @@ class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     def create_branch_map(self):
         branches = {}
         for sample_id, sample_name in self.iter_samples():
-            isData = self.samples[sample_name]["sampleType"] == "data"
+            isData = self.samples[sample_name]["process_group"] == "data"
             branches[sample_id] = (sample_name, isData)
         return branches
 
@@ -188,7 +188,7 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 branches[branch_idx] = (
                     sample_id,
                     sample_name,
-                    self.samples[sample_name]["sampleType"],
+                    self.samples[sample_name]["process_group"],
                     fileintot,
                 )
                 branch_idx += 1
@@ -206,7 +206,7 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         for branch_idx, (
             sample_id,
             sample_name,
-            sample_type,
+            process_group,
             input_file,
         ) in self.branch_map.items():
             branches_set.add(sample_id)
@@ -217,7 +217,7 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         }
 
     def requires(self):
-        sample_id, sample_name, sample_type, input_file = self.branch_data
+        sample_id, sample_name, process_group, input_file = self.branch_data
         return [
             AnaCacheTask.req(
                 self,
@@ -230,7 +230,7 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     def output(self):
         if len(self.branch_data) == 0:
             return self.local_target("dummy.txt")
-        sample_id, sample_name, sample_type, input_file = self.branch_data
+        sample_id, sample_name, process_group, input_file = self.branch_data
         output_name = os.path.basename(input_file.path)
         json_name = f"{output_name.split('.')[0]}.json"
         output_path = os.path.join(
@@ -245,7 +245,8 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ]
 
     def run(self):
-        sample_id, sample_name, sample_type, input_file = self.branch_data
+        sample_id, sample_name, process_group, input_file = self.branch_data
+        process_group = self.samples[sample_name]["process_group"]
         jsonName = f"{os.path.basename(input_file.path).split('.')[0]}.json"
         producer_anatuples = os.path.join(
             self.ana_path(), "FLAF", "AnaProd", "anaTupleProducer.py"
@@ -284,7 +285,7 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         try:
             job_home, remove_job_home = self.law_job_home()
             print(
-                f"sample_id = {sample_id}\nsample_name = {sample_name}\nsample_type = {sample_type}\n"
+                f"sample_id = {sample_id}\nsample_name = {sample_name}\nprocess_group = {process_group}\n"
                 f"input_file = {input_file.uri()}"
             )
 
@@ -344,7 +345,7 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             print(f"outFileName is {outFileName}")
             tmpFile = os.path.join(outdir_skimtuples, outFileName)
             tmpjsonFile = os.path.join(outdir_anatuples, jsonName)
-            if sample_type != "data":
+            if process_group != "data":
                 skimtuple_cmd = [
                     "python",
                     producer_skimtuples,
@@ -401,15 +402,15 @@ class AnaTupleFileListTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self, branch=-1, branches=()
         ).create_branch_map()
         branch_set = set()
-        for idx, (sample_name, sample_type) in self.branch_map.items():
+        for idx, (sample_name, process_group) in self.branch_map.items():
             for br_idx, (
                 anaTuple_sample_id,
                 anaTuple_sample_name,
-                anaTuple_sample_type,
+                anaTuple_process_group,
                 anaTuple_input_file,
             ) in AnaTuple_map.items():
                 if (sample_name == anaTuple_sample_name) or (
-                    sample_type == "data" and anaTuple_sample_type == "data"
+                    process_group == "data" and anaTuple_process_group == "data"
                 ):
                     branch_set.add(br_idx)
 
@@ -425,7 +426,7 @@ class AnaTupleFileListTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return deps
 
     def requires(self):
-        sample_name, sample_type = self.branch_data
+        sample_name, process_group = self.branch_data
         AnaTuple_map = AnaTupleTask.req(
             self, branch=-1, branches=()
         ).create_branch_map()
@@ -433,11 +434,11 @@ class AnaTupleFileListTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         for br_idx, (
             anaTuple_sample_id,
             anaTuple_sample_name,
-            anaTuple_sample_type,
+            anaTuple_process_group,
             anaTuple_input_file,
         ) in AnaTuple_map.items():
             if (sample_name == anaTuple_sample_name) or (
-                sample_type == "data" and anaTuple_sample_type == "data"
+                process_group == "data" and anaTuple_process_group == "data"
             ):
                 branch_set.add(br_idx)
 
@@ -458,18 +459,18 @@ class AnaTupleFileListTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         k = 0
         data_done = False
         for sample_id, sample_name in self.iter_samples():
-            sample_type = self.samples[sample_name]["sampleType"]
-            if sample_type == "data":
+            process_group = self.samples[sample_name]["process_group"]
+            if process_group == "data":
                 if data_done:
                     continue  # Will have multiple data samples, but only need one branch
                 sample_name = "data"
                 data_done = True
-            branches[k] = (sample_name, sample_type)
+            branches[k] = (sample_name, process_group)
             k += 1
         return branches
 
     def output(self):
-        sample_name, sample_type = self.branch_data
+        sample_name, process_group = self.branch_data
         output_name = "merged_plan.json"
         output_path = os.path.join(
             "AnaTupleFileList", self.version, self.period, sample_name, output_name
@@ -484,7 +485,7 @@ class AnaTupleFileListTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ]
 
     def run(self):
-        sample_name, sample_type = self.branch_data
+        sample_name, process_group = self.branch_data
         AnaTupleFileList = os.path.join(
             self.ana_path(), "FLAF", "AnaProd", "AnaTupleFileList.py"
         )
@@ -570,7 +571,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     def requires(self):
         # Need both the AnaTupleTask for the input ROOT file, and the AnaTupleFileListTask for the json structure
-        sample_name, sample_type, input_file_list, output_file_list = self.branch_data
+        sample_name, process_group, input_file_list, output_file_list = self.branch_data
         anaTuple_branch_map = AnaTupleTask.req(
             self, branch=-1, branches=()
         ).create_branch_map()
@@ -581,11 +582,11 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         for prod_br, (
             anaTuple_sample_id,
             anaTuple_sample_name,
-            anaTuple_sample_type,
+            anaTuple_process_group,
             file_location,
         ) in anaTuple_branch_map.items():
             if anaTuple_sample_name == sample_name or (
-                sample_type == "data" and anaTuple_sample_type == "data"
+                process_group == "data" and anaTuple_process_group == "data"
             ):
                 # print(f"{anaTuple_sample_name}, {sample_name} are the same, thus including:")
                 file_name = file_location.path.split("/")[-1]
@@ -604,7 +605,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     )
         for prod_br, (
             Merge_sample_name,
-            Merge_sample_type,
+            Merge_process_group,
         ) in AnaTupleFileList_branch_map.items():
             if Merge_sample_name == sample_name:
                 # print(f"including {Merge_sample_name} which is same than {sample_name}")
@@ -636,7 +637,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         organizer_branch_map = AnaTupleFileListTask.req(
             self, branch=-1, branches=()
         ).create_branch_map()
-        for nJob, (sample_name, sample_type) in organizer_branch_map.items():
+        for nJob, (sample_name, process_group) in organizer_branch_map.items():
             # This function cannot run if the json doesn't exist yet, so the branch map breaks when the output isn't already there
             this_sample_dict = self.setup.getAnaTupleFileList(
                 sample_name,
@@ -648,7 +649,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 output_file_list = this_dict["outputs"]
                 branches[nBranch] = (
                     sample_name,
-                    sample_type,
+                    process_group,
                     input_file_list,
                     output_file_list,
                 )
@@ -659,7 +660,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         if len(self.branch_data) == 0:
             return self.local_target("dummy.txt")
 
-        sample_name, sample_type, input_file_list, output_file_list = self.branch_data
+        sample_name, process_group, input_file_list, output_file_list = self.branch_data
         output_path_string = os.path.join(
             "anaTuples", self.version, self.period, sample_name, "{}"
         )
@@ -672,7 +673,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         producer_Merge = os.path.join(
             self.ana_path(), "FLAF", "AnaProd", "MergeNtuples.py"
         )
-        sample_name, sample_type, input_file_list, output_file_list = self.branch_data
+        sample_name, process_group, input_file_list, output_file_list = self.branch_data
         input_list_remote_target = [inp[0] for inp in self.input()[:-1]]
         job_home, remove_job_home = self.law_job_home()
         tmpFiles = [
@@ -741,11 +742,11 @@ class DataMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         for prod_br, (
             sample_id,
             sample_name,
-            sample_type,
+            process_group,
             output_file_name,
             input_file_list,
         ) in anaProd_branch_map.items():
-            if sample_type != "data":
+            if process_group != "data":
                 continue
             prod_branches.append(prod_br)
         return {0: prod_branches}
@@ -795,7 +796,7 @@ class DNNCacheTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         branches_set = set()
         for branch_idx, (
             sample_name,
-            sample_type,
+            process_group,
             input_file,
             ana_br_idx,
             spin,
@@ -810,7 +811,9 @@ class DNNCacheTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         }
 
     def requires(self):
-        sample_name, sample_type, input_file, ana_br_idx, spin, mass = self.branch_data
+        sample_name, process_group, input_file, ana_br_idx, spin, mass = (
+            self.branch_data
+        )
         return [
             AnaTupleTask.req(
                 self,
@@ -840,14 +843,14 @@ class DNNCacheTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             for ana_br_idx, (
                 sample_id,
                 sample_name,
-                sample_type,
+                process_group,
                 input_file,
             ) in anaProd_branch_map.items():
                 mass = sample_info["mass"]
                 spin = sample_info["spin"]
                 branches[br_idx_final] = (
                     sample_name,
-                    sample_type,
+                    process_group,
                     input_file,
                     ana_br_idx,
                     spin,
@@ -857,7 +860,9 @@ class DNNCacheTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return branches
 
     def output(self):
-        sample_name, sample_type, input_file, ana_br_idx, spin, mass = self.branch_data
+        sample_name, process_group, input_file, ana_br_idx, spin, mass = (
+            self.branch_data
+        )
         out_file_name = os.path.basename(self.input()[0].path)
         out_dir = os.path.join(
             "nnCacheTuple",
@@ -871,7 +876,9 @@ class DNNCacheTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return self.remote_target(final_file, fs=self.fs_nnCacheTuple)
 
     def run(self):
-        sample_name, sample_type, input_file, ana_br_idx, spin, mass = self.branch_data
+        sample_name, process_group, input_file, ana_br_idx, spin, mass = (
+            self.branch_data
+        )
         unc_config = os.path.join(
             self.ana_path(), "config", self.period, "weights.yaml"
         )
@@ -943,8 +950,8 @@ class DataCacheMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self, branch=-1, branches=()
         ).branch_map
         prod_branches = []
-        for prod_br, (sample_name, sample_type) in anaProd_branch_map.items():
-            if sample_type == "data":
+        for prod_br, (sample_name, process_group) in anaProd_branch_map.items():
+            if process_group == "data":
                 prod_branches.append(prod_br)
         return {0: prod_branches}
 

@@ -32,14 +32,24 @@ jobs:
             });
             console.log(`Total files changed: ${files.length}`);
             const changedFiles = files.map(file => file.filename);
-            core.setOutput('files', changedFiles.join(' '));
+            core.setOutput('files', btoa(changedFiles.join('\n')));
 
       - name: Install black
         run: pip install black
 
       - name: Check Python formatting
         run: |
-          echo "${{ steps.changed-files.outputs.files }}" | tr ' ' '\n' | grep '\.py$' | xargs -r black --check --diff
+          IFS=$'\n'
+          declare -a FILES=()
+          for file in $(echo ${{ steps.changed-files.outputs.files }} | base64 -d); do
+            if [[ -f "$file" && "$file" == *.py ]]; then
+              FILES+=("$file")
+              echo "$file"
+            fi
+          done
+          if [[ ${#FILES[@]} > 0 ]]; then
+            black --check --diff "${FILES[@]}"
+          fi
 
       - name: Install yamllint
         run: pip install yamllint
@@ -54,7 +64,17 @@ jobs:
             echo "No yamllint configuration file found."
             exit 1
           fi
-          echo "${{ steps.changed-files.outputs.files }}" | tr ' ' '\n' | grep -E '\.(yaml|yml|yamllint)$' | xargs -r yamllint -s -c ${yamllint_config}
+          IFS=$'\n'
+          declare -a FILES=()
+          for file in $(echo ${{ steps.changed-files.outputs.files }} | base64 -d); do
+            if [[ -f "$file" && "$file" =~ \.(yaml|yml|yamllint)$ ]]; then
+              FILES+=("$file")
+              echo "$file"
+            fi
+          done
+          if [[ ${#FILES[@]} > 0 ]]; then
+            yamllint -s -c ${yamllint_config} "${FILES[@]}"
+          fi
 
       - name: Install clang-format
         run: sudo apt-get update && sudo apt-get install clang-format
@@ -69,4 +89,14 @@ jobs:
             echo "No clang-format configuration file found."
             exit 1
           fi
-          echo "${{ steps.changed-files.outputs.files }}" | tr ' ' '\n' | grep -E '\.(cpp|h|hpp|cc)$' | xargs -r clang-format --dry-run --Werror --style "file:${clang_format_style}"
+          IFS=$'\n'
+          declare -a FILES=()
+          for file in $(echo ${{ steps.changed-files.outputs.files }} | base64 -d); do
+            if [[ -f "$file" && "$file" =~ \.(cpp|h|hpp|cc)$ ]]; then
+              FILES+=("$file")
+              echo "$file"
+            fi
+          done
+          if [[ ${#FILES[@]} > 0 ]]; then
+            clang-format --dry-run --Werror --style "file:${clang_format_style}" "${FILES[@]}"
+          fi

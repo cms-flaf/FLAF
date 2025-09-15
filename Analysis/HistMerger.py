@@ -237,7 +237,13 @@ if __name__ == "__main__":
     if args.var.startswith("b1") or args.var.startswith("b2"):
         all_categories = categories
 
-    sample_types_to_merge = list(global_cfg_dict["sample_types_to_merge"])
+    sample_types_to_merge = (
+        list(global_cfg_dict["sample_types_to_merge"])
+        if not setup.phys_model
+        else list(
+            set([samp["process_name"] for samp in setup.samples.values()])
+        )  # With new processes, this is redundant since the phys_model already lists the samples and their datasets
+    )
     scales = list(global_cfg_dict["scales"])
     files_separated = {}
     all_histograms = {}
@@ -264,10 +270,18 @@ if __name__ == "__main__":
             inFileRoot.Close()
             continue
 
+        # sample_type = (
+        #     "data"
+        #     if sample_name == "data"
+        #     else sample_cfg_dict[sample_name]["sampleType"]
+        # )
+        sample_cfg_dict["data"] = {
+            "process_name": "data"
+        }  # Data isn't actually in config dict, but just add it here to keep working format
         sample_type = (
-            "data"
-            if sample_name == "data"
-            else sample_cfg_dict[sample_name]["sampleType"]
+            sample_cfg_dict[sample_name]["sampleType"]
+            if not setup.phys_model
+            else sample_cfg_dict[sample_name]["process_name"]
         )
         getHistDict(
             args.var,
@@ -307,7 +321,9 @@ if __name__ == "__main__":
         )
     else:
         all_histograms_1D = all_histograms
-    if not analysis_import == "Analysis.H_mumu":
+    if (not analysis_import == "Analysis.H_mumu") and "QCD" in setup.phys_model[
+        "backgrounds"
+    ]:
         fixNegativeContributions = False
         error_on_qcdnorm, error_on_qcdnorm_varied = AddQCDInHistDict(
             args.var,

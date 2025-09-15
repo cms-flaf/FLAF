@@ -6,7 +6,6 @@ import shutil
 import time
 from FLAF.RunKit.run_tools import ps_call
 
-#### for the moment only central variation ####
 
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
@@ -66,9 +65,6 @@ def fill_all_hists_dict(
 def MergeHistogramsPerType(all_hists_dict):
     old_hist_dict = all_hists_dict.copy()
     all_hists_dict.clear()
-    # for var in old_hist_dict.keys():
-    #     if var not in all_hists_dict.keys():
-    # all_hists_dict = {}
     for sample_type in old_hist_dict.keys():
         if sample_type == "data":
             print(f"DURING MERGE HISTOGRAMS, sample_type is data")
@@ -81,8 +77,6 @@ def MergeHistogramsPerType(all_hists_dict):
                 objsToMerge.Add(hist)
             final_hist.Merge(objsToMerge)
             all_hists_dict[sample_type][key_name] = final_hist
-            # if len(histlist)!=1:
-            # print(f"for {sample_type} the lenght of histlist is {len(histlist)}")
 
 
 def GetBTagWeightDict(

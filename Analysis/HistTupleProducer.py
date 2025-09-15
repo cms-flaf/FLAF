@@ -115,13 +115,6 @@ def createHistTuple(
         variables = setup.global_params["variables"]
     elif type(setup.global_params["variables"]) == dict:
         variables = setup.global_params["variables"].keys()
-    additional_vars = []
-    if "additional_vars" in setup.global_params.keys():
-        if type(setup.global_params["additional_vars"]) == list:
-            additional_vars = setup.global_params["additional_vars"]
-        elif type(setup.global_params["additional_vars"]) == dict:
-            additional_vars = setup.global_params["additional_vars"].keys()
-
     setup.global_params["wantTriggerSFErrors"] = compute_rel_weights and not isData
 
     dfw_central = histTupleDef.GetDfw(df_central, df_cache_central, setup.global_params)
@@ -159,7 +152,6 @@ def createHistTuple(
                 final_weight_name,
             )
             dfw_central.colToSave.append(final_weight_name)
-    dfw_central.colToSave.extend(additional_vars)
     for var in variables:
         DefineBinnedColumn(hist_cfg_dict, var)
         dfw_central.df = dfw_central.df.Define(f"{var}_bin", f"get_{var}_bin({var})")
@@ -223,7 +215,6 @@ def createHistTuple(
                             f"{var}_bin", f"get_{var}_bin({var})"
                         )
                         dfw_shift.colToSave.append(f"{var}_bin")
-                    dfw_shift.colToSave.extend(additional_vars)
 
                     # Conversione lista → ROOT::VecOps::RVec
                     varToSave = Utilities.ListToVector(dfw_shift.colToSave)

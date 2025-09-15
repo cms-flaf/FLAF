@@ -65,7 +65,6 @@ def find_keys(inFiles_list):
 # )
 
 
-
 def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale):
     """Salva gli istogrammi uniti in un file ROOT nella directory corrispondente."""
     dir_name = "/".join(key_tuple)
@@ -111,6 +110,7 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale):
 #     histo.SetTitle(f"{var}_{unc}_{scale}")
 #     return histo
 
+
 def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
     model, unit_bin_model = GetModel(hist_cfg_dict, var, return_unit_bin_model=True)
     unit_hist = rdf.Filter(filter_to_apply).Histo1D(
@@ -140,13 +140,17 @@ def SaveSingleHistSet(
             if tree_name_full not in all_trees:
                 continue
             rdf_shift = all_trees[tree_name_full]
-            model, unit_hist = GetUnitBinHist(rdf_shift, var, filter_expr, "weight_Central",  unc, scale)
-            hist_list.append( (model, unit_hist) )
+            model, unit_hist = GetUnitBinHist(
+                rdf_shift, var, filter_expr, "weight_Central", unc, scale
+            )
+            hist_list.append((model, unit_hist))
     else:
         weight_name = f"weight_{unc}_{scale}" if unc != "Central" else "weight_Central"
         rdf_central = all_trees[treeName]
-        model, unit_hist = GetUnitBinHist(rdf_central, var, filter_expr, weight_name, unc, scale)
-        hist_list.append( (model, unit_hist) )
+        model, unit_hist = GetUnitBinHist(
+            rdf_central, var, filter_expr, weight_name, unc, scale
+        )
+        hist_list.append((model, unit_hist))
 
     if hist_list:
         key_tuple = key
@@ -271,7 +275,6 @@ if __name__ == "__main__":
     for further_cut_name, (var_for_cut, _) in further_cuts.items():
         if var_for_cut:
             vars_needed.add(var_for_cut)
-
 
     all_trees = {}
     for tree_name, rdf in base_rdfs.items():

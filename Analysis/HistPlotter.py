@@ -1,237 +1,383 @@
 import ROOT
 import sys
 import os
-import importlib
-import yaml
+import array
 
-from FLAF.Common.HistHelper import *
-from FLAF.Common.Setup import Setup
+from FLAF.RunKit.run_tools import ps_call
 
+if __name__ == "__main__":
+    sys.path.append(os.environ["ANALYSIS_PATH"])
 
-def get_histograms_from_dir(
-    directory, hist_name, sample_plot_name, hist_dict, key_to_save_list
-):
-    keys = [k.GetName() for k in directory.GetListOfKeys()]
-
-    if hist_name in keys:
-        obj = directory.Get(hist_name)
-        if obj.InheritsFrom(ROOT.TH1.Class()):
-            obj.SetDirectory(0)
-
-            path = directory.GetPath().split(":")[-1].strip("/")
-            key_to_save = "/".join(key_to_save_list)
-            if path == key_to_save:
-                hist_dict.setdefault(sample_plot_name, obj).Add(obj)
-
-    for key in keys:
-        sub_dir = directory.Get(key)
-        if sub_dir.InheritsFrom(ROOT.TDirectory.Class()):
-            get_histograms_from_dir(
-                sub_dir, hist_name, sample_plot_name, hist_dict, key_to_save_list
-            )
+import FLAF.Common.Utilities as Utilities
+from FLAF.Analysis.HistHelper import *
+from FLAF.Analysis.HistMerger import *
 
 
 def GetHistName(sample_name, sample_type, uncName, unc_scale, global_cfg_dict):
-    sample_hist_name = (
+    hist_names = []
+    sample_namehist = (
         sample_type
         if sample_type in global_cfg_dict["sample_types_to_merge"]
-        or global_cfg_dict["signal_types"]
         else sample_name
     )
+    onlyCentral = sample_name == "data" or uncName == "Central"
+    scales = ["Central"] if onlyCentral else global_cfg_dict["scales"]
+    for scale in scales:
+        histKey = (sample_namehist, uncName, scale)
+        histName = sample_namehist
+        if not onlyCentral:
+            histName = f"{sample_namehist}_{uncName}{scale}"
+    return histName
 
-    only_central = sample_name == "data" or uncName == "Central"
-    scales = ["Central"] if only_central else global_cfg_dict["scales"]
 
-    return (
-        f"{sample_hist_name}_{uncName}{scales[0]}"
-        if not only_central
-        else sample_hist_name
+def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=False):
+    new_binning_array = array.array("d", new_binning)
+    new_hist = hist_initial.Rebin(len(new_binning) - 1, sample, new_binning_array)
+    if sample == "data":
+        new_hist.SetBinErrorOption(ROOT.TH1.kPoisson)
+    if wantOverflow:
+        n_finalbin = new_hist.GetBinContent(new_hist.GetNbinsX())
+        n_overflow = new_hist.GetBinContent(new_hist.GetNbinsX() + 1)
+        new_hist.SetBinContent(new_hist.GetNbinsX(), n_finalbin + n_overflow)
+        err_finalbin = new_hist.GetBinError(new_hist.GetNbinsX())
+        err_overflow = new_hist.GetBinError(new_hist.GetNbinsX() + 1)
+        new_hist.SetBinError(
+            new_hist.GetNbinsX(),
+            math.sqrt(err_finalbin * err_finalbin + err_overflow * err_overflow),
+        )
+
+    if verbose:
+        for nbin in range(0, len(new_binning)):
+            print(
+                f"nbin = {nbin}, content = {new_hist.GetBinContent(nbin)}, error {new_hist.GetBinError(nbin)}"
+            )
+    fix_negative_contributions, debug_info, negative_bins_info = (
+        FixNegativeContributions(new_hist)
     )
+    if not fix_negative_contributions:
+        print("negative contribution not fixed")
+        print(fix_negative_contributions, debug_info, negative_bins_info)
+        for nbin in range(0, new_hist.GetNbinsX() + 1):
+            content = new_hist.GetBinContent(nbin)
+            if content < 0:
+                print(f"for {sample}, bin {nbin} content is < 0:  {content}")
+
+    return new_hist
 
 
-def findNewBins(
-    hist_cfg_dict, var, channel, category
-):  # to be fixed for regions and subregion inclusion eventually
-    cfg = hist_cfg_dict[var]
-    if "x_rebin" not in cfg:
-        return cfg["x_bins"]
+def findNewBins(hist_cfg_dict, var, channel, category):
+    if "x_rebin" not in hist_cfg_dict[var].keys():
+        return hist_cfg_dict[var]["x_bins"]
 
-    rebin_cfg = cfg["x_rebin"]
+    if type(hist_cfg_dict[var]["x_rebin"]) == list:
+        return hist_cfg_dict[var]["x_rebin"]
 
-    if isinstance(rebin_cfg, list):
-        return rebin_cfg
+    new_dict = hist_cfg_dict[var]["x_rebin"]
+    if channel in new_dict.keys():
+        if type(new_dict[channel]) == list:
+            return new_dict[channel]
+        elif type(new_dict[channel]) == dict:
+            if category in new_dict[channel].keys():
+                if type(new_dict[channel][category]) == list:
+                    return new_dict[channel][category]
 
-    # Nested dict lookups with fallbacks
-    for first, second in [(channel, category), (category, channel)]:
-        if first in rebin_cfg:
-            if isinstance(rebin_cfg[first], list):
-                return rebin_cfg[first]
-            if isinstance(rebin_cfg[first], dict) and second in rebin_cfg[first]:
-                return rebin_cfg[first][second]
-
-    return rebin_cfg.get("other", cfg["x_bins"])
-
-
-def filter_inputs(inputs_cfg_dict, args):
-    return [
-        d
-        for d in inputs_cfg_dict
-        if not (
-            (d.get("type") == "signal" and not args.wantSignals)
-            or (d.get("name") == "data" and not args.wantData)
-            or (d.get("name") == "QCD" and not args.wantQCD)
-        )
-    ]
+    if category in new_dict.keys():
+        if type(new_dict[category]) == list:
+            return new_dict[category]
+        elif type(new_dict[category]) == dict:
+            if channel in new_dict[category].keys():
+                if type(new_dict[category][channel]) == list:
+                    return new_dict[category][channel]
+    return hist_cfg_dict[var]["x_rebin"]["other"]
 
 
-def build_all_samples_types(
-    global_cfg_dict, bckg_cfg_dict, sig_cfg_dict, inputs_cfg_dict, wantQCD
+def getNewBins(bins):
+    if type(bins) == list:
+        final_bins = bins
+    else:
+        n_bins, bin_range = bins.split("|")
+        start, stop = bin_range.split(":")
+        bin_width = (float(stop) - float(start)) / int(n_bins)
+        final_bins = []
+        bin_center = float(start)
+        while bin_center >= float(start) and bin_center <= float(stop):
+            final_bins.append(bin_center)
+            bin_center = bin_center + bin_width
+    return final_bins
+
+
+def GetHistograms(
+    inFile,
+    channel,
+    qcdregion,
+    category,
+    uncSource,
+    all_sample_types,
+    all_histlist,
+    wantData,
 ):
-    all_samples_types = {"data": {"type": "data", "plot": "data"}}
-    if wantQCD:
-        all_samples_types["QCD"] = {"type": "QCD", "plot": "QCD"}
+    inFile = ROOT.TFile(inFile, "READ")
+    dir_0 = inFile.Get(channel)
+    dir_0p1 = dir_0.Get(qcdregion)
+    dir_1 = dir_0p1.Get(category)
+    for key in dir_1.GetListOfKeys():
+        obj = key.ReadObj()
+        if obj.IsA().InheritsFrom(ROOT.TH1.Class()):
+            obj.SetDirectory(0)
+            key_name = key.GetName()
+            all_histlist[key_name] = obj
+    inFile.Close()
 
-    # Add backgrounds
-    for sample, cfg in bckg_cfg_dict.items():
-        if "sampleType" not in cfg:
-            continue
-        s_type = cfg["sampleType"]
-        s_name = (
-            s_type if s_type in global_cfg_dict["sample_types_to_merge"] else sample
-        )
-        if s_name in all_samples_types:
-            continue
 
-        plot_name = next(
-            (d["name"] for d in inputs_cfg_dict if s_type in d.get("types", [])),
-            "Other",
-        )
-        all_samples_types[s_name] = {"type": s_type, "plot": plot_name}
-
-    # Add signals
-    for sample, cfg in sig_cfg_dict.items():
-        if cfg.get("sampleType") in global_cfg_dict["signal_types"]:
-            if any(d["name"] == sample for d in inputs_cfg_dict):
-                all_samples_types[sample] = {"type": cfg["sampleType"], "plot": sample}
-
-    return all_samples_types
+def GetSignalHistogram(
+    inFileSig, channel, category, uncSource, histNamesDict, all_histlist, mass
+):
+    inFileSignal = ROOT.TFile(inFileSig, "READ")
+    dir_0Signal = inFileSignal.Get(channel)
+    dir_qcdSignal = dir_0Signal.Get("OS_Iso")
+    dir_1Signal = dir_qcdSignal.Get(category)
+    for key in dir_1Signal.GetListOfKeys():
+        objSignal = key.ReadObj()
+        if objSignal.IsA().InheritsFrom(ROOT.TH1.Class()):
+            objSignal.SetDirectory(0)
+            key_name = key.GetName()
+            key_name_split = key_name.split("_")
+            if uncSource == "Central" and len(key_name_split) > 1:
+                continue
+            else:
+                key_name = key_name.split("_")[0]
+            sample = key_name
+            key_name += f"ToHHTo2B2Tau_M-{mass}"
+            if key_name not in histNamesDict.keys():
+                continue
+            sampleName, uncName, scale = histNamesDict[key_name]
+            if (uncName, scale) not in all_histlist.keys():
+                all_histlist[(uncName, scale)] = {}
+            all_histlist[(uncName, scale)][sample] = objSignal
+    inFileSignal.Close()
 
 
 if __name__ == "__main__":
     import argparse
     import FLAF.PlotKit.Plotter as Plotter
+    import yaml
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--outFile", required=True)
-    parser.add_argument("--inFile", required=True)
-    parser.add_argument("--var", default="tau1_pt")
-    parser.add_argument("--channel", default="tauTau")
-    parser.add_argument("--region", default="OS_Iso")
-    parser.add_argument("--category", default="inclusive")
-    parser.add_argument("--subregion", default="inclusive")
-    parser.add_argument("--wantData", action="store_true")
-    parser.add_argument("--wantSignals", action="store_true")
-    parser.add_argument("--wantQCD", action="store_true")
-    parser.add_argument("--rebin", action="store_true")
-    parser.add_argument("--wantOverflow", type=bool, default=False)
-    parser.add_argument("--wantLogScale", default="")
-    parser.add_argument("--uncSource", default="Central")
-    parser.add_argument("--period", default="Run2_2018")
+    parser.add_argument("--inFile", required=True, type=str)
+    parser.add_argument("--var", required=False, type=str, default="tau1_pt")
+    parser.add_argument("--sigConfig", required=True, type=str)
+    parser.add_argument("--globalConfig", required=True, type=str)
+    parser.add_argument("--bckgConfig", required=True, type=str)
+    parser.add_argument("--channel", required=False, type=str, default="tauTau")
+    parser.add_argument("--qcdregion", required=False, type=str, default="OS_Iso")
+    parser.add_argument("--category", required=False, type=str, default="inclusive")
+    parser.add_argument("--wantData", required=False, action="store_true")
+    parser.add_argument("--wantSignals", required=False, action="store_true")
+    parser.add_argument("--wantQCD", required=False, type=bool, default=False)
+    parser.add_argument("--wantOverflow", required=False, type=bool, default=False)
+    parser.add_argument("--wantLogScale", required=False, type=str, default="")
+    parser.add_argument("--uncSource", required=False, type=str, default="Central")
+    parser.add_argument("--year", required=False, type=str, default="Run2_2018")
+    parser.add_argument("--rebin", required=False, type=bool, default=False)
+    parser.add_argument("--analysis", required=False, type=str, default="")
+
     args = parser.parse_args()
 
-    setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period, None)
-    analysis = importlib.import_module(setup.global_params["analysis_import"])
-
-    global_cfg_dict = setup.global_params
-    hist_cfg_dict = setup.hists
-    bckg_cfg_dict = setup.bckg_config
-    sig_cfg_dict = setup.signal_config
-
-    # Load plotting configs
-    def load_yaml(path):
-        with open(path) as f:
-            return yaml.safe_load(f)
-
     page_cfg = os.path.join(
-        os.environ["ANALYSIS_PATH"], "config", "plot", "cms_stacked.yaml"
+        os.environ["ANALYSIS_PATH"], "config", "plot/cms_stacked.yaml"
     )
     page_cfg_custom = os.path.join(
-        os.environ["ANALYSIS_PATH"], "config", "plot", f"{args.period}.yaml"
+        os.environ["ANALYSIS_PATH"], f"config", f"plot/{args.year}.yaml"
+    )  # to be fixed!!
+    hist_cfg = os.path.join(
+        os.environ["ANALYSIS_PATH"], "config", "plot/histograms.yaml"
     )
+
+    #### config opening ####
+    with open(hist_cfg, "r") as f:
+        hist_cfg_dict = yaml.safe_load(f)
+    with open(page_cfg, "r") as f:
+        page_cfg_dict = yaml.safe_load(f)
+    with open(page_cfg_custom, "r") as f:
+        page_cfg_custom_dict = yaml.safe_load(f)
     inputs_cfg = os.path.join(
         os.environ["ANALYSIS_PATH"], "config", "plot", "inputs.yaml"
     )
+    with open(inputs_cfg, "r") as f:
+        inputs_cfg_dict = yaml.safe_load(f)
 
-    page_cfg_dict = load_yaml(page_cfg)
-    page_cfg_custom_dict = load_yaml(page_cfg_custom)
-    inputs_cfg_dict = filter_inputs(load_yaml(inputs_cfg), args)
+    index_to_remove = []
+    for dicti in inputs_cfg_dict:
+        if (
+            args.wantSignals == False
+            and "type" in dicti.keys()
+            and dicti["type"] == "signal"
+        ):
+            index_to_remove.append(inputs_cfg_dict.index(dicti))
+        elif args.wantData == False and dicti["name"] == "data":
+            index_to_remove.append(inputs_cfg_dict.index(dicti))
 
-    # Build samples dictionary
-    all_samples_types = build_all_samples_types(
-        global_cfg_dict, bckg_cfg_dict, sig_cfg_dict, inputs_cfg_dict, args.wantQCD
+    index_to_remove.sort(reverse=True)
+
+    if index_to_remove:
+        for idx in index_to_remove:
+            inputs_cfg_dict.pop(idx)
+
+    with open(args.sigConfig, "r") as f:
+        sig_cfg_dict = yaml.safe_load(f)
+
+    with open(args.bckgConfig, "r") as f:
+        bckg_cfg_dict = yaml.safe_load(f)
+
+    with open(args.globalConfig, "r") as f:
+        global_cfg_dict = yaml.safe_load(f)
+
+    samples_to_plot = [k["name"] for k in inputs_cfg_dict]
+    all_histlist = {}
+
+    signals = list(global_cfg_dict["signal_types"])
+    scales = list(global_cfg_dict["scales"])
+
+    all_samples_types = {
+        "QCD": {"type": "QCD", "plot": "QCD"},
+        "data": {"type": "data", "plot": "data"},
+    }
+    if args.qcdregion != "OS_Iso" or args.wantQCD == False:
+        all_samples_types = {
+            "data": {"type": "data", "plot": "data"},
+        }
+        for input_dict_idx in range(0, len(inputs_cfg_dict) - 1):
+            input_dict = inputs_cfg_dict[input_dict_idx]
+            if input_dict["name"] == "QCD":
+                del inputs_cfg_dict[input_dict_idx]
+
+    for sample_name in bckg_cfg_dict.keys():
+        if "sampleType" not in bckg_cfg_dict[sample_name].keys():
+            continue
+        bckg_sample_type = bckg_cfg_dict[sample_name]["sampleType"]
+        bckg_sample_name = (
+            bckg_sample_type
+            if bckg_sample_type in global_cfg_dict["sample_types_to_merge"]
+            else sample_name
+        )
+        if bckg_sample_name in all_samples_types.keys():
+            continue
+        all_samples_types[bckg_sample_name] = {}
+        all_samples_types[bckg_sample_name]["type"] = bckg_sample_type
+        for sample_for_plot_dict in inputs_cfg_dict:
+            plot_types = sample_for_plot_dict["types"]
+            if bckg_sample_type in plot_types:
+                all_samples_types[bckg_sample_name]["plot"] = sample_for_plot_dict[
+                    "name"
+                ]
+        if "plot" not in all_samples_types[bckg_sample_name].keys():
+            all_samples_types[bckg_sample_name]["plot"] = "Other"
+
+    for sig_sample_name in sig_cfg_dict.keys():
+        if "sampleType" not in sig_cfg_dict[sig_sample_name].keys():
+            continue
+        sig_sample_type = sig_cfg_dict[sig_sample_name]["sampleType"]
+        if sig_sample_type not in global_cfg_dict["signal_types"]:
+            continue
+        for sample_for_plot_dict in inputs_cfg_dict:
+            if sample_for_plot_dict["name"] == sig_sample_name:
+                all_samples_types[sig_sample_name] = {
+                    "type": sig_sample_type,
+                    "plot": sig_sample_name,
+                }
+
+    plotter = Plotter.Plotter(
+        page_cfg=page_cfg,
+        page_cfg_custom=page_cfg_custom,
+        hist_cfg=hist_cfg_dict,
+        inputs_cfg=inputs_cfg_dict,
     )
-
-    # Plotter setup
-    plotter = Plotter.Plotter(page_cfg, page_cfg_custom, hist_cfg_dict, inputs_cfg_dict)
-
-    # Custom CMS text
-    cat_txt = (
-        args.category.replace("_masswindow", "")
-        .replace("_cat2", "")
-        .replace("_cat3", "")
-    )
+    cat_txt = args.category.replace("_masswindow", "")
+    cat_txt = cat_txt.replace("_cat2", "")
+    cat_txt = cat_txt.replace("_cat3", "")
     custom1 = {
         "cat_text": cat_txt,
         "ch_text": page_cfg_custom_dict["channel_text"][args.channel],
-        "datasim_text": "CMS data" if args.wantData else "CMS simulation",
+        "datasim_text": "CMS " + page_cfg_dict["scope_text"]["text"],
         "scope_text": "",
     }
-
-    # Open ROOT input file
+    if args.wantData == False:
+        custom1 = {
+            "cat_text": cat_txt,
+            "ch_text": page_cfg_custom_dict["channel_text"][args.channel],
+            "datasim_text": "CMS simulation",
+            "scope_text": "",
+        }
     inFile_root = ROOT.TFile.Open(args.inFile, "READ")
+    dir_0 = inFile_root.Get(args.channel)
+    keys_0 = [str(k) for k in dir_0.GetListOfKeys()]
+    dir_0p1 = dir_0.Get(args.qcdregion)
+    keys_0p1 = [str(k) for k in dir_0p1.GetListOfKeys()]
+    dir_1 = dir_0p1.Get(args.category)
+    keys_1 = [str(k) for k in dir_1.GetListOfKeys()]
+    # dir_1 = dir_0.Get(args.category) # --> uncomment if QCD regions are not included in the histograms
+    # hist_cfg_dict[args.var]['max_y_sf'] = 1.4
+    # hist_cfg_dict[args.var]['use_log_y'] = False
+    # hist_cfg_dict[args.var]['use_log_x'] = False
 
-    # Apply log scale options
-    if "y" in args.wantLogScale:
+    hists_to_plot_unbinned = {}
+    if args.wantLogScale == "y":
         hist_cfg_dict[args.var]["use_log_y"] = True
         hist_cfg_dict[args.var]["max_y_sf"] = 2000.2
-    if "x" in args.wantLogScale:
+    if args.wantLogScale == "x":
+        hist_cfg_dict[args.var]["use_log_x"] = True
+    if args.wantLogScale == "xy":
+        hist_cfg_dict[args.var]["use_log_y"] = True
+        hist_cfg_dict[args.var]["max_y_sf"] = 2000.2
         hist_cfg_dict[args.var]["use_log_x"] = True
 
-    # Determine binning
-    bins_to_compute = (
-        findNewBins(hist_cfg_dict, args.var, args.channel, args.category)
-        if args.rebin and "x_rebin" in hist_cfg_dict[args.var]
-        else hist_cfg_dict[args.var]["x_bins"]
-    )
+    rebin_condition = args.rebin and "x_rebin" in hist_cfg_dict[args.var].keys()
+    bins_to_compute = hist_cfg_dict[args.var]["x_bins"]
+
+    if rebin_condition:
+        bins_to_compute = findNewBins(
+            hist_cfg_dict, args.var, args.channel, args.category
+        )
     new_bins = getNewBins(bins_to_compute)
 
-    # Collect histograms
-    hists_unbinned = {}
-    for sample, cfg in all_samples_types.items():
+    for sample_name, sample_content in all_samples_types.items():
+        sample_type = sample_content["type"]
+        sample_plot_name = sample_content["plot"]
         if args.uncSource != "Central":
-            continue  # TODO: implement systematics
+            continue  # to be fixed
+
         sample_histname = GetHistName(
-            sample, cfg["type"], "Central", "Central", global_cfg_dict
+            sample_name, sample_type, "Central", "Central", global_cfg_dict
         )
-        values = [args.channel, args.region, args.category, args.subregion]
-        get_histograms_from_dir(
-            inFile_root, sample_histname, cfg["plot"], hists_unbinned, values
-        )
+        if sample_histname not in dir_1.GetListOfKeys():
+            print(f"ERRORE: {sample_histname} non è nelle keys")
+            continue
+        obj = dir_1.Get(sample_histname)
+        if not obj.IsA().InheritsFrom(ROOT.TH1.Class()):
+            print(f"ERRORE: {sample_histname} non è un istogramma")
+        obj.SetDirectory(0)
 
-    # Rebin if required
-    hists_binned = {
-        name: (
-            RebinHisto(h, new_bins, name, wantOverflow=args.wantOverflow)
-            if args.rebin
-            else h
+        if sample_plot_name not in hists_to_plot_unbinned.keys():
+            hists_to_plot_unbinned[sample_plot_name] = obj
+        else:
+            hists_to_plot_unbinned[sample_plot_name].Add(
+                hists_to_plot_unbinned[sample_plot_name], obj
+            )
+    hists_to_plot_binned = {}
+    for hist_key, hist_unbinned in hists_to_plot_unbinned.items():
+        old_hist = hist_unbinned
+        new_hist = RebinHisto(
+            old_hist, new_bins, hist_key, wantOverflow=args.wantOverflow, verbose=False
         )
-        for name, h in hists_unbinned.items()
-    }
+        hists_to_plot_binned[hist_key] = new_hist if rebin_condition else old_hist
 
-    # Make the plot
     plotter.plot(
-        args.var, hists_binned, args.outFile, want_data=args.wantData, custom=custom1
+        args.var,
+        hists_to_plot_binned,
+        args.outFile,
+        want_data=args.wantData,
+        custom=custom1,
     )
-
     inFile_root.Close()
-    print("Saved:", args.outFile)
+    print(args.outFile)

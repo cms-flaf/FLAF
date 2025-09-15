@@ -255,6 +255,7 @@ def GetBinVec(hist_cfg, var):
         x_bins_vec = Utilities.ListToVector(edges, "float")
     return x_bins_vec
 
+
 def GetModel(hist_cfg, var, return_unit_bin_model=False):
     x_bins = hist_cfg[var]["x_bins"]
     if type(hist_cfg[var]["x_bins"]) == list:
@@ -268,6 +269,7 @@ def GetModel(hist_cfg, var, return_unit_bin_model=False):
         return model
     unit_bin_model = ROOT.RDF.TH1DModel("", "", model.fNbinsX, 0, model.fNbinsX)
     return model, unit_bin_model
+
 
 # def GetModel(hist_cfg, var):
 #     x_bins = hist_cfg[var]["x_bins"]

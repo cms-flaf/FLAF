@@ -248,7 +248,7 @@ DYto2E_M_50_amcatnloFXFX_ext1:
   miniAOD: /DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v1/MINIAODSIM
   isReference: True
   fileNamePattern: ^nanoEE_\d+\.root$
-  dirName: DYto2L_M_50_amcatnloFXFX
+  dirName: DYto2L_M_50_amcatnloFXFX_ext1
 DYto2Mu_M_50_amcatnloFXFX:
   sampleType: DY
   crossSection: DYto2L_M_50_amcatnloFXFX

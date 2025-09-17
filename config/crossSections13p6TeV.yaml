@@ -631,6 +631,11 @@ TTWW:
   reference: XSDB TTWW_TuneCP5_13p6TeV_madgraph-madspin-pythia8 modifiedOn 2023-05-26 21:19:17
   unc: 1.404e-05
 
+TTWZ:
+  crossSec: 0.002715
+  reference: XSDB TTWZ_TuneCP5_13p6TeV_madgraph-pythia8 modifiedOn 2025-09-17 15:30:00
+  unc: 5.963e-7
+
 TTZH:
   crossSec: 0.001288
   reference: XSDB TTZH_TuneCP5_13p6TeV_madgraph-pythia8 modifiedOn 2024-04-03 19:49:34

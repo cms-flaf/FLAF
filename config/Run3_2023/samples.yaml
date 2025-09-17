@@ -169,37 +169,62 @@ DYto2E_MLL_6000_powheg:
   miniAOD: /DYto2E_MLL-6000_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ############## amcatnloFXFX ##############
 ############## DYto2L ##############
-DYto2L_M_10to50_amcatnloFXFX:
+DYto2E_M_10to50_amcatnloFXFX:
   sampleType: DY
-  crossSectionStitch: DYto2L_M_10to50_amcatnloFXFX
+  crossSection: DYto2L_M_10to50_amcatnloFXFX
   generator: amcatnloFXFX
-  miniAOD: /DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14_ext1-v3/MINIAODSIM
-DYto2L_M_10to50_madgraphMLM:
+  miniAOD: DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14_ext1-v3/MINIAODSIM
+  isReference: True
+  dirName: DYto2L_M_10to50_amcatnloFXFX
+  fileNamePattern: ^nanoEE_\d+\.root$
+DYto2Mu_M_10to50_amcatnloFXFX:
   sampleType: DY
-  crossSectionStitch: DYto2L_M_10to50_madgraphMLM
-  generator: madgraphMLM
-  miniAOD: /DYto2L-4Jets_MLL-10to50_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
+  crossSection: DYto2L_M_10to50_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14_ext1-v3/MINIAODSIM
+  isReference: True
+  dirName: DYto2L_M_10to50_amcatnloFXFX
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+# DYto2Tau_M_10to50_amcatnloFXFX:
+#   sampleType: DY
+#   crossSectionStitch: DYto2L_M_10to50_amcatnloFXFX
+#   generator: amcatnloFXFX
+#   miniAOD: DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14_ext1-v3/MINIAODSIM
+#   isReference: True
+#   crossSection: DY_NNLO_QCD+NLO_EW
+#   dirName: DYto2L_M_10to50_amcatnloFXFX
+#   fileNamePattern: ^nanoTauTau_\d+\.root$
+
+DYto2E_M_50_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+  isReference: True
+  fileNamePattern: ^nanoEE_\d+\.root$
+  dirName: DYto2L_M_50_amcatnloFXFX
+DYto2Mu_M_50_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+  isReference: True
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+  dirName: DYto2L_M_50_amcatnloFXFX
+# DYto2Tau_M_50_amcatnloFXFX:
+#   sampleType: DY
+#   crossSection: DYto2L_M_50_amcatnloFXFX
+#   generator: amcatnloFXFX
+#   miniAOD: /DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+#   isReference: True
+#   fileNamePattern: ^nanoTauTau_\d+\.root$
+#   dirName: DYto2L_M_50_amcatnloFXFX_ext1
 ############## DYto2L_M-50_nJ ##############
-DYto2L_M_50_0J_amcatnloFXFX:
-  sampleType: DY
-  crossSectionStitch: DYto2L_M_50_0J_amcatnloFXFX
-  generator: amcatnloFXFX
-  miniAOD: /DYto2L-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
-DYto2L_M_50_1J_amcatnloFXFX:
-  sampleType: DY
-  crossSectionStitch: DYto2L_M_50_1J_amcatnloFXFX
-  generator: amcatnloFXFX
-  miniAOD: /DYto2L-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 DYto2L_M_50_1J_madgraphMLM:
   sampleType: DY
   crossSectionStitch: DYto2L_M_50_1J_madgraphMLM
   generator: madgraphMLM
   miniAOD: /DYto2L-4Jets_MLL-50_1J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
-DYto2L_M_50_2J_amcatnloFXFX:
-  sampleType: DY
-  crossSectionStitch: DYto2L_M_50_2J_amcatnloFXFX
-  generator: amcatnloFXFX
-  miniAOD: /DYto2L-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 DYto2L_M_50_2J_madgraphMLM:
   sampleType: DY
   crossSectionStitch: DYto2L_M_50_2J_madgraphMLM
@@ -215,68 +240,308 @@ DYto2L_M_50_4J_madgraphMLM:
   crossSectionStitch: DYto2L_M_50_4J_madgraphMLM
   generator: madgraphMLM
   miniAOD: /DYto2L-4Jets_MLL-50_4J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
-
-DYto2L_M_50_amcatnloFXFX:
-  sampleType: DY
-  crossSectionStitch: DYto2L_M_50_amcatnloFXFX
-  generator: amcatnloFXFX
-  miniAOD: /DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 DYto2L_M_50_madgraphMLM:
   sampleType: DY
   crossSectionStitch: DYto2L_M_50_madgraphMLM
   generator: madgraphMLM
   miniAOD: /DYto2L-4Jets_MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-############## DYto2L_M_*_PTLL ##############
-DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX:
+  
+DYto2E_M_50_0J_amcatnloFXFX:
   sampleType: DY
-  crossSectionStitch: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
+  crossSection: DYto2L_M_50_0J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
+  dirName: DYto2L_M_50_0J_amcatnloFXFX
+  fileNamePattern: ^nanoEE_\d+\.root$
+DYto2Mu_M_50_0J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_0J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
+  dirName: DYto2L_M_50_0J_amcatnloFXFX
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+DYto2Tau_M_50_0J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2Tau_M_50_0J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2Tau-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+  dirName: DYto2Tau_MLL_50_0J_amcatnloFXFX
+  fileNamePattern: ^nano_\d+\.root$
+DYto2Tau_M_50_0J_Filtered_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2Tau_M_50_0J_Filtered_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2Tau-2Jets_M-50_0J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v3/MINIAODSIM
+  dirName: DYto2Tau_MLL_50_0J_Filtered_amcatnloFXFX
+  fileNamePattern: ^nano_\d+\.root$
+DYto2E_M_50_1J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_1J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
+  dirName: DYto2L_M_50_1J_amcatnloFXFX
+  fileNamePattern: ^nanoEE_\d+\.root$
+DYto2Mu_M_50_1J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_1J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
+  dirName: DYto2L_M_50_1J_amcatnloFXFX
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+DYto2Tau_M_50_1J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2Tau_M_50_1J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2Tau-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+  dirName: DYto2Tau_MLL_50_1J_amcatnloFXFX
+  fileNamePattern: ^nano_\d+\.root$
+DYto2Tau_M_50_1J_Filtered_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2Tau_M_50_1J_Filtered_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2Tau-2Jets_M-50_1J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v3/MINIAODSIM
+  dirName: DYto2Tau_MLL_50_1J_Filtered_amcatnloFXFX
+  fileNamePattern: ^nano_\d+\.root$
+DYto2E_M_50_2J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_2J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
+  dirName: DYto2L_M_50_2J_amcatnloFXFX
+  fileNamePattern: ^nanoEE_\d+\.root$
+DYto2Mu_M_50_2J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_2J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
+  dirName: DYto2L_M_50_2J_amcatnloFXFX
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+DYto2Tau_M_50_2J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2Tau_M_50_2J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2Tau-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+  dirName: DYto2Tau_MLL_50_2J_amcatnloFXFX
+  fileNamePattern: ^nano_\d+\.root$
+DYto2Tau_M_50_2J_Filtered_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2Tau_M_50_2J_Filtered_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2Tau-2Jets_M-50_2J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v3/MINIAODSIM
+  dirName: DYto2Tau_MLL_50_2J_Filtered_amcatnloFXFX
+  fileNamePattern: ^nano_\d+\.root$
+
+############## DYto2L_M_*_PTLL ##############
+DYto2E_M_50_PTLL_40to100_1J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-40to100_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX:
+  dirName: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
+  fileNamePattern: ^nanoEE_\d+\.root$
+DYto2Mu_M_50_PTLL_40to100_1J_amcatnloFXFX:
   sampleType: DY
-  crossSectionStitch: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
+  crossSection: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-40to100_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+  dirName: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+# DYto2Tau_M_50_PTLL_40to100_1J_amcatnloFXFX:
+#   sampleType: DY
+#   crossSection: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
+#   generator: amcatnloFXFX
+#   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-40to100_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+#   dirName: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
+#   fileNamePattern: ^nanoTauTau_\d+\.root$
+DYto2E_M_50_PTLL_40to100_2J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-40to100_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX:
+  dirName: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
+  fileNamePattern: ^nanoEE_\d+\.root$
+DYto2Mu_M_50_PTLL_40to100_2J_amcatnloFXFX:
   sampleType: DY
-  crossSectionStitch: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
+  crossSection: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-40to100_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+  dirName: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+# DYto2Tau_M_50_PTLL_40to100_2J_amcatnloFXFX:
+#   sampleType: DY
+#   crossSection: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
+#   generator: amcatnloFXFX
+#   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-40to100_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+#   dirName: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
+#   fileNamePattern: ^nanoTauTau_\d+\.root$
+DYto2E_M_50_PTLL_100to200_1J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100to200_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX:
+  dirName: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
+  fileNamePattern: ^nanoEE_\d+\.root$
+DYto2Mu_M_50_PTLL_100to200_1J_amcatnloFXFX:
   sampleType: DY
-  crossSectionStitch: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
+  crossSection: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100to200_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+  dirName: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+# DYto2Tau_M_50_PTLL_100to200_1J_amcatnloFXFX:
+#   sampleType: DY
+#   crossSection: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
+#   generator: amcatnloFXFX
+#   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100to200_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+#   dirName: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
+#   fileNamePattern: ^nanoTauTau_\d+\.root$
+DYto2E_M_50_PTLL_100to200_2J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100to200_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX:
+  dirName: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
+  fileNamePattern: ^nanoEE_\d+\.root$
+DYto2Mu_M_50_PTLL_100to200_2J_amcatnloFXFX:
   sampleType: DY
-  crossSectionStitch: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
+  crossSection: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100to200_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+  dirName: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+# DYto2Tau_M_50_PTLL_100to200_2J_amcatnloFXFX:
+#   sampleType: DY
+#   crossSection: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
+#   generator: amcatnloFXFX
+#   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100to200_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+  # dirName: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
+  # fileNamePattern: ^nanoTauTau_\d+\.root$
+DYto2E_M_50_PTLL_200to400_1J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200to400_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX:
+  dirName: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
+  fileNamePattern: ^nanoEE_\d+\.root$
+DYto2Mu_M_50_PTLL_200to400_1J_amcatnloFXFX:
   sampleType: DY
-  crossSectionStitch: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
+  crossSection: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200to400_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+  dirName: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+# DYto2Tau_M_50_PTLL_200to400_1J_amcatnloFXFX:
+#   sampleType: DY
+#   crossSection: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
+#   generator: amcatnloFXFX
+#   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200to400_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+#   dirName: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
+#   fileNamePattern: ^nanoTauTau_\d+\.root$
+DYto2E_M_50_PTLL_200to400_2J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200to400_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX:
+  dirName: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
+  fileNamePattern: ^nanoEE_\d+\.root$
+DYto2Mu_M_50_PTLL_200to400_2J_amcatnloFXFX:
   sampleType: DY
-  crossSectionStitch: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
+  crossSection: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200to400_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+  dirName: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+# DYto2Tau_M_50_PTLL_200to400_2J_amcatnloFXFX:
+#   sampleType: DY
+#   crossSection: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
+#   generator: amcatnloFXFX
+#   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200to400_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+#   dirName: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
+#   fileNamePattern: ^nanoTauTau_\d+\.root$
+DYto2E_M_50_PTLL_400to600_1J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400to600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX:
+  dirName: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
+  fileNamePattern: ^nanoEE_\d+\.root$
+DYto2Mu_M_50_PTLL_400to600_1J_amcatnloFXFX:
   sampleType: DY
-  crossSectionStitch: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
+  crossSection: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400to600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+  dirName: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+# DYto2Tau_M_50_PTLL_400to600_1J_amcatnloFXFX:
+#   sampleType: DY
+#   crossSection: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
+#   generator: amcatnloFXFX
+#   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400to600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+#   dirName: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
+#   fileNamePattern: ^nanoTauTau_\d+\.root$
+DYto2E_M_50_PTLL_400to600_2J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400to600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-DYto2L_M_50_PTLL_600_1J_amcatnloFXFX:
+  dirName: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
+  fileNamePattern: ^nanoEE_\d+\.root$
+DYto2Mu_M_50_PTLL_400to600_2J_amcatnloFXFX:
   sampleType: DY
-  crossSectionStitch: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
+  crossSection: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400to600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+  dirName: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+# DYto2Tau_M_50_PTLL_400to600_2J_amcatnloFXFX:
+#   sampleType: DY
+#   crossSection: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
+#   generator: amcatnloFXFX
+#   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400to600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+#   dirName: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
+#   fileNamePattern: ^nanoTauTau_\d+\.root$
+DYto2E_M_50_PTLL_600_1J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-DYto2L_M_50_PTLL_600_2J_amcatnloFXFX:
+  dirName: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
+  fileNamePattern: ^nanoEE_\d+\.root$
+DYto2Mu_M_50_PTLL_600_1J_amcatnloFXFX:
   sampleType: DY
-  crossSectionStitch: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
+  crossSection: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+  dirName: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+# DYto2Tau_M_50_PTLL_600_1J_amcatnloFXFX:
+#   sampleType: DY
+#   crossSection: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
+#   generator: amcatnloFXFX
+#   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+#   dirName: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
+#   fileNamePattern: ^nanoTauTau_\d+\.root$
+DYto2E_M_50_PTLL_600_2J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+  dirName: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
+  fileNamePattern: ^nanoEE_\d+\.root$
+DYto2Mu_M_50_PTLL_600_2J_amcatnloFXFX:
+  sampleType: DY
+  crossSection: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+  dirName: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
+  fileNamePattern: ^nanoMuMu_\d+\.root$
+# DYto2Tau_M_50_PTLL_600_2J_amcatnloFXFX:
+#   sampleType: DY
+#   crossSection: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
+#   generator: amcatnloFXFX
+#   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
+#   dirName: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
+#   fileNamePattern: ^nanoTauTau_\d+\.root$
 ############## DYto2Mu ##############
 DYto2Mu_MLL_10to50_powheg:
   sampleType: DY
@@ -384,12 +649,12 @@ DYto2TautoMuTauh_M_50_madgraphMLM:
   crossSectionStitch: DYto2TautoMuTauh_M_50_madgraphMLM
   generator: madgraphMLM
   miniAOD: /DYto2TautoMuTauh_M-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-ggZH_Hbb_Zll:
+ggZH_Hto2B_Zto2L:
   sampleType: empty
   crossSection: ggZH_Hbb_Zll
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
-ggZH_Hbb_Zqq:
+ggZH_Hto2B_Zto2Q:
   sampleType: empty
   crossSection: ggZH_Hbb_Zqq
   generator: powheg
@@ -402,23 +667,64 @@ GluGluHto2Mu:
   generator: powheg
   miniAOD: /GluGluHto2Mu_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 ############## Htobb##############
-GluGluHToBB_M125:
+GluGluHto2B_M125:
   sampleType: H
   crossSection: GluGluHToBB_M125
   generator: powheg
   miniAOD: /GluGluHto2B_M-125_TuneCP5_13p6TeV_powheg-minlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ############## Htotautau##############
-GluGluHToTauTau_M125_amcatnloFXFX:
+GluGluHto2Tau_M125_amcatnloFXFX:
   sampleType: H
   crossSection: GluGluHToTauTau_M125_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: /GluGluHto2Tau_M-125_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ############## Htoww##############
-GluGluHToWWTo2L2Nu_M125:
+GluGluHto2Wto2L2Nu_M125:
   sampleType: H
   crossSection: GluGluHToWWTo2L2Nu_M125
   generator: powheg
   miniAOD: /GluGluHto2Wto2L2Nu_M-125_TuneCP5_13p6TeV_powheg-jhugen752-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+
+GluGlutoContinto2Zto2E2Mu:
+  sampleType: H
+  crossSection: fill me
+  generator: powheg
+  miniAOD: /GluGluToContinto2Zto2E2Mu_TuneCP5_13p6TeV_mcfm701-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+GluGlutoContinto2Zto2E2Nu:
+  sampleType: H
+  crossSection: fill me
+  generator: powheg
+  miniAOD: /GluGluToContinto2Zto2E2Nu_TuneCP5_13p6TeV_mcfm701-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+GluGlutoContinto2Zto2E2Tau:
+  sampleType: H
+  crossSection: fill me
+  generator: powheg
+  miniAOD: /GluGluToContinto2Zto2E2Tau_TuneCP5_13p6TeV_mcfm701-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+GluGlutoContinto2Zto2Mu2Nu:
+  sampleType: H
+  crossSection: fill me
+  generator: powheg
+  miniAOD: /GluGluToContinto2Zto2Mu2Nu_TuneCP5_13p6TeV_mcfm701-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+GluGlutoContinto2Zto2Mu2Tau:
+  sampleType: H
+  crossSection: fill me
+  generator: powheg
+  miniAOD: /GluGluToContinto2Zto2Mu2Nu_TuneCP5_13p6TeV_mcfm701-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+GluGlutoContinto2Zto4E:
+  sampleType: H
+  crossSection: fill me
+  generator: powheg
+  miniAOD: /GluGlutoContinto2Zto4E_TuneCP5_13p6TeV_mcfm-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+GluGlutoContinto2Zto4Mu:
+  sampleType: H
+  crossSection: fill me
+  generator: powheg
+  miniAOD: /GluGlutoContinto2Zto4Mu_TuneCP5_13p6TeV_mcfm-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+GluGlutoContinto2Zto4Tau:
+  sampleType: H
+  crossSection: fill me
+  generator: powheg
+  miniAOD: /GluGlutoContinto2Zto4Tau_TuneCP5_13p6TeV_mcfm-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 ############## QCD ##############
 ############## QCD_HT*to* ##############
 QCD_HT40to70_MLM:
@@ -661,52 +967,52 @@ QCD_PT_3200:
   generator: pythia8
   miniAOD: /QCD_PT-3200_TuneCP5_13p6TeV_pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ############## ST ##############
-ST_s_channel_antitop_4f_leptonDecays:
+TbarBtoLminusNuB_s_channel_4FS:
   sampleType: ST
   crossSection: TbarBtoLminusNuB_s_channel_4FS
   generator: amcatnlo
   miniAOD: /TbarBtoLminusNuB-s-channel-4FS_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
-ST_s_channel_top_4f_leptonDecays:
+TBbartoLplusNuBbar_s_channel_4FS:
   sampleType: ST
   crossSection: TBbartoLplusNuBbar_s_channel_4FS
   generator: amcatnlo
   miniAOD: /TBbartoLplusNuBbar-s-channel-4FS_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
-ST_t_channel_antitop_4f_InclusiveDecays:
+TbarBQ_t_channel_4FS:
   sampleType: ST
   crossSection: TbarBQ_t_channel_4FS
   generator: powheg
   miniAOD: /TbarBQ_t-channel_4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
-ST_t_channel_top_4f_InclusiveDecays:
+TBbarQ_t_channel_4FS:
   sampleType: ST
   crossSection: TBbarQ_t_channel_4FS
   generator: powheg
   miniAOD: /TBbarQ_t-channel_4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
-ST_tW_antitop_2L2Nu:
+TbarWplusto2L2Nu:
   sampleType: ST
   crossSection: TbarWplusto2L2Nu
   generator: powheg
   miniAOD: /TbarWplusto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v4/MINIAODSIM
-ST_tW_antitop_4Q:
+TbarWplusto4Q:
   sampleType: ST
   crossSection: TbarWplusto4Q
   generator: powheg
   miniAOD: /TbarWplusto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v4/MINIAODSIM
-ST_tW_antitop_LNu2Q:
+TbarWplustoLNu2Q:
   sampleType: ST
   crossSection: TbarWplustoLNu2Q
   generator: powheg
   miniAOD: /TbarWplustoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v6/MINIAODSIM
-ST_tW_top_2L2Nu:
+TWminusto2L2Nu:
   sampleType: ST
   crossSection: TWminusto2L2Nu
   generator: powheg
   miniAOD: /TWminusto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
-ST_tW_top_4Q:
+TWminusto4Q:
   sampleType: ST
   crossSection: TWminusto4Q
   generator: powheg
   miniAOD: /TWminusto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
-ST_tW_top_LNu2Q:
+TWminustoLNu2Q:
   sampleType: ST
   crossSection: TWminustoLNu2Q
   generator: powheg
@@ -718,12 +1024,12 @@ TTH_Hto2Mu:
   generator: powheg
   miniAOD: /TTH_Hto2Mu_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 
-ttHTobb_M125:
+ttHTo2B_M125:
   sampleType: ttH
   crossSection: TTHto2B_M125
   generator: powheg
   miniAOD: /TTHto2B_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
-ttHToNonbb_M125:
+ttHToNon2B_M125:
   sampleType: ttH
   crossSection: TTHtoNon2B_M125
   generator: powheg
@@ -775,29 +1081,39 @@ VBFHto2Mu:
   miniAOD: /VBFHto2Mu_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 ############## VBFH ##############
 ############## Htobb##############
-VBFHToBB_M125:
+VBFHto2B_M125:
   sampleType: H
   crossSection: VBFHToBB_M125
   generator: powheg
   miniAOD: /VBFHto2B_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 ############## Htotautau##############
-VBFHToTauTau_M125:
+VBFHto2Tau_M125:
   sampleType: H
   crossSection: VBFHToTauTau_M125
   generator: powheg
   miniAOD: /VBFHToTauTau_M125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+VBFHto2Tau_UncorrelatedDecay_UnFiltered:
+  sampleType: H
+  crossSection: VBFHto2Tau_UncorrelatedDecay_UnFiltered
+  generator: powheg
+  miniAOD: /VBFHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
+VBFHto2Tau_UncorrelatedDecay_Filtered:
+  sampleType: H
+  crossSection: VBFHto2Tau_UncorrelatedDecay_Filtered
+  generator: powheg
+  miniAOD: /VBFHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ############## Htoww##############
-VBFHToWWTo2L2Nu_M125:
+VBFHto2Wto2L2Nu_M125:
   sampleType: H
   crossSection: VBFHToWWTo2L2Nu_M125
   generator: powheg
   miniAOD: /VBFHto2Wto2L2Nu_M-125_TuneCP5_13p6TeV_powheg-jhugen752-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
-WminusH_Hbb_Wlnu:
+WminusH_Hto2B_WtoLNu:
   sampleType: VH
   crossSection: WminusH_Hbb_Wlnu
   generator: powheg
   miniAOD: /WminusH_Hto2B_WtoLNu_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
-WminusH_Hbb_Wqq:
+WminusH_Hto2B_Wto2Q:
   sampleType: VH
   crossSection: WminusH_Hbb_Wqq
   generator: powheg
@@ -807,12 +1123,12 @@ WminusH_Hto2Mu_WtoAll:
   crossSection: WminusH_Hto2Mu_WtoAll
   generator: powheg
   miniAOD: /WminusH_Hto2Mu_WtoAll_M-125_TuneCP5_13p6TeV_powheg-minlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
-WplusH_Hbb_Wlnu:
+WplusH_Hto2B_WtoLNu:
   sampleType: VH
   crossSection: WplusH_Hbb_Wlnu
   generator: powheg
   miniAOD: /WplusH_Hto2B_WtoLNu_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
-WplusH_Hbb_Wqq:
+WplusH_Hto2B_Wto2Q:
   sampleType: VH
   crossSection: WplusH_Hbb_Wqq
   generator: powheg
@@ -944,16 +1260,6 @@ WtoLNu_PTLNu_600_2J_amcatnloFXFX:
   crossSection: WtoLNu_PTLNu_600_2J_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: /WtoLNu-2Jets_PTLNu-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
-WToMuNu_M_200:
-  sampleType: W
-  crossSection: WToMuNu_M_200
-  generator: pythia8
-  miniAOD: /WtoMuNu_M-200_TuneCP5_13p6TeV_pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
-WToTauNu_M_200:
-  sampleType: W
-  crossSection: WToTauNu_M_200
-  generator: pythia8
-  miniAOD: /WtoNuTau_M-200_TuneCP5_13p6TeV_pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ############## VV ##############
 WW:
   sampleType: VV
@@ -1026,12 +1332,12 @@ WZZ:
   crossSection: WZZ
   generator: amcatnlo
   miniAOD: /WZZ_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
-ZH_Hbb_Zll:
+ZH_Hto2B_Zto2L:
   sampleType: VH
   crossSection: ZH_Hbb_Zll
   generator: powheg
   miniAOD: /ZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
-ZH_Hbb_Zqq:
+ZH_Hto2B_Zto2Q:
   sampleType: VH
   crossSection: ZH_Hbb_Zqq
   generator: powheg
@@ -1041,32 +1347,32 @@ ZH_Hto2Mu_ZtoAll:
   crossSection: ZH_Hto2Mu_ZtoAll
   generator: powheg
   miniAOD: /ZH_Hto2Mu_ZtoAll_M-125_TuneCP5_13p6TeV_powheg-minlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
-Zto2Nu_HT_100To200:
+Zto2Nu_HT_100to200:
   sampleType: Zto2Nu
   crossSection: Zto2Nu_HT_100To200
   generator: madgraphMLM
   miniAOD: /Zto2Nu-4Jets_HT-100to200_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
-Zto2Nu_HT_200To400:
+Zto2Nu_HT_200to400:
   sampleType: Zto2Nu
   crossSection: Zto2Nu_HT_200To400
   generator: madgraphMLM
   miniAOD: /Zto2Nu-4Jets_HT-200to400_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
-Zto2Nu_HT_400To800:
+Zto2Nu_HT_400to800:
   sampleType: Zto2Nu
   crossSection: Zto2Nu_HT_400To800
   generator: madgraphMLM
   miniAOD: /Zto2Nu-4Jets_HT-400to800_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
-Zto2Nu_HT_800To1500:
+Zto2Nu_HT_800to1500:
   sampleType: Zto2Nu
   crossSection: Zto2Nu_HT_800To1500
   generator: madgraphMLM
   miniAOD: /Zto2Nu-4Jets_HT-800to1500_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
-Zto2Nu_HT_1500To2500:
+Zto2Nu_HT_1500to2500:
   sampleType: Zto2Nu
   crossSection: Zto2Nu_HT_1500To2500
   generator: madgraphMLM
   miniAOD: /Zto2Nu-4Jets_HT-1500to2500_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
-Zto2Nu_HT_2500ToInf:
+Zto2Nu_HT_2500toInf:
   sampleType: Zto2Nu
   crossSection: Zto2Nu_HT_2500ToInf
   generator: madgraphMLM
@@ -1126,3 +1432,9 @@ ZZZ:
   crossSection: ZZZ
   generator: amcatnlo
   miniAOD: /ZZZ_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
+
+EWK_2L2J_madgraph_herwig:
+  sampleType: empty
+  crossSection: EWK_2L2J_madgraph_herwig
+  generator: madgraph
+  miniAOD: /EWK_2L2J_TuneCH3_13p6TeV_madgraph-herwig7/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM

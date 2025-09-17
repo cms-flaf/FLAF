@@ -663,52 +663,52 @@ QCD_PT_3200:
 ############## ST ##############
 ST_s_channel_antitop_4f_leptonDecays:
   sampleType: ST
-  crossSection: ST_s_channel_antitop_LNu
+  crossSection: TbarBtoLminusNuB_s_channel_4FS
   generator: amcatnlo
   miniAOD: /TbarBtoLminusNuB-s-channel-4FS_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 ST_s_channel_top_4f_leptonDecays:
   sampleType: ST
-  crossSection: ST_s_channel_top_LNu
+  crossSection: TBbartoLplusNuBbar_s_channel_4FS
   generator: amcatnlo
   miniAOD: /TBbartoLplusNuBbar-s-channel-4FS_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 ST_t_channel_antitop_4f_InclusiveDecays:
   sampleType: ST
-  crossSection: ST_t_channel_antitop
+  crossSection: TbarBQ_t_channel_4FS
   generator: powheg
   miniAOD: /TbarBQ_t-channel_4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 ST_t_channel_top_4f_InclusiveDecays:
   sampleType: ST
-  crossSection: ST_t_channel_top
+  crossSection: TBbarQ_t_channel_4FS
   generator: powheg
   miniAOD: /TBbarQ_t-channel_4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 ST_tW_antitop_2L2Nu:
   sampleType: ST
-  crossSection: ST_tW_antitop_2L2Nu
+  crossSection: TbarWplusto2L2Nu
   generator: powheg
   miniAOD: /TbarWplusto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v4/MINIAODSIM
 ST_tW_antitop_4Q:
   sampleType: ST
-  crossSection: ST_tW_antitop_4Q
+  crossSection: TbarWplusto4Q
   generator: powheg
   miniAOD: /TbarWplusto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v4/MINIAODSIM
 ST_tW_antitop_LNu2Q:
   sampleType: ST
-  crossSection: ST_tW_antitop_LNu2Q
+  crossSection: TbarWplustoLNu2Q
   generator: powheg
   miniAOD: /TbarWplustoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v6/MINIAODSIM
 ST_tW_top_2L2Nu:
   sampleType: ST
-  crossSection: ST_tW_top_2L2Nu
+  crossSection: TWminusto2L2Nu
   generator: powheg
   miniAOD: /TWminusto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ST_tW_top_4Q:
   sampleType: ST
-  crossSection: ST_tW_top_4Q
+  crossSection: TWminusto4Q
   generator: powheg
   miniAOD: /TWminusto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ST_tW_top_LNu2Q:
   sampleType: ST
-  crossSection: ST_tW_top_LNu2Q
+  crossSection: TWminustoLNu2Q
   generator: powheg
   miniAOD: /TWminustoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ############## TT ##############
@@ -720,12 +720,12 @@ TTH_Hto2Mu:
 
 ttHTobb_M125:
   sampleType: ttH
-  crossSection: ttHTobb_M125
+  crossSection: TTHto2B_M125
   generator: powheg
   miniAOD: /TTHto2B_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 ttHToNonbb_M125:
   sampleType: ttH
-  crossSection: ttHToNonbb_M125
+  crossSection: TTHtoNon2B_M125
   generator: powheg
   miniAOD: /TTHtoNon2B_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 TTto2L2Nu:

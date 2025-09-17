@@ -301,7 +301,7 @@ DYto2Tau_M_50_0J_amcatnloFXFX:
   sampleType: DY
   crossSection: DYto2Tau_M_50_0J_amcatnloFXFX
   generator: amcatnloFXFX
-  miniAOD: DYto2Tau-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
+  miniAOD: /DYto2Tau-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
   dirName: DYto2Tau_MLL_50_0J_amcatnloFXFX
   fileNamePattern: ^nano_\d+\.root$
 DYto2Tau_M_50_0J_Filtered_amcatnloFXFX:
@@ -586,6 +586,11 @@ GluGluHto2Tau_M125:
   crossSection: GluGluHToTauTau_M125
   generator: powheg
   miniAOD: /GluGluHToTauTau_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
+GluGluHTo2Tau_M125_amcatnloFXFX:
+  sampleType: H
+  crossSection: GluGluHToTauTau_M125
+  generator: amcatnloFXFX
+  miniAOD: /GluGluHto2Tau_M-125_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 GluGluHto2B_M125:
   sampleType: H
   crossSection: GluGluHToBB_M125
@@ -616,6 +621,7 @@ GluGlutoContinto2Zto2E2Nu:
   crossSection: GluGlutoContinto2Zto2E2Nu
   generator: mcfm701
   miniAOD: /GluGluToContinto2Zto2E2Nu_TuneCP5_13p6TeV_mcfm701-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v4/MINIAODSIM
+
 ggZH_Hto2B_Zto2L:
   sampleType: H
   crossSection: ggZH_Hbb_Zll
@@ -1453,12 +1459,12 @@ Zto2Q_HT_800toInf:
   sampleType: ZQQ
 
 TTHtoNon2B_M125:
-  crossSection: ttHToNonbb_M125
+  crossSection: TTHtoNon2B_M125
   generator: powheg
   miniAOD: /TTHtoNon2B_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v4/MINIAODSIM
   sampleType: ttH
 TTHto2B_M125:
-  crossSection: ttHTobb_M125
+  crossSection: TTHto2B_M125
   generator: powheg
   miniAOD: /TTHto2B_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v3/MINIAODSIM
   sampleType: ttH

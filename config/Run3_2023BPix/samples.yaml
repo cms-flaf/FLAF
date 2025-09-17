@@ -1,6 +1,6 @@
 GLOBAL:
   era: Run3_2023BPix
-  luminosity: 9451.0  # pb-1
+  luminosity: 9693.0  # pb-1
   fs_nanoAOD:
     - 'T2_CH_CERN:/store/group/phys_higgs/HLepRare/skim_2024_v2/Run3_2023BPix'
   nano_version: v14

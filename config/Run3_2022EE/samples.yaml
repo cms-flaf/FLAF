@@ -1243,7 +1243,7 @@ WtoLNu_PTLNu_200to400_2J_amcatnloFXFX:
   sampleType: W
   crossSection: fill me
   generator: amcatnloFXFX
-  miniAOD: /WtoLNu-2Jets_PTLNu-200to400_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v3/MINIAODSIM 
+  miniAOD: /WtoLNu-2Jets_PTLNu-200to400_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v3/MINIAODSIM
 WtoLNu_PTLNu_400to600_1J_amcatnloFXFX:
   sampleType: W
   crossSection: fill me
@@ -1276,16 +1276,7 @@ WminusHto2Tau_UncorrelatedDecay_UnFiltered:
   crossSection: WminusHto2Tau_UncorrelatedDecay_UnFiltered
   generator: powheg
   miniAOD: /WminusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
-WplusHto2Tau_UncorrelatedDecay_Filtered:
-  sampleType: H
-  crossSection: WplusHto2Tau_UncorrelatedDecay_Filtered
-  generator: powheg
-  miniAOD: /WplusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
-WplusHto2Tau_UncorrelatedDecay_UnFiltered:
-  sampleType: H
-  crossSection: WplusHto2Tau_UncorrelatedDecay_UnFiltered
-  generator: powheg
-  miniAOD: /WplusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
+
 ZHto2Tau_UncorrelatedDecay_Filtered:
   sampleType: W
   crossSection: fill_me

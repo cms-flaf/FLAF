@@ -245,7 +245,7 @@ DYto2L_M_50_madgraphMLM:
   crossSectionStitch: DYto2L_M_50_madgraphMLM
   generator: madgraphMLM
   miniAOD: /DYto2L-4Jets_MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-  
+
 DYto2E_M_50_0J_amcatnloFXFX:
   sampleType: DY
   crossSection: DYto2L_M_50_0J_amcatnloFXFX
@@ -414,8 +414,8 @@ DYto2Mu_M_50_PTLL_100to200_2J_amcatnloFXFX:
 #   crossSection: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
 #   generator: amcatnloFXFX
 #   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100to200_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-  # dirName: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
-  # fileNamePattern: ^nanoTauTau_\d+\.root$
+#  dirName: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
+#  fileNamePattern: ^nanoTauTau_\d+\.root$
 DYto2E_M_50_PTLL_200to400_1J_amcatnloFXFX:
   sampleType: DY
   crossSection: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
@@ -1362,7 +1362,7 @@ ZH_Hto2B_Zto2Q:
   crossSection: ZH_Hbb_Zqq
   generator: powheg
   miniAOD: /ZH_Hto2B_Zto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
-ZH_Hto2Mu_ZtoAll: 
+ZH_Hto2Mu_ZtoAll:
   sampleType: VH
   crossSection: ZH_Hto2Mu_ZtoAll
   generator: powheg

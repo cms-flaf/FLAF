@@ -49,6 +49,13 @@ col_type_dict = {
     "ROOT::VecOps::RVec<bool>": "ROOT::VecOps::RVec<bool>",
     "ROOT::VecOps::RVec<Float_t>": "ROOT::VecOps::RVec<float>",
     "ROOT::VecOps::RVec<Int_t>": "ROOT::VecOps::RVec<int>",
+    "ROOT::VecOps::RVec<UChar_t>": "ROOT::VecOps::RVec<unsigned char>",
+    "ROOT::VecOps::RVec<Char_t>": "ROOT::VecOps::RVec<char>",
+    "ROOT::VecOps::RVec<ULong64_t>": "ROOT::VecOps::RVec<unsigned long long>",
+    "ROOT::VecOps::RVec<ULong_t>": "ROOT::VecOps::RVec<unsigned long>",
+    "ROOT::VecOps::RVec<Short_t>": "ROOT::VecOps::RVec<short>",
+    "ROOT::VecOps::RVec<Double_t>": "ROOT::VecOps::RVec<double>",
+    "ROOT::VecOps::RVec<Bool_t>": "ROOT::VecOps::RVec<bool>",
 }
 
 

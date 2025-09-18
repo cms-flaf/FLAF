@@ -605,7 +605,7 @@ GluGluHto2B_M125:
   crossSection: GluGluHToBB_M125
   generator: powheg
   miniAOD: /GluGluHto2B_M-125_TuneCP5_13p6TeV_powheg-minlo-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
-GluGluHTo2Tau_M125_amcatnloFXFX:
+GluGluHto2Tau_M125_amcatnloFXFX:
   sampleType: H
   crossSection: GluGluHToTauTau_M125
   generator: amcatnloFXFX
@@ -1132,7 +1132,7 @@ TTZZ:
   miniAOD: /TTZZ_TuneCP5_13p6TeV_madgraph-madspin-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v3/MINIAODSIM
 
 ############## TTV ##############
-TTZ_ZTo2Q:
+TTZ_Zto2Q:
   sampleType: TTV
   crossSection: TTZToQQ
   generator: amcatnloFXFX
@@ -1286,12 +1286,12 @@ WplusHto2Tau_UncorrelatedDecay_UnFiltered:
   crossSection: WplusHto2Tau_UncorrelatedDecay_UnFiltered
   generator: powheg
   miniAOD: /WplusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
-ZHTo2Tau_UncorrelatedDecay_Filtered:
+ZHto2Tau_UncorrelatedDecay_Filtered:
   sampleType: W
   crossSection: fill_me
   generator: powheg
   miniAOD: /ZHto2TauUncorrelatedDecay_Filtered_M-125_CP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
-ZHTo2Tau_UncorrelatedDecay_UnFiltered:
+ZHto2Tau_UncorrelatedDecay_UnFiltered:
   sampleType: W
   crossSection: fill_me
   generator: powheg
@@ -1441,32 +1441,32 @@ WZZ:
   miniAOD: /WZZ_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
 
 ############## Zto2Nu ##############
-Zto2Nu_HT_100To200:
+Zto2Nu_HT_100to200:
   sampleType: Zto2Nu
   crossSection: Zto2Nu_HT_100To200
   generator: madgraphMLM
   miniAOD: /Zto2Nu-4Jets_HT-100to200_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
-Zto2Nu_HT_200To400:
+Zto2Nu_HT_200to400:
   sampleType: Zto2Nu
   crossSection: Zto2Nu_HT_200To400
   generator: madgraphMLM
   miniAOD: /Zto2Nu-4Jets_HT-200to400_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
-Zto2Nu_HT_400To800:
+Zto2Nu_HT_400to800:
   sampleType: Zto2Nu
   crossSection: Zto2Nu_HT_400To800
   generator: madgraphMLM
   miniAOD: /Zto2Nu-4Jets_HT-400to800_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
-Zto2Nu_HT_800To1500:
+Zto2Nu_HT_800to1500:
   sampleType: Zto2Nu
   crossSection: Zto2Nu_HT_800To1500
   generator: madgraphMLM
   miniAOD: /Zto2Nu-4Jets_HT-800to1500_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v1/MINIAODSIM
-Zto2Nu_HT_1500To2500:
+Zto2Nu_HT_1500to2500:
   sampleType: Zto2Nu
   crossSection: Zto2Nu_HT_1500To2500
   generator: madgraphMLM
   miniAOD: /Zto2Nu-4Jets_HT-1500to2500_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
-Zto2Nu_HT_2500ToInf:
+Zto2Nu_HT_2500toInf:
   sampleType: Zto2Nu
   crossSection: Zto2Nu_HT_2500ToInf
   generator: madgraphMLM

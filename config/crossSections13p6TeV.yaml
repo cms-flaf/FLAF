@@ -315,6 +315,12 @@ GluGluHToTauTau_M125:
   crossSec: 52.23 * (0.06272)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +4.6% -6.7% (theory) +-3.9 (TH Gaussian) +-3.2 (PDF+alpha s) +-1.9 (PDF) +-2.6 (alpha s)
+GluGluHto2Tau_UncorrelatedDecay_Filtered:
+  crossSec: to fill
+  unc: to fill
+GluGluHto2Tau_UncorrelatedDecay_UnFiltered:
+  crossSec: to fill
+  unc: to fill
 GluGluHToWWTo2L2Nu_M125:
   crossSec: 52.23 * (0.2137) * (3 * 0.1086)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap

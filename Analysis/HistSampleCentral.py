@@ -13,7 +13,7 @@ if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
 import FLAF.Common.Utilities as Utilities
-from FLAF.Analysis.HistHelper import *
+from FLAF.Common.HistHelper import *
 from FLAF.Analysis.hh_bbtautau import *
 
 

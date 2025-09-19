@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  formatting-check:
+  ds-consistency-check:
     runs-on: ubuntu-latest
     steps:
       - uses: cms-flaf/FLAF/.github/actions/checkout-flaf@main
@@ -27,7 +27,7 @@ jobs:
             });
             console.log(`Total files changed: ${files.length}`);
             const allChangedFiles = files.map(file => file.filename);
-            const changedFiles = allChangedFiles.filter(file => file.startsWith('config/') and file.endsWith('samples.yaml'));
+            const changedFiles = allChangedFiles.filter(file => file.startsWith('config/') && file.endsWith('samples.yaml'));
             core.setOutput('files', btoa(changedFiles.join('\n')));
             core.setOutput('has_ds_configs', changedFiles.length > 0 ? 'true' : 'false');
 

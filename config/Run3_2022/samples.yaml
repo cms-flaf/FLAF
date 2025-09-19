@@ -533,19 +533,19 @@ GluGluHto2Wto2L2Nu_M125:
   miniAOD: /GluGluHto2Wto2L2Nu_M-125_TuneCP5_13p6TeV_powheg-jhugen752-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 
 ggZH_Hto2B_Zto2L:
-  crossSection: ggZH_Hto2B_Zto2L
+  crossSection: ZH_Hbb_Zll
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 ggZH_Hto2B_Zto2L_ext1:
-  crossSection: ggZH_Hto2B_Zto2L
+  crossSection: ZH_Hbb_Zll
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v3/MINIAODSIM
 ggZH_Hto2B_Zto2Q:
-  crossSection: ggZH_Hto2B_Zto2Q
+  crossSection: ZH_Hbb_Zqq
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 ggZH_Hto2B_Zto2Q_ext1:
-  crossSection: ggZH_Hto2B_Zto2Q
+  crossSection: ZH_Hbb_Zqq
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v3/MINIAODSIM
 ZH_Hto2Mu_ZtoAll:
@@ -581,19 +581,19 @@ WminusH_Hto2Mu_WtoAll:
   generator: powheg
   miniAOD: /WminusH_Hto2Mu_WtoAll_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v3/MINIAODSIM
 WplusH_Hto2B_WtoLNu:
-  crossSection: WplusH_Hto2B_WtoLNu
+  crossSection: WplusH_Hbb_Wlnu
   generator: powheg
   miniAOD: /WplusH_Hto2B_WtoLNu_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 WplusH_Hto2B_WtoLNu_ext1:
-  crossSection: WplusH_Hto2B_WtoLNu
+  crossSection: WplusH_Hbb_Wlnu
   generator: powheg
   miniAOD: /WplusH_Hto2B_WtoLNu_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v2/MINIAODSIM
 WplusH_Hto2B_Wto2Q:
-  crossSection: WplusH_Hto2B_Wto2Q
+  crossSection: WplusH_Hbb_Wqq
   generator: powheg
   miniAOD: /WplusH_Hto2B_Wto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 WplusH_Hto2B_Wto2Q_ext1:
-  crossSection: WplusH_Hto2B_Wto2Q
+  crossSection: WplusH_Hbb_Wqq
   generator: powheg
   miniAOD: /WplusH_Hto2B_Wto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v2/MINIAODSIM
 WplusHto2Tau_UncorrelatedDecay_Filtered:
@@ -1069,7 +1069,7 @@ WZ:
   miniAOD: /WZ_TuneCP5_13p6TeV_pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 
 WZto3LNu_powheg:
-  crossSection: WZtoL3Nu_powheg
+  crossSection: WZto3LNu_powheg
   generator: powheg
   miniAOD: /WZto3LNu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 
@@ -1158,20 +1158,20 @@ EWK_2L2J_madgraph_herwig:
 
 ############## VH ##############
 ZH_Hto2B_Zto2L:
-  crossSection: ZH_Hto2B_Zto2L
+  crossSection: ZH_Hbb_Zll
   generator: powheg
   miniAOD: /ZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 ZH_Hto2B_Zto2L_ext1:
-  crossSection: ZH_Hto2B_Zto2L
+  crossSection: ZH_Hbb_Zll
   generator: powheg
   miniAOD: /ZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v2/MINIAODSIM
 
 ZH_Hto2B_Zto2Q:
-  crossSection: ZH_Hto2B_Zto2Q
+  crossSection: ZH_Hbb_Zqq
   generator: powheg
   miniAOD: /ZH_Hto2B_Zto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 ZH_Hto2B_Zto2Q_ext1:
-  crossSection: ZH_Hto2B_Zto2Q
+  crossSection: ZH_Hbb_Zqq
   generator: powheg
   miniAOD: /ZH_Hto2B_Zto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v3/MINIAODSIM
 

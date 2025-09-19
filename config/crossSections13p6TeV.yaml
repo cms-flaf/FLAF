@@ -332,7 +332,7 @@ GluGlutoContinto2Zto2E2Nu:
   reference: genXSec analyzer
   unc: 8.361e-05
 GluGlutoContinto2Zto2E2Mu:
-  crossSec: 6.115e+00 
+  crossSec: 6.115
   reference: genXSec analyzer
   unc: 7.528e-05
 GluGlutoContinto2Zto2E2Tau:

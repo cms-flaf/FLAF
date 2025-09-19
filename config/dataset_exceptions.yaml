@@ -2,7 +2,7 @@
 ^DYto2.*_M_50_amcatnloFXFX_ext1:
   - Run3_2023
   - Run3_2023BPix
-^DYto2L_M50_.*_madgraphMLM:
+^DYto2L_M_50_.*_madgraphMLM:
   - Run3_2022
   - Run3_2022EE
 DYto2L_M_10to50_madgraphMLM:
@@ -11,7 +11,8 @@ DYto2L_M_10to50_madgraphMLM:
   - Run3_2023
 
 # H
-^GluGluHto2Tau_M125:
+GluGluHto2Tau_M125:
+  - Run3_2022EE
   - Run3_2023
 ^ggZH_.*_ext1:
   - Run3_2023
@@ -19,7 +20,6 @@ DYto2L_M_10to50_madgraphMLM:
 ^GluGlutoContinto.*:
   - Run3_2022
 GluGlutoContinto2Zto2Mu2Tau: 
-  - Run3_2022
   - Run3_2023
 
 # VH
@@ -31,9 +31,9 @@ GluGlutoContinto2Zto2Mu2Tau:
   - Run3_2023BPix
 
 # QCD
-QCD_HT40to70_MLM: 
+QCD_HT40to70_MLM:
   - Run3_2022EE
-QCD_PT_300toInf_EMEnriched: 
+QCD_PT_300toInf_EMEnriched:
   - Run3_2022EE
 QCD_PT_300_EMEnriched:
   - Run3_2023
@@ -49,9 +49,6 @@ TT:
   - Run3_2023
 TT_ext1:
   - Run3_2022EE
-  - Run3_2023
-  - Run3_2023BPix
-^TT.*_ext1: 
   - Run3_2023
   - Run3_2023BPix
 

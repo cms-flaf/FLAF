@@ -29,7 +29,9 @@ jobs:
             const allChangedFiles = files.map(file => file.filename);
             const changedFiles = allChangedFiles.filter(file => file.startsWith('config/') && file.endsWith('samples.yaml'));
             core.setOutput('files', btoa(changedFiles.join('\n')));
-            core.setOutput('has_ds_configs', changedFiles.length > 0 ? 'true' : 'false');
+            const has_ds_configs = changedFiles.length > 0 ? 'true' : 'false';
+            console.log(`Has dataset config changes: ${has_ds_configs}`);
+            core.setOutput('has_ds_configs', has_ds_configs);
 
       - name: Set up Python
         uses: actions/setup-python@v4

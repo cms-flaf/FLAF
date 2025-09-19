@@ -1,0 +1,81 @@
+# DY
+^DYto2.*_M_50_amcatnloFXFX_ext1:
+  - Run3_2023
+  - Run3_2023BPix
+
+# H
+GluGluHto2Tau_M125:
+  - Run3_2022EE
+  - Run3_2023
+^ggZH_.*_ext1:
+  - Run3_2023
+  - Run3_2023BPix
+^GluGlutoContinto.*:
+  - Run3_2022
+GluGlutoContinto2Zto2Mu2Tau:
+  - Run3_2023
+
+# VH
+^W(minus|plus)H_Hto2B_.*_ext1:
+  - Run3_2023
+  - Run3_2023BPix
+^ZH_Hto2B.*_ext1:
+  - Run3_2023
+  - Run3_2023BPix
+
+# QCD
+QCD_HT40to70_MLM:
+  - Run3_2022EE
+QCD_PT_300toInf_EMEnriched:
+  - Run3_2022EE
+QCD_PT_300_EMEnriched:
+  - Run3_2023
+  - Run3_2023BPix
+  - Run3_2022
+# ST
+^T(bar|)W.*_ext1:
+  - Run3_2023
+  - Run3_2023BPix
+# TT
+TT:
+  - Run3_2022EE
+  - Run3_2023
+TT_ext1:
+  - Run3_2022EE
+  - Run3_2023
+  - Run3_2023BPix
+TTto2L2Nu_ext1:
+  - Run3_2023
+  - Run3_2023BPix
+TTto4Q_ext1:
+  - Run3_2023
+  - Run3_2023BPix
+TTtoLNu2Q_ext1:
+  - Run3_2023
+  - Run3_2023BPix
+
+TTZ_Zto2Q:
+  - Run3_2023
+  - Run3_2023BPix
+TTWZ:
+  - Run3_2022
+
+# VBF
+VBFHto2Tau_M125:
+  - Run3_2022EE
+
+# W
+WtoLNu_madgraphMLM_ext1:
+  - Run3_2023
+  - Run3_2023BPix
+
+# VV
+^WW.*_ext1:
+  - Run3_2023
+  - Run3_2023BPix
+^WZ.*_ext1:
+  - Run3_2023
+  - Run3_2023BPix
+^ZZ.*_ext1:
+  - Run3_2023
+  - Run3_2023BPix

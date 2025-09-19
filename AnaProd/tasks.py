@@ -60,10 +60,20 @@ class InputFileTask(Task, law.LocalWorkflow):
             else sample_name
         )
         print(f"Creating inputFile for sample {sample_name} into {self.output().path}")
+
+
+        fs_nanoAOD = self.fs_nanoAOD
+        if self.samples[sample_name].get("fs_nanoAOD", None) is not None:
+            fs_nanoAOD = self.setup.get_fs(
+                f"fs_nanoAOD_{sample_name}", self.samples[sample_name]["fs_nanoAOD"]
+            )
+        if fs_nanoAOD is None:
+            raise RuntimeError(f"fs_nanoAOD is not defined for sample {sample_name}")
+
         with self.output().localize("w") as out_local_file:
             input_files = []
             pattern = self.samples[sample_name].get("fileNamePattern", r".*\.root$")
-            for file in natural_sort(self.fs_nanoAOD.listdir(folder_name)):
+            for file in natural_sort(fs_nanoAOD.listdir(folder_name)):
                 if re.match(pattern, file):
                     input_files.append(file)
             with open(out_local_file.path, "w") as inputFileTxt:

@@ -11,12 +11,18 @@ if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
 import FLAF.Common.Utilities as Utilities
+from FLAF.RunKit.run_tools import ps_call
 
 
 def createVoidTree(file_name, tree_name):
     df = ROOT.RDataFrame(0)
     df = df.Define("test", "return true;")
     df.Snapshot(tree_name, file_name, {"test"})
+
+
+def create_file(file_name, times=None):
+    with open(file_name, "w"):
+        os.utime(file_name, times)
 
 
 def ListToVector(list, type="string"):
@@ -39,14 +45,23 @@ col_type_dict = {
     "Char_t": "char",
     "UInt_t": "unsigned int",
     "ROOT::VecOps::RVec<float>": "ROOT::VecOps::RVec<float>",
+    "ROOT::VecOps::RVec<Float_t>": "ROOT::VecOps::RVec<float>",
     "ROOT::VecOps::RVec<int>": "ROOT::VecOps::RVec<int>",
+    "ROOT::VecOps::RVec<Int_t>": "ROOT::VecOps::RVec<int>",
     "ROOT::VecOps::RVec<unsigned char>": "ROOT::VecOps::RVec<unsigned char>",
+    "ROOT::VecOps::RVec<UChar_t>": "ROOT::VecOps::RVec<unsigned char>",
     "ROOT::VecOps::RVec<char>": "ROOT::VecOps::RVec<char>",
+    "ROOT::VecOps::RVec<Char_t>": "ROOT::VecOps::RVec<char>",
+    "ROOT::VecOps::RVec<ULong64_t>": "ROOT::VecOps::RVec<unsigned long long>",
     "ROOT::VecOps::RVec<unsigned long long>": "ROOT::VecOps::RVec<unsigned long long>",
     "ROOT::VecOps::RVec<unsigned long>": "ROOT::VecOps::RVec<unsigned long>",
+    "ROOT::VecOps::RVec<ULong_t>": "ROOT::VecOps::RVec<unsigned long>",
     "ROOT::VecOps::RVec<short>": "ROOT::VecOps::RVec<short>",
+    "ROOT::VecOps::RVec<Short_t>": "ROOT::VecOps::RVec<short>",
     "ROOT::VecOps::RVec<double>": "ROOT::VecOps::RVec<double>",
+    "ROOT::VecOps::RVec<Double_t>": "ROOT::VecOps::RVec<double>",
     "ROOT::VecOps::RVec<bool>": "ROOT::VecOps::RVec<bool>",
+    "ROOT::VecOps::RVec<Bool_t>": "ROOT::VecOps::RVec<bool>",
 }
 
 

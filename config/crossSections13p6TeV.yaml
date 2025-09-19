@@ -188,15 +188,11 @@ DYto2L_M_50_PTLL_600_2J_amcatnloFXFX:
   comments: "divided by 3 to account for e, mu, tau"
 
 DYto2Mu_MLL_105to160_amcatnloFXFX:
-  crossSec: (49.21 * 2094 * 3 / (5378 + 1017 + 385.5) )  # internal cross section  times the k-factor for higher order precision --> k factor corresponds to cross sections (sigma(DY_NNLO_QCD+NLO_EW) / sigma(DY_0J + DY_1J + DY_2J))
+  crossSec: 49.21
   reference: XSDB DYto2Mu-2Jets_MLL-105To160_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-12-20 07:59:27
   unc: 0.209
 
-# DYToMuMu-M105-180_13p6TeV_MiNNLO_pythia8:
-#   crossSec: 48.60
-#   reference: internal from private prod
-#   unc: 0.01
-DYToMuMu-M50_13p6TeV_MiNNLO_pythia8:
+DYToMuMu-M105-180_13p6TeV_MiNNLO_pythia8:
   crossSec: 48.60
   reference: internal from private prod
   unc: 0.01
@@ -314,16 +310,6 @@ GluGluHto2Mu:
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +4.6% -6.7% (theory) +-3.9 (TH Gaussian) +-3.2 (PDF+alpha s) +-1.9 (PDF) +-2.6 (alpha s) ; +1.23% -1.2% (theory) +0.97% -0.99% (mq) +0.59% -0.64% (alphas)
 
-ggZH_Hto2B_Zto2L:
-  crossSec: 1.360e-1 * 0.5824 * 3 * 0.033658
-  reference: https://indico.cern.ch/event/1119741/contributions/4715908/attachments/2383849/4073592/YR4_13p6_VH_update.pdf and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
-  unc:  # to be added
-
-ggZH_Hto2B_Zto2Q:
-  crossSec: 1.360e-1 * 0.5824 * 0.69911
-  reference: https://indico.cern.ch/event/1119741/contributions/4715908/attachments/2383849/4073592/YR4_13p6_VH_update.pdf and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
-  unc:  # to be added
-
 GluGluHToTauTau_M125:
   crossSec: 52.23 * (0.06272)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
@@ -336,7 +322,7 @@ GluGluHToWWTo2L2Nu_M125:
   crossSec: 52.23 * (0.2137) * (3 * 0.1086)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +4.6% -6.7% (theory) +-3.9 (TH Gaussian) +-3.2 (PDF+alpha s) +-1.9 (PDF) +-2.6 (alpha s)
-GluGluHto2B_M125:
+GluGluHToBB_M125:
   crossSec: 52.23 * (0.5824)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +4.6% -6.7% (theory) +-3.9 (TH Gaussian) +-3.2 (PDF+alpha s) +-1.9 (PDF) +-2.6 (alpha s)
@@ -403,11 +389,11 @@ WminusHto2Tau:
   crossSec: 0.5788
   reference: XSDB WminusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 modifiedOn 2025-09-04 12:43:28
   unc: 0.00001752
-WplusH_Hto2B_WtoLNu:
+WplusH_Hbb_Wlnu:
   crossSec: 0.8889 * 0.5824 * 3 * 0.1086  # 1.457 (total)
   reference: https://indico.cern.ch/event/1119741/contributions/4715908/attachments/2383849/4073592/YR4_13p6_VH_update.pdf
   unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
-WplusH_Hto2B_Wto2Q:
+WplusH_Hbb_Wqq:
   crossSec: 0.8889 * 0.5824 * (1 - 3 * 0.1086)  # 1.457 (total)
   reference: https://indico.cern.ch/event/1119741/contributions/4715908/attachments/2383849/4073592/YR4_13p6_VH_update.pdf
   unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
@@ -419,40 +405,6 @@ WplusHto2Tau:
   crossSec: 0.9273
   reference: XSDB WplusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 modifiedOn 2025-09-04 12:43:31
   unc: 0.0001175
-
-
-GluGluToContinto2Zto2E2Mu:
-  crossSec: 6.115
-  unc: 0.00005714
-  reference: XSDB M GluGluToContinto2Zto2E2Mu_TuneCP5_13p6TeV_mcfm701-pythia8odifiedOn 2024-03-02 04:32:50
-GluGluToContinto2Zto2E2Tau:
-  crossSec: 6.242
-  unc: 0.0006294
-  reference: XSDB  GluGluToContinto2Zto2E2Tau_TuneCP5_13p6TeV_mcfm701-pythia8ModifiedOn 2024-03-02 04:32:50
-GluGluToContinto2Zto2Mu2Tau:
-  crossSec: 6.242
-  unc: 0.0006294
-  reference: XSDB  GluGluToContinto2Zto2Mu2Tau_TuneCP5_13p6TeV_mcfm701-pythia8ModifiedOn 2024-03-02 04:32:51
-# GluGluToContinto2Zto2E2Tau:
-#   crossSec: 6.115
-#   unc: 0.0009061
-#   reference: XSDB  GluGlutoContinto2Zto2E2Tau_TuneCP5_13p6TeV_mcfm701-pythia8ModifiedOn 2024-03-02 04:35:26
-GluGlutoContinto2Zto2Mu2Tau:
-  crossSec: 6.115
-  unc: 0.0009061
-  reference: XSDB  GluGlutoContinto2Zto2Mu2Tau_TuneCP5_13p6TeV_mcfm701-pythia8ModifiedOn 2024-03-02 04:35:37
-GluGlutoContinto2Zto4E:
-  crossSec: 3.06
-  unc: 0.004207
-  reference: XSDB GluGlutoContinto2Zto4E_TuneCP5_13p6TeV_mcfm-pythia8 ModifiedOn 2024-03-02 04:35:48
-GluGlutoContinto2Zto4Mu:
-  crossSec: 3.042
-  unc: 0.003596
-  reference: XSDB GluGlutoContinto2Zto4Mu_TuneCP5_13p6TeV_mcfm-pythia8 ModifiedOn 2024-03-02 04:36:00
-GluGlutoContinto2Zto4Tau:
-  crossSec: 3.042
-  unc: 0.003596
-  reference: XSDB GluGlutoContinto2Zto4Tau_TuneCP5_13p6TeV_mcfm-pythia8 ModifiedOn 2024-03-02 04:36:07
 
 QCD_HT40to70_MLM:
   crossSec: 311400000.0
@@ -750,11 +702,11 @@ VBFHto2Mu:
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +0.5% -0.3% (QCD Scale) +-2.1% (PDF alpha s) +-2.1% (PDF) +-0.5 (alpha s) ; +1.23% -1.2% (theory) +0.97% -0.99% (mq) +0.59% -0.64% (alphas)
 
-VBFHto2Tau_M125:
+VBFHToTauTau_M125:
   crossSec: 4.078 * (0.06272)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +0.5% -0.3% (QCD Scale) +-2.1% (PDF alpha s) +-2.1% (PDF) +-0.5 (alpha s)
-VBFHto2Wto2L2Nu_M125:
+VBFHToWWTo2L2Nu_M125:
   crossSec: 4.078 * (0.2137) * (3 * 0.1086)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +0.5% -0.3% (QCD Scale) +-2.1% (PDF alpha s) +-2.1% (PDF) +-0.5 (alpha s)
@@ -940,11 +892,11 @@ WWtoLNu2Q-1Jets:
   unc: 0.1795
 
 
-ZH_Hto2B_Zto2L:
+ZH_Hbb_Zll:
   crossSec: 9.439e-1 * 0.5824 * 3 * 0.033658
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +3.7 -3.2 (qcd scale) +-1.6 (pdf alpha) +-1.3 (pdf) +- 0.9 (alpha)
-ZH_Hto2B_Zto2Q:
+ZH_Hbb_Zqq:
   crossSec: 9.439e-1 * 0.5824 * 0.69911
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +3.7 -3.2 (qcd scale) +-1.6 (pdf alpha) +-1.3 (pdf) +- 0.9 (alpha)
@@ -967,23 +919,23 @@ Zto2Nu_HT_100To200:
   crossSec: 273.7
   reference: XSDB Zto2Nu-4Jets_HT-100to200_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 20:13:00
   unc: 0.8085
-Zto2Nu_HT_200to400:
+Zto2Nu_HT_200To400:
   crossSec: 75.96
   reference: XSDB Zto2Nu-4Jets_HT-200to400_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 20:13:04
   unc: 0.2275
-Zto2Nu_HT_400to800:
+Zto2Nu_HT_400To800:
   crossSec: 13.19
   reference: XSDB Zto2Nu-4Jets_HT-400to800_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 20:13:07
   unc: 0.03963
-Zto2Nu_HT_800to1500:
+Zto2Nu_HT_800To1500:
   crossSec: 1.364
   reference: XSDB Zto2Nu-4Jets_HT-800to1500_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 20:13:09
   unc: 0.004118
-Zto2Nu_HT_1500to2500:
+Zto2Nu_HT_1500To2500:
   crossSec: 0.09865
   reference: XSDB Zto2Nu-4Jets_HT-1500to2500_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 20:13:02
   unc: 0.0002974
-Zto2Nu_HT_2500toInf:
+Zto2Nu_HT_2500ToInf:
   crossSec: 0.006699
   reference: XSDB Zto2Nu-4Jets_HT-2500_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 20:13:06
   unc: 2.019e-05

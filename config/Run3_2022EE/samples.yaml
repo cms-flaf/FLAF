@@ -644,6 +644,10 @@ WplusHto2Tau_UncorrelatedDecay_UnFiltered:
   crossSection: WplusHto2Tau_UncorrelatedDecay_UnFiltered
   generator: powheg
   miniAOD: WplusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
+WplusH_Hto2Mu_WtoAll:
+  crossSection: WplusH_Hto2Mu_WtoAll
+  generator: powheg
+  miniAOD: /WplusH_Hto2Mu_WtoAll_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v3/MINIAODSIM
 
 ############## QCD ##############
 QCD_HT70to100_MLM:
@@ -1069,7 +1073,7 @@ WtoLNu_PTLNu_600_2J_amcatnloFXFX:
 
 
 WminusHto2Tau_UncorrelatedDecay_Filtered:
-  crossSection: WminusHto2Tau_UncorrelatedDecay_UnFiltered
+  crossSection: WminusHto2Tau_UncorrelatedDecay_Filtered
   generator: powheg
   miniAOD: /WminusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
 WminusHto2Tau_UncorrelatedDecay_UnFiltered:

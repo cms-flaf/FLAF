@@ -2,7 +2,7 @@
 ^DYto2.*_M_50_amcatnloFXFX_ext1:
   - Run3_2023
   - Run3_2023BPix
-^DYto2L_M50_.*J_madgraphMLM:
+^DYto2L_M50_.*_madgraphMLM:
   - Run3_2022
   - Run3_2022EE
 DYto2L_M_10to50_madgraphMLM:
@@ -13,7 +13,6 @@ DYto2L_M_10to50_madgraphMLM:
 # H
 ^GluGluHto2Tau_M125:
   - Run3_2023
-  - Run3_2023BPix
 ^ggZH_.*_ext1:
   - Run3_2023
   - Run3_2023BPix
@@ -41,7 +40,7 @@ QCD_PT_300_EMEnriched:
   - Run3_2023BPix
   - Run3_2022
 # ST
-T(bar)W.*_ext1:
+^T(bar|)W.*_ext1:
   - Run3_2023
   - Run3_2023BPix
 # TT
@@ -50,8 +49,9 @@ TT:
   - Run3_2023
 TT_ext1:
   - Run3_2022EE
+  - Run3_2023
   - Run3_2023BPix
-TT.*_ext1: 
+^TT.*_ext1: 
   - Run3_2023
   - Run3_2023BPix
 
@@ -71,12 +71,12 @@ WtoLNu_madgraphMLM_ext1:
   - Run3_2023BPix
 
 # VV
-WW.*_ext1:
+^WW.*_ext1:
   - Run3_2023
   - Run3_2023BPix
-WZ.*_ext1:
+^WZ.*_ext1:
   - Run3_2023
   - Run3_2023BPix
-ZZ.*_ext1:
+^ZZ.*_ext1:
   - Run3_2023
   - Run3_2023BPix

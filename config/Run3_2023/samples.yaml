@@ -898,11 +898,11 @@ VBFHto2Tau_M125:
   generator: powheg
   miniAOD: /VBFHToTauTau_M125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 VBFHto2Tau_UncorrelatedDecay_UnFiltered:
-  crossSection: VBFHto2Tau_UncorrelatedDecay_UnFiltered
+  crossSection: VBFHto2Tau
   generator: powheg
   miniAOD: /VBFHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 VBFHto2Tau_UncorrelatedDecay_Filtered:
-  crossSection: VBFHto2Tau_UncorrelatedDecay_Filtered
+  crossSection: VBFHto2Tau_Filtered
   generator: powheg
   miniAOD: /VBFHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ############## Htoww##############
@@ -923,11 +923,11 @@ WminusH_Hto2Mu_WtoAll:
   generator: powheg
   miniAOD: /WminusH_Hto2Mu_WtoAll_M-125_TuneCP5_13p6TeV_powheg-minlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 WminusHto2Tau_UncorrelatedDecay_Filtered:
-  crossSection: WminusHto2Tau_UncorrelatedDecay_Filtered
+  crossSection: WminusHto2Tau_Filtered
   generator: powheg
   miniAOD: /WminusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 WminusHto2Tau_UncorrelatedDecay_UnFiltered:
-  crossSection: WminusHto2Tau_UncorrelatedDecay_UnFiltered
+  crossSection: WminusHto2Tau
   generator: powheg
   miniAOD: /WminusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 WplusH_Hto2B_WtoLNu:
@@ -943,11 +943,11 @@ WplusH_Hto2Mu_WtoAll:
   generator: powheg
   miniAOD: /WplusH_Hto2Mu_WtoAll_M-125_TuneCP5_13p6TeV_powheg-minlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 WplusHto2Tau_UncorrelatedDecay_Filtered:
-  crossSection: WplusHto2Tau_UncorrelatedDecay_Filtered
+  crossSection: WplusHto2Tau_Filtered
   generator: powheg
   miniAOD: /WplusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 WplusHto2Tau_UncorrelatedDecay_UnFiltered:
-  crossSection: WplusHto2Tau_UncorrelatedDecay_UnFiltered
+  crossSection: WplusHto2Tau
   generator: powheg
   miniAOD: /WplusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 WtoLNu_0J_amcatnloFXFX:
@@ -1119,11 +1119,11 @@ ZH_Hto2Mu_ZtoAll:
   generator: powheg
   miniAOD: /ZH_Hto2Mu_ZtoAll_M-125_TuneCP5_13p6TeV_powheg-minlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 ZHto2Tau_UncorrelatedDecay_Filtered:
-  crossSection: ZHto2Tau_UncorrelatedDecay_Filtered
+  crossSection: ZHto2Tau_Filtered
   generator: powheg
   miniAOD: /ZHto2TauUncorrelatedDecay_Filtered_M-125_CP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ZHto2Tau_UncorrelatedDecay_UnFiltered:
-  crossSection: ZHto2Tau_UncorrelatedDecay_UnFiltered
+  crossSection: ZHto2Tau
   generator: powheg
   miniAOD: /ZHto2TauUncorrelatedDecay_M-125_CP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 Zto2Nu_HT_100to200:

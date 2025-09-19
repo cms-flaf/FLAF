@@ -82,11 +82,7 @@ def createHistTuple(
     histTupleDef.analysis_setup(setup)
     isData = True if setup.global_params["dataset"] == "data" else False
     isCentral = True
-    sample_type = (
-        "data"
-        if isData
-        else setup.samples[setup.global_params["dataset"]]["sampleType"]
-    )
+
     snaps = []
     reports = []
     outfilesNames = []
@@ -145,7 +141,7 @@ def createHistTuple(
                 dfw_central,
                 unc,
                 scale,
-                sample_type,
+                isData,
                 unc_cfg_dict,
                 hist_cfg_dict,
                 setup.global_params,

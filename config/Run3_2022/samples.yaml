@@ -537,17 +537,14 @@ ggZH_Hto2B_Zto2L:
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 ggZH_Hto2B_Zto2L_ext1:
-  sampleType: H
   crossSection: ggZH_Hto2B_Zto2L
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v3/MINIAODSIM
 ggZH_Hto2B_Zto2Q:
-  sampleType: H
   crossSection: ggZH_Hto2B_Zto2Q
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 ggZH_Hto2B_Zto2Q_ext1:
-  sampleType: H
   crossSection: ggZH_Hto2B_Zto2Q
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v3/MINIAODSIM
@@ -584,22 +581,18 @@ WminusH_Hto2Mu_WtoAll:
   generator: powheg
   miniAOD: /WminusH_Hto2Mu_WtoAll_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v3/MINIAODSIM
 WplusH_Hto2B_WtoLNu:
-  sampleType: H
   crossSection: WplusH_Hto2B_WtoLNu
   generator: powheg
   miniAOD: /WplusH_Hto2B_WtoLNu_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 WplusH_Hto2B_WtoLNu_ext1:
-  sampleType: H
   crossSection: WplusH_Hto2B_WtoLNu
   generator: powheg
   miniAOD: /WplusH_Hto2B_WtoLNu_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v2/MINIAODSIM
 WplusH_Hto2B_Wto2Q:
-  sampleType: H
   crossSection: WplusH_Hto2B_Wto2Q
   generator: powheg
   miniAOD: /WplusH_Hto2B_Wto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
 WplusH_Hto2B_Wto2Q_ext1:
-  sampleType: H
   crossSection: WplusH_Hto2B_Wto2Q
   generator: powheg
   miniAOD: /WplusH_Hto2B_Wto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v2/MINIAODSIM

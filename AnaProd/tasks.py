@@ -61,7 +61,6 @@ class InputFileTask(Task, law.LocalWorkflow):
         )
         print(f"Creating inputFile for sample {sample_name} into {self.output().path}")
 
-
         fs_nanoAOD = self.fs_nanoAOD
         if self.samples[sample_name].get("fs_nanoAOD", None) is not None:
             fs_nanoAOD = self.setup.get_fs(

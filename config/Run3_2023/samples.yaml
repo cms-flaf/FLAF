@@ -198,27 +198,6 @@ DYto2Mu_M_50_amcatnloFXFX:
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
 #   dirName: DYto2L_M_50_amcatnloFXFX_ext1
 ############## DYto2L_M-50_nJ ##############
-DYto2L_M_50_1J_madgraphMLM:
-  crossSection: DYto2L_M_50_1J_madgraphMLM
-  generator: madgraphMLM
-  miniAOD: /DYto2L-4Jets_MLL-50_1J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
-DYto2L_M_50_2J_madgraphMLM:
-  crossSection: DYto2L_M_50_2J_madgraphMLM
-  generator: madgraphMLM
-  miniAOD: /DYto2L-4Jets_MLL-50_2J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
-DYto2L_M_50_3J_madgraphMLM:
-  crossSection: DYto2L_M_50_3J_madgraphMLM
-  generator: madgraphMLM
-  miniAOD: /DYto2L-4Jets_MLL-50_3J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
-DYto2L_M_50_4J_madgraphMLM:
-  crossSection: DYto2L_M_50_4J_madgraphMLM
-  generator: madgraphMLM
-  miniAOD: /DYto2L-4Jets_MLL-50_4J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
-DYto2L_M_50_madgraphMLM:
-  crossSection: DYto2L_M_50_madgraphMLM
-  generator: madgraphMLM
-  miniAOD: /DYto2L-4Jets_MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-
 DYto2E_M_50_0J_amcatnloFXFX:
   crossSection: DYto2L_M_50_0J_amcatnloFXFX
   generator: amcatnloFXFX
@@ -555,10 +534,6 @@ DYto2Tau_MLL_6000_powheg:
   crossSection: DYto2Tau_MLL_6000_powheg
   generator: powheg
   miniAOD: /DYto2Tau_MLL-6000_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
-DYto2TautoMuTauh_M_50_madgraphMLM:
-  crossSection: DYto2TautoMuTauh_M_50_madgraphMLM
-  generator: madgraphMLM
-  miniAOD: /DYto2TautoMuTauh_M-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 ggZH_Hto2B_Zto2L:
   crossSection: ZH_Hbb_Zll
   generator: powheg

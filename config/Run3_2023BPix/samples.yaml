@@ -131,10 +131,6 @@ DYto2E_MLL_6000_powheg:
   miniAOD: /DYto2E_MLL-6000_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM
 ############## amcatnloFXFX ##############
 ############## DYto2L ##############
-DYto2L_M_10to50_madgraphMLM:
-  crossSection: DYto2L_M_10to50_madgraphMLM
-  generator: madgraphMLM
-  miniAOD: /DYto2L-4Jets_MLL-10to50_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM
 DYto2E_M_10to50_amcatnloFXFX:
   crossSection: DYto2L_M_10to50_amcatnloFXFX
   generator: amcatnloFXFX
@@ -172,10 +168,6 @@ DYto2Mu_M_50_amcatnloFXFX:
 #   miniAOD: /DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM
 #   dirName: DYto2L_M_50_amcatnloFXFX
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
-DYto2L_M_50_madgraphMLM:
-  crossSection: DYto2L_M_50_madgraphMLM
-  generator: madgraphMLM
-  miniAOD: /DYto2L-4Jets_MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM
 
 DYto2E_M_50_0J_amcatnloFXFX:
   crossSection: DYto2L_M_50_0J_amcatnloFXFX
@@ -225,10 +217,6 @@ DYto2Tau_M_50_1J_Filtered_amcatnloFXFX:
   miniAOD: /DYto2Tau-2Jets_M-50_1J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v6-v4/MINIAODSIM
   dirName: DYto2Tau_MLL_50_1J_Filtered_amcatnloFXFX
   fileNamePattern: ^nano_\d+\.root$
-DYto2L_M_50_1J_madgraphMLM:
-  crossSection: DYto2L_M_50_1J_madgraphMLM
-  generator: madgraphMLM
-  miniAOD: /DYto2L-4Jets_MLL-50_1J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM
 
 DYto2E_M_50_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_2J_amcatnloFXFX
@@ -254,19 +242,6 @@ DYto2Tau_M_50_2J_Filtered_amcatnloFXFX:
   miniAOD: /DYto2Tau-2Jets_M-50_2J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v6-v3/MINIAODSIM
   dirName: DYto2Tau_MLL_50_2J_Filtered_amcatnloFXFX
   fileNamePattern: ^nano_\d+\.root$
-
-DYto2L_M_50_2J_madgraphMLM:
-  crossSection: DYto2L_M_50_2J_madgraphMLM
-  generator: madgraphMLM
-  miniAOD: /DYto2L-4Jets_MLL-50_2J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM
-DYto2L_M_50_3J_madgraphMLM:
-  crossSection: DYto2L_M_50_3J_madgraphMLM
-  generator: madgraphMLM
-  miniAOD: /DYto2L-4Jets_MLL-50_3J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM
-DYto2L_M_50_4J_madgraphMLM:
-  crossSection: DYto2L_M_50_4J_madgraphMLM
-  generator: madgraphMLM
-  miniAOD: /DYto2L-4Jets_MLL-50_4J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM
 
 ############## DYto2L_M_*_PTLL ##############
 DYto2E_M_50_PTLL_40to100_1J_amcatnloFXFX:
@@ -532,11 +507,6 @@ DYto2Tau_MLL_6000_powheg:
   crossSection: DYto2Tau_MLL_6000_powheg
   generator: powheg
   miniAOD: /DYto2Tau_MLL-6000_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM
-DYto2TautoMuTauh_M_50_madgraphMLM:
-  crossSection: DYto2TautoMuTauh_M_50_madgraphMLM
-  generator: madgraphMLM
-  miniAOD: /DYto2TautoMuTauh_M-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v1/MINIAODSIM
-
 
 ggZH_Hto2B_Zto2L:
   crossSection: ZH_Hbb_Zll

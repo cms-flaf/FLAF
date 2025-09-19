@@ -2,21 +2,6 @@
 ^DYto2.*_M_50_amcatnloFXFX_ext1:
   - Run3_2023
   - Run3_2023BPix
-DYto2L_M_50_madgraphMLM_ext1:
-  - Run3_2022
-  - Run3_2023
-  - Run3_2023BPix
-^DYto2L_M_50_.*_madgraphMLM:
-  - Run3_2022
-  - Run3_2022EE
-DYto2L_M_10to50_madgraphMLM:
-  - Run3_2022
-  - Run3_2022EE
-  - Run3_2023
-DYto2L_M_50_madgraphMLM:
-  - Run3_2022
-DYto2TautoMuTauh_M_50_madgraphMLM:
-  - Run3_2022
 
 # H
 GluGluHto2Tau_M125:

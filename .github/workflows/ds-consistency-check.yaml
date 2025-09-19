@@ -1,0 +1,46 @@
+name: Dataset config check
+
+on:
+  pull_request:
+    types: [ "opened", "synchronize", "reopened", "labeled" ]
+    branches: [ "main" ]
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  formatting-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: cms-flaf/FLAF/.github/actions/checkout-flaf@main
+
+      - name: Get changed files
+        id: changed_files
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+            console.log(`Total files changed: ${files.length}`);
+            const allChangedFiles = files.map(file => file.filename);
+            const changedFiles = allChangedFiles.filter(file => file.startsWith('config/') and file.endsWith('samples.yaml'));
+            core.setOutput('files', btoa(changedFiles.join('\n')));
+            core.setOutput('has_ds_configs', changedFiles.length > 0 ? 'true' : 'false');
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        if: ${{ steps.changed_files.outputs.has_ds_configs == 'true' }}
+        with:
+          python-version: '3.x'
+
+      - name: Install pyyaml
+        if: ${{ steps.changed_files.outputs.has_ds_configs == 'true' }}
+        run: pip install pyyaml
+
+      - name: Check dataset configs consistency
+        if: ${{ steps.changed_files.outputs.has_ds_configs == 'true' }}
+        run: python3 test/checkDatasetConfigConsistency.py --exception config/dataset_exceptions.yaml Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix

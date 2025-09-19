@@ -118,43 +118,43 @@ Tau_Run2023C_v4:
 ############## DYto2E ##############
 
 DYto2E_MLL_10to50_powheg:
-  crossSectionStitch: DYto2E_MLL_10to50_powheg
+  crossSection: DYto2E_MLL_10to50_powheg
   generator: powheg
   miniAOD: /DYto2E_MLL-10to50_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2E_MLL_50to120_powheg:
-  crossSectionStitch: DYto2E_MLL_50to120_powheg
+  crossSection: DYto2E_MLL_50to120_powheg
   generator: powheg
   miniAOD: /DYto2E_MLL-50to120_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2E_MLL_120to200_powheg:
-  crossSectionStitch: DYto2E_MLL_120to200_powheg
+  crossSection: DYto2E_MLL_120to200_powheg
   generator: powheg
   miniAOD: /DYto2E_MLL-120to200_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 DYto2E_MLL_200to400_powheg:
-  crossSectionStitch: DYto2E_MLL_200to400_powheg
+  crossSection: DYto2E_MLL_200to400_powheg
   generator: powheg
   miniAOD: /DYto2E_MLL-200to400_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2E_MLL_400to800_powheg:
-  crossSectionStitch: DYto2E_MLL_400to800_powheg
+  crossSection: DYto2E_MLL_400to800_powheg
   generator: powheg
   miniAOD: /DYto2E_MLL-400to800_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2E_MLL_800to1500_powheg:
-  crossSectionStitch: DYto2E_MLL_800to1500_powheg
+  crossSection: DYto2E_MLL_800to1500_powheg
   generator: powheg
   miniAOD: /DYto2E_MLL-800to1500_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 DYto2E_MLL_1500to2500_powheg:
-  crossSectionStitch: DYto2E_MLL_1500to2500_powheg
+  crossSection: DYto2E_MLL_1500to2500_powheg
   generator: powheg
   miniAOD: /DYto2E_MLL-1500to2500_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2E_MLL_2500to4000_powheg:
-  crossSectionStitch: DYto2E_MLL_2500to4000_powheg
+  crossSection: DYto2E_MLL_2500to4000_powheg
   generator: powheg
   miniAOD: /DYto2E_MLL-2500to4000_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2E_MLL_4000to6000_powheg:
-  crossSectionStitch: DYto2E_MLL_4000to6000_powheg
+  crossSection: DYto2E_MLL_4000to6000_powheg
   generator: powheg
   miniAOD: /DYto2E_MLL-4000to6000_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2E_MLL_6000_powheg:
-  crossSectionStitch: DYto2E_MLL_6000_powheg
+  crossSection: DYto2E_MLL_6000_powheg
   generator: powheg
   miniAOD: /DYto2E_MLL-6000_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ############## amcatnloFXFX ##############
@@ -163,21 +163,18 @@ DYto2E_M_10to50_amcatnloFXFX:
   crossSection: DYto2L_M_10to50_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14_ext1-v3/MINIAODSIM
-  isReference: True
   dirName: DYto2L_M_10to50_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_10to50_amcatnloFXFX:
   crossSection: DYto2L_M_10to50_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14_ext1-v3/MINIAODSIM
-  isReference: True
   dirName: DYto2L_M_10to50_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 # DYto2Tau_M_10to50_amcatnloFXFX:
-#   crossSectionStitch: DYto2L_M_10to50_amcatnloFXFX
+#   crossSection: DYto2L_M_10to50_amcatnloFXFX
 #   generator: amcatnloFXFX
 #   miniAOD: DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14_ext1-v3/MINIAODSIM
-#   isReference: True
 #   crossSection: DY_NNLO_QCD+NLO_EW
 #   dirName: DYto2L_M_10to50_amcatnloFXFX
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
@@ -186,42 +183,39 @@ DYto2E_M_50_amcatnloFXFX:
   crossSection: DYto2L_M_50_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: /DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-  isReference: True
   fileNamePattern: ^nanoEE_\d+\.root$
   dirName: DYto2L_M_50_amcatnloFXFX
 DYto2Mu_M_50_amcatnloFXFX:
   crossSection: DYto2L_M_50_amcatnloFXFX
   generator: amcatnloFXFX
   miniAOD: /DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-  isReference: True
   fileNamePattern: ^nanoMuMu_\d+\.root$
   dirName: DYto2L_M_50_amcatnloFXFX
 # DYto2Tau_M_50_amcatnloFXFX:
 #   crossSection: DYto2L_M_50_amcatnloFXFX
 #   generator: amcatnloFXFX
 #   miniAOD: /DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
-#   isReference: True
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
 #   dirName: DYto2L_M_50_amcatnloFXFX_ext1
 ############## DYto2L_M-50_nJ ##############
 DYto2L_M_50_1J_madgraphMLM:
-  crossSectionStitch: DYto2L_M_50_1J_madgraphMLM
+  crossSection: DYto2L_M_50_1J_madgraphMLM
   generator: madgraphMLM
   miniAOD: /DYto2L-4Jets_MLL-50_1J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 DYto2L_M_50_2J_madgraphMLM:
-  crossSectionStitch: DYto2L_M_50_2J_madgraphMLM
+  crossSection: DYto2L_M_50_2J_madgraphMLM
   generator: madgraphMLM
   miniAOD: /DYto2L-4Jets_MLL-50_2J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 DYto2L_M_50_3J_madgraphMLM:
-  crossSectionStitch: DYto2L_M_50_3J_madgraphMLM
+  crossSection: DYto2L_M_50_3J_madgraphMLM
   generator: madgraphMLM
   miniAOD: /DYto2L-4Jets_MLL-50_3J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 DYto2L_M_50_4J_madgraphMLM:
-  crossSectionStitch: DYto2L_M_50_4J_madgraphMLM
+  crossSection: DYto2L_M_50_4J_madgraphMLM
   generator: madgraphMLM
   miniAOD: /DYto2L-4Jets_MLL-50_4J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 DYto2L_M_50_madgraphMLM:
-  crossSectionStitch: DYto2L_M_50_madgraphMLM
+  crossSection: DYto2L_M_50_madgraphMLM
   generator: madgraphMLM
   miniAOD: /DYto2L-4Jets_MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 
@@ -481,88 +475,88 @@ DYto2Mu_M_50_PTLL_600_2J_amcatnloFXFX:
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
 ############## DYto2Mu ##############
 DYto2Mu_MLL_10to50_powheg:
-  crossSectionStitch: DYto2Mu_MLL_10to50_powheg
+  crossSection: DYto2Mu_MLL_10to50_powheg
   generator: powheg
   miniAOD: /DYto2Mu_MLL-10to50_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Mu_MLL_50to120_powheg:
-  crossSectionStitch: DYto2Mu_MLL_50to120_powheg
+  crossSection: DYto2Mu_MLL_50to120_powheg
   generator: powheg
   miniAOD: /DYto2Mu_MLL-50to120_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Mu_MLL_120to200_powheg:
-  crossSectionStitch: DYto2Mu_MLL_120to200_powheg
+  crossSection: DYto2Mu_MLL_120to200_powheg
   generator: powheg
   miniAOD: /DYto2Mu_MLL-120to200_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Mu_MLL_200to400_powheg:
-  crossSectionStitch: DYto2Mu_MLL_200to400_powheg
+  crossSection: DYto2Mu_MLL_200to400_powheg
   generator: powheg
   miniAOD: /DYto2Mu_MLL-200to400_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Mu_MLL_400to800_powheg:
-  crossSectionStitch: DYto2Mu_MLL_400to800_powheg
+  crossSection: DYto2Mu_MLL_400to800_powheg
   generator: powheg
   miniAOD: /DYto2Mu_MLL-400to800_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Mu_MLL_800to1500_powheg:
-  crossSectionStitch: DYto2Mu_MLL_800to1500_powheg
+  crossSection: DYto2Mu_MLL_800to1500_powheg
   generator: powheg
   miniAOD: /DYto2Mu_MLL-800to1500_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Mu_MLL_1500to2500_powheg:
-  crossSectionStitch: DYto2Mu_MLL_1500to2500_powheg
+  crossSection: DYto2Mu_MLL_1500to2500_powheg
   generator: powheg
   miniAOD: /DYto2Mu_MLL-1500to2500_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Mu_MLL_2500to4000_powheg:
-  crossSectionStitch: DYto2Mu_MLL_2500to4000_powheg
+  crossSection: DYto2Mu_MLL_2500to4000_powheg
   generator: powheg
   miniAOD: /DYto2Mu_MLL-2500to4000_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Mu_MLL_4000to6000_powheg:
-  crossSectionStitch: DYto2Mu_MLL_4000to6000_powheg
+  crossSection: DYto2Mu_MLL_4000to6000_powheg
   generator: powheg
   miniAOD: /DYto2Mu_MLL-4000to6000_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Mu_MLL_6000_powheg:
-  crossSectionStitch: DYto2Mu_MLL_6000_powheg
+  crossSection: DYto2Mu_MLL_6000_powheg
   generator: powheg
   miniAOD: /DYto2Mu_MLL-6000_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ############## DYto2Tau ##############
 DYto2Tau_MLL_10to50_powheg:
-  crossSectionStitch: DYto2Tau_MLL_10to50_powheg
+  crossSection: DYto2Tau_MLL_10to50_powheg
   generator: powheg
   miniAOD: /DYto2Tau_MLL-10to50_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Tau_MLL_50to120_powheg:
-  crossSectionStitch: DYto2Tau_MLL_50to120_powheg
+  crossSection: DYto2Tau_MLL_50to120_powheg
   generator: powheg
   miniAOD: /DYto2Tau_MLL-50to120_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Tau_MLL_120to200_powheg:
-  crossSectionStitch: DYto2Tau_MLL_120to200_powheg
+  crossSection: DYto2Tau_MLL_120to200_powheg
   generator: powheg
   miniAOD: /DYto2Tau_MLL-120to200_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Tau_MLL_200to400_powheg:
-  crossSectionStitch: DYto2Tau_MLL_200to400_powheg
+  crossSection: DYto2Tau_MLL_200to400_powheg
   generator: powheg
   miniAOD: /DYto2Tau_MLL-200to400_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Tau_MLL_400to800_powheg:
-  crossSectionStitch: DYto2Tau_MLL_400to800_powheg
+  crossSection: DYto2Tau_MLL_400to800_powheg
   generator: powheg
   miniAOD: /DYto2Tau_MLL-400to800_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 DYto2Tau_MLL_800to1500_powheg:
-  crossSectionStitch: DYto2Tau_MLL_800to1500_powheg
+  crossSection: DYto2Tau_MLL_800to1500_powheg
   generator: powheg
   miniAOD: /DYto2Tau_MLL-800to1500_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Tau_MLL_1500to2500_powheg:
-  crossSectionStitch: DYto2Tau_MLL_1500to2500_powheg
+  crossSection: DYto2Tau_MLL_1500to2500_powheg
   generator: powheg
   miniAOD: /DYto2Tau_MLL-1500to2500_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Tau_MLL_2500to4000_powheg:
-  crossSectionStitch: DYto2Tau_MLL_2500to4000_powheg
+  crossSection: DYto2Tau_MLL_2500to4000_powheg
   generator: powheg
   miniAOD: /DYto2Tau_MLL-2500to4000_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 DYto2Tau_MLL_4000to6000_powheg:
-  crossSectionStitch: DYto2Tau_MLL_4000to6000_powheg
+  crossSection: DYto2Tau_MLL_4000to6000_powheg
   generator: powheg
   miniAOD: /DYto2Tau_MLL-4000to6000_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2Tau_MLL_6000_powheg:
-  crossSectionStitch: DYto2Tau_MLL_6000_powheg
+  crossSection: DYto2Tau_MLL_6000_powheg
   generator: powheg
   miniAOD: /DYto2Tau_MLL-6000_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 DYto2TautoMuTauh_M_50_madgraphMLM:
-  crossSectionStitch: DYto2TautoMuTauh_M_50_madgraphMLM
+  crossSection: DYto2TautoMuTauh_M_50_madgraphMLM
   generator: madgraphMLM
   miniAOD: /DYto2TautoMuTauh_M-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 ggZH_Hto2B_Zto2L:
@@ -586,11 +580,11 @@ GluGluHto2B_M125:
   miniAOD: /GluGluHto2B_M-125_TuneCP5_13p6TeV_powheg-minlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ############## Htotautau##############
 GluGluHto2Tau_UncorrelatedDecay_Filtered:
-  crossSection: GluGluHto2Tau_UncorrelatedDecay_Filtered
+  crossSection: GluGluHToTauTau_M125_Filtered
   generator: powheg
   miniAOD: /GluGluHTo2TauUncorrelatedDecay_Filtered_M-125_CP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 GluGluHto2Tau_UncorrelatedDecay_UnFiltered:
-  crossSection: GluGluHto2Tau_UncorrelatedDecay_UnFiltered
+  crossSection: GluGluHToTauTau_M125
   generator: powheg
   miniAOD: /GluGluHTo2TauUncorrelatedDecay_M-125_CP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 ############## Htoww##############
@@ -600,35 +594,35 @@ GluGluHto2Wto2L2Nu_M125:
   miniAOD: /GluGluHto2Wto2L2Nu_M-125_TuneCP5_13p6TeV_powheg-jhugen752-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 
 GluGlutoContinto2Zto2E2Mu:
-  crossSection: fill me
+  crossSection: GluGlutoContinto2Zto2E2Mu
   generator: powheg
   miniAOD: /GluGluToContinto2Zto2E2Mu_TuneCP5_13p6TeV_mcfm701-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 GluGlutoContinto2Zto2E2Nu:
-  crossSection: fill me
+  crossSection: GluGlutoContinto2Zto2E2Nu
   generator: powheg
   miniAOD: /GluGluToContinto2Zto2E2Nu_TuneCP5_13p6TeV_mcfm701-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 GluGlutoContinto2Zto2E2Tau:
-  crossSection: fill me
+  crossSection: GluGlutoContinto2Zto2E2Tau
   generator: powheg
   miniAOD: /GluGluToContinto2Zto2E2Tau_TuneCP5_13p6TeV_mcfm701-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 GluGlutoContinto2Zto2Mu2Nu:
-  crossSection: fill me
+  crossSection: GluGlutoContinto2Zto2Mu2Nu
   generator: powheg
   miniAOD: /GluGluToContinto2Zto2Mu2Nu_TuneCP5_13p6TeV_mcfm701-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 # GluGlutoContinto2Zto2Mu2Tau:
-#   crossSection: fill me
+#   crossSection: GluGlutoContinto2Zto2Mu2Tau
 #   generator: powheg
 #   miniAOD: /GluGluToContinto2Zto2Mu2Nu_TuneCP5_13p6TeV_mcfm701-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 GluGlutoContinto2Zto4E:
-  crossSection: fill me
+  crossSection: GluGlutoContinto2Zto4E
   generator: powheg
   miniAOD: /GluGlutoContinto2Zto4E_TuneCP5_13p6TeV_mcfm-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 GluGlutoContinto2Zto4Mu:
-  crossSection: fill me
+  crossSection: GluGlutoContinto2Zto4Mu
   generator: powheg
   miniAOD: /GluGlutoContinto2Zto4Mu_TuneCP5_13p6TeV_mcfm-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 GluGlutoContinto2Zto4Tau:
-  crossSection: fill me
+  crossSection: GluGlutoContinto2Zto4Tau
   generator: powheg
   miniAOD: /GluGlutoContinto2Zto4Tau_TuneCP5_13p6TeV_mcfm-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 ############## QCD ##############

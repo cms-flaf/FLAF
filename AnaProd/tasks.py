@@ -124,6 +124,7 @@ class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ana_caches = []
         generator_name = self.samples[sample_name]["generator"] if not isData else ""
         global_params_str = SerializeObjectToString(self.global_params)
+        process_name = self.samples[sample_name]["process_name"]
         n_inputs = len(input_files)
 
         fs_nanoAOD = self.fs_nanoAOD
@@ -148,6 +149,8 @@ class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         global_params_str,
                         "--generator-name",
                         generator_name,
+                        "--process-name",
+                        process_name,
                         "--verbose",
                         "1",
                     ],

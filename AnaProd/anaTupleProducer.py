@@ -4,6 +4,7 @@ import sys
 import ROOT
 import shutil
 import zlib
+import importlib
 
 # import fastcrc
 import json
@@ -46,6 +47,7 @@ def createAnatuple(
     uncertainties,
     anaTupleDef,
     channels,
+    processors=None,
     jsonName=None,
 ):
     start_time = datetime.datetime.now()
@@ -142,6 +144,24 @@ def createAnatuple(
     outfilesNames = []
     k = 0
     print(f"syst_dict={syst_dict}")
+    # --- Dynamic Processor Loading ---
+    processor_instances = []
+    if processors:
+        for p in processors:
+            try:
+                module = importlib.import_module(p["module"])
+                cls = getattr(module, p["class"])
+                instance = cls(setup.global_params, config_path=p.get("config", None))
+                processor_instances.append(instance)
+                print(
+                    f"[computeAnaTuple] Loaded processor: {p['name']} ({p['class']})",
+                    file=sys.stderr,
+                )
+            except Exception as e:
+                print(
+                    f"[computeAnaTuple] Failed to load processor {p}: {e}",
+                    file=sys.stderr,
+                )
     for syst_name, source_name in syst_dict.items():
         if source_name not in uncertainties and "all" not in uncertainties:
             continue
@@ -218,7 +238,6 @@ def createAnatuple(
                     "L1PreFiringWeight_Muon_SystUp/L1PreFiringWeight_Muon_Nom",
                 )
         if not isData:
-
             triggers_to_use = set()
             for channel in channels:
                 trigger_list = setup.global_params.get("triggers", {}).get(channel, [])
@@ -243,6 +262,24 @@ def createAnatuple(
                 isCentral=is_central,
                 ana_cache=anaCache,
             )
+            print("")
+            # Hook the onAnaTupleProd processor(s) before saving
+            for proc in processor_instances:
+                if hasattr(proc, "onAnaTupleProd"):
+                    try:
+                        dfw.df, extra_branches = proc.onAnaTupleProd(
+                            dfw.df,
+                            setup.global_params,
+                            setup.samples,
+                            sample_name,
+                            anaCache=anaCache,
+                        )
+                        dfw.colToSave.extend(extra_branches)
+                    except Exception as e:
+                        print(
+                            f"[computeAnaTuple] Processor {proc.__class__.__name__} failed: {e}",
+                            file=sys.stderr,
+                        )
             puIDbranches = [
                 "weight_Jet_PUJetID_Central_tmp",
                 "weight_Jet_PUJetID_effUp_rel_tmp",
@@ -264,7 +301,6 @@ def createAnatuple(
                 if puIDbranch in weight_branches:
                     weight_branches.remove(puIDbranch)
             dfw.colToSave.extend(weight_branches)
-
         # Analysis anaTupleDef should define a legType as a leg obj
         # But to save with RDF, it needs to be converted to an int
         for leg_name in lepton_legs:
@@ -340,8 +376,10 @@ if __name__ == "__main__":
     parser.add_argument("--nEvents", type=int, default=None)
     parser.add_argument("--evtIds", type=str, default="")
     parser.add_argument("--jsonName", type=str, default=None)
+    parser.add_argument("--processors", required=True, type=str)
 
     args = parser.parse_args()
+    from FLAF.Common.Utilities import DeserializeObjectFromString
 
     ROOT.gROOT.ProcessLine(".include " + os.environ["FLAF_PATH"])
     ROOT.gROOT.ProcessLine('#include "include/GenTools.h"')
@@ -353,6 +391,7 @@ if __name__ == "__main__":
         anaCache = yaml.safe_load(f)
 
     channels = setup.global_params["channelSelection"]
+    processors_param = DeserializeObjectFromString(args.processors)
     if args.channels:
         channels = (
             args.channels.split(",") if type(args.channels) == str else args.channels
@@ -385,5 +424,6 @@ if __name__ == "__main__":
         args.uncertainties.split(","),
         anaTupleDef,
         channels,
+        processors_param,
         jsonName=args.jsonName,
     )

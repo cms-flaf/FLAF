@@ -6,7 +6,7 @@
 
 ############## TT ##############
 TTTo2L2Nu:
-  crossSec:  833.9 * (1 - 0.6741) * (1 - 0.6741)
+  crossSec: 833.9 * (1 - 0.6741) * (1 - 0.6741)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/TtbarNNLO#Proposed_citation_and_list_of_re
   unc: +20.5 -30.0 (scale) +/-  21.0 (PDF alphas) -22.5 +23.2 (mass) (to be multiplied by the BR)
 TTToSemiLeptonic:
@@ -25,9 +25,9 @@ WJetsToLNu_NNLO:
   reference: https://twiki.cern.ch/twiki/bin/viewauth/CMS/StandardModelCrossSectionsat13TeV?rev=27
   unc: (+165.7 -88.2 (scale), +/- 770.9 (PDF)) *3
 WJetsToLNu_NLO:
-  crossSec: 66680.0  #67350.0
-  reference: XSDB WJetsToLNu_TuneCP5_13TeV-amcatnloFXFX-pythia8 modifiedOn 2023-02-13 12:26:36 #2021-10-11 11:27:01
-  unc: 792.7 #286.2
+  crossSec: 66680.0  # 67350.0
+  reference: XSDB WJetsToLNu_TuneCP5_13TeV-amcatnloFXFX-pythia8 modifiedOn 2023-02-13 12:26:36  # 2021-10-11 11:27:01
+  unc: 792.7  # 286.2
 WJetsToLNu_LO:
   crossSec: 53870.0
   reference: XSDB WJetsToLNu_TuneCP5_13TeV-madgraphMLM-pythia8 modifiedOn 2021-06-21 10:00:29
@@ -90,17 +90,13 @@ DY_NNLO:
   reference: https://twiki.cern.ch/twiki/bin/viewauth/CMS/StandardModelCrossSectionsat13TeV?rev=27
   unc: +-1.49 (integration) +- 14.78 (pdf) +- 2% (scale)
 DY_NLO:
-  crossSec: 6424.0 # 6404.0
-  reference:  XSDB DYJetsToLL_M-50_TuneCP5_13TeV-amcatnloFXFX-pythia8 modifiedOn 2023-02-12 07:28:47 # 2021-06-21 09:27:12
-  unc: 81.95 # 27.69
+  crossSec: 6424.0  # 6404.0
+  reference: XSDB DYJetsToLL_M-50_TuneCP5_13TeV-amcatnloFXFX-pythia8 modifiedOn 2023-02-12 07:28:47  # 2021-06-21 09:27:12
+  unc: 81.95  # 27.69
 DY_LO:
-    crossSec: 5379.0 # 5398.0
-    reference: XSDB DYJetsToLL_M-50_TuneCP5_13TeV-madgraphMLM-pythia8 modifiedOn 2023-02-12 07:28:48 # 2021-06-21 09:27:15
-    unc: 40.44 # 13.12
-DY_LO_M-10to50:
-  crossSec: 15810.0
-  reference: XSDB DYJetsToLL_M-10to50_TuneCP5_13TeV-madgraphMLM-pythia8 modifiedOn 2021-07-16 14:49:00
-  unc: 5.764
+  crossSec: 5379.0  # 5398.0
+  reference: XSDB DYJetsToLL_M-50_TuneCP5_13TeV-madgraphMLM-pythia8 modifiedOn 2023-02-12 07:28:48  # 2021-06-21 09:27:15
+  unc: 40.44 # 13.12
 
 DY_NLO_0J:
   crossSec: 5090.0 # 5129.0
@@ -111,9 +107,9 @@ DY_NLO_1J:
   reference: XSDB DYJetsToLL_1J_TuneCP5_13TeV-amcatnloFXFX-pythia8 modifiedOn 2023-02-12 07:28:33 # 2021-06-21 09:27:02
   unc: 951.5 # 6.067
 DY_NLO_2J:
-  crossSec: 353.6 #361.4
-  reference: XSDB DYJetsToLL_1J_TuneCP5_13TeV-amcatnloFXFX-pythia8 modifiedOn 2023-02-12 07:28:34 #2021-06-21 09:27:03
-  unc: 10.47 #3.704
+  crossSec: 353.6 # 361.4
+  reference: XSDB DYJetsToLL_1J_TuneCP5_13TeV-amcatnloFXFX-pythia8 modifiedOn 2023-02-12 07:28:34 # 2021-06-21 09:27:03
+  unc: 10.47 # 3.704
 DY_LO_1J:
   crossSec: 928.3
   reference: XSDB DY1JetsToLL_M-50_MatchEWPDG20_TuneCP5_13TeV-madgraphMLM-pythia8 modifiedOn 2021-06-21 09:26:40
@@ -163,7 +159,7 @@ DY_NLO_LHEFilterPtZ-650ToInf:
 
 
 DY_muTau_LO:
-  crossSec: 1 #to be fixed
+  crossSec: 1 # to be fixed
   reference:
   unc: 0.1 # to be fixed
 
@@ -333,7 +329,7 @@ ggHToZZTo2L2Q:
   crossSec: 48.58 * 0.02619 * (0.03658 * 3) * 0.6911 * 2
   ref: Higgs_XSBR_YR4_update https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageAt13TeV + https://pdg.lbl.gov/2022/listings/rpp2022-list-z-boson.pdf
   unc: ggH (+4.6 -6.7  +/-3.9 +/-3.2 +/-1.9 +/-2.6) (th pos [%] neg [%] Gauss [%],  PDF+ alfas, PDF, alfas) * HZZ (+0,99 -0,99 +0,99 -0,98 +0,66 -0,63 ) (thu, pu[mq], pu[alphas]) others are too small, can be neglected
-#ggHToZZTo2L2Q:
+# ggHToZZTo2L2Q:
 #  crossSec: 28.87
 #  ref: XSDB GluGluHToZZTo2L2Q_M125_TuneCP5_13TeV_powheg2_JHUGenV7011_pythia8 modifiedOn 2022-03-02 06:36:47
 #  unc: 0.02027
@@ -342,15 +338,15 @@ GluGluHToWWTo2L2Nu:
   crossSec: 48.58 * 0.2137 * 0.1086 * 3 * 0.1086 * 3
   reference: Higgs_XSBR_YR4_update https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageAt13TeV + https://pdg.lbl.gov/2019/listings/rpp2019-list-w-boson.pdf
   unc: ggH (+4.6 -6.7  +/-3.9 +/-3.2 +/-1.9 +/-2.6) (th pos [%] neg [%] Gauss [%],  PDF+ alfas, PDF, alfas) HWW (+0,99 -0,99 +0,99 -0,98 +0,66 -0,63) (thu, pu[mq], pu[alphas]) Wlnu (0.0009)
-#GluGluHToWWTo2L2Nu:
+# GluGluHToWWTo2L2Nu:
 #  crossSec: 21.47
 #  ref: XSDB GluGluHToWWTo2L2Nu_M-125_TuneCP5_13TeV-powheg-jhugen727-pythia8 modifiedOn 2021-10-11 11:23:02
 #  unc: 0.01033
 
 VBFHToWWTo2L2Nu:
-  crossSec:  3.782  * 0.2137 * 0.1086 * 3 * 0.1086 * 3
+  crossSec: 3.782  * 0.2137 * 0.1086 * 3 * 0.1086 * 3
   reference: Higgs_XSBR_YR4_update https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageAt13TeV + https://pdg.lbl.gov/2019/listings/rpp2019-list-w-boson.pdf
-  unc:  VBF (+0,4 -0,3 +/-2,1 +/-2,1 +/-0,5) (scale,  PDF+ alfas, PDF, alfas) HWW (+0,99 -0,99 +0,99 -0,98 +0,66 -0,63) (thu, pu[mq], pu[alphas]) Wlnu (0.0009)
+  unc: VBF (+0,4 -0,3 +/-2,1 +/-2,1 +/-0,5) (scale,  PDF+ alfas, PDF, alfas) HWW (+0,99 -0,99 +0,99 -0,98 +0,66 -0,63) (thu, pu[mq], pu[alphas]) Wlnu (0.0009)
 #  crossSec: 3.892
 #  ref: XSDB VBFHToWWTo2L2Nu_M-125_TuneCP5_13TeV-powheg-jhugen727-pythia8 modifiedOn 2021-10-11 11:26:47
 #  unc: 0.01575
@@ -372,12 +368,12 @@ ZHToTauTau:
   unc: ZH (+3,8 -3,1 +/-1,6 +/-1,3 +/-0,9) HTauTau (+1.17 -1.16 +0.98 -0.99 +0.62 -0.62) (thu, pu[mq], pu[alphas])
 
 ZH_Hbb_Zll:
-  crossSec:  0.8839 * 0.5824 * 0.03658 * 3
+  crossSec: 0.8839 * 0.5824 * 0.03658 * 3
   reference: Higgs_XSBR_YR4_update https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageAt13TeV + https://pdg.lbl.gov/2022/listings/rpp2022-list-z-boson.pdf
   unc: ZH (+3,8 -3,1 +/-1,6 +/-1,3 +/-0,9) Hbb (+0,65 -0,65 +0,72 -0,74 +0,78 -0,80) (thu, pu[mq], pu[alphas]) others are too small, can be neglected
 
 ZH_Hbb_Zqq:
-  crossSec:  0.8839 * 0.5824 * 0.6911
+  crossSec: 0.8839 * 0.5824 * 0.6911
   reference: Higgs_XSBR_YR4_update https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageAt13TeV + https://pdg.lbl.gov/2022/listings/rpp2022-list-z-boson.pdf
   unc: ZH (+3,8 -3,1 +/-1,6 +/-1,3 +/-0,9) Hbb (+0,65 -0,65 +0,72 -0,74 +0,78 -0,80) (thu, pu[mq], pu[alphas]) others are too small, can be neglected
 
@@ -398,23 +394,22 @@ GluGluZH_HToWW_ZTo2L:
   crossSec: 0.1227 * 0.2137 * 0.03658 * 3
   reference: Higgs_XSBR_YR4_update https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageAt13TeV + https://pdg.lbl.gov/2022/listings/rpp2022-list-z-boson.pdf
   unc: ZH (+3,8 -3,1 +/-1,6 +/-1,3 +/-0,9) HWW (+0,99 -0,99 +0,99 -0,98 +0,66 -0,63) others are too small, can be neglected
-#GluGluZH_HToWW_ZTo2L:
+# GluGluZH_HToWW_ZTo2L:
 #  crossSec: 0.006185
 #  ref: XSDB GluGluZH_HToWW_ZTo2L_M-125_TuneCP5_13TeV-powheg-pythia8 modifiedOn 2021-10-11 11:23:32
 #  unc: 6.763e-06
 
 
-
 ############## VV inclusive ##############
 WW:
-  crossSec: 118.7 #75.95
+  crossSec: 118.7 # 75.95
   ref: https://twiki.cern.ch/twiki/bin/viewauth/CMS/StandardModelCrossSectionsat13TeV?rev=27 # arXiv:1408.5243 # XSDB WW_TuneCP5_13TeV-pythia8 modifiedOn 2021-06-21 10:00:53
-  unc: +2.5%-2.2% #0.1124
+  unc: +2.5%-2.2% # 0.1124
 
 WZ:
   crossSec: 46.74
   reference: JHEP07(2011)018 https://link.springer.com/article/10.1007/JHEP07(2011)018
-  unc:  +4.1% -3.3%
+  unc: +4.1% -3.3%
 
 ZZ:
   crossSec: 15.99
@@ -433,7 +428,7 @@ WWTo2L2Nu:
   unc: 0.00704
 
 WWTo4Q:
-  crossSec: 51.55  #51.723
+  crossSec: 51.55  # 51.723
   reference: from GenXSecAnalyzer /WWTo4Q_4f_TuneCP5_13TeV-amcatnloFXFX-pythia8/RunIISummer20UL18MiniAODv2-106X_upgrade2018_realistic_v16_L1v1-v3/MINIAODSIM
   unc: 4.849e-02
 
@@ -466,7 +461,7 @@ ZZTo2L2Nu:
   reference: XSDB ZZTo2L2Nu_TuneCP5_13TeV_powheg_pythia8 modifiedOn 2021-09-28 13:26:27
   unc: 0.0009971
 ZZTo2Q2L:
-  crossSec:  2.214
+  crossSec: 2.214
   reference: XSDB ZZTo2Q2L_14TeV_powheg_pythia8 modifiedOn 2019-11-11 18:49:02 mll>4GeV
   unc: 0.001657
 ZZTo2Q2Nu:
@@ -474,7 +469,7 @@ ZZTo2Q2Nu:
   reference: XSDB ZZTo2Q2Nu_TuneCP5_13TeV modifiedOn 2020-09-25 05:03:18
   unc: 0.01533
 ZZTo4Q:
-  crossSec:  3.302 #6.912 <-- previous value. The new one has been evaluated on many MiniAOD
+  crossSec: 3.302 # 6.912 <-- previous value. The new one has been evaluated on many MiniAOD
   reference: from GenXSecAnalyzer /ZZTo4Q_5f_TuneCP5_13TeV-amcatnloFXFX-pythia8/RunIISummer20UL18MiniAODv2-106X_upgrade2018_realistic_v16_L1v1-v2/MINIAODSIM
   unc: 6.328e-03
 
@@ -524,11 +519,11 @@ ST_s-channel_had:
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopRefXsec
   unc: +0.29 -0.24 +0.27 -0.27 +0.40 -0.36 +0.23 -0.22 ±0.01
 
-#ST_tW_antitop:
+# ST_tW_antitop:
 #  crossSec: 32.51
 #  reference: XSDB ST_tW_antitop_5f_NoFullyHadronicDecays_TuneCP5_13TeV-powheg-pythia8 modifiedOn 2021-06-21 09:55:28
 #  unc: 0.02346
-#ST_tW_top:
+# ST_tW_top:
 #  crossSec: 34.91
 #  reference: XSDB ST_tW_top_5f_inclusiveDecays_TuneCP5_13TeV-powheg-pythia8 - modifiedOn 2018-07-10 12:47:14,
 #  unc: 0.02817
@@ -683,7 +678,6 @@ ttHToNonbb:
   unc: ttH (+5,8 -9,2 +/-3,6 +/-3,0 +/-2,0) (Scale  PDF+αs PDF αs) Hbb (+0,65 -0,65 +0,72 -0,74 +0,78 -0,80)
 
 
-
 ############## HHbbTauTau NonRes ##############
 
 ggHH_bbTauTau_SM:
@@ -706,9 +700,9 @@ QCD_HT200to300:
   reference: XSDB QCD_HT200to300_TuneCP5_13TeV-madgraphMLM-pythia8 modifiedOn 2020-10-10 11:36:12
   unc: 4600.0
 QCD_HT300to500:
-  crossSec: 324500.0 #323400.0
+  crossSec: 324500.0 # 323400.0
   reference: XSDB QCD_HT300to500_TuneCP5_13TeV-madgraphMLM-pythia8 modifedOn 2020-10-10 11:36:13
-  unc: 967.7 #967.9
+  unc: 967.7 # 967.9
 QCD_HT500to700:
   crossSec: 30140.0
   reference: XSDB QCD_HT500to700_TuneCP5_13TeV-madgraphMLM-pythia8 modifiedOn 2020-10-10 11:36:14

@@ -1,10 +1,10 @@
 GLOBAL:
-  era: 'Run2_2018' # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVDatasetsUL2018
+  era: 'Run2_2018'  # https://twiki.cern.ch/twiki/bin/view/CMS/PdmVDatasetsUL2018
   luminosity: 59830.
   fs_nanoAOD:
-  - 'T2_CH_CERN:/store/group/phys_higgs/HLepRare/HTT_skim_v1/Run2_2018'
+    - 'T2_CH_CERN:/store/group/phys_higgs/HLepRare/HTT_skim_v1/Run2_2018'
   nano_version: v12
-  MET_flags: # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersRun2
+  MET_flags:  # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersRun2
     - Flag_goodVertices
     - Flag_globalSuperTightHalo2016Filter
     - Flag_HBHENoiseFilter
@@ -16,7 +16,7 @@ GLOBAL:
     - Flag_ecalBadCalibFilter
   met_type: MET
   triggerFile: config/Run2_2018/triggers.yaml
-  crossSectionsFile : config/crossSections13TeV.yaml
+  crossSectionsFile: config/crossSections13TeV.yaml
   # https://twiki.cern.ch/twiki/bin/viewauth/CMS/DCUserPage
   # https://twiki.cern.ch/twiki/bin/view/CMS/DCUserPage2018Analysis
   # lumiFile: /afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions18/13TeV/ReReco/Cert_314472-325175_13TeV_17SeptEarlyReReco2018ABC_PromptEraD_Collisions18_JSON.txt
@@ -556,151 +556,151 @@ VBFToRadionToHHTo2B2Tau_M-3000:
 VBFToBulkGravitonToHHTo2B2Tau_M-250:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 250
+  mass: 250
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-260:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 260
+  mass: 260
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-270:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 270
+  mass: 270
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-280:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 280
+  mass: 280
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-300:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 300
+  mass: 300
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-320:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 320
+  mass: 320
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-350:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 350
+  mass: 350
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-400:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 400
+  mass: 400
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-450:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 450
+  mass: 450
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-500:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 500
+  mass: 500
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-550:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 550
+  mass: 550
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-600:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 600
+  mass: 600
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-650:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 650
+  mass: 650
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-700:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 700
+  mass: 700
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-750:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 750
+  mass: 750
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-800:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 800
+  mass: 800
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-850:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 850
+  mass: 850
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-900:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 900
+  mass: 900
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-1000:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 1000
+  mass: 1000
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-1250:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 1250
+  mass: 1250
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-1500:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 1500
+  mass: 1500
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-1750:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 1750
+  mass: 1750
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-2000:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 2000
+  mass: 2000
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-2500:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 2500
+  mass: 2500
   spin: 2
   crossSection: 1pb
 VBFToBulkGravitonToHHTo2B2Tau_M-3000:
   sampleType: VBFToBulkGraviton
   generator: madgraph
-  mass : 3000
+  mass: 3000
   spin: 2
   crossSection: 1pb
 
@@ -778,7 +778,6 @@ WJetsToLNu_HT-800To1200:
   crossSectionStitch: WJetsToLNu_HT-800To1200_LO
 
 
-
 WJetsToLNu-amcatnloFXFX:
   sampleType: W
   generator: amcatnlo
@@ -792,7 +791,7 @@ W0JetsToLNu-amcatnloFXFX:
 W1JetsToLNu-amcatnloFXFX:
   sampleType: W
   generator: amcatnlo
-  crossSectionStitch:  W1JetsToLNu_NLO
+  crossSectionStitch: W1JetsToLNu_NLO
 W2JetsToLNu-amcatnloFXFX:
   sampleType: W
   generator: amcatnlo
@@ -930,7 +929,7 @@ ZHToTauTau_M125:
   sampleType: VH
   generator: powheg
   crossSection: ZHToTauTau
-  ext: ['ZHToTauTau_M125_ext1']
+  ext: [ 'ZHToTauTau_M125_ext1' ]
 ZHToTauTau_M125_ext1:
   sampleType: VH
   generator: powheg
@@ -955,7 +954,7 @@ HZJ_HToWW_M125:
   sampleType: VH
   generator: powheg
   crossSection: HZJ_HToWW
-  ext: ['HZJ_HToWW_M125_ext1']
+  ext: [ 'HZJ_HToWW_M125_ext1' ]
 HZJ_HToWW_M125_ext1:
   sampleType: VH
   generator: powheg
@@ -964,7 +963,7 @@ GluGluZH_HToWW_ZTo2L_M125:
   sampleType: VH
   generator: powheg
   crossSection: GluGluZH_HToWW_ZTo2L
-  ext: ['GluGluZH_HToWW_ZTo2L_M125_ext1']
+  ext: [ 'GluGluZH_HToWW_ZTo2L_M125_ext1' ]
 GluGluZH_HToWW_ZTo2L_M125_ext1:
   sampleType: VH
   generator: powheg
@@ -1040,7 +1039,7 @@ WWW_4F:
   sampleType: VVV
   generator: amcatnlo
   crossSection: WWW_4F
-  ext: ['WWW_4F_ext1']
+  ext: [ 'WWW_4F_ext1' ]
 WWW_4F_ext1:
   sampleType: VVV
   generator: amcatnlo
@@ -1049,7 +1048,7 @@ WWZ_4F:
   sampleType: VVV
   generator: amcatnlo
   crossSection: WWZ_4F
-  ext: ['WWZ_4F_ext1']
+  ext: [ 'WWZ_4F_ext1' ]
 WWZ_4F_ext1:
   sampleType: VVV
   generator: amcatnlo
@@ -1058,7 +1057,7 @@ WZZ:
   sampleType: VVV
   generator: amcatnlo
   crossSection: WZZ
-  ext: ['WZZ_ext1']
+  ext: [ 'WZZ_ext1' ]
 WZZ_ext1:
   sampleType: VVV
   generator: amcatnlo
@@ -1067,7 +1066,7 @@ ZZZ:
   sampleType: VVV
   generator: amcatnlo
   crossSection: ZZZ
-  ext: ['ZZZ_ext1']
+  ext: [ 'ZZZ_ext1' ]
 ZZZ_ext1:
   sampleType: VVV
   generator: amcatnlo
@@ -1138,7 +1137,7 @@ TTGJets:
   sampleType: TTX
   generator: amcatnlo
   crossSection: TTGJets
-  ext: ['TTGJets_ext1']
+  ext: [ 'TTGJets_ext1' ]
 TTGJets_ext1:
   sampleType: TTX
   generator: amcatnlo
@@ -1214,7 +1213,7 @@ TTZHTo4b:
   sampleType: TTX
   generator: madgraph
   crossSection: TTZHTo4b
-  ext: ['TTZHTo4b_ext1']
+  ext: [ 'TTZHTo4b_ext1' ]
 TTZHTo4b_ext1:
   sampleType: TTX
   generator: madgraph
@@ -1228,7 +1227,7 @@ TTZZTo4b:
   sampleType: TTX
   generator: madgraph
   crossSection: TTZZTo4b
-  ext: ['TTZZTo4b_ext1']
+  ext: [ 'TTZZTo4b_ext1' ]
 TTZZTo4b_ext1:
   sampleType: TTX
   generator: madgraph
@@ -1559,7 +1558,6 @@ DYJetsToTauTauToMuTauh-madgraphMLM_ext2:
   sampleType: DY
   generator: madgraph
   crossSection: DY_muTau_LO
-
 
 
 DYJetsToLL_M-100to200-amcatnloFXFX:

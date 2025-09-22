@@ -27,6 +27,13 @@ jobs:
             });
             console.log(`Total files changed: ${files.length}`);
             const allChangedFiles = files.map(file => file.filename);
+            const existingChangedFiles = allChangedFiles.filter(file => {
+              try {
+                return require('fs').existsSync(file);
+              } catch (err) {
+                return false;
+              }
+            });
 
             const fileTypeDict = {
               'python': ['.py'],
@@ -35,7 +42,7 @@ jobs:
             };
 
             for(const [fileType, extensions] of Object.entries(fileTypeDict)) {
-              const changedFiles = allChangedFiles.filter(file => extensions.some(ext => file.endsWith(ext)));
+              const changedFiles = existingChangedFiles.filter(file => extensions.some(ext => file.endsWith(ext)));
               const hasFiles = changedFiles.length > 0 ? 'true' : 'false';
               core.setOutput(`has${fileType.charAt(0).toUpperCase() + fileType.slice(1)}Files`, hasFiles);
               core.setOutput(`${fileType}Files`, btoa(changedFiles.join('\n')));

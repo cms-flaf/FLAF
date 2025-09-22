@@ -1,4 +1,4 @@
-#https://twiki.cern.ch/twiki/bin/view/CMS/PdmVDataReprocessingUL2016#Run2016F_part2
+# https://twiki.cern.ch/twiki/bin/view/CMS/PdmVDataReprocessingUL2016#Run2016F_part2
 # extra bits of associated information: 0 => HLT_AK8PFJetX_SoftDropMass40_PFAK8ParticleNetTauTau0p30, 1 => hltAK8SinglePFJets230SoftDropMass40PNetTauTauTag0p03 for BoostedTau;
 # 0 => CaloIdL_TrackIdL_IsoVL, 1 => 1e (WPTight), 2 => 1e (WPLoose), 3 => OverlapFilter PFTau, 4 => 2e, 5 => 1e-1mu, 6 => 1e-1tau, 7 => 3e, 8 => 2e-1mu, 9 => 1e-2mu, 10 => 1e (32_L1DoubleEG_AND_L1SingleEGOr), 11 => 1e (CaloIdVT_GsfTrkIdT), 12 => 1e (PFJet), 13 => 1e (Photon175_OR_Photon200) for Electron;
 # 0 => , 1 => hltAK8SingleCaloJet200, 2 => , 3 => hltAK8SinglePFJets230SoftDropMass40BTagParticleNetBB0p35 OR hltAK8SinglePFJets250SoftDropMass40BTagParticleNetBB0p35 OR hltAK8SinglePFJets275SoftDropMass40BTagParticleNetBB0p35, 4 => hltAK8DoublePFJetSDModMass30, 5 => hltAK8DoublePFJetSDModMass50 for FatJet;
@@ -28,20 +28,20 @@ ditau:
     - ref_leg: 0
 
 singleTau:
-    channels:
-      - tauTau
-      - muTau
-      - eTau
-    path:
-      - HLT_VLooseIsoPFTau120_Trk50_eta2p1
-      - HLT_VLooseIsoPFTau140_Trk50_eta2p1
-    legs:
-      - offline_obj:
-          type: Tau
-          cut: v_ops::pt(Tau_p4) > 130 && abs(v_ops::eta(Tau_p4)) < 2.1 # for next prod
-        online_obj:
-          cut: TrigObj_id == 15 && (TrigObj_filterBits&4)!=0
-        doMatching: True
+  channels:
+    - tauTau
+    - muTau
+    - eTau
+  path:
+    - HLT_VLooseIsoPFTau120_Trk50_eta2p1
+    - HLT_VLooseIsoPFTau140_Trk50_eta2p1
+  legs:
+    - offline_obj:
+        type: Tau
+        cut: v_ops::pt(Tau_p4) > 130 && abs(v_ops::eta(Tau_p4)) < 2.1  # for next prod
+      online_obj:
+        cut: TrigObj_id == 15 && (TrigObj_filterBits&4)!=0
+      doMatching: True
 
 singleMu:
   channels:
@@ -50,13 +50,13 @@ singleMu:
     - eMu
   path:
     - HLT_IsoMu24
-    #- HLT_IsoMu24_eta2p1
+    # - HLT_IsoMu24_eta2p1
     - HLT_IsoTkMu24
-    #- HLT_IsoTkMu24_eta2p1
+    # - HLT_IsoTkMu24_eta2p1
   legs:
     - offline_obj:
         type: Muon
-        cut:  v_ops::pt(Muon_p4) > 26 #&& abs(v_ops::eta(Muon_p4)) < 2.1
+        cut: v_ops::pt(Muon_p4) > 26  # && abs(v_ops::eta(Muon_p4)) < 2.1
       online_obj:
         cut: TrigObj_id == 13 && ((TrigObj_filterBits&2) != 0 || (TrigObj_filterBits&8) != 0 )
       doMatching: True
@@ -82,19 +82,17 @@ mutau:
       doMatching: True
 
 MET:
-    channels:
-      - tauTau
-      - muTau
-      - eTau
-    path:
-      - HLT_PFMETNoMu120_PFMHTNoMu120_IDTight
-    legs:
-      - offline_obj:
-          type: MET
-          cut: metnomu_pt > 130
-        doMatching: False
-
-
+  channels:
+    - tauTau
+    - muTau
+    - eTau
+  path:
+    - HLT_PFMETNoMu120_PFMHTNoMu120_IDTight
+  legs:
+    - offline_obj:
+        type: MET
+        cut: metnomu_pt > 130
+      doMatching: False
 
 singleEle:
   channels:
@@ -103,7 +101,7 @@ singleEle:
     - eMu
   path:
     - HLT_Ele25_eta2p1_WPTight_Gsf
-    #- HLT_Ele35_WPTight_Gsf ? understand
+    # - HLT_Ele35_WPTight_Gsf ? understand
   legs:
     - offline_obj:
         type: Electron
@@ -132,5 +130,5 @@ etau:
         type: Tau
         cut: v_ops::pt(Tau_p4) > 25 && abs(v_ops::eta(Tau_p4)) < 2.1
       online_obj:
-        cut:  TrigObj_id==15 && (TrigObj_filterBits&64)!=0 && (TrigObj_filterBits&1)!=0
+        cut: TrigObj_id==15 && (TrigObj_filterBits&64)!=0 && (TrigObj_filterBits&1)!=0
       doMatching: True

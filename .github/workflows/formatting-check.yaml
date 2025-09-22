@@ -15,13 +15,8 @@ jobs:
     steps:
       - uses: cms-flaf/FLAF/.github/actions/checkout-flaf@main
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.x'
-
       - name: Get changed files
-        id: changed-files
+        id: changed_files
         uses: actions/github-script@v6
         with:
           script: |
@@ -31,30 +26,55 @@ jobs:
               pull_number: context.payload.pull_request.number,
             });
             console.log(`Total files changed: ${files.length}`);
-            const changedFiles = files.map(file => file.filename);
-            core.setOutput('files', btoa(changedFiles.join('\n')));
+            const allChangedFiles = files.map(file => file.filename);
+            const existingChangedFiles = allChangedFiles.filter(file => {
+              try {
+                return require('fs').existsSync(file);
+              } catch (err) {
+                return false;
+              }
+            });
+
+            const fileTypeDict = {
+              'python': ['.py'],
+              'yaml': ['.yaml', '.yml', '.yamllint'],
+              'cpp': ['.cpp', '.h', '.hpp', '.cc']
+            };
+
+            for(const [fileType, extensions] of Object.entries(fileTypeDict)) {
+              const changedFiles = existingChangedFiles.filter(file => extensions.some(ext => file.endsWith(ext)));
+              const hasFiles = changedFiles.length > 0 ? 'true' : 'false';
+              core.setOutput(`has${fileType.charAt(0).toUpperCase() + fileType.slice(1)}Files`, hasFiles);
+              core.setOutput(`${fileType}Files`, btoa(changedFiles.join('\n')));
+            }
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        if: ${{ steps.changed_files.outputs.hasPythonFiles == 'true' }}
+        with:
+          python-version: '3.x'
 
       - name: Install black
+        if: ${{ steps.changed_files.outputs.hasPythonFiles == 'true' }}
         run: pip install black
 
       - name: Check Python formatting
+        if: ${{ steps.changed_files.outputs.hasPythonFiles == 'true' }}
         run: |
           IFS=$'\n'
           declare -a FILES=()
-          for file in $(echo ${{ steps.changed-files.outputs.files }} | base64 -d); do
-            if [[ -f "$file" && "$file" == *.py ]]; then
-              FILES+=("$file")
-              echo "$file"
-            fi
+          for file in $(echo ${{ steps.changed_files.outputs.pythonFiles }} | base64 -d); do
+            FILES+=("$file")
+            echo "$file"
           done
-          if [[ ${#FILES[@]} > 0 ]]; then
-            black --check --diff "${FILES[@]}"
-          fi
+          black --check --diff "${FILES[@]}"
 
       - name: Install yamllint
+        if: ${{ steps.changed_files.outputs.hasYamlFiles == 'true' }}
         run: pip install yamllint
 
       - name: Check YAML formatting
+        if: ${{ steps.changed_files.outputs.hasYamlFiles == 'true' }}
         run: |
           if [ -f ".yamllint" ]; then
             yamllint_config=".yamllint"
@@ -66,20 +86,18 @@ jobs:
           fi
           IFS=$'\n'
           declare -a FILES=()
-          for file in $(echo ${{ steps.changed-files.outputs.files }} | base64 -d); do
-            if [[ -f "$file" && "$file" =~ \.(yaml|yml|yamllint)$ ]]; then
-              FILES+=("$file")
-              echo "$file"
-            fi
+          for file in $(echo ${{ steps.changed_files.outputs.yamlFiles }} | base64 -d); do
+            FILES+=("$file")
+            echo "$file"
           done
-          if [[ ${#FILES[@]} > 0 ]]; then
-            yamllint -s -c ${yamllint_config} "${FILES[@]}"
-          fi
+          yamllint -s -c ${yamllint_config} "${FILES[@]}"
 
       - name: Install clang-format
+        if: ${{ steps.changed_files.outputs.hasCppFiles == 'true' }}
         run: sudo apt-get update && sudo apt-get install clang-format
 
       - name: Check C++ formatting
+        if: ${{ steps.changed_files.outputs.hasCppFiles == 'true' }}
         run: |
           if [ -f ".clang-format" ]; then
             clang_format_style=".clang-format"
@@ -91,12 +109,8 @@ jobs:
           fi
           IFS=$'\n'
           declare -a FILES=()
-          for file in $(echo ${{ steps.changed-files.outputs.files }} | base64 -d); do
-            if [[ -f "$file" && "$file" =~ \.(cpp|h|hpp|cc)$ ]]; then
-              FILES+=("$file")
-              echo "$file"
-            fi
+          for file in $(echo ${{ steps.changed_files.outputs.files }} | base64 -d); do
+            FILES+=("$file")
+            echo "$file"
           done
-          if [[ ${#FILES[@]} > 0 ]]; then
-            clang-format --dry-run --Werror --style "file:${clang_format_style}" "${FILES[@]}"
-          fi
+          clang-format --dry-run --Werror --style "file:${clang_format_style}" "${FILES[@]}"

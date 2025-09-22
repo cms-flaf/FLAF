@@ -79,7 +79,7 @@ def createHistTuple(
     # compression_settings = snapshotOptions.fCompressionAlgorithm * 100 + snapshotOptions.fCompressionLevel
     histTupleDef.Initialize()
     histTupleDef.analysis_setup(setup)
-    isData = setup.global_params["dataset"] != 'data'
+    isData = setup.global_params["dataset"] != "data"
     print(f"is Data? {isData}")
     isCentral = True
 
@@ -233,10 +233,12 @@ def createHistTuple(
         ROOT.RDF.RunGraphs(snaps)
     return tmp_fileNames
 
+
 def createVoidTree(file_name, tree_name):
     df = ROOT.RDataFrame(0)
     df = df.Define("test", "return true;")
     df.Snapshot(tree_name, file_name, {"test"})
+
 
 if __name__ == "__main__":
     import argparse
@@ -337,4 +339,3 @@ if __name__ == "__main__":
     # finally:
     executionTime = time.time() - startTime
     print("Execution time in seconds: " + str(executionTime))
-

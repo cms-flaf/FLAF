@@ -252,7 +252,11 @@ if __name__ == "__main__":
             inFile.Close()
             continue
         inFile.Close()
-        sample_type = all_samples_dict[sample_name]["sampleType"]
+        sample_type = (
+            sample_cfg_dict[sample_name]["sampleType"]
+            if not setup.phys_model
+            else sample_cfg_dict[sample_name]["process_name"]
+        )
         if sample_type not in all_hists_dict.keys():
             all_hists_dict[sample_type] = {}
 

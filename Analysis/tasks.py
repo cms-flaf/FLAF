@@ -239,9 +239,17 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         anaProd_branch_map = AnaTupleMergeTask.req(
             self, branch=-1, branches=()
         ).create_branch_map()
-        samples_to_consider = GetSamples(
-            self.samples, self.setup.backgrounds, self.global_params["signal_types"]
-        )
+
+        samples_to_consider = [
+            key
+            for key in self.samples.keys()
+            if self.samples[key]["process_group"] != "data"
+        ]
+        samples_to_consider.append("data")
+
+        # samples_to_consider = GetSamples(
+        #     self.samples, self.setup.backgrounds, self.global_params["signal_types"]
+        # )
 
         # Le variabili sono gestite dal file di configurazione,
         # ma abbiamo bisogno di sapere quali produttori di cache sono necessari.

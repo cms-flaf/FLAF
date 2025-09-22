@@ -1,4 +1,4 @@
-import datetime
+import time
 import os
 import sys
 import ROOT
@@ -76,11 +76,11 @@ def createHistTuple(
     histTupleDef,
     inFile_keys,
 ):
-    start_time = datetime.datetime.now()
     # compression_settings = snapshotOptions.fCompressionAlgorithm * 100 + snapshotOptions.fCompressionLevel
     histTupleDef.Initialize()
     histTupleDef.analysis_setup(setup)
-    isData = True if setup.global_params["dataset"] == "data" else False
+    isData = setup.global_params["dataset"] != 'data'
+    print(f"is Data? {isData}")
     isCentral = True
 
     snaps = []
@@ -197,7 +197,7 @@ def createHistTuple(
                         dfw_shift,
                         unc,
                         scale,
-                        sample_type,
+                        isData,
                         unc_cfg_dict,
                         hist_cfg_dict,
                         setup.global_params,
@@ -231,9 +231,12 @@ def createHistTuple(
 
     if snapshotOptions.fLazy == True:
         ROOT.RDF.RunGraphs(snaps)
-    end_time = datetime.datetime.now()
     return tmp_fileNames
 
+def createVoidTree(file_name, tree_name):
+    df = ROOT.RDataFrame(0)
+    df = df.Define("test", "return true;")
+    df.Snapshot(tree_name, file_name, {"test"})
 
 if __name__ == "__main__":
     import argparse
@@ -257,7 +260,7 @@ if __name__ == "__main__":
     parser.add_argument("--evtIds", type=str, default="")
 
     args = parser.parse_args()
-
+    startTime = time.time()
     setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period, "")
 
     treeName = setup.global_params[
@@ -327,3 +330,11 @@ if __name__ == "__main__":
                     if file_syst == args.outFile:
                         continue
                     os.remove(file_syst)
+    else:
+        print(f"NO HISTOGRAM CREATED!!!! dataset: {args.dataset} ")
+        createVoidTree(args.outFile, f"Events")
+
+    # finally:
+    executionTime = time.time() - startTime
+    print("Execution time in seconds: " + str(executionTime))
+

@@ -34,7 +34,7 @@ jobs:
               'cpp': ['.cpp', '.h', '.hpp', '.cc']
             };
 
-            for const [fileType, extensions] of Object.entries(fileTypeDict)) {
+            for(const [fileType, extensions] of Object.entries(fileTypeDict)) {
               const changedFiles = allChangedFiles.filter(file => extensions.some(ext => file.endsWith(ext)));
               const hasFiles = changedFiles.length > 0 ? 'true' : 'false';
               core.setOutput(`has${fileType.charAt(0).toUpperCase() + fileType.slice(1)}Files`, hasFiles);

@@ -267,7 +267,7 @@ def GetModel(hist_cfg, var, return_unit_bin_model=False):
         model = ROOT.RDF.TH1DModel("", "", int(n_bins), float(start), float(stop))
     if not return_unit_bin_model:
         return model
-    unit_bin_model = ROOT.RDF.TH1DModel("", "", model.fNbinsX, 0, model.fNbinsX)
+    unit_bin_model = ROOT.RDF.TH1DModel("", "", model.fNbinsX, -0.5, model.fNbinsX-0.5)
     return model, unit_bin_model
 
 

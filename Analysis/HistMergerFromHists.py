@@ -143,30 +143,15 @@ if __name__ == "__main__":
     startTime = time.time()
 
     setup = Setup.Setup(os.environ["ANALYSIS_PATH"], args.period)
-    sample_cfg_dict = setup.samples
+
     global_cfg_dict = setup.global_params
-    bckg_cfg_dict = setup.bckg_config
-    sig_cfg_dict = setup.signal_config
     unc_cfg_dict = setup.weights_config
 
     analysis_import = global_cfg_dict["analysis_import"]
     analysis = importlib.import_module(f"{analysis_import}")
 
-    all_samples_dict = bckg_cfg_dict.copy()
-    all_samples_dict.update(sig_cfg_dict)
-    data_dict = {
-        "data": {"sampleType": "data"}
-    }  # if needed other custom dict need to think how to include it. --> maybe in config?
-    all_samples_dict.update(data_dict)
-
-    uncNameTypes = GetUncNameTypes(unc_cfg_dict)
-
-    if args.uncSource != "Central" and args.uncSource not in uncNameTypes:
-        print("unknown unc source {args.uncSource}")
-
-    categories = list(global_cfg_dict["categories"])
-
     # ----> this part is analysis dependent. Need to be put in proper place <-----
+
     # boosted categories and QCD regions --> e.g. for hmm no boosted categories and no QCD regions but muMu mass regions
     # instead, better to define custom categories/regions
     # boosted_categories = list(
@@ -174,25 +159,29 @@ if __name__ == "__main__":
     # )  # list(global_cfg_dict['boosted_categories'])
     # Controlregions = list(global_cfg_dict['ControlRegions']) #Later maybe we want to separate Controls from QCDs
 
+    # Regions def
     regions_name = global_cfg_dict.get(
         "regions", None
     )  # can be extended to list of names, if for example adding QCD regions + other control regions
-    # custom_categories_name = global_cfg_dict.get(
-    #     "custom_categories", None
-    # )  # can be extended to list of names
-    # custom_categories = []
     regions = []
     if regions_name:
         regions = list(global_cfg_dict.get(regions_name, []))
         if not regions:
             print("No custom regions found")
+
+    # Categories def
+    categories = list(global_cfg_dict["categories"])
+    # custom_categories_name = global_cfg_dict.get(
+    #     "custom_categories", None
+    # )  # can be extended to list of names
+    # custom_categories = []
     # if custom_categories_name:
     #     custom_categories = list(global_cfg_dict.get(custom_categories_name, []))
     #     if not custom_categories:
     #         print("No custom categories found")
-
     all_categories = categories  # + custom_categories
 
+    # Channels def
     setup.global_params["channels_to_consider"] = (
         args.channels.split(",")
         if args.channels
@@ -200,6 +189,7 @@ if __name__ == "__main__":
     )
     channels = setup.global_params["channels_to_consider"]
 
+    # Variables exception def
     custom_variables = global_cfg_dict.get(
         "var_only_custom", {}
     )  # e.g. var only boosted. Will be constructed as:
@@ -207,6 +197,13 @@ if __name__ == "__main__":
     # replacing this part:
     # if args.var.startswith("b1") or args.var.startswith("b2"):
     #     all_categories = categories
+
+    # Uncertainties
+    uncNameTypes = GetUncNameTypes(unc_cfg_dict)
+    scales = list(global_cfg_dict["scales"])
+    if args.uncSource != "Central" and args.uncSource not in uncNameTypes:
+        print("unknown unc source {args.uncSource}")
+    # Uncertainties exception
     unc_exception = global_cfg_dict.get(
         "unc_exception", {}
     )  # e.g. boosted categories with unc list to not consider
@@ -215,20 +212,18 @@ if __name__ == "__main__":
     #     global_cfg_dict.get("unc_to_not_consider_boosted", [])
     # )
 
-    sample_types_to_merge = list(global_cfg_dict["sample_types_to_merge"])
-    scales = list(global_cfg_dict["scales"])
-
-    all_hists_dict = {}
-    regions = []
     # file structure : channel - region - category - varName_unc (if not central, else only varName)
 
-    # vars_to_select = [v for v in global_cfg_dict["variables"]]
-    # if args.vars=="all":
-    # vars_to_select = []
-    # if args.vars != 'all' and args.vars is not None:
-    #     vars_to_select = args.vars.split(",")
-    # for var in vars_to_select:
-    # if var not in all_hists_dict.keys():
+    # Samples
+    sample_cfg_dict = setup.samples
+    sample_cfg_dict["data"] = {
+        "process_name": "data"
+    }  # Data isn't actually in config dict, but just add it here to keep working format
+    sample_types_to_merge = list(
+        set([samp["process_name"] for samp in setup.samples.values()])
+    )
+    # print(sample_cfg_dict)
+    all_hists_dict = {}
     all_samples = args.dataset_names.split(",")
     for sample_name, inFile_path in zip(all_samples, args.inFiles):
         if unc_exception.keys():
@@ -241,6 +236,7 @@ if __name__ == "__main__":
             )
             continue
         inFile = ROOT.TFile.Open(inFile_path, "READ")
+        # check that the file is ok
         if inFile.IsZombie():
             inFile.Close()
             os.remove(inFile_path)
@@ -252,16 +248,12 @@ if __name__ == "__main__":
             inFile.Close()
             continue
         inFile.Close()
-        sample_type = (
-            sample_cfg_dict[sample_name]["sampleType"]
-            if not setup.phys_model
-            else sample_cfg_dict[sample_name]["process_name"]
-        )
+
+        sample_type = sample_cfg_dict[sample_name]["process_name"]
         if sample_type not in all_hists_dict.keys():
             all_hists_dict[sample_type] = {}
 
         all_items = load_all_items(inFile_path)
-        # print(all_items)
         fill_all_hists_dict(
             all_items, all_hists_dict[sample_type], args.var
         )  # to add: , unc_source="Central", scale="Central"

@@ -84,7 +84,6 @@ def createHistTuple(
     isCentral = True
 
     snaps = []
-    reports = []
     outfilesNames = []
     variables = []
     tmp_fileNames = []
@@ -126,7 +125,6 @@ def createHistTuple(
         df_central = createCentralQuantities(
             df_central, col_types_central, col_names_central
         )
-        # If original count is already 0, then you don't need to raise error
         if df_central.Filter("map_placeholder > 0").Count().GetValue() <= 0:
             raise RuntimeError("no events passed map placeolder")
         all_shifts_to_compute.extend(unc_cfg_dict["shape"])
@@ -154,7 +152,6 @@ def createHistTuple(
         dfw_central.colToSave.append(f"{var}_bin")
 
     varToSave = Utilities.ListToVector(dfw_central.colToSave)
-    # reports.append(dfw_central.df.Report()) --> enable if we want reports
     tmp_fileName = f"{treeName}.root"
     tmp_fileNames.append(tmp_fileName)
     snaps.append(
@@ -167,7 +164,6 @@ def createHistTuple(
         scales = setup.global_params["scales"]
         for scale in scales:
             treeName = f"Events_{unc}{scale}"
-            # Lista delle variazioni
             shifts = ["noDiff", "Valid", "nonValid"]
 
             for shift in shifts:
@@ -175,12 +171,10 @@ def createHistTuple(
                 print(treeName_shift)
 
                 if treeName_shift in inFile_keys:
-                    # Cache dataframe se disponibile
                     df_shift_cache = None
                     if cacheFile:
                         df_shift_cache = ROOT.RDataFrame(treeName_shift, cacheFile)
 
-                    # Costruzione del dataframe wrapper
                     dfw_shift = histTupleDef.GetDfw(
                         ROOT.RDataFrame(treeName_shift, inFile),
                         df_shift_cache,
@@ -192,7 +186,6 @@ def createHistTuple(
                     )
                     final_weight_name = "weight_Central"
 
-                    # Definizione pesi
                     histTupleDef.DefineWeightForHistograms(
                         dfw_shift,
                         unc,
@@ -204,22 +197,17 @@ def createHistTuple(
                         final_weight_name,
                     )
                     dfw_shift.colToSave.append(final_weight_name)
-                    # Aggiunta colonne
-                    # dfw.colToSave.append("weight_Central")
                     for var in variables:
                         dfw_shift.df = dfw_shift.df.Define(
                             f"{var}_bin", f"get_{var}_bin({var})"
                         )
                         dfw_shift.colToSave.append(f"{var}_bin")
 
-                    # Conversione lista → ROOT::VecOps::RVec
                     varToSave = Utilities.ListToVector(dfw_shift.colToSave)
 
-                    # Output temporaneo
                     tmp_fileName = f"{treeName_shift}.root"
                     tmp_fileNames.append(tmp_fileName)
 
-                    # Snapshot
                     snaps.append(
                         dfw_shift.df.Snapshot(
                             treeName_shift,
@@ -336,6 +324,5 @@ if __name__ == "__main__":
         print(f"NO HISTOGRAM CREATED!!!! dataset: {args.dataset} ")
         createVoidTree(args.outFile, f"Events")
 
-    # finally:
     executionTime = time.time() - startTime
     print("Execution time in seconds: " + str(executionTime))

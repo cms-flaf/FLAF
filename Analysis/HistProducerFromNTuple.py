@@ -37,6 +37,7 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale):
         merged_hist.SetBinContent(i, bin_content)
         merged_hist.SetBinError(i, bin_error)
 
+    nentries = unit_hist.GetEntries()
     if len(hist_list) > 1:
         for model, unit_hist in hist_list[1:]:
             hist = model.GetHistogram()
@@ -45,8 +46,10 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale):
                 bin_error = unit_hist.GetBinError(i)
                 hist.SetBinContent(i, bin_content)
                 hist.SetBinError(i, bin_error)
-                merged_hist.Add(hist)
+                nentries += unit_hist.GetEntries()
+            merged_hist.Add(hist)
 
+    merged_hist.SetEntries(nentries)
     isCentral = unc == "Central"
     final_hist_name = hist_name if isCentral else f"{hist_name}_{unc}_{scale}"
     dir_ptr.WriteTObject(merged_hist, final_hist_name, "Overwrite")
@@ -152,7 +155,6 @@ def SaveTmpFileUnc(
 
 
 def CreateFakeStructure(outFile, setup, var, key_filter_dict, further_cuts):
-    """Crea la struttura channel/region/category/hist con istogrammi vuoti."""
     hist_cfg_dict = setup.hists
     channels = setup.global_params["channels_to_consider"]
 
@@ -163,15 +165,15 @@ def CreateFakeStructure(outFile, setup, var, key_filter_dict, further_cuts):
                 hist_cfg_dict, var, return_unit_bin_model=True
             )
             nbins = unit_bin_model.fNbinsX
-            xmin = 0
-            xmax = unit_bin_model.fNbinsX
+            xmin = -0.5
+            xmax = unit_bin_model.fNbinsX - 0.5
             empty_hist = ROOT.TH1F(var, var, nbins, xmin, xmax)
             empty_hist.Sumw2()
             key_tuple = filter_key
             if further_cut_name:
                 key_tuple += (further_cut_name,)
             SaveHist(
-                key_tuple, outFile, [(model, empty_hist)], var, "Central", "Central"
+                key_tuple, outFile, [(model, empty_hist, 0)], var, "Central", "Central"
             )
 
 
@@ -212,7 +214,6 @@ if __name__ == "__main__":
     )
     setup.global_params["channels_to_consider"] = channels
 
-    # --- nuova gestione dei tree vuoti
     for key in unique_keys:
         if not key.startswith(treeName):
             continue
@@ -287,7 +288,7 @@ if __name__ == "__main__":
     uncs_to_compute["Central"] = ["Central"]
 
     tmp_files = []
-    if all_trees:  # solo se ci sono alberi validi
+    if all_trees:
         SaveTmpFileUnc(
             tmp_files,
             uncs_to_compute,

@@ -165,12 +165,6 @@ class Setup:
         ana_sample_config_path = os.path.join(
             self.analysis_config_area, period, "samples.yaml"
         )
-        ana_bckg_config_path = os.path.join(
-            self.analysis_config_area, "background_samples.yaml"
-        )
-        ana_signal_config_path = os.path.join(
-            self.analysis_config_area, "signal_samples.yaml"
-        )
         weights_config_path = os.path.join(ana_path, "config", period, "weights.yaml")
 
         with open(sample_config_path, "r") as f:
@@ -187,20 +181,6 @@ class Setup:
                 ana_global_config = yaml.safe_load(f)
         else:
             ana_global_config = {}
-
-        if os.path.exists(ana_bckg_config_path):
-            with open(ana_bckg_config_path, "r") as f:
-                ana_bckg_config = yaml.safe_load(f)
-        else:
-            ana_bckg_config = {}
-        self.bckg_config = ana_bckg_config
-
-        if os.path.exists(ana_signal_config_path):
-            with open(ana_signal_config_path, "r") as f:
-                ana_signal_config = yaml.safe_load(f)
-        else:
-            ana_signal_config = {}
-        self.signal_config = ana_signal_config
 
         with open(weights_config_path, "r") as f:
             weights_config = yaml.safe_load(f)
@@ -323,11 +303,6 @@ class Setup:
         # self.hist_config_path = os.path.join(self.analysis_config_area, 'plot','histograms.yaml')
         self.hists_ = None
 
-        self.background_config_path = os.path.join(
-            self.analysis_config_area, "background_samples.yaml"
-        )
-        self.backgrounds_ = None
-
         self.cmssw_env_ = None
 
         self.signal_samples = [
@@ -427,12 +402,6 @@ class Setup:
                 self.hists_ = yaml.safe_load(f)
         return self.hists_
 
-    @property
-    def backgrounds(self):
-        if self.backgrounds_ is None:
-            with open(self.background_config_path, "r") as f:
-                self.backgrounds_ = yaml.safe_load(f)
-        return self.backgrounds_
 
     @staticmethod
     def getGlobal(ana_path, period, sample, customisations=None):

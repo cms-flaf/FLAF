@@ -394,8 +394,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     branches=(),
                     max_runtime=AnaTupleFileListTask.max_runtime._default,
                     n_cpus=AnaTupleFileListTask.n_cpus._default,
-                ),
-                "HistTupleProducerTask": HistTupleProducerTask.req(self, branches=()),
+                )
             }
 
         branch_set = set()
@@ -1914,7 +1913,7 @@ class AnalysisCacheMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 # print(dataMerge_cmd)
                 ps_call(dataMerge_cmd, verbose=1)
 
-
+# must remove background samples.
 class PlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)

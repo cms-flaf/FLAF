@@ -72,6 +72,7 @@ def createAnatuple(
     Corrections.initializeGlobal(
         setup.global_params,
         sample_name,
+        sample_config['process_name'],
         isData=isData,
         load_corr_lib=True,
         trigger_class=trigger_class,

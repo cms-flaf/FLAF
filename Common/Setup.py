@@ -402,7 +402,6 @@ class Setup:
                 self.hists_ = yaml.safe_load(f)
         return self.hists_
 
-
     @staticmethod
     def getGlobal(ana_path, period, sample, customisations=None):
         key = (ana_path, period, sample, customisations)

@@ -388,27 +388,42 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self, branches=()
         ).complete()
         if not merge_organization_complete:
-            return {
+            req_dict = {
                 "AnaTupleFileListTask": AnaTupleFileListTask.req(
                     self,
                     branches=(),
                     max_runtime=AnaTupleFileListTask.max_runtime._default,
                     n_cpus=AnaTupleFileListTask.n_cpus._default,
-                )
+                ),
+                "AnaTupleMergeTask": AnaTupleMergeTask.req(
+                    self,
+                    branches=(),
+                    max_runtime=AnaTupleMergeTask.max_runtime._default,
+                    n_cpus=AnaTupleMergeTask.n_cpus._default,
+                ),
             }
-
+            branch_set = set()
+            branches_required = {}
+            for br_idx, (var, prod_br_list, sample_names) in self.branch_map.items():
+                if var == self.global_params["variables"][0]:
+                    branch_set.update(prod_br_list)
+            branches = tuple(branch_set)
+            req_dict["HistTupleProducerTask"] = HistTupleProducerTask.req(
+                self, branches=branches, customisations=self.customisations
+            )
+            return req_dict
         branch_set = set()
         branches_required = {}
         for br_idx, (var, prod_br_list, sample_names) in self.branch_map.items():
             if var == self.global_params["variables"][0]:
                 branch_set.update(prod_br_list)
         branches = tuple(branch_set)
-        deps = {
+        req_dict = {
             "HistTupleProducerTask": HistTupleProducerTask.req(
                 self, branches=branches, customisations=self.customisations
             )
         }
-        return deps
+        return req_dict
 
     def requires(self):
         var, prod_br_list, sample_name = self.branch_data

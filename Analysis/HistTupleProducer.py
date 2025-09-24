@@ -71,16 +71,13 @@ def createHistTuple(
     snapshotOptions,
     range,
     evtIds,
-    compute_unc_variations,
-    compute_rel_weights,
     histTupleDef,
     inFile_keys,
 ):
     # compression_settings = snapshotOptions.fCompressionAlgorithm * 100 + snapshotOptions.fCompressionLevel
     histTupleDef.Initialize()
     histTupleDef.analysis_setup(setup)
-    isData = setup.global_params["dataset"] != "data"
-    print(f"is Data? {isData}")
+
     isCentral = True
 
     snaps = []
@@ -110,7 +107,6 @@ def createHistTuple(
         variables = setup.global_params["variables"]
     elif type(setup.global_params["variables"]) == dict:
         variables = setup.global_params["variables"].keys()
-    setup.global_params["wantTriggerSFErrors"] = compute_rel_weights and not isData
 
     dfw_central = histTupleDef.GetDfw(df_central, df_cache_central, setup.global_params)
 
@@ -118,10 +114,10 @@ def createHistTuple(
     col_types_central = dfw_central.colTypes
 
     all_rel_uncs_to_compute = []
-    if compute_rel_weights:
+    if setup.global_params["compute_rel_weights"]:
         all_rel_uncs_to_compute.extend(unc_cfg_dict["norm"].keys())
     all_shifts_to_compute = []
-    if compute_unc_variations:
+    if setup.global_params["compute_unc_variations"]:
         df_central = createCentralQuantities(
             df_central, col_types_central, col_names_central
         )
@@ -139,7 +135,6 @@ def createHistTuple(
                 dfw_central,
                 unc,
                 scale,
-                isData,
                 unc_cfg_dict,
                 hist_cfg_dict,
                 setup.global_params,
@@ -190,7 +185,6 @@ def createHistTuple(
                         dfw_shift,
                         unc,
                         scale,
-                        isData,
                         unc_cfg_dict,
                         hist_cfg_dict,
                         setup.global_params,
@@ -263,9 +257,24 @@ if __name__ == "__main__":
         if args.channels
         else setup.global_params["channelSelection"]
     )
-    setup.global_params["dataset"] = args.dataset
+    process_name = (
+        setup.samples[args.dataset]["process_name"]
+        if args.dataset != "data"
+        else "data"
+    )
+    setup.global_params["process_name"] = process_name
+    process_group = (
+        setup.samples[args.dataset]["process_group"]
+        if args.dataset != "data"
+        else "data"
+    )
+    setup.global_params["process_group"] = process_group
+
     setup.global_params["compute_rel_weights"] = (
-        args.compute_rel_weights and args.dataset != "data"
+        args.compute_rel_weights and process_group != "data"
+    )
+    setup.global_params["compute_unc_variations"] = (
+        args.compute_unc_variations and process_group != "data"
     )
     histTupleDef = Utilities.load_module(args.histTupleDef)
 
@@ -295,6 +304,7 @@ if __name__ == "__main__":
         snapshotOptions.fMode = "RECREATE"
         # snapshotOptions.fCompressionAlgorithm = getattr(ROOT.ROOT, 'k' + args.compressionAlgo)
         # snapshotOptions.fCompressionLevel = args.compressionLevel
+
         tmp_fileNames = createHistTuple(
             args.inFile,
             args.cacheFile,
@@ -305,8 +315,6 @@ if __name__ == "__main__":
             snapshotOptions,
             args.nEvents,
             args.evtIds,
-            args.compute_unc_variations,
-            args.compute_rel_weights,
             histTupleDef,
             inFile_keys,
         )

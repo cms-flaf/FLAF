@@ -173,7 +173,7 @@ def CreateFakeStructure(outFile, setup, var, key_filter_dict, further_cuts):
             if further_cut_name:
                 key_tuple += (further_cut_name,)
             SaveHist(
-                key_tuple, outFile, [(model, empty_hist, 0)], var, "Central", "Central"
+                key_tuple, outFile, [(model, empty_hist)], var, "Central", "Central"
             )
 
 
@@ -231,7 +231,7 @@ if __name__ == "__main__":
         if valid_files and has_entries:
             base_rdfs[key] = ROOT.RDataFrame(key, Utilities.ListToVector(valid_files))
         else:
-            print(f"[INFO] Tree {key} non trovato o senza entries: creo fake structure")
+            print(f"{key} tree not found or with 0 entries: fake structure creation")
             outFile_root = ROOT.TFile(args.outFile, "UPDATE")
             key_filter_dict = analysis.createKeyFilterDict(
                 setup.global_params, setup.global_params["era"]

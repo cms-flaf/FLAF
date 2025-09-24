@@ -343,35 +343,35 @@ def GetModel(hist_cfg, var, return_unit_bin_model=False):
 #     return model
 
 
-# def createCacheQuantities(dfWrapped_cache, cache_map_name):
-#     df_cache = dfWrapped_cache.df
-#     map_creator_cache = ROOT.analysis.CacheCreator(*dfWrapped_cache.colTypes)()
-#     df_cache = map_creator_cache.processCache(
-#         ROOT.RDF.AsRNode(df_cache),
-#         Utilities.ListToVector(dfWrapped_cache.colNames),
-#         cache_map_name,
-#     )
-#     return df_cache
+def createCacheQuantities(dfWrapped_cache, cache_map_name):
+    df_cache = dfWrapped_cache.df
+    map_creator_cache = ROOT.analysis.CacheCreator(*dfWrapped_cache.colTypes)()
+    df_cache = map_creator_cache.processCache(
+        ROOT.RDF.AsRNode(df_cache),
+        Utilities.ListToVector(dfWrapped_cache.colNames),
+        cache_map_name,
+    )
+    return df_cache
 
 
-# def AddCacheColumnsInDf(
-#     dfWrapped_central, dfWrapped_cache, cache_map_name="cache_map_placeholder"
-# ):
-#     col_names_cache = dfWrapped_cache.colNames
-#     col_types_cache = dfWrapped_cache.colTypes
-#     # print(col_names_cache)
-#     # if "kinFit_result" in col_names_cache:
-#     #    col_names_cache.remove("kinFit_result")
-#     dfWrapped_cache.df = createCacheQuantities(dfWrapped_cache, cache_map_name)
-#     if dfWrapped_cache.df.Filter(f"{cache_map_name} > 0").Count().GetValue() <= 0:
-#         raise RuntimeError("no events passed map placeolder")
-#     dfWrapped_central.AddCacheColumns(col_names_cache, col_types_cache)
+def AddCacheColumnsInDf(
+    dfWrapped_central, dfWrapped_cache, cache_map_name="cache_map_placeholder"
+):
+    col_names_cache = dfWrapped_cache.colNames
+    col_types_cache = dfWrapped_cache.colTypes
+    # print(col_names_cache)
+    # if "kinFit_result" in col_names_cache:
+    #    col_names_cache.remove("kinFit_result")
+    dfWrapped_cache.df = createCacheQuantities(dfWrapped_cache, cache_map_name)
+    if dfWrapped_cache.df.Filter(f"{cache_map_name} > 0").Count().GetValue() <= 0:
+        raise RuntimeError("no events passed map placeolder")
+    dfWrapped_central.AddCacheColumns(col_names_cache, col_types_cache)
 
 
-# def createCentralQuantities(df_central, central_col_types, central_columns):
-#     map_creator = ROOT.analysis.MapCreator(*central_col_types)()
-#     df_central = map_creator.processCentral(
-#         ROOT.RDF.AsRNode(df_central), Utilities.ListToVector(central_columns), 1
-#     )
-#     # df_central = map_creator.getEventIdxFromShifted(ROOT.RDF.AsRNode(df_central))
-#     return df_central
+def createCentralQuantities(df_central, central_col_types, central_columns):
+    map_creator = ROOT.analysis.MapCreator(*central_col_types)()
+    df_central = map_creator.processCentral(
+        ROOT.RDF.AsRNode(df_central), Utilities.ListToVector(central_columns), 1
+    )
+    # df_central = map_creator.getEventIdxFromShifted(ROOT.RDF.AsRNode(df_central))
+    return df_central

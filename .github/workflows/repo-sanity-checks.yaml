@@ -62,6 +62,7 @@ jobs:
           delta_kb=$(( delta / 1024 ))
           echo "### Repository size change" >> $GITHUB_STEP_SUMMARY
           echo "Repository size would increase by approximately $delta_kb KiB if this PR is squash merged." >> $GITHUB_STEP_SUMMARY
+
   check-for-binary-files:
     runs-on: ubuntu-latest
     steps:
@@ -94,23 +95,23 @@ jobs:
             core.setOutput('hasChangedFiles', has_changed_files);
 
       - name: Check for binary files
-            if: ${{ steps.changed_files.outputs.hasChangedFiles == 'true' }}
-            run: |
-              IFS=$'\n'
-              declare -a BINARY_FILES=()
-              for file in $(echo ${{ steps.changed_files.outputs.pythonFiles }} | base64 -d); do
-                if [[ $(file --brief --meme-encoding "$file") == "binary" ]]; then
-                  BINARY_FILES+=("$file")
-                fi
-                echo "$file"
-              done
-              if [ ${#BINARY_FILES[@]} -ne 0 ]; then
-                echo "The following binary files were found among the changed files:"
-                for binary_file in "${BINARY_FILES[@]}"; do
-                  echo "$binary_file"
-                done
-                echo "Please use git LFS for these files."
-                exit 1
-              else
-                echo "No binary files found among the changed files."
-              fi
+        if: ${{ steps.changed_files.outputs.hasChangedFiles == 'true' }}
+        run: |
+          IFS=$'\n'
+          declare -a BINARY_FILES=()
+          for file in $(echo ${{ steps.changed_files.outputs.pythonFiles }} | base64 -d); do
+            if [[ $(file --brief --meme-encoding "$file") == "binary" ]]; then
+              BINARY_FILES+=("$file")
+            fi
+            echo "$file"
+          done
+          if [ ${#BINARY_FILES[@]} -ne 0 ]; then
+            echo "The following binary files were found among the changed files:"
+            for binary_file in "${BINARY_FILES[@]}"; do
+              echo "$binary_file"
+            done
+            echo "Please use git LFS for these files."
+            exit 1
+          else
+            echo "No binary files found among the changed files."
+          fi

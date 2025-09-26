@@ -3,7 +3,6 @@ name: Check repository state
 on:
   pull_request:
     types: [ "opened", "synchronize", "reopened", "labeled" ]
-    branches: [ "main" ]
   workflow_call:
 
 permissions:
@@ -27,16 +26,18 @@ jobs:
         run: echo "size=$(du -sb .git | cut -f1)" >> $GITHUB_OUTPUT
 
       - name: Fetch PR branch
-        run: git fetch origin ${{ github.head_ref }}:refs/remotes/origin/${{ github.head_ref }}
+        run: git fetch origin pull/${{ github.event.pull_request.number }}/head:PR_${{ github.event.pull_request.number }}
 
       - name: Simulate squash merge
         run: |
           git checkout ${{ github.base_ref }}
-          git merge --squash origin/${{ github.head_ref }}
+          git merge --squash PR_${{ github.event.pull_request.number }}
           git commit -m "Simulated squash merge of PR #${{ github.event.pull_request.number }}"
 
       - name: Remove PR branch ref
-        run: git update-ref -d refs/remotes/origin/${{ github.head_ref }}
+        run: |
+          git branch -D PR_${{ github.event.pull_request.number }}
+          git update-ref -d refs/remotes/origin/pull/${{ github.event.pull_request.number }}
 
       - name: Git GC after
         run: git gc --aggressive --prune=now

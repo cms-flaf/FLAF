@@ -18,7 +18,7 @@ jobs:
           ref: ${{ github.base_ref }}
           fetch-depth: 0
 
-      - name: Set global git properties:
+      - name: Set global git properties
         run: |
           git config --global user.email "cms-flaf@proton.me"
           git config --global user.name "CMS FLAF Integration Bot"

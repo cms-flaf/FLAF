@@ -1,0 +1,59 @@
+name: Check repository state
+
+on:
+  pull_request:
+    types: [ "opened", "synchronize", "reopened", "labeled" ]
+    branches: [ "main" ]
+  workflow_call:
+
+permissions:
+  contents: read
+
+name: Calculate Repository Size Increase on PR Squash Merge
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  calculate-size:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          fetch-depth: 0
+
+      - name: Git GC before
+        run: git gc --aggressive --prune=now
+
+      - name: Measure size before
+        id: size_before
+        run: echo "size=$(du -sb .git | cut -f1)" >> $GITHUB_OUTPUT
+
+      - name: Fetch PR branch
+        run: git fetch origin ${{ github.head_ref }}:refs/remotes/origin/${{ github.head_ref }}
+
+      - name: Simulate squash merge
+        run: |
+          git checkout ${{ github.base_ref }}
+          git merge --squash origin/${{ github.head_ref }}
+          git commit -m "Simulated squash merge of PR #${{ github.event.pull_request.number }}"
+
+      - name: Remove PR branch ref
+        run: git update-ref -d refs/remotes/origin/${{ github.head_ref }}
+
+      - name: Git GC after
+        run: git gc --aggressive --prune=now
+
+      - name: Measure size after
+        id: size_after
+        run: echo "size=$(du -sb .git | cut -f1)" >> $GITHUB_OUTPUT
+
+      - name: Calculate and report delta
+        run: |
+          delta=$(( ${{ steps.size_after.outputs.size }} - ${{ steps.size_before.outputs.size }} ))
+          delta_kb=$(( delta / 1024 ))
+          echo "Repository size would increase by approximately $delta_kb KiB if this PR is squash merged."
+          echo "::notice title=PR Size Increase::Repository size would increase by approximately $delta_kb KiB if this PR is squash merged."

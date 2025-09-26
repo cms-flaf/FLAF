@@ -109,7 +109,7 @@ jobs:
           if [ ${#BINARY_FILES[@]} -ne 0 ]; then
             echo "The following binary files were found among the changed files:"
             for binary_file in "${BINARY_FILES[@]}"; do
-              echo "$binary_file"
+              echo "  $binary_file"
             done
             echo "Please use git LFS for these files."
             exit 1

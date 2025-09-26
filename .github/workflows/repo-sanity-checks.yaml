@@ -99,11 +99,12 @@ jobs:
         run: |
           IFS=$'\n'
           declare -a BINARY_FILES=()
-          for file in $(echo ${{ steps.changed_files.outputs.pythonFiles }} | base64 -d); do
-            if [[ $(file --brief --meme-encoding "$file") == "binary" ]]; then
-              BINARY_FILES+=("$file")
+          for file_name in $(echo ${{ steps.changed_files.outputs.pythonFiles }} | base64 -d); do
+            file_type=$(file --brief --mime-type "$file_name")
+            echo "$file_name: $file_type"
+            if [[ $file_type == "binary" ]]; then
+              BINARY_FILES+=("$file_name")
             fi
-            echo "$file"
           done
           if [ ${#BINARY_FILES[@]} -ne 0 ]; then
             echo "The following binary files were found among the changed files:"

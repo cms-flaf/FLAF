@@ -24,14 +24,13 @@ jobs:
           git config --global user.email "cms-flaf@proton.me"
           git config --global user.name "CMS FLAF Integration Bot"
 
-      - name: Git GC and repack before
+      - name: Git repack before
         run: |
-          git gc --aggressive --prune=now
-          # git repack -a -d
+          git repack -a -d
 
       - name: Measure size before
         id: size_before
-        run: echo "size=$(du -sb .git | cut -f1)" >> $GITHUB_OUTPUT
+        run: echo "size=$(du -sb .git/objects/pack | cut -f1)" >> $GITHUB_OUTPUT
 
       - name: Fetch PR branch
         run: git fetch origin pull/${{ github.event.pull_request.number }}/head:PR_${{ github.event.pull_request.number }}
@@ -47,14 +46,13 @@ jobs:
           git branch -D PR_${{ github.event.pull_request.number }}
           git update-ref -d refs/remotes/origin/pull/${{ github.event.pull_request.number }}
 
-      - name: Git GC and repack after
+      - name: Git repack after
         run: |
-          git gc --aggressive --prune=now
-          # git repack -a -d
+          git repack -a -d
 
       - name: Measure size after
         id: size_after
-        run: echo "size=$(du -sb .git | cut -f1)" >> $GITHUB_OUTPUT
+        run: echo "size=$(du -sb .git/objects/pack | cut -f1)" >> $GITHUB_OUTPUT
 
       - name: Calculate and report delta
         run: |

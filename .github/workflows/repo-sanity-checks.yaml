@@ -100,9 +100,10 @@ jobs:
           IFS=$'\n'
           declare -a BINARY_FILES=()
           for file_name in $(echo ${{ steps.changed_files.outputs.files }} | base64 -d); do
+            file_type=$(file --brief --mime-type "$file_name")
             file_encoding=$(file --brief --mime-encoding "$file_name")
-            echo "$file_name: $file_encoding"
-            if [[ $file_encoding == "binary" ]]; then
+            echo "$file_name: type=$file_type encoding=$file_encoding"
+            if [[ $file_encoding == "binary" && "$file_type" != "inode/directory" ]]; then
               BINARY_FILES+=("$file_name")
             fi
           done

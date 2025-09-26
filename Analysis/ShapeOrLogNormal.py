@@ -8,7 +8,7 @@ if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
 
-from Analysis.HistHelper import *
+from Common.HistHelper import *
 
 unc_to_not_consider_boosted = [
     "PUJetID",

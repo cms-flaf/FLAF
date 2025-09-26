@@ -23,12 +23,14 @@ jobs:
           git config --global user.email "cms-flaf@proton.me"
           git config --global user.name "CMS FLAF Integration Bot"
 
-      - name: Git GC before
-        run: git gc --aggressive --prune=now
+      - name: Git GC and repack before
+        run: |
+          git gc --aggressive --prune=now
+          git repack -a -d
 
       - name: Measure size before
         id: size_before
-        run: echo "size=$(du -sb .git | cut -f1)" >> $GITHUB_OUTPUT
+        run: echo "size=$(du -sb .git/objects/pack | cut -f1)" >> $GITHUB_OUTPUT
 
       - name: Fetch PR branch
         run: git fetch origin pull/${{ github.event.pull_request.number }}/head:PR_${{ github.event.pull_request.number }}
@@ -44,16 +46,20 @@ jobs:
           git branch -D PR_${{ github.event.pull_request.number }}
           git update-ref -d refs/remotes/origin/pull/${{ github.event.pull_request.number }}
 
-      - name: Git GC after
-        run: git gc --aggressive --prune=now
+      - name: Git GC and repack after
+        run: |
+          git gc --aggressive --prune=now
+          git repack -a -d
 
       - name: Measure size after
         id: size_after
-        run: echo "size=$(du -sb .git | cut -f1)" >> $GITHUB_OUTPUT
+        run: echo "size=$(du -sb .git/objects/pack | cut -f1)" >> $GITHUB_OUTPUT
 
       - name: Calculate and report delta
         run: |
           delta=$(( ${{ steps.size_after.outputs.size }} - ${{ steps.size_before.outputs.size }} ))
           delta_kb=$(( delta / 1024 ))
-          echo "Repository size would increase by approximately $delta_kb KiB if this PR is squash merged."
-          echo "::notice title=PR Size Increase::Repository size would increase by approximately $delta_kb KiB if this PR is squash merged."
+          echo "### PR Size Increase" >> $GITHUB_STEP_SUMMARY
+          echo "Repository size would increase by approximately $delta_kb KiB if this PR is squash merged." >> $GITHUB_STEP_SUMMARY
+          # echo "Repository size would increase by approximately $delta_kb KiB if this PR is squash merged."
+          # echo "::notice title=PR Size Increase::Repository size would increase by approximately $delta_kb KiB if this PR is squash merged."

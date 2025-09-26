@@ -99,7 +99,7 @@ jobs:
         run: |
           IFS=$'\n'
           declare -a BINARY_FILES=()
-          for file_name in $(echo ${{ steps.changed_files.outputs.file }} | base64 -d); do
+          for file_name in $(echo ${{ steps.changed_files.outputs.files }} | base64 -d); do
             file_type=$(file --brief --mime-type "$file_name")
             echo "$file_name: $file_type"
             if [[ $file_type == "binary" ]]; then

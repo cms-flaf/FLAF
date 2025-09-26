@@ -9,12 +9,6 @@ on:
 permissions:
   contents: read
 
-name: Calculate Repository Size Increase on PR Squash Merge
-
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-
 jobs:
   calculate-size:
     runs-on: ubuntu-latest

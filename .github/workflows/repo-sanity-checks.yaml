@@ -61,6 +61,8 @@ jobs:
           delta=$(( ${{ steps.size_after.outputs.size }} - ${{ steps.size_before.outputs.size }} ))
           delta_kb=$(( delta / 1024 ))
           echo "### Repository size change" >> $GITHUB_STEP_SUMMARY
+          echo "Size before: ${{ steps.size_before.outputs.size }} bytes" >> $GITHUB_STEP_SUMMARY
+          echo "Size after: ${{ steps.size_after.outputs.size }} bytes" >> $GITHUB_STEP_SUMMARY
           echo "Repository size would increase by approximately $delta_kb KiB if this PR is squash merged." >> $GITHUB_STEP_SUMMARY
 
   check-for-binary-files:

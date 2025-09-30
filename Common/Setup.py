@@ -237,7 +237,7 @@ class Setup:
                     new_process["datasets"] = datasets
                     new_process["name"] = plot_name
                     new_process["to_plot"] = (
-                        cand_key[0] in new_process["meta_setup"]["to_plot"]
+                        cand_key in new_process["meta_setup"]["to_plot"]
                     )
                     new_process["color"] = "kBlack"
                     if new_process["to_plot"]:

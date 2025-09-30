@@ -63,7 +63,7 @@ def DefineBinnedColumn(hist_cfg_dict, var):
 
 def createHistTuple(
     inFile,
-    cacheFile,
+    cacheFiles,
     treeName,
     setup,
     hist_cfg_dict,
@@ -89,9 +89,10 @@ def createHistTuple(
         return tmp_fileNames
 
     df_central = ROOT.RDataFrame(treeName, inFile)
-    df_cache_central = None
-    if cacheFile:
-        df_cache_central = ROOT.RDataFrame(treeName, cacheFile)
+    df_cache_central = []
+    if cacheFiles:
+        for cacheFile in cacheFiles:
+            df_cache_central.append(ROOT.RDataFrame(treeName, cacheFile))
 
     ROOT.RDF.Experimental.AddProgressBar(df_central)
     if range is not None:
@@ -166,13 +167,16 @@ def createHistTuple(
                 print(treeName_shift)
 
                 if treeName_shift in inFile_keys:
-                    df_shift_cache = None
-                    if cacheFile:
-                        df_shift_cache = ROOT.RDataFrame(treeName_shift, cacheFile)
+                    df_shift_caches = []
+                    if cacheFiles:
+                        for cacheFile in cacheFiles:
+                            df_shift_caches.append(
+                                ROOT.RDataFrame(treeName_shift, cacheFile)
+                            )
 
                     dfw_shift = histTupleDef.GetDfw(
                         ROOT.RDataFrame(treeName_shift, inFile),
-                        df_shift_cache,
+                        df_shift_caches,
                         setup.global_params,
                         shift,
                         col_names_central,
@@ -231,7 +235,7 @@ if __name__ == "__main__":
     parser.add_argument("--period", required=True, type=str)
     parser.add_argument("--inFile", required=True, type=str)
     parser.add_argument("--outFile", required=True, type=str)
-    parser.add_argument("--cacheFile", required=False, type=str, default=None)
+    parser.add_argument("--cacheFiles", required=False, type=str, default=None)
     parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--histTupleDef", required=True, type=str)
     parser.add_argument("--compute_unc_variations", type=bool, default=False)
@@ -277,7 +281,9 @@ if __name__ == "__main__":
         args.compute_unc_variations and process_group != "data"
     )
     histTupleDef = Utilities.load_module(args.histTupleDef)
-
+    cacheFiles = None
+    if args.cacheFiles:
+        cacheFiles = args.cacheFiles.split(",")
     dont_create_HistTuple = False
     key_not_exist = False
     df_empty = False
@@ -307,7 +313,7 @@ if __name__ == "__main__":
 
         tmp_fileNames = createHistTuple(
             args.inFile,
-            args.cacheFile,
+            cacheFiles,
             treeName,
             setup,
             hist_cfg_dict,

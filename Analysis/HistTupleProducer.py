@@ -147,7 +147,7 @@ def createHistTuple(
         dfw_central.df = dfw_central.df.Define(f"{var}_bin", f"get_{var}_bin({var})")
         dfw_central.colToSave.append(f"{var}_bin")
 
-    varToSave = Utilities.ListToVector(dfw_central.colToSave)
+    varToSave = Utilities.ListToVector(list(set(dfw_central.colToSave)))
     tmp_fileName = f"{treeName}.root"
     tmp_fileNames.append(tmp_fileName)
     snaps.append(

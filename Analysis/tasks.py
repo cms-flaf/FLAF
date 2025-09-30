@@ -319,8 +319,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             else self.global_params.get("compute_unc_histograms", False)
         )
         job_home, remove_job_home = self.law_job_home()
-
-        with input_file.localize("r") as local_input:
+        with contextlib.ExitStack() as stack:
+            local_input = stack.enter_context((input_file).localize("r"))
             tmpFile = os.path.join(
                 job_home, f"HistTupleProducerTask_{input_index}.root"
             )
@@ -353,7 +353,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if self.customisations:
                 HistTupleProducer_cmd.extend([f"--customisations", self.customisations])
             if need_cache_global:
-                # La gestione degli input della cache ora riflette la richiesta separata di ogni produttore
                 isbbtt = "HH_bbtautau" in self.global_params[
                     "analysis_config_area"
                 ].split("/")
@@ -361,17 +360,18 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     anaCache_file = self.input()[1][input_index]
                     with anaCache_file.localize("r") as local_anacache:
                         HistTupleProducer_cmd.extend(
-                            ["--cacheFile", local_anacache.path]
+                            ["--cacheFiles", local_anacache.path]
                         )
-                else:
-                    ana_cache_inputs = self.input()[1:]
-                    for anaCache_file in ana_cache_inputs:
-                        with anaCache_file[input_index].localize("r") as local_anacache:
-                            HistTupleProducer_cmd.extend(
-                                ["--cacheFile", local_anacache.path]
-                            )
-
+                ana_cache_inputs = self.input()[1:]
+                local_anacache_list = [
+                    stack.enter_context((inp).localize("r")).path
+                    for inp in ana_cache_inputs[input_index]
+                ]
+                HistTupleProducer_cmd.extend(
+                    ["--cacheFile", ",".join(local_anacache_list)]
+                )
             ps_call(HistTupleProducer_cmd, verbose=1)
+
             with self.output().localize("w") as local_output:
                 out_local_path = local_output.path
                 shutil.move(tmpFile, out_local_path)

@@ -1,0 +1,119 @@
+name: Check repository state
+
+on:
+  pull_request:
+    types: [ "opened", "synchronize", "reopened", "labeled" ]
+  workflow_call:
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  calculate-size:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          fetch-depth: 0
+
+      - name: Set global git properties
+        run: |
+          git config --global user.email "cms-flaf@proton.me"
+          git config --global user.name "CMS FLAF Integration Bot"
+
+      - name: Git repack before
+        run: |
+          git repack -a -d
+
+      - name: Measure size before
+        id: size_before
+        run: echo "size=$(du -sb .git/objects/pack | cut -f1)" >> $GITHUB_OUTPUT
+
+      - name: Fetch PR branch
+        run: git fetch origin pull/${{ github.event.pull_request.number }}/head:PR_${{ github.event.pull_request.number }}
+
+      - name: Simulate squash merge
+        run: |
+          git checkout ${{ github.base_ref }}
+          git merge --squash PR_${{ github.event.pull_request.number }}
+          git commit -m "Simulated squash merge of PR #${{ github.event.pull_request.number }}"
+
+      - name: Remove PR branch ref
+        run: |
+          git branch -D PR_${{ github.event.pull_request.number }}
+          git update-ref -d refs/remotes/origin/pull/${{ github.event.pull_request.number }}
+
+      - name: Git repack after
+        run: |
+          git repack -a -d
+
+      - name: Measure size after
+        id: size_after
+        run: echo "size=$(du -sb .git/objects/pack | cut -f1)" >> $GITHUB_OUTPUT
+
+      - name: Calculate and report delta
+        run: |
+          delta=$(( ${{ steps.size_after.outputs.size }} - ${{ steps.size_before.outputs.size }} ))
+          delta_kb=$(( delta / 1024 ))
+          echo "### Repository size change" >> $GITHUB_STEP_SUMMARY
+          echo "Size before: ${{ steps.size_before.outputs.size }} bytes" >> $GITHUB_STEP_SUMMARY
+          echo "Size after: ${{ steps.size_after.outputs.size }} bytes" >> $GITHUB_STEP_SUMMARY
+          echo "Repository size would increase by approximately $delta_kb KiB if this PR is squash merged." >> $GITHUB_STEP_SUMMARY
+
+  check-for-binary-files:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Get changed files
+        id: changed_files
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.pull_request.number,
+            });
+            console.log(`Total files changed: ${files.length}`);
+            const allChangedFiles = files.map(file => file.filename);
+            const changedFiles = allChangedFiles.filter(file => file.startsWith('config/') && file.endsWith('samples.yaml'));
+            const existingChangedFiles = allChangedFiles.filter(file => {
+              try {
+                return require('fs').existsSync(file);
+              } catch (err) {
+                return false;
+              }
+            });
+
+            core.setOutput('files', btoa(existingChangedFiles.join('\n')));
+            const has_changed_files = existingChangedFiles.length > 0 ? 'true' : 'false';
+            core.setOutput('hasChangedFiles', has_changed_files);
+
+      - name: Check for binary files
+        if: ${{ steps.changed_files.outputs.hasChangedFiles == 'true' }}
+        run: |
+          IFS=$'\n'
+          declare -a BINARY_FILES=()
+          for file_name in $(echo ${{ steps.changed_files.outputs.files }} | base64 -d); do
+            file_type=$(file --brief --mime-type "$file_name")
+            file_encoding=$(file --brief --mime-encoding "$file_name")
+            echo "$file_name: type=$file_type encoding=$file_encoding"
+            if [[ $file_encoding == "binary" && "$file_type" != "inode/directory" ]]; then
+              BINARY_FILES+=("$file_name")
+            fi
+          done
+          if [ ${#BINARY_FILES[@]} -ne 0 ]; then
+            echo "The following binary files were found among the changed files:"
+            for binary_file in "${BINARY_FILES[@]}"; do
+              echo "  $binary_file"
+            done
+            echo "Please use git LFS for these files."
+            exit 1
+          else
+            echo "No binary files found among the changed files."
+          fi

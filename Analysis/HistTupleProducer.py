@@ -201,7 +201,7 @@ def createHistTuple(
                         )
                         dfw_shift.colToSave.append(f"{var}_bin")
 
-                    varToSave = Utilities.ListToVector(dfw_shift.colToSave)
+                    varToSave = Utilities.ListToVector(list(set(dfw_shift.colToSave)))
 
                     tmp_fileName = f"{treeName_shift}.root"
                     tmp_fileNames.append(tmp_fileName)

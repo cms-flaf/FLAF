@@ -694,6 +694,9 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self.ana_path(), "FLAF", "AnaProd", "MergeNtuples.py"
         )
         sample_name, process_group, input_file_list, output_file_list = self.branch_data
+        isData = (
+            "1" if process_group == "data" else "0"
+        )  # ps_call needs to only pass strings????
         input_list_remote_target = [inp[0] for inp in self.input()[:-1]]
         job_home, remove_job_home = self.law_job_home()
         tmpFiles = [
@@ -709,6 +712,8 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             Merge_cmd = [
                 "python3",
                 producer_Merge,
+                "--apply-filter",
+                isData,
                 "--outFiles",
                 *tmpFiles,
                 "--outFile",
@@ -722,7 +727,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 out_local_path = tmp_local_file.path
                 shutil.move(tmpFile, out_local_path)
 
-        delete_after_merge = True
+        delete_after_merge = False
         if delete_after_merge:
             print(f"Finished merging, lets delete remote targets")
             for remote_target in input_list_remote_target:

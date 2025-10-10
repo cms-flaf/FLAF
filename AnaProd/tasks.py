@@ -727,7 +727,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 out_local_path = tmp_local_file.path
                 shutil.move(tmpFile, out_local_path)
 
-        delete_after_merge = False
+        delete_after_merge = True
         if delete_after_merge:
             print(f"Finished merging, lets delete remote targets")
             for remote_target in input_list_remote_target:

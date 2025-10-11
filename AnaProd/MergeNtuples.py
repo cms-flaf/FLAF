@@ -67,6 +67,7 @@ if __name__ == "__main__":
     parser.add_argument("inputFile", nargs="+", type=str)
     parser.add_argument("--outFile", required=True, type=str)
     parser.add_argument("--useUproot", type=bool, default=False)
+    parser.add_argument("--apply-filter", required=False, type=int, default=0)
     parser.add_argument("--outFiles", required=False, nargs="+", type=str, default=None)
     args = parser.parse_args()
     headers_dir = os.path.dirname(os.path.abspath(__file__))
@@ -78,7 +79,6 @@ if __name__ == "__main__":
     snapshotOptions.fMode = "UPDATE"
     snapshotOptions.fCompressionAlgorithm = getattr(ROOT.ROOT, "kZLIB")
     snapshotOptions.fCompressionLevel = 4
-    not_empty_files = True
     inputFiles = [
         (fileName, ROOT.TFile(fileName, "READ")) for fileName in args.inputFile
     ]
@@ -146,9 +146,9 @@ if __name__ == "__main__":
         print(f"Loading {obj_name}, {obj_desc.file_names}")
         df = ROOT.RDataFrame(obj_name, obj_desc.file_names)
         print(f"initially there are {df.Count().GetValue()} events")
-        df = merge_ntuples(df)
+        if args.apply_filter:
+            df = merge_ntuples(df)
         df.Snapshot(obj_name, tmpFileName, df.GetColumnNames(), snapshotOptions)
-        # if df.Count().GetValue()==0: not_empty_files=False
     # print(tmpFileName)
     if args.useUproot:
         ConvertUproot.toUproot(tmpFileName, args.outFile)

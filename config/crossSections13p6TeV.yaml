@@ -301,7 +301,7 @@ LLJJ_SM_M-50_MJJ120_13p6TeV_dipole:
   unc:
 
 LLJJ_SM_M-50_MJJ120_13p6TeV_herwig7:
-  crossSec: 0.88
+  crossSec: 0.88 # 1.714
   reference: internal from private prod
   unc:
 
@@ -987,6 +987,6 @@ ZZZ:
   unc: 7.828e-06
 
 EWK_2L2J_madgraph_herwig:
-  crossSec: 1.422e+00
-  reference: genXsec analyzer
-  unc: 2.142e-03
+  crossSec:  1.418 # 1.422e+00
+  reference: genereting datacards/tarballs https://cms-pdmv-prod.web.cern.ch/mcm/requests?prepid=HIG-Run3Summer22wmLHEGS-01369&page=0&shown=1310847 # genXsec analyzer
+  unc: 2.142e-03 # 0.003502

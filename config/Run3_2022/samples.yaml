@@ -247,7 +247,7 @@ DYto2Mu_M_50_0J_amcatnloFXFX:
   dirName: DYto2L_M_50_0J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 DYto2Tau_M_50_0J_amcatnloFXFX:
-  crossSection: DYto2Tau_M_50_0J_amcatnloFXFX
+  crossSection: DYto2L_M_50_0J_amcatnloFXFX
   generator: amcatnlo
   miniAOD: /DYto2Tau-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
   dirName: DYto2L_M_50_0J_amcatnloFXFX
@@ -295,7 +295,7 @@ DYto2Mu_M_50_2J_amcatnloFXFX:
   dirName: DYto2L_M_50_2J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 DYto2Tau_M_50_2J_amcatnloFXFX:
-  crossSection: DYto2Tau_M_50_2J_amcatnloFXFX
+  crossSection: DYto2L_M_50_2J_amcatnloFXFX
   generator: amcatnlo
   miniAOD: /DYto2Tau-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
   dirName: DYto2Tau_MLL_50_2J_amcatnloFXFX

@@ -7,7 +7,7 @@ import tempfile
 
 from FLAF.RunKit.run_tools import natural_sort
 from FLAF.RunKit.crabLaw import update_kinit
-from FLAF.RunKit.law_wlcg import WLCGFileTarget
+from FLAF.RunKit.law_wlcg import WLCGFileTarget, WLCGDirectoryTarget
 from FLAF.Common.Setup import Setup
 
 law.contrib.load("htcondor")
@@ -79,6 +79,10 @@ class Task(law.Task):
         return self.setup.get_fs("anaTuple")
 
     @property
+    def fs_HistTuple(self):
+        return self.setup.get_fs("HistTuple")
+
+    @property
     def fs_anaCacheTuple(self):
         return self.setup.get_fs("anaCacheTuple")
 
@@ -114,6 +118,14 @@ class Task(law.Task):
             path = os.path.join(fs, path)
             return law.LocalFileTarget(path)
         return WLCGFileTarget(path, fs)
+
+    def remote_dir_target(self, *path, fs=None):
+        fs = fs or self.setup.fs_default
+        path = os.path.join(*path)
+        if type(fs) == str:
+            path = os.path.join(fs, path)
+            return law.LocalDirectoryTarget(path)
+        return WLCGDirectoryTarget(path, fs)
 
     def law_job_home(self):
         if "LAW_JOB_HOME" in os.environ:

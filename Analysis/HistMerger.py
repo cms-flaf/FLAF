@@ -11,7 +11,7 @@ if __name__ == "__main__":
 
 import FLAF.Common.Utilities as Utilities
 import FLAF.Common.Setup as Setup
-from FLAF.Analysis.HistHelper import *
+from FLAF.Common.HistHelper import *
 from FLAF.Analysis.QCD_estimation import *
 
 import importlib

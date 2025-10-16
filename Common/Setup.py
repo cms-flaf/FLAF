@@ -157,6 +157,7 @@ class Setup:
         sample_config_path = os.path.join(
             ana_path, "FLAF", "config", period, "samples.yaml"
         )
+
         self.analysis_config_area = os.path.join(
             ana_path, user_config["analysis_config_area"]
         )
@@ -302,11 +303,6 @@ class Setup:
         # self.hist_config_path = os.path.join(self.analysis_config_area, 'plot','histograms.yaml')
         self.hists_ = None
 
-        self.background_config_path = os.path.join(
-            self.analysis_config_area, "background_samples.yaml"
-        )
-        self.backgrounds_ = None
-
         self.cmssw_env_ = None
 
         self.signal_samples = [
@@ -405,13 +401,6 @@ class Setup:
             with open(self.hist_config_path, "r") as f:
                 self.hists_ = yaml.safe_load(f)
         return self.hists_
-
-    @property
-    def backgrounds(self):
-        if self.backgrounds_ is None:
-            with open(self.background_config_path, "r") as f:
-                self.backgrounds_ = yaml.safe_load(f)
-        return self.backgrounds_
 
     @staticmethod
     def getGlobal(ana_path, period, sample, customisations=None):

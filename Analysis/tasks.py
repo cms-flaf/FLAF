@@ -114,7 +114,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     n_cpus=AnaTupleMergeTask.n_cpus._default,
                 ),
             }
-            # Richiedi i produttori di cache per ogni variabile singolarmente
             req_dict["AnalysisCacheTask"] = []
             var_produced_by = self.setup.var_producer_map
             for var_name in self.global_params["variables"]:
@@ -156,6 +155,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 max_runtime=AnaTupleMergeTask.max_runtime._default,
                 n_cpus=AnaTupleMergeTask.n_cpus._default,
             )
+
         if len(branch_set_cache) > 0:
             if isbbtt:
                 reqs["anaCacheTuple"] = AnaCacheTupleTask.req(
@@ -164,7 +164,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     customisations=self.customisations,
                 )
             else:
-                # Richiedi ogni produttore di cache separatamente
                 reqs["analysisCache"] = []
                 for producer_name in (p for p in producer_set if p is not None):
                     reqs["analysisCache"].append(
@@ -193,6 +192,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 customisations=self.customisations,
             )
         )
+        caches = []
         if need_cache_global:
             if isbbtt:
                 deps.append(
@@ -205,9 +205,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     )
                 )
             else:
-                # Richiedi ogni produttore di cache separatamente per questo branch
                 for producer_name in (p for p in producer_list if p is not None):
-                    deps.append(
+                    caches.append(
                         AnalysisCacheTask.req(
                             self,
                             max_runtime=AnalysisCacheTask.max_runtime._default,
@@ -217,6 +216,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             producer_to_run=producer_name,
                         )
                     )
+            if caches:
+                deps.extend(caches)
         return deps
 
     def create_branch_map(self):
@@ -251,15 +252,19 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         #     self.samples, self.setup.backgrounds, self.global_params["signal_types"]
         # )
 
-        # Le variabili sono gestite dal file di configurazione,
-        # ma abbiamo bisogno di sapere quali produttori di cache sono necessari.
         need_cache_list = [
             (var_name in var_produced_by, var_produced_by.get(var_name, None))
             for var_name in self.global_params["variables"]
         ]
-
+        producer_list = []
         need_cache_global = any(item[0] for item in need_cache_list)
-        producer_list = [item[1] for item in need_cache_list if item[1] is not None]
+        for var_name in self.global_params["variables"]:
+            need_cache = True if var_name in var_produced_by else False
+            producer_to_run = (
+                var_produced_by[var_name] if var_name in var_produced_by else None
+            )
+            need_cache_list.append(need_cache)
+            producer_list.append(producer_to_run)
 
         for prod_br, (
             sample_name,
@@ -364,8 +369,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         )
                 ana_cache_inputs = self.input()[1:]
                 local_anacache_list = [
-                    stack.enter_context((inp).localize("r")).path
-                    for inp in ana_cache_inputs[input_index]
+                    stack.enter_context((inp[0]).localize("r")).path
+                    for inp in ana_cache_inputs
                 ]
                 HistTupleProducer_cmd.extend(
                     ["--cacheFile", ",".join(local_anacache_list)]
@@ -389,28 +394,6 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ).complete()
         if not merge_organization_complete:
             req_dict = {}
-            #     "AnaTupleFileListTask": AnaTupleFileListTask.req(
-            #         self,
-            #         branches=(),
-            #         max_runtime=AnaTupleFileListTask.max_runtime._default,
-            #         n_cpus=AnaTupleFileListTask.n_cpus._default,
-            #     ),
-            #     "AnaTupleMergeTask": AnaTupleMergeTask.req(
-            #         self,
-            #         branches=(),
-            #         max_runtime=AnaTupleMergeTask.max_runtime._default,
-            #         n_cpus=AnaTupleMergeTask.n_cpus._default,
-            #     ),
-            # }
-            # branch_set = set()
-            # branches_required = {}
-            # for br_idx, (var, prod_br_list, sample_names) in self.branch_map.items():
-            #     if var == self.global_params["variables"][0]:
-            #         branch_set.update(prod_br_list)
-            # branches = tuple(branch_set)
-            # req_dict["HistTupleProducerTask"] = HistTupleProducerTask.req(
-            #     self, branches=branches, customisations=self.customisations
-            # )
             req_dict["HistTupleProducerTask"] = HistTupleProducerTask.req(
                 self, branches=(), customisations=self.customisations
             )
@@ -471,16 +454,12 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             ) in HistTupleBranchMap.items():
                 if histTuple_sample_name != current_sample:
                     if current_sample is not None:
-                        # salva il gruppo precedente
                         branches[n] = (var_name, prod_br_list, current_sample)
                         n += 1
-                    # inizia nuovo gruppo
                     prod_br_list = [prod_br]
                     current_sample = histTuple_sample_name
                 else:
                     prod_br_list.append(prod_br)
-
-            # salva l'ultimo gruppo
             if prod_br_list:
                 branches[n] = (var_name, prod_br_list, current_sample)
                 n += 1
@@ -561,7 +540,6 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         if delete_after_merge:
             print(f"Finished HistogramProducer, lets delete remote targets")
             for remote_target in input_list_remote_target:
-                # print(remote_target)
                 remote_target.remove()
                 with remote_target.localize("w") as tmp_local_file:
                     tmp_local_file.touch()  # Create a dummy to avoid dependency crashes
@@ -655,7 +633,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 samples.append(sample_name)
             branches[k] = (var_name, br_indices, samples)
             k += 1
-        # print(branches)
         return branches
 
     def output(self):
@@ -708,7 +685,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self.ana_path(), "FLAF", "Analysis", "renameHists.py"
         )
 
-        # job_home, remove_job_home = self.law_job_home()
         input_dir = os.path.join("hists", self.version, self.period, var_name)
         input_dir_remote = self.remote_dir_target(input_dir, fs=self.fs_HistTuple)
         all_datasets = []
@@ -740,7 +716,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         self.period,
                     ]
                     MergerProducer_cmd.extend(local_inputs)
-                    # print(MergerProducer_cmd)
                     ps_call(MergerProducer_cmd, verbose=1)
             else:
                 for uncName in uncNames:
@@ -790,40 +765,17 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                                 tmp_outfile_merge_remote.localize("r")
                             ).path
                         )
-                    with self.output().localize() as outFile:  # tmp_outFile.localize("w") as tmpFile:
+                    with self.output().localize() as outFile:
                         HaddMergedHistsProducer_cmd = [
                             "python3",
                             HaddMergedHistsProducer,
                             "--outFile",
-                            outFile.path,  # tmpFile.path,
+                            outFile.path,
                             "--var",
                             var_name,
                         ]
                         HaddMergedHistsProducer_cmd.extend(local_merged_files)
                         ps_call(HaddMergedHistsProducer_cmd, verbose=1)
-        #     with tmp_outFile.localize("r") as tmpFile, self.output().localize(
-        #         "w"
-        #     ) as outFile:
-        #         RenameHistsProducer_cmd = [
-        #             "python3",
-        #             RenameHistsProducer,
-        #             "--inFile",
-        #             tmpFile.path,
-        #             "--outFile",
-        #             outFile.path,
-        #             "--var",
-        #             var,
-        #             "--year",
-        #             getYear(self.period),
-        #             "--ana_path",
-        #             self.ana_path(),
-        #             "--period",
-        #             self.period,
-        #         ]
-        #         ps_call(RenameHistsProducer_cmd, verbose=1)
-
-    #     if remove_job_home:
-    #         shutil.rmtree(job_home)
 
 
 class HistProducerFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):

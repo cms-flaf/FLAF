@@ -777,6 +777,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         HaddMergedHistsProducer_cmd.extend(local_merged_files)
                         ps_call(HaddMergedHistsProducer_cmd, verbose=1)
 
+
 class HistProducerFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)

@@ -2,7 +2,7 @@ GLOBAL:
   era: Run3_2023
   luminosity: 18063.0  # pb-1
   fs_nanoAOD:
-    - 'T2_CH_CERN:/store/group/phys_higgs/HLepRare/skim_2024_v2/Run3_2023'
+    - 'T2_CH_CERN:/store/group/phys_higgs/HLepRare/skim_2025_v1/Run3_2023'
   nano_version: v14
   crossSectionsFile: FLAF/config/crossSections13p6TeV.yaml
   use_stitching: false

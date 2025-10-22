@@ -303,6 +303,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         sample_name, prod_br, need_cache_global, producer_list, input_index = (
             self.branch_data
         )
+        # print("My inputs are")
+        # print(self.input())
+        # input_paths = [ x.path for x in self.input() ]
+        # print(input_paths[0])
         input_file = self.input()[0][input_index]
         customisation_dict = getCustomisationSplit(self.customisations)
         channels = customisation_dict.get(
@@ -399,7 +403,6 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
             return req_dict
         branch_set = set()
-        branches_required = {}
         for br_idx, (var, prod_br_list, sample_names) in self.branch_map.items():
             if var == self.global_params["variables"][0]:
                 branch_set.update(prod_br_list)
@@ -440,29 +443,26 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if not hasattr(self, "_branches_backup"):
                 self._branches_backup = copy.deepcopy(self.branches)
             return {0: ()}
-
+        sample_to_branches = {}
         HistTupleBranchMap = HistTupleProducerTask.req(
             self, branches=()
         ).create_branch_map()
-        for var_name in self.global_params["variables"]:
-            for prod_br, (
-                histTuple_sample_name,
-                histTuple_prod_br,
-                need_cache_global,
-                producer_list,
-                input_index,
-            ) in HistTupleBranchMap.items():
-                if histTuple_sample_name != current_sample:
-                    if current_sample is not None:
-                        branches[n] = (var_name, prod_br_list, current_sample)
-                        n += 1
-                    prod_br_list = [prod_br]
-                    current_sample = histTuple_sample_name
-                else:
-                    prod_br_list.append(prod_br)
-            if prod_br_list:
-                branches[n] = (var_name, prod_br_list, current_sample)
+        for prod_br, (
+            histTuple_sample_name,
+            histTuple_prod_br,
+            need_cache_global,
+            producer_list,
+            input_index,
+        ) in HistTupleBranchMap.items():
+            sample_to_branches.setdefault(histTuple_sample_name, []).append(
+                histTuple_prod_br
+            )
+
+        for sample_name, prod_br_list in sample_to_branches.items():
+            for var_name in self.global_params["variables"]:
+                branches[n] = (var_name, prod_br_list, sample_name)
                 n += 1
+
         return branches
 
     def output(self):

@@ -180,10 +180,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         sample_name, prod_br, need_cache_global, producer_list, input_index = (
             self.branch_data
         )
-        deps = []
+        deps = set()
         isbbtt = "HH_bbtautau" in self.global_params["analysis_config_area"].split("/")
 
-        deps.append(
+        deps.add(
             AnaTupleMergeTask.req(
                 self,
                 max_runtime=AnaTupleMergeTask.max_runtime._default,
@@ -192,10 +192,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 customisations=self.customisations,
             )
         )
-        caches = []
+        caches = set()
         if need_cache_global:
             if isbbtt:
-                deps.append(
+                deps.add(
                     AnaCacheTupleTask.req(
                         self,
                         max_runtime=AnaCacheTupleTask.max_runtime._default,
@@ -206,7 +206,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 )
             else:
                 for producer_name in (p for p in producer_list if p is not None):
-                    caches.append(
+                    caches.add(
                         AnalysisCacheTask.req(
                             self,
                             max_runtime=AnalysisCacheTask.max_runtime._default,
@@ -217,7 +217,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         )
                     )
             if caches:
-                deps.extend(caches)
+                deps.update(caches)
         return deps
 
     def create_branch_map(self):

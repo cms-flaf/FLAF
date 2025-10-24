@@ -180,7 +180,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         sample_name, prod_br, need_cache_global, producer_list, input_index = (
             self.branch_data
         )
-        deps = []  # deps cannot be a set because sets are auto-sorted, creating a mismatch between main (AnaTuple) file and cache files
+        deps = (
+            []
+        )  # deps cannot be a set because sets are auto-sorted, creating a mismatch between main (AnaTuple) file and cache files
         isbbtt = "HH_bbtautau" in self.global_params["analysis_config_area"].split("/")
 
         deps.append(

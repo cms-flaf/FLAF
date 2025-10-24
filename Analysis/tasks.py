@@ -180,10 +180,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         sample_name, prod_br, need_cache_global, producer_list, input_index = (
             self.branch_data
         )
-        deps = set()
+        deps = []  # deps cannot be a set because sets are auto-sorted, creating a mismatch between main (AnaTuple) file and cache files
         isbbtt = "HH_bbtautau" in self.global_params["analysis_config_area"].split("/")
 
-        deps.add(
+        deps.append(
             AnaTupleMergeTask.req(
                 self,
                 max_runtime=AnaTupleMergeTask.max_runtime._default,
@@ -195,7 +195,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         caches = set()
         if need_cache_global:
             if isbbtt:
-                deps.add(
+                caches.add(
                     AnaCacheTupleTask.req(
                         self,
                         max_runtime=AnaCacheTupleTask.max_runtime._default,
@@ -217,7 +217,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         )
                     )
             if caches:
-                deps.update(caches)
+                caches_list = list(caches)
+                deps.extend(caches_list)
         return deps
 
     def create_branch_map(self):

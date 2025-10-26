@@ -407,8 +407,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             return req_dict
         branch_set = set()
         for br_idx, (var, prod_br_list, sample_names) in self.branch_map.items():
-            if var == self.global_params["variables"][0]:
-                branch_set.update(prod_br_list)
+            branch_set.update(prod_br_list)
         branches = tuple(branch_set)
         req_dict = {
             "HistTupleProducerTask": HistTupleProducerTask.req(

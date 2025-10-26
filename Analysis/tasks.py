@@ -93,7 +93,7 @@ def GetSamples(
 
 class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
-    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
+    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
 
     def workflow_requires(self):
         merge_organization_complete = AnaTupleFileListTask.req(
@@ -376,7 +376,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         )
                 ana_cache_inputs = self.input()[1:]
                 local_anacache_list = [
-                    stack.enter_context((inp[0]).localize("r")).path
+                    stack.enter_context((inp[input_index]).localize("r")).path
                     for inp in ana_cache_inputs
                 ]
                 HistTupleProducer_cmd.extend(
@@ -458,7 +458,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             input_index,
         ) in HistTupleBranchMap.items():
             sample_to_branches.setdefault(histTuple_sample_name, []).append(
-                histTuple_prod_br
+                prod_br
             )
 
         for sample_name, prod_br_list in sample_to_branches.items():

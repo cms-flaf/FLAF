@@ -456,9 +456,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             producer_list,
             input_index,
         ) in HistTupleBranchMap.items():
-            sample_to_branches.setdefault(histTuple_sample_name, []).append(
-                prod_br
-            )
+            sample_to_branches.setdefault(histTuple_sample_name, []).append(prod_br)
 
         for sample_name, prod_br_list in sample_to_branches.items():
             for var_name in self.global_params["variables"]:

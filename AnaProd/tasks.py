@@ -586,6 +586,24 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         branch_set = set()
         for idx, sample_names in self.branch_map.items():
             branch_set.update([idx])
+
+        anaTuple_branch_map = AnaTupleTask.req(
+            self, branch=-1, branches=()
+        ).create_branch_map()
+        anaTuple_branch_set = set()
+        for idx, (sample_name, process_group, input_file_list, output_file_list) in self.branch_map.items():
+            for br_idx, (
+                anaTuple_sample_id,
+                anaTuple_sample_name,
+                anaTuple_process_group,
+                anaTuple_input_file,
+            ) in anaTuple_branch_map.items():
+                if (sample_name == anaTuple_sample_name) or (
+                    process_group == "data" and anaTuple_process_group == "data"
+                ):
+                    anaTuple_branch_set.add(br_idx)
+
+
         return {
             "AnaTupleFileListTask": AnaTupleFileListTask.req(
                 self,
@@ -594,7 +612,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 n_cpus=AnaTupleFileListTask.n_cpus._default,
             ),
             "AnaTupleTask": AnaTupleTask.req(
-                self, branches=tuple(branch_set), customisations=self.customisations
+                self, branches=tuple(anaTuple_branch_set), customisations=self.customisations
             ),
         }
 

@@ -17,6 +17,8 @@ GLOBAL:
     - Flag_eeBadScFilter
     - Flag_ecalBadCalibFilter
   lumiFile: /eos/user/c/cmsdqm/www/CAF/certification/Collisions23/Cert_Collisions2023_366442_370790_Golden.json
+  lumiFile: /FLAF/config/Run3_2023/Cert_Collisions2023_366442_370790_Golden.json  # '/'.join(os.environ['ANALYSIS_PATH'], samples['lumiFile'])
+
 
 ############## DY ##############
 EGamma0_Run2023D_v1:

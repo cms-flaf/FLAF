@@ -54,10 +54,6 @@ def fill_all_hists_dict(
         for var, var_hist in hist_map.items():
             scales = ["Up", "Down"] if unc_source != "Central" else ["Central"]
             for scale in scales:
-                if unc_source != "Central":
-                    var_check = f"{var_input}_{unc_source}_{scale}"
-                if var != var_check:
-                    continue
                 final_key = (key_tuple, (unc_source, scale))
                 if final_key not in all_hist_dict_per_var_and_sampletype:
                     all_hist_dict_per_var_and_sampletype[final_key] = []

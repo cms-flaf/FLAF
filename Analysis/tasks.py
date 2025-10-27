@@ -514,7 +514,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 "--channels",
                 channels,
                 "--var",
-                var_name,
+                var,
                 "--sample_name",
                 sample_name,,
             ]

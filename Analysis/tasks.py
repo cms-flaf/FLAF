@@ -517,7 +517,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 "--channels",
                 channels,
                 "--var",
-                var,
+                var_name,
                 "--sample_name",
                 sample_name,
             ]
@@ -705,7 +705,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             dataset_names = ",".join(smpl for smpl in all_datasets)
             all_outputs_merged = []
             outdir_histograms = os.path.join(
-                self.version, self.period, "merged", var, "tmp"
+                self.version, self.period, "merged", var_name, "tmp"
             )
             if len(uncNames) == 1:
                 with self.output().localize("w") as outFile:

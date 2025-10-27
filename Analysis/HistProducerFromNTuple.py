@@ -280,14 +280,20 @@ if __name__ == "__main__":
 
     uncs_to_compute = {}
     uncs_to_compute["Central"] = ["Central"]
-    if args.sample_name!="data":
+    if args.sample_name != "data":
         if args.compute_rel_weights:
             uncs_to_compute.update(
-                {key: setup.global_params["scales"] for key in unc_cfg_dict["norm"].keys()}
+                {
+                    key: setup.global_params["scales"]
+                    for key in unc_cfg_dict["norm"].keys()
+                }
             )
         if args.compute_unc_variations:
             uncs_to_compute.update(
-                {key: setup.global_params["scales"] for key in unc_cfg_dict["shape"].keys()}
+                {
+                    key: setup.global_params["scales"]
+                    for key in unc_cfg_dict["shape"].keys()
+                }
             )
 
     tmp_files = []

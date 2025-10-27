@@ -726,7 +726,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     ps_call(MergerProducer_cmd, verbose=1)
             else:
                 for uncName in uncNames:
-                    final_histname = f"{var}_{uncName}.root"
+                    final_histname = f"{var_name}_{uncName}.root"
                     tmp_outfile_merge = os.path.join(outdir_histograms, final_histname)
                     tmp_outfile_merge_remote = self.remote_target(
                         tmp_outfile_merge, fs=self.fs_histograms
@@ -772,7 +772,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                                 tmp_outfile_merge_remote.localize("r")
                             ).path
                         )
-                    with self.output().localize() as outFile:
+                    with self.output().localize("w") as outFile:
                         HaddMergedHistsProducer_cmd = [
                             "python3",
                             HaddMergedHistsProducer,

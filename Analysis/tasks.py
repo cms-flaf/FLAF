@@ -516,7 +516,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 "--var",
                 var,
                 "--sample_name",
-                sample_name
+                sample_name,
             ]
             if compute_unc_histograms:
                 HistFromNtupleProducer_cmd.extend(
@@ -673,7 +673,9 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             else self.global_params.get("compute_unc_histograms", False)
         )
         if compute_unc_histograms:
-            for uncName in list(unc_cfg_dict["norm"].keys()) +list(unc_cfg_dict["shape"].keys()):
+            for uncName in list(unc_cfg_dict["norm"].keys()) + list(
+                unc_cfg_dict["shape"].keys()
+            ):
                 if uncName in uncs_to_exclude:
                     continue
                 uncNames.append(uncName)
@@ -1407,7 +1409,9 @@ class MergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             else self.global_params.get("compute_unc_histograms", False)
         )
         if compute_unc_histograms:
-            for uncName in list(unc_cfg_dict["norm"].keys()) + unc_cfg_dict["shape"].keys():
+            for uncName in (
+                list(unc_cfg_dict["norm"].keys()) + unc_cfg_dict["shape"].keys()
+            ):
                 if uncName in uncs_to_exclude:
                     continue
                 uncNames.append(uncName)

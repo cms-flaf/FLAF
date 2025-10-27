@@ -404,7 +404,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             return req_dict
         branch_set = set()
         for br_idx, (var, prod_br_list, sample_names) in self.branch_map.items():
-            if var == self.global_params["variables"][0]:
+            if var in self.global_params["variables"]:
                 branch_set.update(prod_br_list)
         branches = tuple(branch_set)
         req_dict = {
@@ -455,7 +455,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             input_index,
         ) in HistTupleBranchMap.items():
             sample_to_branches.setdefault(histTuple_sample_name, []).append(
-                histTuple_prod_br
+                # histTuple_prod_br
+                prod_br
             )
 
         for sample_name, prod_br_list in sample_to_branches.items():
@@ -514,6 +515,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 channels,
                 "--var",
                 var,
+                "--sample_name",
+                sample_name
             ]
             if compute_unc_histograms:
                 HistFromNtupleProducer_cmd.extend(
@@ -670,7 +673,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             else self.global_params.get("compute_unc_histograms", False)
         )
         if compute_unc_histograms:
-            for uncName in list(unc_cfg_dict["norm"].keys()) + unc_cfg_dict["shape"]:
+            for uncName in list(unc_cfg_dict["norm"].keys()) +list(unc_cfg_dict["shape"].keys()):
                 if uncName in uncs_to_exclude:
                     continue
                 uncNames.append(uncName)
@@ -696,7 +699,9 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 local_inputs.append(stack.enter_context(inp.localize("r")).path)
             dataset_names = ",".join(smpl for smpl in all_datasets)
             all_outputs_merged = []
-
+            outdir_histograms = os.path.join(
+                self.version, self.period, "merged", var, "tmp"
+            )
             if len(uncNames) == 1:
                 with self.output().localize("w") as outFile:
                     MergerProducer_cmd = [
@@ -1402,7 +1407,7 @@ class MergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             else self.global_params.get("compute_unc_histograms", False)
         )
         if compute_unc_histograms:
-            for uncName in list(unc_cfg_dict["norm"].keys()) + unc_cfg_dict["shape"]:
+            for uncName in list(unc_cfg_dict["norm"].keys()) + unc_cfg_dict["shape"].keys():
                 if uncName in uncs_to_exclude:
                     continue
                 uncNames.append(uncName)

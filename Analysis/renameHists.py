@@ -283,7 +283,7 @@ elif args.period.startswith("Run3"):
                 all_histnames[f"{process}_{unc_old}_{scale}"] = (
                     f"{process}_{new_unc}{scale}"
                 )
-        for unc_old in setup.weights_config["shape"]:
+        for unc_old in setup.weights_config["shape"].keys():
             new_unc = unc_old
             for scale in ["Up", "Down"]:
                 all_histnames[f"{process}_{unc_old}_{args.year}_{scale}"] = (

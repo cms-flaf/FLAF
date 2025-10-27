@@ -188,7 +188,7 @@ def createAnalysisCache(
         if dfWrapped_central.df.Filter("map_placeholder > 0").Count().GetValue() <= 0:
             raise RuntimeError("no events passed map placeolder")
         print("finished defining central quantities")
-        for uncName in unc_cfg_dict["shape"]:
+        for uncName in unc_cfg_dict["shape"].keys():
             for scale in scales:
                 treeName = f"Events_{uncName}{scale}"
                 treeName_noDiff = f"{treeName}_noDiff"

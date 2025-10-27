@@ -65,7 +65,7 @@ def mkdir_recursive(root_file, dir_path):
 def GetUncNameTypes(unc_cfg_dict):
     uncNames = []
     uncNames.extend(list(unc_cfg_dict["norm"].keys()))
-    uncNames.extend([unc for unc in unc_cfg_dict["shape"]])
+    uncNames.extend([unc for unc in unc_cfg_dict["shape"].keys()])
     return uncNames
 
 

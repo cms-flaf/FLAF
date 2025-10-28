@@ -550,10 +550,10 @@ class AnaTupleFileListTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if sample_name == "data":
                 AnaTupleFileList_cmd.extend(["--isData", "True"])
                 if self.test:
-                    print("Don't split test by lumi if its data, its already only 1000 events")
-                    AnaTupleFileList_cmd.extend(
-                        ["--lumi", f'1.0']
+                    print(
+                        "Don't split test by lumi if its data, its already only 1000 events"
                     )
+                    AnaTupleFileList_cmd.extend(["--lumi", f"1.0"])
                 else:
                     # I know this isn't clean, but I don't want to put a 'if not self.test' for the base case
                     AnaTupleFileList_cmd.extend(

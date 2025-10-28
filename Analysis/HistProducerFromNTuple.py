@@ -46,7 +46,7 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale):
                 bin_error = unit_hist.GetBinError(i)
                 hist.SetBinContent(i, bin_content)
                 hist.SetBinError(i, bin_error)
-                nentries += unit_hist.GetEntries()
+            nentries += unit_hist.GetEntries()
             merged_hist.Add(hist)
 
     merged_hist.SetEntries(nentries)

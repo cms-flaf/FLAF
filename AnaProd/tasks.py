@@ -75,6 +75,9 @@ class InputFileTask(Task, law.LocalWorkflow):
             for file in natural_sort(fs_nanoAOD.listdir(folder_name)):
                 if re.match(pattern, file):
                     input_files.append(file)
+                    if self.test:
+                        print("If doing test, only use the first file")
+                        break
             with open(out_local_file.path, "w") as inputFileTxt:
                 for input_line in input_files:
                     inputFileTxt.write(input_line + "\n")
@@ -546,9 +549,16 @@ class AnaTupleFileListTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             AnaTupleFileList_cmd.extend(["--nEventsPerFile", f"{nEventsPerFile}"])
             if sample_name == "data":
                 AnaTupleFileList_cmd.extend(["--isData", "True"])
-                AnaTupleFileList_cmd.extend(
-                    ["--lumi", f'{self.setup.global_params["luminosity"]}']
-                )
+                if self.test:
+                    print("Don't split test by lumi if its data, its already only 1000 events")
+                    AnaTupleFileList_cmd.extend(
+                        ["--lumi", f'1.0']
+                    )
+                else:
+                    # I know this isn't clean, but I don't want to put a 'if not self.test' for the base case
+                    AnaTupleFileList_cmd.extend(
+                        ["--lumi", f'{self.setup.global_params["luminosity"]}']
+                    )
                 AnaTupleFileList_cmd.extend(
                     [
                         "--nPbPerFile",

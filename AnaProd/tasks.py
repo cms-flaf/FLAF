@@ -81,7 +81,9 @@ class InputFileTask(Task, law.LocalWorkflow):
         print(f"inputFile for sample {sample_name} is created in {self.output().path}")
 
     @staticmethod
-    def load_input_files(input_file_list, folder_name, fs=None, return_uri=False, test=False):
+    def load_input_files(
+        input_file_list, folder_name, fs=None, return_uri=False, test=False
+    ):
         input_files = []
         with open(input_file_list, "r") as txt_file:
             for file in txt_file.readlines():
@@ -90,7 +92,7 @@ class InputFileTask(Task, law.LocalWorkflow):
                 input_files.append(file_full_path)
         if len(input_files) == 0:
             raise RuntimeError(f"No input files found for {folder_name}")
-        active_files = [ input_files[0] ] if test else input_files
+        active_files = [input_files[0]] if test else input_files
         return active_files
 
 
@@ -130,7 +132,9 @@ class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if "dirName" in self.samples[sample_name]
             else sample_name
         )
-        input_files = InputFileTask.load_input_files(self.input()[0].path, dir_to_list, test=self.test)
+        input_files = InputFileTask.load_input_files(
+            self.input()[0].path, dir_to_list, test=self.test
+        )
         ana_caches = []
         generator_name = self.samples[sample_name]["generator"] if not isData else ""
         global_params_str = SerializeObjectToString(self.global_params)
@@ -208,7 +212,9 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 .output()
                 .path
             )
-            input_files = InputFileTask.load_input_files(input_file_list, dir_to_list, test=self.test)
+            input_files = InputFileTask.load_input_files(
+                input_file_list, dir_to_list, test=self.test
+            )
             if fs_nanoAOD is None:
                 raise RuntimeError(
                     f"fs_nanoAOD is not defined for sample {sample_name}"

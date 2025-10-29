@@ -101,10 +101,12 @@ def createAnatuple(
             f"static const std::set<ULong64_t> evts = {{ {evtIds} }}; return evts.count(event) > 0;"
         )
     if isData and "lumiFile" in setup.global_params:
-        lumiFile_Name = "/".join(
-            [os.environ["ANALYSIS_PATH"], setup.global_params["lumiFile"]]
-        )
-        lumiFilter = LumiFilter(lumiFile_Name)
+        lumiFile_path = setup.global_params["lumiFile"]
+        if not lumiFile_path.startswith("/"):
+            lumiFile_path = os.path.join(
+                os.environ["ANALYSIS_PATH"], lumiFile_path
+            )
+        lumiFilter = LumiFilter(lumiFile_path)
         df = lumiFilter.filter(df)
     # isSignal = sample_type in setup.global_params["signal_types"]
     applyTriggerFilter = sample_config.get("applyTriggerFilter", True)

@@ -75,16 +75,13 @@ class InputFileTask(Task, law.LocalWorkflow):
             for file in natural_sort(fs_nanoAOD.listdir(folder_name)):
                 if re.match(pattern, file):
                     input_files.append(file)
-                    if self.test:
-                        print("If doing test, only use the first file")
-                        break
             with open(out_local_file.path, "w") as inputFileTxt:
                 for input_line in input_files:
                     inputFileTxt.write(input_line + "\n")
         print(f"inputFile for sample {sample_name} is created in {self.output().path}")
 
     @staticmethod
-    def load_input_files(input_file_list, folder_name, fs=None, return_uri=False):
+    def load_input_files(input_file_list, folder_name, fs=None, return_uri=False, test=False):
         input_files = []
         with open(input_file_list, "r") as txt_file:
             for file in txt_file.readlines():
@@ -93,7 +90,8 @@ class InputFileTask(Task, law.LocalWorkflow):
                 input_files.append(file_full_path)
         if len(input_files) == 0:
             raise RuntimeError(f"No input files found for {folder_name}")
-        return input_files
+        active_files = [ input_files[0] ] if test else input_files
+        return active_files
 
 
 class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
@@ -132,7 +130,7 @@ class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if "dirName" in self.samples[sample_name]
             else sample_name
         )
-        input_files = InputFileTask.load_input_files(self.input()[0].path, dir_to_list)
+        input_files = InputFileTask.load_input_files(self.input()[0].path, dir_to_list, test=self.test)
         ana_caches = []
         generator_name = self.samples[sample_name]["generator"] if not isData else ""
         global_params_str = SerializeObjectToString(self.global_params)
@@ -210,7 +208,7 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 .output()
                 .path
             )
-            input_files = InputFileTask.load_input_files(input_file_list, dir_to_list)
+            input_files = InputFileTask.load_input_files(input_file_list, dir_to_list, test=self.test)
             if fs_nanoAOD is None:
                 raise RuntimeError(
                     f"fs_nanoAOD is not defined for sample {sample_name}"

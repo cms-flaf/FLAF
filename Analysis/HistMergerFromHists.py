@@ -52,8 +52,6 @@ def fill_all_hists_dict(
     var_check = f"{var_input}"
     for key_tuple, hist_map in items_dict.items():
         for var, var_hist in hist_map.items():
-            if unc_source == "Central":
-                print(f"Checking var {var} for var_check {var_check}")
             scales = ["Up", "Down"] if unc_source != "Central" else ["Central"]
             for scale in scales:
                 if unc_source != "Central":
@@ -64,22 +62,6 @@ def fill_all_hists_dict(
                 if final_key not in all_hist_dict_per_var_and_sampletype:
                     all_hist_dict_per_var_and_sampletype[final_key] = []
                 all_hist_dict_per_var_and_sampletype[final_key].append(var_hist)
-
-
-# def fill_all_hists_dict(
-#     items_dict,
-#     all_hist_dict_per_var_and_sampletype,
-#     var_input,
-#     unc_source="Central",
-# ):
-#     for key_tuple, hist_map in items_dict.items():
-#         for var, var_hist in hist_map.items():
-#             scales = ["Up", "Down"] if unc_source != "Central" else ["Central"]
-#             for scale in scales:
-#                 final_key = (key_tuple, (unc_source, scale))
-#                 if final_key not in all_hist_dict_per_var_and_sampletype:
-#                     all_hist_dict_per_var_and_sampletype[final_key] = []
-#                 all_hist_dict_per_var_and_sampletype[final_key].append(var_hist)
 
 
 def MergeHistogramsPerType(all_hists_dict):

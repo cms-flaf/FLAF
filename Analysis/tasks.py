@@ -1408,8 +1408,8 @@ class MergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             else self.global_params.get("compute_unc_histograms", False)
         )
         if compute_unc_histograms:
-            for uncName in (
-                list(unc_cfg_dict["norm"].keys()) + list(unc_cfg_dict["shape"].keys())
+            for uncName in list(unc_cfg_dict["norm"].keys()) + list(
+                unc_cfg_dict["shape"].keys()
             ):
                 if uncName in uncs_to_exclude:
                     continue

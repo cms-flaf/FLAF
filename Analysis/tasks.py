@@ -93,7 +93,7 @@ def GetSamples(
 
 class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
-    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
+    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
 
     def workflow_requires(self):
         merge_organization_complete = AnaTupleFileListTask.req(
@@ -180,7 +180,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         sample_name, prod_br, need_cache_global, producer_list, input_index = (
             self.branch_data
         )
-        deps = []
+        deps = (
+            []
+        )  # deps cannot be a set because sets are auto-sorted, creating a mismatch between main (AnaTuple) file and cache files
         isbbtt = "HH_bbtautau" in self.global_params["analysis_config_area"].split("/")
 
         deps.append(
@@ -192,10 +194,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 customisations=self.customisations,
             )
         )
-        caches = []
+        caches = set()
         if need_cache_global:
             if isbbtt:
-                deps.append(
+                caches.add(
                     AnaCacheTupleTask.req(
                         self,
                         max_runtime=AnaCacheTupleTask.max_runtime._default,
@@ -206,7 +208,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 )
             else:
                 for producer_name in (p for p in producer_list if p is not None):
-                    caches.append(
+                    caches.add(
                         AnalysisCacheTask.req(
                             self,
                             max_runtime=AnalysisCacheTask.max_runtime._default,
@@ -217,7 +219,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         )
                     )
             if caches:
-                deps.extend(caches)
+                caches_list = list(caches)
+                deps.extend(caches_list)
         return deps
 
     def create_branch_map(self):
@@ -373,7 +376,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         )
                 ana_cache_inputs = self.input()[1:]
                 local_anacache_list = [
-                    stack.enter_context((inp[0]).localize("r")).path
+                    stack.enter_context((inp[input_index]).localize("r")).path
                     for inp in ana_cache_inputs
                 ]
                 HistTupleProducer_cmd.extend(
@@ -404,8 +407,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             return req_dict
         branch_set = set()
         for br_idx, (var, prod_br_list, sample_names) in self.branch_map.items():
-            if var == self.global_params["variables"][0]:
-                branch_set.update(prod_br_list)
+            branch_set.update(prod_br_list)
         branches = tuple(branch_set)
         req_dict = {
             "HistTupleProducerTask": HistTupleProducerTask.req(
@@ -454,9 +456,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             producer_list,
             input_index,
         ) in HistTupleBranchMap.items():
-            sample_to_branches.setdefault(histTuple_sample_name, []).append(
-                histTuple_prod_br
-            )
+            sample_to_branches.setdefault(histTuple_sample_name, []).append(prod_br)
 
         for sample_name, prod_br_list in sample_to_branches.items():
             for var_name in self.global_params["variables"]:

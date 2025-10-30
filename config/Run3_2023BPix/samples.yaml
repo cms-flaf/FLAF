@@ -16,7 +16,9 @@ GLOBAL:
     - Flag_hfNoisyHitsFilter
     - Flag_eeBadScFilter
     - Flag_ecalBadCalibFilter
-  lumiFile: /eos/user/c/cmsdqm/www/CAF/certification/Collisions23/Cert_Collisions2023_366442_370790_Golden.json
+  # lumiFile: /eos/user/c/cmsdqm/www/CAF/certification/Collisions23/Cert_Collisions2023_366442_370790_Golden.json
+  lumiFile: Corrections/data/golden_json/Cert_Collisions2023_366442_370790_Golden.json
+
 
 ############## DY ##############
 EGamma0_Run2023D_v1:

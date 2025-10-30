@@ -19,7 +19,8 @@ GLOBAL:
   badMET_flag_runs:  # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersRun2#ECal_BadCalibration_Filter_Flag
     - 362433
     - 362760  # for 2022, Flag_ecalBadCalibFilter should not be used for a range of these two run numbers.
-  lumiFile: /eos/user/c/cmsdqm/www/CAF/certification/Collisions22/Cert_Collisions2022_355100_362760_Golden.json
+  # lumiFile: /eos/user/c/cmsdqm/www/CAF/certification/Collisions22/Cert_Collisions2022_355100_362760_Golden.json
+  lumiFile: Corrections/data/golden_json/Cert_Collisions2022_355100_362760_Golden.json
 
 
 ############## Data ##############

@@ -46,7 +46,7 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale):
                 bin_error = unit_hist.GetBinError(i)
                 hist.SetBinContent(i, bin_content)
                 hist.SetBinError(i, bin_error)
-                nentries += unit_hist.GetEntries()
+            nentries += unit_hist.GetEntries()
             merged_hist.Add(hist)
 
     merged_hist.SetEntries(nentries)
@@ -116,7 +116,7 @@ def SaveTmpFileUnc(
     for unc, scales in uncs_to_compute.items():
         tmp_file = f"tmp_{var}_{unc}.root"
         tmp_file_root = ROOT.TFile(tmp_file, "RECREATE")
-        is_shift_unc = unc in unc_cfg_dict["shape"]
+        is_shift_unc = unc in unc_cfg_dict["shape"].keys()
 
         for scale in scales:
             for key, filter_to_apply_base in key_filter_dict.items():
@@ -182,6 +182,7 @@ if __name__ == "__main__":
     parser.add_argument("inputFiles", nargs="+", type=str)
     parser.add_argument("--period", required=True, type=str)
     parser.add_argument("--outFile", required=True, type=str)
+    parser.add_argument("--sample_name", required=True, type=str)
     parser.add_argument("--customisations", type=str, default=None)
     parser.add_argument("--channels", type=str, default=None)
     parser.add_argument("--var", type=str, default=None)
@@ -277,15 +278,22 @@ if __name__ == "__main__":
         all_trees[tree_name] = rdf
 
     uncs_to_compute = {}
-    if args.compute_rel_weights:
-        uncs_to_compute.update(
-            {key: setup.global_params["scales"] for key in unc_cfg_dict["norm"].keys()}
-        )
-    if args.compute_unc_variations:
-        uncs_to_compute.update(
-            {key: setup.global_params["scales"] for key in unc_cfg_dict["shape"]}
-        )
     uncs_to_compute["Central"] = ["Central"]
+    if args.sample_name != "data":
+        if args.compute_rel_weights:
+            uncs_to_compute.update(
+                {
+                    key: setup.global_params["scales"]
+                    for key in unc_cfg_dict["norm"].keys()
+                }
+            )
+        if args.compute_unc_variations:
+            uncs_to_compute.update(
+                {
+                    key: setup.global_params["scales"]
+                    for key in unc_cfg_dict["shape"].keys()
+                }
+            )
 
     tmp_files = []
     if all_trees:

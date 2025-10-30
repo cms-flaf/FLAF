@@ -124,7 +124,7 @@ def createHistTuple(
         )
         if df_central.Filter("map_placeholder > 0").Count().GetValue() <= 0:
             raise RuntimeError("no events passed map placeolder")
-        all_shifts_to_compute.extend(unc_cfg_dict["shape"])
+        all_shifts_to_compute.extend(unc_cfg_dict["shape"].keys())
 
     for unc in ["Central"] + all_rel_uncs_to_compute:
         scales = setup.global_params["scales"] if unc != "Central" else ["Central"]

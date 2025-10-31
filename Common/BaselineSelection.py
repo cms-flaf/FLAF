@@ -126,9 +126,10 @@ def DefineGenObjects(
         )
 
     for lep in ["Electron", "Muon", "Tau"]:
+        dR_matching = 0.2 if lep != "Muon" else 0.1
         df = df.Define(
             f"{lep}_genMatchIdx",
-            f"MatchGenLepton({lep}_p4_{p4_suffix}, genLeptons, 0.2)",
+            f"MatchGenLepton({lep}_p4_{p4_suffix}, genLeptons, {dR_matching})",
         )
         df = df.Define(
             f"{lep}_genMatch", f"GetGenLeptonMatch({lep}_genMatchIdx, genLeptons)"

@@ -27,7 +27,7 @@ variables:
   HH_bbWW_task: "FLAF.Analysis.tasks.HistFromNtupleProducerTask"
   HH_bbtautau_task: "FLAF.Analysis.tasks.HistFromNtupleProducerTask"
   H_mumu_task: "FLAF.Analysis.tasks.HistFromNtupleProducerTask"
-  HH_bbWW_dataset: "GluGlutoRadiontoHHto2B2Vto2B2L2Nu_M_350"
+  HH_bbWW_dataset: "XtoYHto2B2Wto2B2L2Nu_MX_300_MY_125"
   HH_bbtautau_dataset: "GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p00"
   H_mumu_dataset: "VBFHto2Mu"
 

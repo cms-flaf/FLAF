@@ -408,7 +408,6 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         branch_set = set()
         for br_idx, (var, prod_br_list, sample_names) in self.branch_map.items():
             if var in self.global_params["variables"]:
-            if var in self.global_params["variables"]:
                 branch_set.update(prod_br_list)
         branches = tuple(branch_set)
         req_dict = {
@@ -675,12 +674,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             else self.global_params.get("compute_unc_histograms", False)
         )
         if compute_unc_histograms:
-            for uncName in list(unc_cfg_dict["norm"].keys()) + list(
-                unc_cfg_dict["shape"].keys()
-            ):
-            for uncName in list(unc_cfg_dict["norm"].keys()) + list(
-                unc_cfg_dict["shape"].keys()
-            ):
             for uncName in list(unc_cfg_dict["norm"].keys()) + list(
                 unc_cfg_dict["shape"].keys()
             ):

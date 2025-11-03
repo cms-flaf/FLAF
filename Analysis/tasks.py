@@ -517,7 +517,6 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 var,
                 "--sample_name",
                 sample_name,
-                sample_name,
             ]
             if compute_unc_histograms:
                 HistFromNtupleProducer_cmd.extend(

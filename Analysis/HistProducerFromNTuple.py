@@ -263,16 +263,17 @@ if __name__ == "__main__":
 
     variables = setup.global_params["variables"]
     vars_needed = set(variables)
-    for further_cut_name, (var_for_cut, _) in further_cuts.items():
-        if var_for_cut:
-            vars_needed.add(var_for_cut)
+    for further_cut_name, (vars_for_cut, _) in further_cuts.items():
+        for var_for_cut in vars_for_cut:
+            if var_for_cut:
+                vars_needed.add(var_for_cut)
 
     all_trees = {}
     for tree_name, rdf in base_rdfs.items():
         for var in vars_needed:
             if var not in rdf.GetColumnNames():
                 print(f"attenzione, {var} not in column names")
-        for further_cut_name, (var_for_cut, cut_expr) in further_cuts.items():
+        for further_cut_name, (vars_for_cut, cut_expr) in further_cuts.items():
             if further_cut_name not in rdf.GetColumnNames():
                 rdf = rdf.Define(further_cut_name, cut_expr)
         all_trees[tree_name] = rdf

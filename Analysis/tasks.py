@@ -407,7 +407,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             return req_dict
         branch_set = set()
         for br_idx, (var, prod_br_list, sample_names) in self.branch_map.items():
-            branch_set.update(prod_br_list)
+            if var in self.global_params["variables"]:
+                branch_set.update(prod_br_list)
         branches = tuple(branch_set)
         req_dict = {
             "HistTupleProducerTask": HistTupleProducerTask.req(
@@ -638,6 +639,8 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return branches
 
     def output(self):
+        if len(self.branch_data) == 0:
+            return self.local_target("dummy.txt")
         var_name, br_indices, samples = self.branch_data
         output_path = os.path.join("merged_hists", self.version, self.period, var_name)
         output_file_name = os.path.join(output_path, f"{var_name}.root")

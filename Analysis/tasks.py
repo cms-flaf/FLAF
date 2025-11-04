@@ -639,6 +639,8 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return branches
 
     def output(self):
+        if len(self.branch_data) == 0:
+            return self.local_target("dummy.txt")
         var_name, br_indices, samples = self.branch_data
         output_path = os.path.join("merged_hists", self.version, self.period, var_name)
         output_file_name = os.path.join(output_path, f"{var_name}.root")

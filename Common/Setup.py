@@ -65,7 +65,6 @@ def select_processes(samples, phys_model, processes):
             )
         for bkg_name in processes.get(bkg_process, {}).get("datasets", []):
             if bkg_name not in samples.keys():
-                continue
                 raise RuntimeError(
                     f"Background sample '{bkg_name}' not found in samples configuration."
                 )
@@ -75,7 +74,6 @@ def select_processes(samples, phys_model, processes):
             selected_processes.append(bkg_name)
     for sig_process in phys_model.get("signals", []):
         if sig_process not in processes:
-            continue
             raise RuntimeError(
                 f"Signal process '{sig_process}' not found in processes configuration."
             )
@@ -90,7 +88,6 @@ def select_processes(samples, phys_model, processes):
             selected_processes.append(sig_name)
     for data_process in phys_model.get("data", []):
         if data_process not in processes:
-            continue
             raise RuntimeError(
                 f"Data process '{data_process}' not found in processes configuration."
             )

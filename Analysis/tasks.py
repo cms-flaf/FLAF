@@ -2161,18 +2161,6 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             "plot_analysis", self.global_params.get("plot_analysis", "")
         )
 
-        # remote_in = (
-        #     self.remote_target(
-        #         os.path.join(
-        #             ver, era, "merged", var, "tmp", f"all_histograms_{var}_hadded.root"
-        #         ),
-        #         fs=self.fs_histograms,
-        #     )
-        #     if plot_unc
-        #     else self.input()
-        # )
-
-        # with remote_in.localize("r") as local_input:
         with self.input().localize("r") as local_input:
             infile = local_input.path
             print("Loading fname", infile)

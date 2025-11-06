@@ -784,7 +784,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             var_name,
                         ]
                         HaddMergedHistsProducer_cmd.extend(local_merged_files)
-                        print("ps call")
                         ps_call(HaddMergedHistsProducer_cmd, verbose=1)
 
 

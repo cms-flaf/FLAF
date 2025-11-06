@@ -227,7 +227,7 @@ if __name__ == "__main__":
     with open(args.uncConfig, "r") as f:
         unc_cfg_dict = yaml.safe_load(f)
     all_uncertainties = list(unc_cfg_dict["norm"].keys())
-    all_uncertainties.extend(unc_cfg_dict["shape"])
+    all_uncertainties.extend(unc_cfg_dict["shape"].keys())
     # print(all_uncertainties)
 
     categories = list(sample_cfg_dict["GLOBAL"]["categories"])

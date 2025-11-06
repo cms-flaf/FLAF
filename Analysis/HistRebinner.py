@@ -146,7 +146,7 @@ if __name__ == "__main__":
     with open(args.histConfig, "r") as f:
         hist_cfg_dict = yaml.safe_load(f)
     all_uncertainties = list(unc_cfg_dict["norm"].keys())
-    all_uncertainties.extend(unc_cfg_dict["shape"])
+    all_uncertainties.extend(unc_cfg_dict["shape"].keys())
 
     categories = list(sample_cfg_dict["GLOBAL"]["categories"])
     btag_dir = "bTag_WP" if args.wantBTag else "bTag_shape"

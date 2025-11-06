@@ -81,7 +81,9 @@ class InputFileTask(Task, law.LocalWorkflow):
         print(f"inputFile for sample {sample_name} is created in {self.output().path}")
 
     @staticmethod
-    def load_input_files(input_file_list, folder_name, fs=None, return_uri=False):
+    def load_input_files(
+        input_file_list, folder_name, fs=None, return_uri=False, test=False
+    ):
         input_files = []
         with open(input_file_list, "r") as txt_file:
             for file in txt_file.readlines():
@@ -90,7 +92,8 @@ class InputFileTask(Task, law.LocalWorkflow):
                 input_files.append(file_full_path)
         if len(input_files) == 0:
             raise RuntimeError(f"No input files found for {folder_name}")
-        return input_files
+        active_files = [input_files[0]] if test else input_files
+        return active_files
 
 
 class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
@@ -129,7 +132,9 @@ class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if "dirName" in self.samples[sample_name]
             else sample_name
         )
-        input_files = InputFileTask.load_input_files(self.input()[0].path, dir_to_list)
+        input_files = InputFileTask.load_input_files(
+            self.input()[0].path, dir_to_list, test=self.test
+        )
         ana_caches = []
         generator_name = self.samples[sample_name]["generator"] if not isData else ""
         global_params_str = SerializeObjectToString(self.global_params)
@@ -207,7 +212,9 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 .output()
                 .path
             )
-            input_files = InputFileTask.load_input_files(input_file_list, dir_to_list)
+            input_files = InputFileTask.load_input_files(
+                input_file_list, dir_to_list, test=self.test
+            )
             if fs_nanoAOD is None:
                 raise RuntimeError(
                     f"fs_nanoAOD is not defined for sample {sample_name}"
@@ -546,9 +553,16 @@ class AnaTupleFileListTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             AnaTupleFileList_cmd.extend(["--nEventsPerFile", f"{nEventsPerFile}"])
             if sample_name == "data":
                 AnaTupleFileList_cmd.extend(["--isData", "True"])
-                AnaTupleFileList_cmd.extend(
-                    ["--lumi", f'{self.setup.global_params["luminosity"]}']
-                )
+                if self.test:
+                    print(
+                        "Don't split test by lumi if its data, its already only 1000 events"
+                    )
+                    AnaTupleFileList_cmd.extend(["--lumi", f"1.0"])
+                else:
+                    # I know this isn't clean, but I don't want to put a 'if not self.test' for the base case
+                    AnaTupleFileList_cmd.extend(
+                        ["--lumi", f'{self.setup.global_params["luminosity"]}']
+                    )
                 AnaTupleFileList_cmd.extend(
                     [
                         "--nPbPerFile",
@@ -586,6 +600,28 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         branch_set = set()
         for idx, sample_names in self.branch_map.items():
             branch_set.update([idx])
+
+        anaTuple_branch_map = AnaTupleTask.req(
+            self, branch=-1, branches=()
+        ).create_branch_map()
+        anaTuple_branch_set = set()
+        for idx, (
+            sample_name,
+            process_group,
+            input_file_list,
+            output_file_list,
+        ) in self.branch_map.items():
+            for br_idx, (
+                anaTuple_sample_id,
+                anaTuple_sample_name,
+                anaTuple_process_group,
+                anaTuple_input_file,
+            ) in anaTuple_branch_map.items():
+                if (sample_name == anaTuple_sample_name) or (
+                    process_group == "data" and anaTuple_process_group == "data"
+                ):
+                    anaTuple_branch_set.add(br_idx)
+
         return {
             "AnaTupleFileListTask": AnaTupleFileListTask.req(
                 self,
@@ -594,7 +630,9 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 n_cpus=AnaTupleFileListTask.n_cpus._default,
             ),
             "AnaTupleTask": AnaTupleTask.req(
-                self, branches=tuple(branch_set), customisations=self.customisations
+                self,
+                branches=tuple(anaTuple_branch_set),
+                customisations=self.customisations,
             ),
         }
 

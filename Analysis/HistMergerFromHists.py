@@ -291,15 +291,12 @@ if __name__ == "__main__":
     for sample_type in all_hists_dict.keys():
         for key in all_hists_dict[sample_type].keys():
             (key_dir, (uncName, uncScale)) = key
-            debug = key_dir == ('e', 'OS_Iso', 'res2b_SR')
-            if debug: print(f"Key {key}")
 
             # here there can be some custom requirements - e.g. regions / categories to not merge, samples to ignore
             dir_name = "/".join(key_dir)
             dir_ptr = Utilities.mkdir(outFile, dir_name)
             hist = all_hists_dict[sample_type][key]
             hist_name = sample_type
-            # additional_name = ""
             if uncName != args.uncSource:
                 continue
             if uncName != "Central":

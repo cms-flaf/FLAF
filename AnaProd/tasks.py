@@ -393,7 +393,6 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     outdir_skimtuples,
                     "--outputFile",
                     outFileName,
-                    "--test", "True",
                 ]
                 if self.test:
                     skimtuple_cmd.extend(["--test", "True"])

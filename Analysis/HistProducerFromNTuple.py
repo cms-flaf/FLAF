@@ -189,7 +189,6 @@ if __name__ == "__main__":
     parser.add_argument("--compute_unc_variations", type=bool, default=False)
     parser.add_argument("--compute_rel_weights", type=bool, default=False)
     parser.add_argument("--furtherCut", type=str, default=None)
-    parser.add_argument("--sample_name", type=str, default=None)
     args = parser.parse_args()
 
     start = time.time()
@@ -257,6 +256,7 @@ if __name__ == "__main__":
         further_cuts = {f: (f, f) for f in args.furtherCut.split(",")}
     if "further_cuts" in setup.global_params and setup.global_params["further_cuts"]:
         further_cuts.update(setup.global_params["further_cuts"])
+    print(further_cuts)
     key_filter_dict = analysis.createKeyFilterDict(
         setup.global_params, setup.global_params["era"]
     )

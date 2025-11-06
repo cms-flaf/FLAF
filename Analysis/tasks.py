@@ -2057,9 +2057,6 @@ class PlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     ps_call(cmd, verbose=1)
 
 
-
-
-
 class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
@@ -2125,9 +2122,17 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             for cat in categories:
                 for qcdregion in qcdregions:
                     rel_path = os.path.join(
-                        self.version, self.period, "plots", var, qcdregion, cat, f"{ch}_{var}.pdf"
+                        self.version,
+                        self.period,
+                        "plots",
+                        var,
+                        qcdregion,
+                        cat,
+                        f"{ch}_{var}.pdf",
                     )
-                    outputs[f"{ch}_{cat}_{qcdregion}"] = self.remote_target(rel_path, fs=self.fs_plots)
+                    outputs[f"{ch}_{cat}_{qcdregion}"] = self.remote_target(
+                        rel_path, fs=self.fs_plots
+                    )
         return outputs
 
     def run(self):
@@ -2175,9 +2180,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             for output_key, output_target in self.output().items():
                 ch, cat, qcdregion = output_key.split("_", 2)
                 if (output_target).exists():
-                    print(
-                        f"Output for {var} {output_target} already exists! Continue"
-                    )
+                    print(f"Output for {var} {output_target} already exists! Continue")
                     continue
                 with output_target.localize("w") as local_pdf:
                     cmd = [

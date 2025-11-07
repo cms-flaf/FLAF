@@ -253,7 +253,7 @@ class Setup:
                             plot_color_idx
                         ]
                         plot_color_idx += 1
-                    new_process["channels"] = meta_setup["channels"]
+                    new_process["channels"] = self.global_params["channelSelection"] if "channels" not in meta_setup.keys() else meta_setup["channels"]
                     del new_process["meta_setup"]
                     del new_process["is_meta_process"]
                     self.processes[proc_name] = new_process

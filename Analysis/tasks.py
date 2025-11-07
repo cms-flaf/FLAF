@@ -402,11 +402,11 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         if not merge_organization_complete:
             req_dict = {}
             req_dict["AnaTupleFileListTask"] = AnaTupleFileListTask.req(
-                    self,
-                    branches=(),
-                    max_runtime=AnaTupleFileListTask.max_runtime._default,
-                    n_cpus=AnaTupleFileListTask.n_cpus._default,
-                )
+                self,
+                branches=(),
+                max_runtime=AnaTupleFileListTask.max_runtime._default,
+                n_cpus=AnaTupleFileListTask.n_cpus._default,
+            )
             req_dict["HistTupleProducerTask"] = HistTupleProducerTask.req(
                 self, branches=(), customisations=self.customisations
             )
@@ -576,8 +576,9 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     n_cpus=AnaTupleFileListTask.n_cpus._default,
                 ),
                 "HistFromNtupleProducerTask": HistFromNtupleProducerTask.req(
-                self, branches=(),
-            )
+                    self,
+                    branches=(),
+                ),
             }
 
         branch_set = set()
@@ -2079,11 +2080,11 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 self, branches=(), customisations=self.customisations
             )
             req_dict["AnaTupleFileListTask"] = AnaTupleFileListTask.req(
-                    self,
-                    branches=(),
-                    max_runtime=AnaTupleFileListTask.max_runtime._default,
-                    n_cpus=AnaTupleFileListTask.n_cpus._default,
-                )
+                self,
+                branches=(),
+                max_runtime=AnaTupleFileListTask.max_runtime._default,
+                n_cpus=AnaTupleFileListTask.n_cpus._default,
+            )
             return req_dict
         merge_map = HistMergerTask.req(
             self, branch=-1, branches=(), customisations=self.customisations

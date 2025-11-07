@@ -2061,6 +2061,15 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
 
     def workflow_requires(self):
+        merge_organization_complete = AnaTupleFileListTask.req(
+            self, branches=()
+        ).complete()
+        if not merge_organization_complete:
+            req_dict = {}
+            req_dict["HistTupleProducerTask"] = HistTupleProducerTask.req(
+                self, branches=(), customisations=self.customisations
+            )
+            return req_dict
         merge_map = HistMergerTask.req(
             self, branch=-1, branches=(), customisations=self.customisations
         ).create_branch_map()
@@ -2073,6 +2082,14 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         }
 
     def create_branch_map(self):
+        merge_organization_complete = AnaTupleFileListTask.req(
+            self, branches=()
+        ).complete()
+        if not merge_organization_complete:
+            self.cache_branch_map = False
+            if not hasattr(self, "_branches_backup"):
+                self._branches_backup = copy.deepcopy(self.branches)
+            return {0: ()}
         branches = {}
         merge_map = HistMergerTask.req(
             self, branch=-1, branches=(), customisations=self.customisations
@@ -2097,6 +2114,8 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         )
 
     def output(self):
+        if len(self.branch_data) == 0:
+            return self.local_target("dummy.txt")
         var = self.branch_data
         outputs = {}
         customisation_dict = getCustomisationSplit(self.customisations)

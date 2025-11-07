@@ -2148,23 +2148,25 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         if isinstance(categories, str):
             categories = categories.split(",")
 
-        qcdregions = customisation_dict.get(
-            "QCDRegions", self.global_params["QCDRegions"]
+        custom_region_name = self.global_params.get("custom_regions")
+
+        custom_regions = customisation_dict.get(
+            custom_region_name, self.global_params[custom_region_name]
         )
 
         for ch in channels:
             for cat in categories:
-                for qcdregion in qcdregions:
+                for custom_region in custom_regions:
                     rel_path = os.path.join(
                         self.version,
                         self.period,
                         "plots",
                         var,
-                        qcdregion,
+                        custom_region,
                         cat,
                         f"{ch}_{var}.pdf",
                     )
-                    outputs[f"{ch}:{cat}:{qcdregion}"] = self.remote_target(
+                    outputs[f"{ch}:{cat}:{custom_region}"] = self.remote_target(
                         rel_path, fs=self.fs_plots
                     )
         return outputs
@@ -2200,7 +2202,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             print("Loading fname", infile)
 
             for output_key, output_target in self.output().items():
-                ch, cat, qcdregion = output_key.split(":", 2)
+                ch, cat, custom_region = output_key.split(":", 2)
                 if (output_target).exists():
                     print(f"Output for {var} {output_target} already exists! Continue")
                     continue
@@ -2224,8 +2226,8 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         cat,
                         "--channel",
                         ch,
-                        "--qcdregion",
-                        qcdregion,
+                        "--custom_region",
+                        custom_region,
                         "--year",
                         era,
                         "--analysis",

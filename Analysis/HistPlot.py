@@ -106,7 +106,7 @@ def getNewBins(bins):
 def GetHistograms(
     inFile,
     channel,
-    qcdregion,
+    custom_region,
     category,
     uncSource,
     all_sample_types,
@@ -115,7 +115,7 @@ def GetHistograms(
 ):
     inFile = ROOT.TFile(inFile, "READ")
     dir_0 = inFile.Get(channel)
-    dir_0p1 = dir_0.Get(qcdregion)
+    dir_0p1 = dir_0.Get(custom_region)
     dir_1 = dir_0p1.Get(category)
     for key in dir_1.GetListOfKeys():
         obj = key.ReadObj()
@@ -165,7 +165,7 @@ if __name__ == "__main__":
     parser.add_argument("--var", required=False, type=str, default="tau1_pt")
     parser.add_argument("--globalConfig", required=True, type=str)
     parser.add_argument("--channel", required=False, type=str, default="tauTau")
-    parser.add_argument("--qcdregion", required=False, type=str, default="OS_Iso")
+    parser.add_argument("--custom_region", required=False, type=str, default="OS_Iso")
     parser.add_argument("--category", required=False, type=str, default="inclusive")
     parser.add_argument("--wantData", required=False, action="store_true")
     parser.add_argument("--wantSignals", required=False, action="store_true")
@@ -249,7 +249,7 @@ if __name__ == "__main__":
     custom1 = {
         "cat_text": cat_txt,
         "ch_text": page_cfg_custom_dict["channel_text"][args.channel],
-        "qcdreg_text": page_cfg_custom_dict["qcdregion_text"][args.qcdregion],
+        "customreg_text": page_cfg_custom_dict["customregion_text"][args.custom_region],
         "datasim_text": "CMS " + page_cfg_dict["scope_text"]["text"],
         "scope_text": "",
     }
@@ -259,14 +259,14 @@ if __name__ == "__main__":
         custom1 = {
             "cat_text": cat_txt,
             "ch_text": page_cfg_custom_dict["channel_text"][args.channel],
-            "qcdreg_text": page_cfg_custom_dict["qcdregion_text"][args.qcdregion],
+            "customreg_text": page_cfg_custom_dict["customregion_text"][args.custom_region],
             "datasim_text": "CMS simulation",
             "scope_text": "",
         }
     inFile_root = ROOT.TFile.Open(args.inFile, "READ")
     dir_0 = inFile_root.Get(args.channel)
     keys_0 = [str(k) for k in dir_0.GetListOfKeys()]
-    dir_0p1 = dir_0.Get(args.qcdregion)
+    dir_0p1 = dir_0.Get(args.custom_region)
     keys_0p1 = [str(k) for k in dir_0p1.GetListOfKeys()]
     dir_1 = dir_0p1.Get(args.category)
     keys_1 = [str(k) for k in dir_1.GetListOfKeys()]

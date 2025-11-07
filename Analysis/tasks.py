@@ -2164,7 +2164,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         cat,
                         f"{ch}_{var}.pdf",
                     )
-                    outputs[f"{ch}_{cat}_{qcdregion}"] = self.remote_target(
+                    outputs[f"{ch}:{cat}:{qcdregion}"] = self.remote_target(
                         rel_path, fs=self.fs_plots
                     )
         return outputs
@@ -2200,7 +2200,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             print("Loading fname", infile)
 
             for output_key, output_target in self.output().items():
-                ch, cat, qcdregion = output_key.split("_", 2)
+                ch, cat, qcdregion = output_key.split(":", 2)
                 if (output_target).exists():
                     print(f"Output for {var} {output_target} already exists! Continue")
                     continue

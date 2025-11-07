@@ -2066,7 +2066,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ).complete()
         if not merge_organization_complete:
             req_dict = {}
-            req_dict["HistTupleProducerTask"] = HistTupleProducerTask.req(
+            req_dict["HistMergerTask"] = HistMergerTask.req(
                 self, branches=(), customisations=self.customisations
             )
             return req_dict

@@ -226,8 +226,9 @@ if __name__ == "__main__":
 
         if setup.processes[process_name].get("to_plot", True):
             if process_group == "signals":
-                if args.channel not in setup.processes[process_name]["channels"]:
-                    continue
+                if "channels" in setup.processes[process_name].keys():
+                    if args.channel not in setup.processes[process_name]["channels"]:
+                        continue
             all_samples_dict[all_samples_key] = {}
             all_samples_dict[all_samples_key]["process_name"] = process_name
             all_samples_dict[all_samples_key]["process_group"] = process_group

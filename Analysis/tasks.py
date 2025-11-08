@@ -2201,48 +2201,54 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             infile = local_input.path
             print("Loading fname", infile)
 
+            # Create list of all keys and all targets
+            key_list = []
+            output_list = []
             for output_key, output_target in self.output().items():
-                ch, cat, custom_region = output_key.split(":", 2)
                 if (output_target).exists():
                     print(f"Output for {var} {output_target} already exists! Continue")
                     continue
-                with output_target.localize("w") as local_pdf:
-                    cmd = [
-                        "python3",
-                        plotter,
-                        "--inFile",
-                        infile,
-                        "--outFile",
-                        local_pdf.path,
-                        "--globalConfig",
-                        os.path.join(
-                            self.ana_path(),
-                            self.global_params["analysis_config_area"],
-                            "global.yaml",
-                        ),
-                        "--var",
-                        var,
-                        "--category",
-                        cat,
-                        "--channel",
-                        ch,
-                        "--custom_region",
-                        custom_region,
-                        "--year",
-                        era,
-                        "--analysis",
-                        plot_analysis,
-                        "--ana_path",
+                key_list.append(output_key)
+                output_list.append(output_target)
+
+            # Now localize all output_targets
+            with contextlib.ExitStack() as stack:
+                local_outputs = [
+                    stack.enter_context((output).localize("w")).path
+                    for output in output_list
+                ]
+                cmd = [
+                    "python3",
+                    plotter,
+                    "--inFile",
+                    infile,
+                    "--all_outFiles",
+                    ",".join(local_outputs),
+                    "--globalConfig",
+                    os.path.join(
                         self.ana_path(),
-                        "--period",
-                        self.period,
-                    ]
-                    if plot_wantData:
-                        cmd.append("--wantData")
-                    if plot_wantSignals:
-                        cmd.append("--wantSignals")
-                    if plot_wantQCD:
-                        cmd += ["--wantQCD", "true"]
-                    if plot_rebin:
-                        cmd += ["--rebin", "true"]
-                    ps_call(cmd, verbose=1)
+                        self.global_params["analysis_config_area"],
+                        "global.yaml",
+                    ),
+                    "--var",
+                    var,
+                    "--all_keys",
+                    ",".join(key_list),
+                    "--year",
+                    era,
+                    "--analysis",
+                    plot_analysis,
+                    "--ana_path",
+                    self.ana_path(),
+                    "--period",
+                    self.period,
+                ]
+                if plot_wantData:
+                    cmd.append("--wantData")
+                if plot_wantSignals:
+                    cmd.append("--wantSignals")
+                if plot_wantQCD:
+                    cmd += ["--wantQCD", "true"]
+                if plot_rebin:
+                    cmd += ["--rebin", "true"]
+                ps_call(cmd, verbose=1)

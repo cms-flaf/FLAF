@@ -160,13 +160,17 @@ if __name__ == "__main__":
     import yaml
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--outFile", required=True)
+    # parser.add_argument("--outFile", required=True)
+    parser.add_argument("--all_outFiles", required=True)
     parser.add_argument("--inFile", required=True, type=str)
     parser.add_argument("--var", required=False, type=str, default="tau1_pt")
     parser.add_argument("--globalConfig", required=True, type=str)
-    parser.add_argument("--channel", required=False, type=str, default="tauTau")
-    parser.add_argument("--custom_region", required=False, type=str, default="OS_Iso")
-    parser.add_argument("--category", required=False, type=str, default="inclusive")
+    parser.add_argument(
+        "--all_keys", required=False, type=str, default="tauTau:inclusive:OS_Iso"
+    )
+    # parser.add_argument("--channel", required=False, type=str, default="tauTau")
+    # parser.add_argument("--custom_region", required=False, type=str, default="OS_Iso")
+    # parser.add_argument("--category", required=False, type=str, default="inclusive")
     parser.add_argument("--wantData", required=False, action="store_true")
     parser.add_argument("--wantSignals", required=False, action="store_true")
     parser.add_argument("--wantQCD", required=False, type=bool, default=False)
@@ -216,152 +220,166 @@ if __name__ == "__main__":
         "plot_name": "data",
         "plot_color": "kBlack",
     }
-    for sample_name in setup.samples.keys():
-        process_name = setup.samples[sample_name]["process_name"]
-        process_group = setup.samples[sample_name]["process_group"]
-        if process_group == "data":
-            continue
 
-        all_samples_key = process_name
+    keys = args.all_keys.split(",")
+    outFiles = args.all_outFiles.split(",")
+    print(f"Running HistPlot for var {args.var} making {len(outFiles)} plots")
+    for key, outFile in zip(keys, outFiles):
+        print(f"Plotting key {key}")
+        channel, category, custom_region = key.split(":")
 
-        if setup.processes[process_name].get("to_plot", True):
-            if process_group == "signals":
-                if "channels" in setup.processes[process_name].keys():
-                    if args.channel not in setup.processes[process_name]["channels"]:
-                        continue
-            all_samples_dict[all_samples_key] = {}
-            all_samples_dict[all_samples_key]["process_name"] = process_name
-            all_samples_dict[all_samples_key]["process_group"] = process_group
-            all_samples_dict[all_samples_key]["plot_name"] = setup.processes[
-                process_name
-            ]["name"]
-            all_samples_dict[all_samples_key]["plot_color"] = setup.processes[
-                process_name
-            ]["color"]
+        for sample_name in setup.samples.keys():
+            process_name = setup.samples[sample_name]["process_name"]
+            process_group = setup.samples[sample_name]["process_group"]
+            if process_group == "data":
+                continue
 
-    plotter = Plotter.Plotter(
-        page_cfg=page_cfg,
-        page_cfg_custom=page_cfg_custom,
-        hist_cfg=hist_cfg_dict,
-    )
-    cat_txt = args.category.replace("_masswindow", "")
-    cat_txt = cat_txt.replace("_cat2", "")
-    cat_txt = cat_txt.replace("_cat3", "")
-    custom1 = {
-        "cat_text": cat_txt,
-        "ch_text": page_cfg_custom_dict["channel_text"][args.channel],
-        "customreg_text": page_cfg_custom_dict["customregion_text"][args.custom_region],
-        "datasim_text": "CMS " + page_cfg_dict["scope_text"]["text"],
-        "scope_text": "",
-    }
-    blind_check = hist_cfg_dict[args.var].get("blind", False)
-    args.wantData = args.wantData and (not blind_check)
-    if args.wantData == False:
+            all_samples_key = process_name
+
+            if setup.processes[process_name].get("to_plot", True):
+                if process_group == "signals":
+                    if "channels" in setup.processes[process_name].keys():
+                        if channel not in setup.processes[process_name]["channels"]:
+                            continue
+                all_samples_dict[all_samples_key] = {}
+                all_samples_dict[all_samples_key]["process_name"] = process_name
+                all_samples_dict[all_samples_key]["process_group"] = process_group
+                all_samples_dict[all_samples_key]["plot_name"] = setup.processes[
+                    process_name
+                ]["name"]
+                all_samples_dict[all_samples_key]["plot_color"] = setup.processes[
+                    process_name
+                ]["color"]
+
+        plotter = Plotter.Plotter(
+            page_cfg=page_cfg,
+            page_cfg_custom=page_cfg_custom,
+            hist_cfg=hist_cfg_dict,
+        )
+        cat_txt = category.replace("_masswindow", "")
+        cat_txt = cat_txt.replace("_cat2", "")
+        cat_txt = cat_txt.replace("_cat3", "")
         custom1 = {
             "cat_text": cat_txt,
-            "ch_text": page_cfg_custom_dict["channel_text"][args.channel],
-            "customreg_text": page_cfg_custom_dict["customregion_text"][args.custom_region],
-            "datasim_text": "CMS simulation",
+            "ch_text": page_cfg_custom_dict["channel_text"][channel],
+            "customreg_text": page_cfg_custom_dict["customregion_text"][custom_region],
+            "datasim_text": "CMS " + page_cfg_dict["scope_text"]["text"],
             "scope_text": "",
         }
-    inFile_root = ROOT.TFile.Open(args.inFile, "READ")
-    dir_0 = inFile_root.Get(args.channel)
-    keys_0 = [str(k) for k in dir_0.GetListOfKeys()]
-    dir_0p1 = dir_0.Get(args.custom_region)
-    keys_0p1 = [str(k) for k in dir_0p1.GetListOfKeys()]
-    dir_1 = dir_0p1.Get(args.category)
-    keys_1 = [str(k) for k in dir_1.GetListOfKeys()]
-    # dir_1 = dir_0.Get(args.category) # --> uncomment if QCD regions are not included in the histograms
-    # hist_cfg_dict[args.var]['max_y_sf'] = 1.4
-    # hist_cfg_dict[args.var]['use_log_y'] = False
-    # hist_cfg_dict[args.var]['use_log_x'] = False
+        blind_check = hist_cfg_dict[args.var].get("blind", False)
+        args.wantData = args.wantData and (not blind_check)
+        if args.wantData == False:
+            custom1 = {
+                "cat_text": cat_txt,
+                "ch_text": page_cfg_custom_dict["channel_text"][channel],
+                "customreg_text": page_cfg_custom_dict["customregion_text"][
+                    custom_region
+                ],
+                "datasim_text": "CMS simulation",
+                "scope_text": "",
+            }
+        inFile_root = ROOT.TFile.Open(args.inFile, "READ")
+        dir_0 = inFile_root.Get(channel)
+        keys_0 = [str(k) for k in dir_0.GetListOfKeys()]
+        dir_0p1 = dir_0.Get(custom_region)
+        keys_0p1 = [str(k) for k in dir_0p1.GetListOfKeys()]
+        dir_1 = dir_0p1.Get(category)
+        keys_1 = [str(k) for k in dir_1.GetListOfKeys()]
+        # dir_1 = dir_0.Get(args.category) # --> uncomment if QCD regions are not included in the histograms
+        # hist_cfg_dict[args.var]['max_y_sf'] = 1.4
+        # hist_cfg_dict[args.var]['use_log_y'] = False
+        # hist_cfg_dict[args.var]['use_log_x'] = False
 
-    hists_to_plot_unbinned = {}
-    if args.wantLogScale == "y":
-        hist_cfg_dict[args.var]["use_log_y"] = True
-        hist_cfg_dict[args.var]["max_y_sf"] = 2000.2
-    if args.wantLogScale == "x":
-        hist_cfg_dict[args.var]["use_log_x"] = True
-    if args.wantLogScale == "xy":
-        hist_cfg_dict[args.var]["use_log_y"] = True
-        hist_cfg_dict[args.var]["max_y_sf"] = 2000.2
-        hist_cfg_dict[args.var]["use_log_x"] = True
+        hists_to_plot_unbinned = {}
+        if args.wantLogScale == "y":
+            hist_cfg_dict[args.var]["use_log_y"] = True
+            hist_cfg_dict[args.var]["max_y_sf"] = 2000.2
+        if args.wantLogScale == "x":
+            hist_cfg_dict[args.var]["use_log_x"] = True
+        if args.wantLogScale == "xy":
+            hist_cfg_dict[args.var]["use_log_y"] = True
+            hist_cfg_dict[args.var]["max_y_sf"] = 2000.2
+            hist_cfg_dict[args.var]["use_log_x"] = True
 
-    rebin_condition = args.rebin and "x_rebin" in hist_cfg_dict[args.var].keys()
-    bins_to_compute = hist_cfg_dict[args.var]["x_bins"]
+        rebin_condition = args.rebin and "x_rebin" in hist_cfg_dict[args.var].keys()
+        bins_to_compute = hist_cfg_dict[args.var]["x_bins"]
 
-    if rebin_condition:
-        bins_to_compute = findNewBins(
-            hist_cfg_dict, args.var, args.channel, args.category
-        )
-    new_bins = getNewBins(bins_to_compute)
+        if rebin_condition:
+            bins_to_compute = findNewBins(hist_cfg_dict, args.var, channel, category)
+        new_bins = getNewBins(bins_to_compute)
 
-    for sample_name, sample_content in all_samples_dict.items():
-        sample_process_name = sample_content["process_name"]
-        sample_process_group = sample_content["process_group"]
-        sample_plot_name = sample_content["plot_name"]
-        sample_plot_color = sample_content["plot_color"]
+        for sample_name, sample_content in all_samples_dict.items():
+            sample_process_name = sample_content["process_name"]
+            sample_process_group = sample_content["process_group"]
+            sample_plot_name = sample_content["plot_name"]
+            sample_plot_color = sample_content["plot_color"]
 
-        if sample_process_group == "data" and not args.wantData:
-            continue
+            if sample_process_group == "data" and not args.wantData:
+                continue
 
-        if args.uncSource != "Central":
-            continue  # to be fixed
+            if args.uncSource != "Central":
+                continue  # to be fixed
 
-        sample_histname = GetHistName(
-            sample_process_name,
-            sample_process_group,
-            "Central",
-            "Central",
-            global_cfg_dict,
-        )
-        if sample_histname not in dir_1.GetListOfKeys():
-            print(f"ERRORE: {sample_histname} non è nelle keys")
-            continue
-        obj = dir_1.Get(sample_histname)
-        if not obj.IsA().InheritsFrom(ROOT.TH1.Class()):
-            print(f"ERRORE: {sample_histname} non è un istogramma")
-        obj.SetDirectory(0)
-
-        if sample_process_name in hists_to_plot_unbinned.keys():
-            print(hists_to_plot_unbinned[sample_process_name])
-
-        if sample_process_name not in hists_to_plot_unbinned.keys():
-            hists_to_plot_unbinned[sample_process_name] = (
-                obj,
-                sample_plot_name,
-                sample_plot_color,
+            sample_histname = GetHistName(
+                sample_process_name,
                 sample_process_group,
+                "Central",
+                "Central",
+                global_cfg_dict,
             )
-        else:
-            hists_to_plot_unbinned[sample_process_name][0].Add(
-                hists_to_plot_unbinned[sample_process_name][0], obj
-            )
-    hists_to_plot_binned = {}
-    for hist_key, (
-        hist_unbinned,
-        plot_name,
-        plot_color,
-        sample_process_group,
-    ) in hists_to_plot_unbinned.items():
-        old_hist = hist_unbinned
-        new_hist = RebinHisto(
-            old_hist, new_bins, hist_key, wantOverflow=args.wantOverflow, verbose=False
-        )
-        hists_to_plot_binned[hist_key] = (
-            (new_hist, plot_name, plot_color, sample_process_group)
-            if rebin_condition
-            else (old_hist, plot_name, plot_color, sample_process_group)
-        )
+            if sample_histname not in dir_1.GetListOfKeys():
+                print(f"ERRORE: {sample_histname} non è nelle keys")
+                continue
+            obj = dir_1.Get(sample_histname)
+            if not obj.IsA().InheritsFrom(ROOT.TH1.Class()):
+                print(f"ERRORE: {sample_histname} non è un istogramma")
+            obj.SetDirectory(0)
 
-    scale = global_cfg_dict.get("signal_plot_scale", 1.0)
-    plotter.plot(
-        args.var,
-        hists_to_plot_binned,
-        args.outFile,
-        want_data=args.wantData,
-        custom=custom1,
-        scale=scale,
-    )
-    inFile_root.Close()
-    print(args.outFile)
+            if sample_process_name in hists_to_plot_unbinned.keys():
+                print(hists_to_plot_unbinned[sample_process_name])
+
+            if sample_process_name not in hists_to_plot_unbinned.keys():
+                hists_to_plot_unbinned[sample_process_name] = (
+                    obj,
+                    sample_plot_name,
+                    sample_plot_color,
+                    sample_process_group,
+                )
+            else:
+                hists_to_plot_unbinned[sample_process_name][0].Add(
+                    hists_to_plot_unbinned[sample_process_name][0], obj
+                )
+        hists_to_plot_binned = {}
+        for hist_key, (
+            hist_unbinned,
+            plot_name,
+            plot_color,
+            sample_process_group,
+        ) in hists_to_plot_unbinned.items():
+            old_hist = hist_unbinned
+            new_hist = RebinHisto(
+                old_hist,
+                new_bins,
+                hist_key,
+                wantOverflow=args.wantOverflow,
+                verbose=False,
+            )
+            hists_to_plot_binned[hist_key] = (
+                (new_hist, plot_name, plot_color, sample_process_group)
+                if rebin_condition
+                else (old_hist, plot_name, plot_color, sample_process_group)
+            )
+
+        scale = global_cfg_dict.get("signal_plot_scale", 1.0)
+        plotter.plot(
+            args.var,
+            hists_to_plot_binned,
+            outFile,
+            want_data=args.wantData,
+            custom=custom1,
+            scale=scale,
+        )
+        inFile_root.Close()
+        print(outFile)
+
+    print(f"Finished HistPlot.py, thanks (:")

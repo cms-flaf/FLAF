@@ -153,22 +153,22 @@ if __name__ == "__main__":
     with open(args.globalConfig, "r") as f:
         global_cfg_dict = yaml.safe_load(f)
 
-    all_histlist = {}
-
-    all_samples_dict = {}
-    all_samples_dict["data"] = {
-        "process_name": "data",
-        "process_group": "data",
-        "plot_name": "data",
-        "plot_color": "kBlack",
-    }
-
     keys = args.all_keys.split(",")
     outFiles = args.all_outFiles.split(",")
     print(f"Running HistPlot for var {args.var} making {len(outFiles)} plots")
     for key, outFile in zip(keys, outFiles):
         print(f"Plotting key {key}")
         channel, category, custom_region = key.split(":")
+
+        all_histlist = {}
+
+        all_samples_dict = {}
+        all_samples_dict["data"] = {
+            "process_name": "data",
+            "process_group": "data",
+            "plot_name": "data",
+            "plot_color": "kBlack",
+        }
 
         for sample_name in setup.samples.keys():
             process_name = setup.samples[sample_name]["process_name"]
@@ -201,25 +201,22 @@ if __name__ == "__main__":
         cat_txt = category.replace("_masswindow", "")
         cat_txt = cat_txt.replace("_cat2", "")
         cat_txt = cat_txt.replace("_cat3", "")
+        custom_region_text = (
+            ""
+            if custom_region not in page_cfg_custom_dict["customregion_text"].keys()
+            else page_cfg_custom_dict["customregion_text"][custom_region]
+        )
         custom1 = {
             "cat_text": cat_txt,
             "ch_text": page_cfg_custom_dict["channel_text"][channel],
-            "customreg_text": page_cfg_custom_dict["customregion_text"][custom_region],
+            "customreg_text": custom_region_text,
             "datasim_text": "CMS " + page_cfg_dict["scope_text"]["text"],
             "scope_text": "",
         }
         blind_check = hist_cfg_dict[args.var].get("blind", False)
         args.wantData = args.wantData and (not blind_check)
         if args.wantData == False:
-            custom1 = {
-                "cat_text": cat_txt,
-                "ch_text": page_cfg_custom_dict["channel_text"][channel],
-                "customreg_text": page_cfg_custom_dict["customregion_text"][
-                    custom_region
-                ],
-                "datasim_text": "CMS simulation",
-                "scope_text": "",
-            }
+            custom1["datasim_text":"CMS simulation"]
         inFile_root = ROOT.TFile.Open(args.inFile, "READ")
         dir_0 = inFile_root.Get(channel)
         keys_0 = [str(k) for k in dir_0.GetListOfKeys()]

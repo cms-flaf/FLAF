@@ -3,12 +3,9 @@ import sys
 import os
 import array
 
-from FLAF.RunKit.run_tools import ps_call
-
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
-import FLAF.Common.Utilities as Utilities
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
 from FLAF.Analysis.HistMerger import *
@@ -103,64 +100,12 @@ def getNewBins(bins):
     return final_bins
 
 
-def GetHistograms(
-    inFile,
-    channel,
-    custom_region,
-    category,
-    uncSource,
-    all_sample_types,
-    all_histlist,
-    wantData,
-):
-    inFile = ROOT.TFile(inFile, "READ")
-    dir_0 = inFile.Get(channel)
-    dir_0p1 = dir_0.Get(custom_region)
-    dir_1 = dir_0p1.Get(category)
-    for key in dir_1.GetListOfKeys():
-        obj = key.ReadObj()
-        if obj.IsA().InheritsFrom(ROOT.TH1.Class()):
-            obj.SetDirectory(0)
-            key_name = key.GetName()
-            all_histlist[key_name] = obj
-    inFile.Close()
-
-
-def GetSignalHistogram(
-    inFileSig, channel, category, uncSource, histNamesDict, all_histlist, mass
-):
-    inFileSignal = ROOT.TFile(inFileSig, "READ")
-    dir_0Signal = inFileSignal.Get(channel)
-    dir_qcdSignal = dir_0Signal.Get("OS_Iso")
-    dir_1Signal = dir_qcdSignal.Get(category)
-    for key in dir_1Signal.GetListOfKeys():
-        objSignal = key.ReadObj()
-        if objSignal.IsA().InheritsFrom(ROOT.TH1.Class()):
-            objSignal.SetDirectory(0)
-            key_name = key.GetName()
-            key_name_split = key_name.split("_")
-            if uncSource == "Central" and len(key_name_split) > 1:
-                continue
-            else:
-                key_name = key_name.split("_")[0]
-            sample = key_name
-            key_name += f"ToHHTo2B2Tau_M-{mass}"
-            if key_name not in histNamesDict.keys():
-                continue
-            sampleName, uncName, scale = histNamesDict[key_name]
-            if (uncName, scale) not in all_histlist.keys():
-                all_histlist[(uncName, scale)] = {}
-            all_histlist[(uncName, scale)][sample] = objSignal
-    inFileSignal.Close()
-
-
 if __name__ == "__main__":
     import argparse
     import FLAF.PlotKit.Plotter as Plotter
     import yaml
 
     parser = argparse.ArgumentParser()
-    # parser.add_argument("--outFile", required=True)
     parser.add_argument("--all_outFiles", required=True)
     parser.add_argument("--inFile", required=True, type=str)
     parser.add_argument("--var", required=False, type=str, default="tau1_pt")
@@ -168,9 +113,6 @@ if __name__ == "__main__":
     parser.add_argument(
         "--all_keys", required=False, type=str, default="tauTau:inclusive:OS_Iso"
     )
-    # parser.add_argument("--channel", required=False, type=str, default="tauTau")
-    # parser.add_argument("--custom_region", required=False, type=str, default="OS_Iso")
-    # parser.add_argument("--category", required=False, type=str, default="inclusive")
     parser.add_argument("--wantData", required=False, action="store_true")
     parser.add_argument("--wantSignals", required=False, action="store_true")
     parser.add_argument("--wantQCD", required=False, type=bool, default=False)
@@ -285,10 +227,6 @@ if __name__ == "__main__":
         keys_0p1 = [str(k) for k in dir_0p1.GetListOfKeys()]
         dir_1 = dir_0p1.Get(category)
         keys_1 = [str(k) for k in dir_1.GetListOfKeys()]
-        # dir_1 = dir_0.Get(args.category) # --> uncomment if QCD regions are not included in the histograms
-        # hist_cfg_dict[args.var]['max_y_sf'] = 1.4
-        # hist_cfg_dict[args.var]['use_log_y'] = False
-        # hist_cfg_dict[args.var]['use_log_x'] = False
 
         hists_to_plot_unbinned = {}
         if args.wantLogScale == "y":

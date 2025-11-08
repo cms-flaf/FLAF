@@ -216,7 +216,7 @@ if __name__ == "__main__":
         blind_check = hist_cfg_dict[args.var].get("blind", False)
         args.wantData = args.wantData and (not blind_check)
         if args.wantData == False:
-            custom1["datasim_text":"CMS simulation"]
+            custom1["datasim_text"] = "CMS simulation"
         inFile_root = ROOT.TFile.Open(args.inFile, "READ")
         dir_0 = inFile_root.Get(channel)
         keys_0 = [str(k) for k in dir_0.GetListOfKeys()]

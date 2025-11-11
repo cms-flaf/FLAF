@@ -4,6 +4,7 @@ import sys
 import ROOT
 import shutil
 import zlib
+import shlex
 
 # import fastcrc
 import json
@@ -73,6 +74,7 @@ def createHistTuple(
     evtIds,
     histTupleDef,
     inFile_keys,
+    processors=None,
 ):
     # compression_settings = snapshotOptions.fCompressionAlgorithm * 100 + snapshotOptions.fCompressionLevel
     histTupleDef.Initialize()
@@ -95,6 +97,24 @@ def createHistTuple(
             df_cache_central.append(ROOT.RDataFrame(treeName, cacheFile))
 
     ROOT.RDF.Experimental.AddProgressBar(df_central)
+    # --- Dynamic Processor Loading ---
+    processor_instances = []
+    if processors:
+        for p in processors:
+            try:
+                module = importlib.import_module(p["module"])
+                cls = getattr(module, p["class"])
+                instance = cls(setup.global_params, config_path=p.get("config", None))
+                processor_instances.append(instance)
+                print(
+                    f"[computeHistTuple] Loaded processor: {p['name']} ({p['class']})",
+                    file=sys.stderr,
+                )
+            except Exception as e:
+                print(
+                    f"[computeHistTuple] Failed to load processor {p}: {e}",
+                    file=sys.stderr,
+                )
     if range is not None:
         df_central = df_central.Range(range)
     if len(evtIds) > 0:
@@ -141,6 +161,14 @@ def createHistTuple(
                 setup.global_params,
                 final_weight_name,
             )
+            # hook the stitcher/or any external processor (who can modify final event weight by including anything )
+            if unc not in all_rel_uncs_to_compute:
+                for proc in processor_instances:
+                    if hasattr(proc, "onHistTupleProd"):
+                        dfw_central.df, modified_weight_name = proc.onHistTupleProd(
+                            dfw_central.df, final_weight_name
+                        )
+                        final_weight_name = modified_weight_name
             dfw_central.colToSave.append(final_weight_name)
     for var in variables:
         DefineBinnedColumn(hist_cfg_dict, var)
@@ -194,6 +222,13 @@ def createHistTuple(
                         setup.global_params,
                         final_weight_name,
                     )
+                    # hook the stitcher/or any external processor (who can modify final event weight by including anything )
+                    for proc in processor_instances:
+                        if hasattr(proc, "onHistTupleProd"):
+                            dfw_shift.df, modified_weight_name = proc.onHistTupleProd(
+                                dfw_shift.df, final_weight_name
+                            )
+                            final_weight_name = modified_weight_name
                     dfw_shift.colToSave.append(final_weight_name)
                     for var in variables:
                         dfw_shift.df = dfw_shift.df.Define(
@@ -280,6 +315,8 @@ if __name__ == "__main__":
     setup.global_params["compute_unc_variations"] = (
         args.compute_unc_variations and process_group != "data"
     )
+    # Load if there are any external processors in process
+    processors = setup.processes.get(process_name, {}).get("processors", None)
     histTupleDef = Utilities.load_module(args.histTupleDef)
     cacheFiles = None
     if args.cacheFiles:
@@ -323,6 +360,7 @@ if __name__ == "__main__":
             args.evtIds,
             histTupleDef,
             inFile_keys,
+            processors,
         )
         if tmp_fileNames:
             hadd_str = f"hadd -f -j -O {args.outFile} "

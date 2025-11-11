@@ -6,7 +6,8 @@ import os
 import shutil
 import threading
 import yaml
-
+import shlex
+import sys
 
 from FLAF.RunKit.run_tools import ps_call, natural_sort
 from FLAF.RunKit.crabLaw import cond as kInit_cond, update_kinit_thread
@@ -138,6 +139,12 @@ class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ana_caches = []
         generator_name = self.samples[sample_name]["generator"] if not isData else ""
         global_params_str = SerializeObjectToString(self.global_params)
+        process_name = self.samples[sample_name]["process_name"]
+        processors_cfg = self.setup.processes.get(process_name, {}).get(
+            "processors", None
+        )
+        processors_param_str = SerializeObjectToString(processors_cfg)
+        processors_param_str_quoted = shlex.quote(processors_param_str)
         n_inputs = len(input_files)
 
         fs_nanoAOD = self.fs_nanoAOD
@@ -148,7 +155,7 @@ class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         if fs_nanoAOD is None:
             raise RuntimeError(f"fs_nanoAOD is not defined for sample {sample_name}")
 
-        for input_idx, input_file in enumerate(input_files):
+        for input_idx, input_file in enumerate(input_files[:1]):
             input_target = self.remote_target(input_file, fs=fs_nanoAOD)
             print(f"[{input_idx+1}/{n_inputs}] {input_target.uri()}")
             with input_target.localize("r") as input_local:
@@ -162,6 +169,8 @@ class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         global_params_str,
                         "--generator-name",
                         generator_name,
+                        "--processors",
+                        processors_param_str_quoted,
                         "--verbose",
                         "1",
                     ],
@@ -283,6 +292,12 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     def run(self):
         sample_id, sample_name, process_group, input_file = self.branch_data
         process_group = self.samples[sample_name]["process_group"]
+        process_name = self.samples[sample_name]["process_name"]
+        processors_cfg = self.setup.processes.get(process_name, {}).get(
+            "processors", None
+        )
+        processors_param_str = SerializeObjectToString(processors_cfg)
+        processors_param_str_quoted = shlex.quote(processors_param_str)
         jsonName = f"{os.path.basename(input_file.path).split('.')[0]}.json"
         producer_anatuples = os.path.join(
             self.ana_path(), "FLAF", "AnaProd", "anaTupleProducer.py"
@@ -355,8 +370,12 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     channels,
                     "--inFileName",
                     inFileName,
+                    "--processors",
+                    processors_param_str_quoted,
                     "--jsonName",
                     jsonName,
+                    # "--nEvents",
+                    # "10",
                 ]
                 if deepTauVersion != "":
                     anatuple_cmd.extend(
@@ -369,7 +388,7 @@ class AnaTupleTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
                 centralFileName = os.path.basename(local_input.path)
                 if self.test:
-                    anatuple_cmd.extend(["--nEvents", "1000"])
+                    anatuple_cmd.extend(["--nEvents", "10000"])
                 # ps_call(anatuple_cmd, verbose=1) # this will be uncommented when the anatuple producer will be fully independent on cmsEnv.
                 ps_call(anatuple_cmd, env=self.cmssw_env, verbose=1)
 

@@ -401,6 +401,12 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ).complete()
         if not merge_organization_complete:
             req_dict = {}
+            req_dict["AnaTupleFileListTask"] = AnaTupleFileListTask.req(
+                self,
+                branches=(),
+                max_runtime=AnaTupleFileListTask.max_runtime._default,
+                n_cpus=AnaTupleFileListTask.n_cpus._default,
+            )
             req_dict["HistTupleProducerTask"] = HistTupleProducerTask.req(
                 self, branches=(), customisations=self.customisations
             )
@@ -568,7 +574,11 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     branches=(),
                     max_runtime=AnaTupleFileListTask.max_runtime._default,
                     n_cpus=AnaTupleFileListTask.n_cpus._default,
-                )
+                ),
+                "HistFromNtupleProducerTask": HistFromNtupleProducerTask.req(
+                    self,
+                    branches=(),
+                ),
             }
 
         branch_set = set()
@@ -2054,3 +2064,191 @@ class PlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     if plot_rebin:
                         cmd += ["--rebin", "true"]
                     ps_call(cmd, verbose=1)
+
+
+class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
+    max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
+    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
+
+    def workflow_requires(self):
+        merge_organization_complete = AnaTupleFileListTask.req(
+            self, branches=()
+        ).complete()
+        if not merge_organization_complete:
+            req_dict = {}
+            req_dict["HistMergerTask"] = HistMergerTask.req(
+                self, branches=(), customisations=self.customisations
+            )
+            req_dict["AnaTupleFileListTask"] = AnaTupleFileListTask.req(
+                self,
+                branches=(),
+                max_runtime=AnaTupleFileListTask.max_runtime._default,
+                n_cpus=AnaTupleFileListTask.n_cpus._default,
+            )
+            return req_dict
+        merge_map = HistMergerTask.req(
+            self, branch=-1, branches=(), customisations=self.customisations
+        ).create_branch_map()
+        return {
+            "merge": HistMergerTask.req(
+                self,
+                branches=tuple(merge_map.keys()),
+                customisations=self.customisations,
+            )
+        }
+
+    def create_branch_map(self):
+        merge_organization_complete = AnaTupleFileListTask.req(
+            self, branches=()
+        ).complete()
+        if not merge_organization_complete:
+            self.cache_branch_map = False
+            if not hasattr(self, "_branches_backup"):
+                self._branches_backup = copy.deepcopy(self.branches)
+            return {0: ()}
+        branches = {}
+        merge_map = HistMergerTask.req(
+            self, branch=-1, branches=(), customisations=self.customisations
+        ).create_branch_map()
+        for k, (_, (var, _, _)) in enumerate(merge_map.items()):
+            branches[k] = var
+        return branches
+
+    def requires(self):
+        var = self.branch_data
+
+        merge_map = HistMergerTask.req(
+            self, branch=-1, branches=(), customisations=self.customisations
+        ).create_branch_map()
+        merge_branch = next(br for br, (v, _, _) in merge_map.items() if v == var)
+
+        return HistMergerTask.req(
+            self,
+            branch=merge_branch,
+            customisations=self.customisations,
+            max_runtime=HistMergerTask.max_runtime._default,
+        )
+
+    def output(self):
+        if len(self.branch_data) == 0:
+            return self.local_target("dummy.txt")
+        var = self.branch_data
+        outputs = {}
+        customisation_dict = getCustomisationSplit(self.customisations)
+
+        channels = customisation_dict.get(
+            "channels", self.global_params["channelSelection"]
+        )
+        if isinstance(channels, str):
+            channels = channels.split(",")
+
+        base_cats = self.global_params.get("categories") or []
+        boosted_cats = self.global_params.get("boosted_categories") or []
+        categories = base_cats + boosted_cats
+        if isinstance(categories, str):
+            categories = categories.split(",")
+
+        custom_region_name = self.global_params.get("custom_regions")
+
+        custom_regions = customisation_dict.get(
+            custom_region_name, self.global_params[custom_region_name]
+        )
+
+        for ch in channels:
+            for cat in categories:
+                for custom_region in custom_regions:
+                    rel_path = os.path.join(
+                        self.version,
+                        self.period,
+                        "plots",
+                        var,
+                        custom_region,
+                        cat,
+                        f"{ch}_{var}.pdf",
+                    )
+                    outputs[f"{ch}:{cat}:{custom_region}"] = self.remote_target(
+                        rel_path, fs=self.fs_plots
+                    )
+        return outputs
+
+    def run(self):
+        var = self.branch_data
+        era = self.period
+        ver = self.version
+        customisation_dict = getCustomisationSplit(self.customisations)
+
+        plotter = os.path.join(self.ana_path(), "FLAF", "Analysis", "HistPlot.py")
+        # I know these are bad names, but I don't want to delete old HistPlotter.py yet
+
+        def bool_flag(key, default):
+            return (
+                customisation_dict.get(
+                    key, str(self.global_params.get(key, default))
+                ).lower()
+                == "true"
+            )
+
+        plot_unc = bool_flag("plot_unc", True)
+        plot_wantData = bool_flag(f"plot_wantData_{var}", True)
+        plot_wantSignals = bool_flag("plot_wantSignals", True)
+        plot_wantQCD = bool_flag("plot_wantQCD", False)
+        plot_rebin = bool_flag("plot_rebin", True)
+        plot_analysis = customisation_dict.get(
+            "plot_analysis", self.global_params.get("plot_analysis", "")
+        )
+
+        with self.input().localize("r") as local_input:
+            infile = local_input.path
+            print("Loading fname", infile)
+
+            # Create list of all keys and all targets
+            key_list = []
+            output_list = []
+            for output_key, output_target in self.output().items():
+                if (output_target).exists():
+                    print(f"Output for {var} {output_target} already exists! Continue")
+                    continue
+                key_list.append(output_key)
+                output_list.append(output_target)
+
+            # Now localize all output_targets
+            with contextlib.ExitStack() as stack:
+                local_outputs = [
+                    stack.enter_context((output).localize("w")).path
+                    for output in output_list
+                ]
+                cmd = [
+                    "python3",
+                    plotter,
+                    "--inFile",
+                    infile,
+                    "--all_outFiles",
+                    ",".join(local_outputs),
+                    "--globalConfig",
+                    os.path.join(
+                        self.ana_path(),
+                        self.global_params["analysis_config_area"],
+                        "global.yaml",
+                    ),
+                    "--var",
+                    var,
+                    "--all_keys",
+                    ",".join(key_list),
+                    "--year",
+                    era,
+                    "--analysis",
+                    plot_analysis,
+                    "--ana_path",
+                    self.ana_path(),
+                    "--period",
+                    self.period,
+                ]
+                if plot_wantData:
+                    cmd.append("--wantData")
+                if plot_wantSignals:
+                    cmd.append("--wantSignals")
+                if plot_wantQCD:
+                    cmd += ["--wantQCD", "true"]
+                if plot_rebin:
+                    cmd += ["--rebin", "true"]
+                ps_call(cmd, verbose=1)

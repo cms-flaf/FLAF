@@ -296,7 +296,6 @@ if __name__ == "__main__":
             dir_ptr = Utilities.mkdir(outFile, dir_name)
             hist = all_hists_dict[sample_type][key]
             hist_name = sample_type
-            additional_name = ""
             if uncName != args.uncSource:
                 continue
             if uncName != "Central":

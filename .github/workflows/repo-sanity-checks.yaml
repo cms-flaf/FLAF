@@ -39,7 +39,7 @@ jobs:
         run: |
           git checkout ${{ github.base_ref }}
           git merge --squash PR_${{ github.event.pull_request.number }}
-          git diff --exit-code 2>&1 >/dev/null
+          git diff --cached --exit-code 2>&1 >/dev/null
           RESULT=$?
           if (( $RESULT != 0 )); then git commit -m "Simulated squash merge of PR #${{ github.event.pull_request.number }}"; fi
 

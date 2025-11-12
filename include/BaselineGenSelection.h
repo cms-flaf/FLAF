@@ -326,7 +326,7 @@ int GetGenHBBIndex(int evt,
         std::set<int> hbb_indices;
         for (int n = 0; n < GenPart_pdgId.size(); ++n) {
             const GenStatusFlags status(GenPart_statusFlags.at(n));
-            if (!(GenPart_pdgId[n] == PdG::Higgs() && status.isLastCopy()))
+            if (!((GenPart_pdgId[n] == PdG::Higgs() || GenPart_pdgId[n] == PdG::HeavyHiggs()) && status.isLastCopy()))
                 continue;
             const auto &daughters = GenPart_daughters.at(n);
             int n_b_daughters = std::count_if(daughters.begin(), daughters.end(), [&](int idx) {

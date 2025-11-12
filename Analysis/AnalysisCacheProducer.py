@@ -8,6 +8,7 @@ import shutil
 import importlib
 import uproot
 import awkward as ak
+import json
 
 ROOT.EnableThreadSafety()
 
@@ -89,7 +90,8 @@ def run_producer(
     expected_columns = [
         f"{producer.payload_name}_{col}" for col in producer_config["columns"]
     ] + ["FullEventId"]
-    if producer_config.get("awkward_based", False):
+    is_awkward_based = producer_config.get("awkward_based", False)
+    if is_awkward_based:
         vars_to_save = []
         if hasattr(producer, "prepare_dfw"):
             dfw = producer.prepare_dfw(dfw)
@@ -99,20 +101,43 @@ def run_producer(
         dfw.df.Snapshot(
             f"tmp", os.path.join(workingDir, "tmp.root"), vars_to_save, snapshotOptions
         )
+        # by default cache output is saved to root file
+        # but we sometimes (BtagShapeProducer) want to save it as json
+        save_as = producer_config.get("save_as", "root")
         final_array = None
+        final_dict = None
         uproot_stepsize = producer_config.get("uproot_stepsize", "100MB")
         for array in uproot.iterate(
             f"{os.path.join(workingDir, 'tmp.root')}:tmp", step_size=uproot_stepsize
         ):  # For DNN 50MB translates to ~300_000 events
             new_array = producer.run(array)
-            if final_array is None:
-                final_array = new_array
-            else:
-                final_array = ak.concatenate([final_array, new_array])
-        check_columns(expected_columns, final_array.fields, final_array.fields)
-        with uproot.recreate(outFileName, compression=uprootCompression) as outfile:
-            outfile[treeName] = final_array
-
+            match save_as:
+                case "root":
+                    if final_array is None:
+                        final_array = new_array
+                    else:
+                        final_array = ak.concatenate([final_array, new_array])
+                case "json":
+                    # if we are saving to json file, we need to 
+                    # old_dict[key] += new_dict[key] for key in keys
+                    if final_dict is None:
+                        final_dict = {key:new_array[key] for key in new_array.keys()}
+                    else:
+                        for key in final_dict.keys():
+                            final_dict[key] += new_array[key]
+                case _:
+                    raise RuntimeError(f'Illegal output format `{save_as}`.')
+               
+        match save_as:
+            case "root":
+                check_columns(expected_columns, final_array.fields, final_array.fields)
+                with uproot.recreate(outFileName, compression=uprootCompression) as outfile:
+                    outfile[treeName] = final_array
+            case "json":
+                with open(outFileName, "w") as f:
+                    json.dump(final_dict, f, indent=4)
+            case _:
+                raise RuntimeError(f'Illegal output format `{save_as}`.')
     else:
         dfw = producer.run(dfw)
         check_columns(expected_columns, dfw.colToSave, dfw.df.GetColumnNames())
@@ -168,17 +193,18 @@ def createAnalysisCache(
     producers_module = importlib.import_module(producers_module_name)
     producer_class = getattr(producers_module, producer_name)
     producer = producer_class(producer_config, producer_to_run)
+    output_file_extension = producer_config.get("save_as", "root")
     run_producer(
         producer,
         dfw,
         producer_config,
-        f"{outFileName}_Central.root",
+        f"{outFileName}_Central.{output_file_extension}",
         "Events",
         snapshotOptions,
         uprootCompression,
         workingDir,
     )
-    all_files.append(f"{outFileName}_Central.root")
+    all_files.append(f"{outFileName}_Central.{output_file_extension}")
 
     if compute_unc_variations:
         dfWrapped_central = Utilities.DataFrameBuilderBase(df)
@@ -206,13 +232,13 @@ def createAnalysisCache(
                         producer,
                         dfW_noDiff,
                         producer_config,
-                        f"{outFileName}_{uncName}{scale}_noDiff.root",
+                        f"{outFileName}_{uncName}{scale}_noDiff.{output_file_extension}",
                         treeName_noDiff,
                         snapshotOptions,
                         uprootCompression,
                         workingDir,
                     )
-                    all_files.append(f"{outFileName}_{uncName}{scale}_noDiff.root")
+                    all_files.append(f"{outFileName}_{uncName}{scale}_noDiff.{output_file_extension}")
                 treeName_Valid = f"{treeName}_Valid"
                 if treeName_Valid in file_keys:
                     df_Valid = merge_cache_files(
@@ -228,13 +254,13 @@ def createAnalysisCache(
                         producer,
                         dfW_Valid,
                         producer_config,
-                        f"{outFileName}_{uncName}{scale}_Valid.root",
+                        f"{outFileName}_{uncName}{scale}_Valid.{output_file_extension}",
                         treeName_Valid,
                         snapshotOptions,
                         uprootCompression,
                         workingDir,
                     )
-                    all_files.append(f"{outFileName}_{uncName}{scale}_Valid.root")
+                    all_files.append(f"{outFileName}_{uncName}{scale}_Valid.{output_file_extension}")
                 treeName_nonValid = f"{treeName}_nonValid"
                 if treeName_nonValid in file_keys:
                     df_nonValid = merge_cache_files(
@@ -249,13 +275,13 @@ def createAnalysisCache(
                         producer,
                         dfW_nonValid,
                         producer_config,
-                        f"{outFileName}_{uncName}{scale}_nonValid.root",
+                        f"{outFileName}_{uncName}{scale}_nonValid.{output_file_extension}",
                         treeName_nonValid,
                         snapshotOptions,
                         uprootCompression,
                         workingDir,
                     )
-                    all_files.append(f"{outFileName}_{uncName}{scale}_nonValid.root")
+                    all_files.append(f"{outFileName}_{uncName}{scale}_nonValid.{output_file_extension}")
     return all_files
 
 
@@ -279,8 +305,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     ana_path = os.environ["ANALYSIS_PATH"]
+    sys.path.append(ana_path)
     # headers = [ "FLAF/include/KinFitInterface.h", "FLAF/include/HistHelper.h", "FLAF/include/Utilities.h" ]
-    headers = ["FLAF/include/HistHelper.h", "FLAF/include/Utilities.h"]
+    headers = ["FLAF/include/HistHelper.h", "FLAF/include/Utilities.h", "FLAF/include/AnalysisTools.h"]
     for header in headers:
         DeclareHeader(os.environ["ANALYSIS_PATH"] + "/" + header)
 
@@ -304,12 +331,15 @@ if __name__ == "__main__":
     with open(args.globalConfig, "r") as f:
         global_cfg_dict = yaml.safe_load(f)
 
+    producer_config = global_cfg_dict["payload_producers"][args.producer]
+    save_as = producer_config.get("save_as", "root")
+
     startTime = time.time()
     if args.channels:
         global_cfg_dict["channelSelection"] = (
             args.channels.split(",") if type(args.channels) == str else args.channels
         )
-    outFileNameFinal = f"{args.outFileName}"
+    outFileNameFinal = f"{args.outFileName}.{save_as}" # outFileName comes from law task, I defined it without extention there
     cacheFileNames = args.cacheFileNames.split(",") if args.cacheFileNames else ""
     all_files = createAnalysisCache(
         args.inFileName,
@@ -324,16 +354,37 @@ if __name__ == "__main__":
         args.workingDir,
         cacheFileNames,
     )
-    hadd_str = f"hadd -f209 -n10 {outFileNameFinal} "
-    hadd_str += " ".join(f for f in all_files)
-    if len(all_files) > 1:
-        ps_call([hadd_str], True)
-    else:
-        shutil.copy(all_files[0], outFileNameFinal)
-    if os.path.exists(outFileNameFinal):
-        for histFile in all_files:
-            if histFile == outFileNameFinal:
-                continue
-            os.remove(histFile)
+    match save_as:
+        case "root":
+            hadd_str = f"hadd -f209 -n10 {outFileNameFinal} "
+            hadd_str += " ".join(f for f in all_files)
+            if len(all_files) > 1:
+                ps_call([hadd_str], True)
+            else:
+                shutil.copy(all_files[0], outFileNameFinal)
+            if os.path.exists(outFileNameFinal):
+                for histFile in all_files:
+                    if histFile == outFileNameFinal:
+                        continue
+                    os.remove(histFile)
+        case "json":
+            # each root file has a bunch of uncertainty trees
+            # I want to write event counts and weights from each unc tree to one big final json
+            data = {}
+            for file_name in all_files:
+                # file_name = /afs/.../tmp_output_file_stuff.ext
+                base_name = os.path.basename(file_name)
+                # base_name = tmp_output_file_stuff.ext
+                unc_name = '_'.join(base_name.split('_')[3:]) # extract stuff
+                unc_name = unc_name.split('.')[0] # strip off file extension
+                with open(file_name, 'r') as json_file:
+                    file_data = json.load(json_file)
+                    data[unc_name] = file_data
+
+            print(f'About to write to {outFileNameFinal}')
+            with open(outFileNameFinal, "w") as final_output_file:
+                json.dump(data, final_output_file, indent=4)
+        case _:
+            raise RuntimeError(f'Illegal output format `{save_as}`.')
     executionTime = time.time() - startTime
     print("Execution time in seconds: " + str(executionTime))

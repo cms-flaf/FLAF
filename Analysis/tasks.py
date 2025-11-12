@@ -145,9 +145,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 for producer_name in (p for p in producer_list if p is not None):
                     producer_set.add(producer_name)
         reqs = {}
-        self.isbbtt = "HH_bbtautau" in self.global_params["analysis_config_area"].split("/")
+        isbbtt = "HH_bbtautau" in self.global_params["analysis_config_area"].split("/")
 
-        if not self.isbbtt:
+        if not isbbtt:
             reqs["btagShapeWeight"] = BtagShapeWeightTask.req(self)
 
         if len(branch_set) > 0:
@@ -186,7 +186,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         deps = (
             []
         )  # deps cannot be a set because sets are auto-sorted, creating a mismatch between main (AnaTuple) file and cache files
-        # isbbtt = "HH_bbtautau" in self.global_params["analysis_config_area"].split("/")
+        isbbtt = "HH_bbtautau" in self.global_params["analysis_config_area"].split("/")
 
         deps.append(
             AnaTupleMergeTask.req(
@@ -198,7 +198,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
         )
 
-        if not self.isbbtt:
+        if not isbbtt:
             deps.append(
                 BtagShapeWeightTask.req(self)
             )
@@ -377,7 +377,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 isbbtt = "HH_bbtautau" in self.global_params[
                     "analysis_config_area"
                 ].split("/")
-                if self.isbbtt:
+                if isbbtt:
                     anaCache_file = self.input()[1][input_index]
                     with anaCache_file.localize("r") as local_anacache:
                         HistTupleProducer_cmd.extend(

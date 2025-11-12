@@ -2073,31 +2073,36 @@ class BtagShapeWeightTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         super(BtagShapeWeightTask, self).__init__(*args, **kwargs)
 
     def workflow_requires(self):
-        btag_shape_cache_complete = AnalysisCacheTask.req(self, branches=(), producer_to_run="BtagShape").complete()
-        if not btag_shape_cache_complete:
-            return {
-                "BtagShape": AnalysisCacheTask.req(self, branches=(), producer_to_run="BtagShape"),
+        merge_organization_complete = AnaTupleFileListTask.req(
+            self, branches=()
+        ).complete()
+        if not merge_organization_complete:
+            deps = {
+                "AnaTupleFileListTask": AnaTupleFileListTask.req(
+                    self,
+                    branches=(),
+                    max_runtime=AnaTupleFileListTask.max_runtime._default,
+                    n_cpus=AnaTupleFileListTask.n_cpus._default,
+                ),
+                "BtagShape": AnalysisCacheTask.req(
+                    self,
+                    branches=(),
+                    max_runtime=AnaTupleTask.max_runtime._default,
+                    n_cpus=AnaTupleTask.n_cpus._default,
+                    customisations=self.customisations,
+                    producer_to_run="BtagShape"
+                )
             }
+            return deps
 
         btag_cache_map = AnalysisCacheTask.req(
             self, branch=-1, branches=(), producer_to_run="BtagShape"
         ).create_branch_map()
-        branch_set = set()
-        for idx, (sample_name, process_group) in self.branch_map.items():
-            for br_idx, (
-                cache_sample_name,
-                cache_process_group,
-                cache_sample_id             
-                ) in btag_cache_map.items():
-                if (sample_name == cache_sample_name) or (
-                    process_group == "data" and cache_process_group == "data"
-                ):
-                    branch_set.add(br_idx)
-
+        branches = [b for b in btag_cache_map.keys()]
         deps = {
             "BtagShape": AnalysisCacheTask.req(
                 self,
-                branches=tuple(branch_set),
+                branches=tuple(branches),
                 max_runtime=AnaTupleTask.max_runtime._default,
                 n_cpus=AnaTupleTask.n_cpus._default,
                 customisations=self.customisations,
@@ -2107,51 +2112,62 @@ class BtagShapeWeightTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return deps
 
     def requires(self):
-        sample_name, process_group = self.branch_data
-        btag_cache_map = AnalysisCacheTask.req(
-            self, branch=-1, branches=(), producer_to_run="BtagShape"
-        ).create_branch_map()
-        branch_set = set()
-        for br_idx, (
-            cache_sample_name,
-            cache_process_group,
-            cache_sample_id 
-        ) in btag_cache_map.items():
-            if (sample_name == cache_sample_name) or (
-                process_group == "data" and cache_process_group == "data"
-            ):
-                branch_set.add(br_idx)
-
+        sample_name, process_group, list_of_br_idxes = self.branch_data
         reqs = [
             AnalysisCacheTask.req(
                 self,
-                max_runtime=AnaTupleTask.max_runtime._default,
+                max_runtime=AnalysisCacheTask.max_runtime._default,
                 branch=prod_br,
                 branches=(prod_br,),
                 customisations=self.customisations,
                 producer_to_run="BtagShape"
             )
-            for prod_br in tuple(branch_set)
+            for prod_br in list_of_br_idxes
         ]
         return reqs
 
     def create_branch_map(self):
+        merge_organization_complete = AnaTupleFileListTask.req(
+            self, branches=()
+        ).complete()
+        if not merge_organization_complete:
+            return {0: ()}
+
         branches = {}
-        k = 0
+        branch_number = 0
         data_done = False
-        for sample_id, sample_name in self.iter_samples():
-            process_group = self.samples[sample_name]["process_group"]
+        # obtain branch map for the previos task
+        # it is structured per file
+        btag_cache_map = AnalysisCacheTask.req(
+            self, branch=-1, branches=(), producer_to_run="BtagShape"
+        ).create_branch_map()
+
+        # restructure btag_cache_map so it maps each sample to list of branch indices from prev. task
+        # i.e. for signal it will be (XtoYHto2B2Wto2B2L2Nu_MX_300_MY_125, signals) -> [0]
+        # but e.g. for ttbar it will be (TTto2L2Nu, backgrounds) -> [1, 2, 3, 4, 5, ...]
+        sample_branch_map = {}
+        for idx, (sample_name, process_group, num_out_files) in btag_cache_map.items():
+            if (sample_name, process_group) not in sample_branch_map:
+                sample_branch_map[(sample_name, process_group)] = []
+            sample_branch_map[(sample_name, process_group)].append(idx)
+
+        for (sample_name, process_group), list_of_br_idxes in sample_branch_map.items():
             if process_group == "data":
                 if data_done:
                     continue  # Will have multiple data samples, but only need one branch
                 sample_name = "data"
                 data_done = True
-            branches[k] = (sample_name, process_group)
-            k += 1
+                branches[branch_number] = (sample_name, process_group, list_of_br_idxes)
+            branches[branch_number] = (sample_name, process_group, list_of_br_idxes)
+            branch_number += 1
+
         return branches
 
     def output(self):
-        sample_name, process_group = self.branch_data
+        if len(self.branch_data) == 0:
+            return self.local_target("dummy.txt")
+
+        sample_name, _, _ = self.branch_data
         output_name = "BtagShapeWeight.json"
         output_path = os.path.join(
             "BtagShapeWeight", self.version, self.period, sample_name, output_name
@@ -2166,7 +2182,7 @@ class BtagShapeWeightTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ]
 
     def run(self):
-        sample_name, process_group = self.branch_data
+        sample_name, _, _ = self.branch_data
         computeBtagShapeWeight = os.path.join(
             self.ana_path(), "FLAF", "Analysis", "ComputeBtagShapeWeight.py"
         )

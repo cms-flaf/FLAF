@@ -21,6 +21,14 @@ from FLAF.Analysis.HistProducerFile import AddCacheColumnsInDf
 defaultColToSave = ["FullEventId"]
 scales = ["Up", "Down"]
 
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ("yes", "true", "t", "1"):
+        return True
+    if v.lower() in ("no", "false", "f", "0"):
+        return False
+    raise argparse.ArgumentTypeError("Boolean value expected (True/False).")
 
 def getKeyNames(root_file_name):
     root_file = ROOT.TFile(root_file_name, "READ")
@@ -180,10 +188,6 @@ def createAnalysisCache(
     df = merge_cache_files(inFileName, cacheFileNames, "Events")
     dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
 
-    # df = ROOT.RDataFrame('Events', inFileName)
-    # df_begin = df
-    # dfw = Utilities.DataFrameWrapper(df_begin,defaultColToSave)
-
     if not producer_to_run:
         raise RuntimeError("Producer must be specified to compute analysis cache")
 
@@ -294,7 +298,6 @@ if __name__ == "__main__":
     parser.add_argument("--outFileName", required=True, type=str)
     parser.add_argument("--uncConfig", required=True, type=str)
     parser.add_argument("--globalConfig", required=True, type=str)
-    parser.add_argument("--compute_unc_variations", type=bool, default=False)
     parser.add_argument("--compressionLevel", type=int, default=4)
     parser.add_argument("--compressionAlgo", type=str, default="ZLIB")
     parser.add_argument("--deepTauVersion", type=str, default="v2p1")
@@ -302,6 +305,19 @@ if __name__ == "__main__":
     parser.add_argument("--producer", type=str, default=None)
     parser.add_argument("--workingDir", required=True, type=str)
     parser.add_argument("--cacheFileNames", required=False, type=str)
+
+    parser.add_argument(
+        "--compute_unc_variations",
+        type=str2bool,
+        default=False,
+    )
+
+    parser.add_argument(
+        "--isData",
+        type=str2bool,
+        default=False,
+    )
+
     args = parser.parse_args()
 
     ana_path = os.environ["ANALYSIS_PATH"]
@@ -333,6 +349,10 @@ if __name__ == "__main__":
 
     producer_config = global_cfg_dict["payload_producers"][args.producer]
     save_as = producer_config.get("save_as", "root")
+    # need it for BtagShapeProducer to implement different behavior in data
+    # (data does not have btag weight branches)
+    # this seems to be the only option without breaking everything/rewriting all existing producers to implement this different behavior
+    producer_config["isData"] = args.isData 
 
     startTime = time.time()
     if args.channels:

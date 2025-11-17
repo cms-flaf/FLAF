@@ -20,9 +20,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("inputFile", nargs="+", type=str)
     parser.add_argument("--outFile", required=True, type=str)
-    parser.add_argument("--isData", required=False, type=bool, default=False)
 
     args = parser.parse_args()
+
+    # this code will work on data: in that case all per-file jsons will contain ones
+    # so it'll run the calculation that results in all ratios equals one
 
     # 1 list files :
     all_files = [fileName for fileName in args.inputFile]
@@ -79,11 +81,6 @@ if __name__ == "__main__":
             integral_ratios = np.where(zero_weight_mask, 1.0, weights_before/weights_after)
             this_lep_cat_dict = {f'ratio_ncentralJet_{m}':integral_ratios[idx] for idx, m in enumerate(multiplicities)}
             integral_ratio_dict[unc_src][lep_cat] = this_lep_cat_dict
-
-
-    # If data, then just do the lumi look-up and calculate the nFiles for splitting
-    if args.isData:
-        raise NotImplementedError(f'Computation of btag shape weights for data is not implemented yet')
 
     jsonName = args.outFile
     with open(jsonName, "w") as fp:

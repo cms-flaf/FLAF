@@ -127,6 +127,17 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             producer_to_run=producer_to_run,
                         )
                     )
+            if self.global_params['apply_btagShape_weights']:
+                # req_dict["btagShapeWeight"].append(
+                #         BtagShapeWeightTask.req(
+                #             self,
+                #             branches=(),
+                #             customisations=self.customisations,
+                #         )
+                #     )
+                req_dict["btagShapeWeight"] = BtagShapeWeightTask.req(self,
+                                                                      branches=(),
+                                                                      customisations=self.customisations,)
             return req_dict
 
         branch_set = set()
@@ -147,7 +158,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         reqs = {}
         isbbtt = "HH_bbtautau" in self.global_params["analysis_config_area"].split("/")
 
-        if not isbbtt:
+        if self.global_params['apply_btagShape_weights']:
             reqs["btagShapeWeight"] = BtagShapeWeightTask.req(self)
 
         if len(branch_set) > 0:
@@ -198,14 +209,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
         )
 
-        if not isbbtt:
-            deps.append(
-                BtagShapeWeightTask.req(self)
-            )
-        
         caches = set()
         if need_cache_global:
-            if self.isbbtt:
+            if isbbtt:
                 caches.add(
                     AnaCacheTupleTask.req(
                         self,
@@ -230,6 +236,12 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if caches:
                 caches_list = list(caches)
                 deps.extend(caches_list)
+
+        if self.global_params['apply_btagShape_weights']:
+            deps.append(
+                BtagShapeWeightTask.req(self)
+            )
+        
         return deps
 
     def create_branch_map(self):
@@ -315,10 +327,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         sample_name, prod_br, need_cache_global, producer_list, input_index = (
             self.branch_data
         )
-        # print("My inputs are")
-        # print(self.input())
-        # input_paths = [ x.path for x in self.input() ]
-        # print(input_paths[0])
+        
         input_file = self.input()[0][input_index]
         customisation_dict = getCustomisationSplit(self.customisations)
         channels = customisation_dict.get(
@@ -391,6 +400,12 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 HistTupleProducer_cmd.extend(
                     ["--cacheFile", ",".join(local_anacache_list)]
                 )
+
+            if self.global_params['apply_btagShape_weights']:
+                btag_json_input = self.input()[-1][0]
+                local_btag_json = stack.enter_context((btag_json_input).localize("r"))
+                HistTupleProducer_cmd.extend([f"--btag_json", local_btag_json.path])
+
             ps_call(HistTupleProducer_cmd, verbose=1)
 
             with self.output().localize("w") as local_output:
@@ -1823,6 +1838,12 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             ].get("cmssw_env", False)
                             else None
                         )
+
+                        isData = process_group == "data"
+                        analysisCacheProducer_cmd.extend(
+                            ["--isData", "True" if isData else "False"]
+                        )
+
                         ps_call(analysisCacheProducer_cmd, env=prod_env, verbose=1)
                     print(
                         f"Finished producing payload for producer={self.producer_to_run} with name={sample_name}, group={process_group}, file={input_file.path}"
@@ -2073,6 +2094,8 @@ class BtagShapeWeightTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         super(BtagShapeWeightTask, self).__init__(*args, **kwargs)
 
     def workflow_requires(self):
+        # this check is necessary bc AnalysisCacheTask would return empty branch map
+        # if the tasks below didn't run; therefore it would have caused law crash
         merge_organization_complete = AnaTupleFileListTask.req(
             self, branches=()
         ).complete()
@@ -2127,6 +2150,8 @@ class BtagShapeWeightTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return reqs
 
     def create_branch_map(self):
+        # this check is necessary bc AnalysisCacheTask would return empty branch map
+        # if the tasks below didn't run; therefore it would have caused law crash
         merge_organization_complete = AnaTupleFileListTask.req(
             self, branches=()
         ).complete()
@@ -2164,6 +2189,8 @@ class BtagShapeWeightTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return branches
 
     def output(self):
+        # this check is necessary bc AnalysisCacheTask would return empty branch map
+        # if the tasks below didn't run; therefore it would have caused law crash
         if len(self.branch_data) == 0:
             return self.local_target("dummy.txt")
 
@@ -2188,16 +2215,7 @@ class BtagShapeWeightTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         )
         with contextlib.ExitStack() as stack:
             remote_output = self.output()[0]
-            # local_output = self.output()[1]
-            # # Check if remote already exists, if so then just copy and return
-            # if remote_output.exists():
-            #     print("Hey remote already exists! Don't run again, just copy to local")
-            #     with local_output.localize("w") as tmp_local_file2:
-            #         with remote_output.localize("r") as tmp_local_file:
-            #             shutil.copy(tmp_local_file.path, tmp_local_file2.path)
-            #             return
-
-            print("Localizing inputs")
+            
             local_inputs = [
                 stack.enter_context(inp[0].localize("r")).path for inp in self.input()
             ]
@@ -2209,19 +2227,7 @@ class BtagShapeWeightTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 computeBtagShapeWeight,
                 "--outFile",
                 tmpFile,
-            ]  # , '--remove-files', 'True']
-            if sample_name == "data":
-                computeBtagShapeWeight_cmd.extend(["--isData", "True"])
-                if self.test:
-                    print(
-                        "Don't split test by lumi if its data, its already only 1000 events"
-                    )
-                    computeBtagShapeWeight_cmd.extend(["--lumi", f"1.0"])
-                else:
-                    # I know this isn't clean, but I don't want to put a 'if not self.test' for the base case
-                    computeBtagShapeWeight_cmd.extend(
-                        ["--lumi", f'{self.setup.global_params["luminosity"]}']
-                    )
+            ]
 
             computeBtagShapeWeight_cmd.extend(local_inputs)
             ps_call(computeBtagShapeWeight_cmd, verbose=1)
@@ -2229,6 +2235,3 @@ class BtagShapeWeightTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             with remote_output.localize("w") as tmp_local_file:
                 out_local_path = tmp_local_file.path
                 shutil.move(tmpFile, out_local_path)
-
-                # with local_output.localize("w") as tmp_local_file2:
-                #     shutil.copy(tmp_local_file.path, tmp_local_file2.path)

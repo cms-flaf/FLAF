@@ -42,9 +42,13 @@ if __name__ == "__main__":
                 for lep_cat, lep_cat_dict in unc_dict.items():    
                     if lep_cat not in this_unc_dict.keys():
                         this_unc_dict[lep_cat] = {}
-                    
-                    this_unc_dict[lep_cat].update(lep_cat_dict)
 
+                    for key, val in lep_cat_dict.items():
+                        if key not in this_unc_dict[lep_cat]:
+                            this_unc_dict[lep_cat][key] = val
+                        else:
+                            this_unc_dict[lep_cat][key] += val
+            
     # merge all JER(Up|Down)_* -> JER(Up|Down), etc
     # Central does not have up/down, so it's an edge case
     base_sources = ['_'.join(s.split('_')[:-1]) if s != 'Central' else s for s in dataset_btag_weight_dict.keys()]
@@ -57,12 +61,16 @@ if __name__ == "__main__":
             if len(matches) != 1:
                 raise RuntimeError(f'Bullshit: unc_src={unc_src}, matches={matches}')
             base_src = matches[0]
-            joint_dict[base_src][lep_cat].update(lep_cat_dict)
+
+            for key, val in lep_cat_dict.items():
+                if key not in joint_dict[base_src][lep_cat]:
+                    joint_dict[base_src][lep_cat][key] = val
+                else:
+                    joint_dict[base_src][lep_cat][key] += val
 
     # calculate ratio of integrals
     # structure: {category:{ratio_ncentralJet_k for k in range(2, 9)} for category in [e, mu, eE, eMu, muMu]}
     integral_ratio_dict = {}
-    # for unc_src, unc_src_dict in dataset_btag_weight_dict.items():
     for unc_src, unc_src_dict in joint_dict.items():
         if unc_src not in integral_ratio_dict.keys():
             integral_ratio_dict[unc_src] = {}

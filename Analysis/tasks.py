@@ -163,7 +163,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             hist_tuple_branch_map = self.branch_map
 
             # filter out branches of BtagShapeWeightTask that correspond to each sample of HistTupleProducerTask
-            btag_weight_shape_branch = -1
+            reqs["btagShapeWeight"] = []
+            hist_tuple_sample_map = {}
             for idx, (
                 hist_tuple_sample,
                 hist_tuple_br,
@@ -174,8 +175,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 btag_branches_for_hist_tuple_sample = [idx for idx, (btag_sample, _, _) in btag_shape_task_branch_map.items() if btag_sample == hist_tuple_sample]
                 assert len(btag_branches_for_hist_tuple_sample) == 1, "Must be only one BtagShapeWeightTask branch per sample"
                 btag_weight_shape_branch = btag_branches_for_hist_tuple_sample[0]
-
-            reqs["btagShapeWeight"] = BtagShapeWeightTask.req(self, branch=btag_weight_shape_branch)
+                hist_tuple_sample_map[hist_tuple_sample] = btag_weight_shape_branch
+            
+            for sample, btag_branch in hist_tuple_sample_map.items():    
+                reqs["btagShapeWeight"].append(BtagShapeWeightTask.req(self, branch=btag_branch, sample=sample))
 
         if len(branch_set) > 0:
             reqs["anaTuple"] = AnaTupleMergeTask.req(
@@ -263,7 +266,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     btag_branches.append(btag_branch_idx)
             assert len(btag_branches) == 1, "Must be only one BtagShapeWeightTask branch per sample"
             deps.append(
-                BtagShapeWeightTask.req(self, branch=btag_branches[0])
+                BtagShapeWeightTask.req(self, branch=btag_branches[0], sample=sample_name)
             )
         return deps
 

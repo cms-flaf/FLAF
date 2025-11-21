@@ -158,28 +158,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         reqs = {}
         isbbtt = "HH_bbtautau" in self.global_params["analysis_config_area"].split("/")
 
-        if self.global_params['apply_btagShape_weights']:
-            btag_shape_task_branch_map = BtagShapeWeightTask.req(self, branch=-1).create_branch_map()
-            hist_tuple_branch_map = self.branch_map
-
-            # filter out branches of BtagShapeWeightTask that correspond to each sample of HistTupleProducerTask
-            reqs["btagShapeWeight"] = []
-            hist_tuple_sample_map = {}
-            for idx, (
-                hist_tuple_sample,
-                hist_tuple_br,
-                need_cache_global,
-                producer_list,
-                input_index,
-            ) in hist_tuple_branch_map.items():
-                btag_branches_for_hist_tuple_sample = [idx for idx, (btag_sample, _, _) in btag_shape_task_branch_map.items() if btag_sample == hist_tuple_sample]
-                assert len(btag_branches_for_hist_tuple_sample) == 1, "Must be only one BtagShapeWeightTask branch per sample"
-                btag_weight_shape_branch = btag_branches_for_hist_tuple_sample[0]
-                hist_tuple_sample_map[hist_tuple_sample] = btag_weight_shape_branch
-            
-            for sample, btag_branch in hist_tuple_sample_map.items():    
-                reqs["btagShapeWeight"].append(BtagShapeWeightTask.req(self, branch=btag_branch, sample=sample))
-
         if len(branch_set) > 0:
             reqs["anaTuple"] = AnaTupleMergeTask.req(
                 self,
@@ -207,6 +185,35 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             producer_to_run=producer_name,
                         )
                     )
+
+        if self.global_params['apply_btagShape_weights']:
+            btag_shape_weight_branch_set = set()
+            btag_shape_task_branch_map = BtagShapeWeightTask.req(self, branch=-1).create_branch_map()
+            hist_tuple_branch_map = self.branch_map
+            # filter out branches of BtagShapeWeightTask that correspond to each sample of HistTupleProducerTask
+            reqs["btagShapeWeight"] = []
+            hist_tuple_sample_map = {}
+            for idx, (
+                hist_tuple_sample,
+                hist_tuple_br,
+                need_cache_global,
+                producer_list,
+                input_index,
+            ) in hist_tuple_branch_map.items():
+                btag_branches_for_hist_tuple_sample = [idx for idx, (btag_sample, _, _) in btag_shape_task_branch_map.items() if btag_sample == hist_tuple_sample]
+                assert len(btag_branches_for_hist_tuple_sample) == 1, "Must be only one BtagShapeWeightTask branch per sample"
+                btag_weight_shape_branch = btag_branches_for_hist_tuple_sample[0]
+                hist_tuple_sample_map[hist_tuple_sample] = btag_weight_shape_branch
+            
+            for sample, btag_branch in hist_tuple_sample_map.items():    
+                # for some reason, passing a tuple to branches argument of BtagShapeWeightTask is not working
+                # reqs["btagShapeWeight"].append(BtagShapeWeightTask.req(self, branch=btag_branch, sample=sample))
+                btag_shape_weight_branch_set.add(btag_branch)
+
+            if len(btag_shape_weight_branch_set) > 0:
+                reqs["btagShapeWeight"] = BtagShapeWeightTask.req(self, branch=-1, branches=tuple(btag_shape_weight_branch_set), sample=sample)
+                # reqs["btagShapeWeight"] = BtagShapeWeightTask.req(self, branch=btag_shape_weight_branch_set, sample=sample)
+        print(reqs)
         return reqs
 
     def requires(self):
@@ -260,6 +267,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             btag_shape_task_branch_map = BtagShapeWeightTask.req(self, branch=-1).create_branch_map()
             hist_tuple_producers_sample_name = sample_name # name of the sample which HistTupleProducer is running
             # in btag_branches collect all branches of BtagShapeWeightTask that HistTupleProducer needs to run this sample
+            # for some reason, passing a tuple to branches argument of BtagShapeWeightTask is not working
             btag_branches = []
             for btag_branch_idx, (btag_sample_name, _, _) in btag_shape_task_branch_map.items():
                 if hist_tuple_producers_sample_name == btag_sample_name:
@@ -2215,7 +2223,6 @@ class BtagShapeWeightTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 branches[branch_number] = (sample_name, process_group, list_of_br_idxes)
             branches[branch_number] = (sample_name, process_group, list_of_br_idxes)
             branch_number += 1
-
         return branches
 
     def output(self):

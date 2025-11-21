@@ -277,7 +277,10 @@ class Setup:
                 candidates = {}
                 plot_color_idx = 0  # Used for indexing signal 'to_plot' colors
                 for dataset in item["datasets"]:
-                    cand_key = re.match(dataset_name_pattern, dataset).groups()
+                    cand_key = tuple(
+                        str(tmp_key)
+                        for tmp_key in re.match(dataset_name_pattern, dataset).groups()
+                    )
                     if len(cand_key) != len(meta_setup["parameters"]):
                         raise RuntimeError(
                             f"Dataset '{dataset}' does not match pattern '{dataset_name_pattern}'."
@@ -285,6 +288,12 @@ class Setup:
                     if not cand_key in candidates:
                         candidates[cand_key] = []
                     candidates[cand_key].append(dataset)
+
+                tmp_to_plot = []
+                for local_to_plot in item["meta_setup"]["to_plot"]:
+                    x = tuple(str(local_item) for local_item in local_to_plot)
+                    tmp_to_plot.append(x)
+
                 for cand_key, datasets in candidates.items():
                     new_process = copy.deepcopy(item)
                     proc_name = meta_setup["process_name"]
@@ -295,15 +304,18 @@ class Setup:
                     new_process["process_name"] = proc_name
                     new_process["datasets"] = datasets
                     new_process["name"] = plot_name
-                    new_process["to_plot"] = (
-                        cand_key in new_process["meta_setup"]["to_plot"]
-                    )
+                    new_process["to_plot"] = cand_key in tmp_to_plot
                     new_process["color"] = "kBlack"
                     if new_process["to_plot"]:
                         new_process["color"] = new_process["meta_setup"]["plot_color"][
                             plot_color_idx
                         ]
                         plot_color_idx += 1
+                    new_process["channels"] = (
+                        self.global_params["channelSelection"]
+                        if "channels" not in meta_setup.keys()
+                        else meta_setup["channels"]
+                    )
                     del new_process["meta_setup"]
                     del new_process["is_meta_process"]
                     processes[proc_name] = new_process

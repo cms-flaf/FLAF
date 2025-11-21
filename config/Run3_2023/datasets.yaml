@@ -1,28 +1,3 @@
-GLOBAL:
-  era: Run3_2023
-  luminosity: 18063.0  # pb-1
-  fs_nanoAOD:
-    - 'T2_CH_CERN:/store/group/phys_higgs/HLepRare/skim_2025_v1/Run3_2023'
-  nano_version: v14
-  crossSectionsFile: FLAF/config/crossSections13p6TeV.yaml
-  use_stitching: false
-  met_type: PFMET
-  MET_flags:  # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersRun2#Run_3_2022_and_2023_data_and_MC
-    - Flag_goodVertices
-    - Flag_globalSuperTightHalo2016Filter
-    - Flag_EcalDeadCellTriggerPrimitiveFilter
-    - Flag_BadPFMuonFilter
-    - Flag_BadPFMuonDzFilter
-    - Flag_hfNoisyHitsFilter
-    - Flag_eeBadScFilter
-    - Flag_ecalBadCalibFilter
-  badMET_flag_runs:  # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersRun2#ECal_BadCalibration_Filter_Flag
-    - 366727
-    - 367144  # for 2023, Flag_ecalBadCalibFilter should not be used for a range of these two run numbers.
-  # lumiFile: /eos/user/c/cmsdqm/www/CAF/certification/Collisions23/Cert_Collisions2023_366442_370790_Golden.json
-  lumiFile: Corrections/data/golden_json/Cert_Collisions2023_366442_370790_Golden.json
-
-
 ############## Data ##############
 EGamma0_Run2023C_v1:
   sampleType: data
@@ -174,13 +149,12 @@ DYto2Mu_M_10to50_amcatnloFXFX:
   miniAOD: DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14_ext1-v3/MINIAODSIM
   dirName: DYto2L_M_10to50_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
-# DYto2Tau_M_10to50_amcatnloFXFX:
-#   crossSection: DYto2L_M_10to50_amcatnloFXFX
-#   generator: amcatnloFXFX
-#   miniAOD: DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14_ext1-v3/MINIAODSIM
-#   crossSection: DY_NNLO_QCD+NLO_EW
-#   dirName: DYto2L_M_10to50_amcatnloFXFX
-#   fileNamePattern: ^nanoTauTau_\d+\.root$
+DYto2Tau_M_10to50_amcatnloFXFX:
+  crossSection: DYto2L_M_10to50_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14_ext1-v3/MINIAODSIM
+  dirName: DYto2L_M_10to50_amcatnloFXFX
+  fileNamePattern: ^nanoTauTau_\d+\.root$
 
 DYto2E_M_50_amcatnloFXFX:
   crossSection: DYto2L_M_50_amcatnloFXFX

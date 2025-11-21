@@ -3,10 +3,7 @@ import os
 import sys
 import ROOT
 import shutil
-import zlib
 import importlib
-
-# import fastcrc
 import json
 
 
@@ -20,6 +17,7 @@ import FLAF.Common.triggerSel as Triggers
 from FLAF.Common.Setup import Setup
 from Corrections.Corrections import Corrections
 from Corrections.lumi import LumiFilter
+from FLAF.AnaProd.anaCacheProducer import DefaultAnaCacheProcessor
 
 
 # ROOT.EnableImplicitMT(1)
@@ -31,14 +29,14 @@ def SelectBTagShapeSF(df, weight_name):
     return df
 
 
-def createAnatuple(
+def createAnatuple(*,
     inFile,
     inFileName,
     treeName,
     outDir,
     setup,
-    sample_name,
-    anaCache,
+    dataset_name,
+    anaCaches,
     snapshotOptions,
     range,
     evtIds,
@@ -47,7 +45,6 @@ def createAnatuple(
     uncertainties,
     anaTupleDef,
     channels,
-    processors=None,
     jsonName=None,
 ):
     start_time = datetime.datetime.now()
@@ -55,12 +52,12 @@ def createAnatuple(
         snapshotOptions.fCompressionAlgorithm * 100 + snapshotOptions.fCompressionLevel
     )
     period = setup.global_params["era"]
-    sample_config = setup.samples[sample_name]
-    mass = -1 if "mass" not in sample_config else sample_config["mass"]
-    spin = -100 if "spin" not in sample_config else sample_config["spin"]
-    isHH = True if mass > 0 else False
-    isData = sample_config["process_group"] == "data"
-    isSignal = sample_config["process_group"] == "signals"
+    dataset_cfg = setup.datasets[dataset_name]
+    mass = dataset_cfg.get("mass", -1)
+    spin = dataset_cfg.get("spin", -100)
+    isHH = mass > 0
+    isData = dataset_cfg["process_group"] == "data"
+    isSignal = dataset_cfg["process_group"] == "signals"
     loadTF = anaTupleDef.loadTF
     loadHHBtag = anaTupleDef.loadHHBtag
     lepton_legs = anaTupleDef.lepton_legs
@@ -71,10 +68,18 @@ def createAnatuple(
     if triggerFile is not None:
         triggerFile = os.path.join(os.environ["ANALYSIS_PATH"], triggerFile)
         trigger_class = Triggers.Triggers(triggerFile)
+    process_name = dataset_cfg["process_name"]
+    process = setup.base_processes[process_name]
+    processors_cfg, processor_instances = setup.get_processors(process_name, stage='AnaTuple', create_instances=True)
+    if len(processors_cfg) == 0:
+        processor_instances["default"] = DefaultAnaCacheProcessor()
     Corrections.initializeGlobal(
-        setup.global_params,
-        sample_name,
-        sample_config["process_name"],
+        global_params=setup.global_params,
+        dataset_name=dataset_name,
+        dataset_cfg=dataset_cfg,
+        process_name=process_name,
+        process_cfg=process,
+        processors=processor_instances,
         isData=isData,
         load_corr_lib=True,
         trigger_class=trigger_class,
@@ -93,7 +98,7 @@ def createAnatuple(
     # unique_run_lumi = list(set(run_lumi))
     json_dict_for_cache["nano_file_name"] = inFileName
     json_dict_for_cache["nEvents"] = nEventsInFile
-    json_dict_for_cache["sample_name"] = sample_name
+    json_dict_for_cache["dataset_name"] = dataset_name
     # if isData: json_dict_for_cache['RunLumi'] = unique_run_lumi
     ROOT.RDF.Experimental.AddProgressBar(df)
     if range is not None:
@@ -108,8 +113,7 @@ def createAnatuple(
             lumiFile_path = os.path.join(os.environ["ANALYSIS_PATH"], lumiFile_path)
         lumiFilter = LumiFilter(lumiFile_path)
         df = lumiFilter.filter(df)
-    # isSignal = sample_type in setup.global_params["signal_types"]
-    applyTriggerFilter = sample_config.get("applyTriggerFilter", True)
+    applyTriggerFilter = dataset_cfg.get("applyTriggerFilter", True)
     df = df.Define("period", f"static_cast<int>(Period::{period})")
     df = df.Define(
         "X_mass", f"static_cast<int>({mass})"
@@ -119,7 +123,7 @@ def createAnatuple(
     )  # this has to be moved in specific analyses def
     df = df.Define(
         "FullEventId",
-        f"""eventId::encodeFullEventId({Utilities.crc16(sample_name.encode())}, {Utilities.crc16(inFileName.encode())}, rdfentry_)""",
+        f"""eventId::encodeFullEventId({Utilities.crc16(dataset_name.encode())}, {Utilities.crc16(inFileName.encode())}, rdfentry_)""",
     )
 
     is_data = "true" if isData else "false"
@@ -144,24 +148,6 @@ def createAnatuple(
     outfilesNames = []
     k = 0
     print(f"syst_dict={syst_dict}")
-    # --- Dynamic Processor Loading ---
-    processor_instances = []
-    if processors:
-        for p in processors:
-            try:
-                module = importlib.import_module(p["module"])
-                cls = getattr(module, p["class"])
-                instance = cls(setup.global_params, config_path=p.get("config", None))
-                processor_instances.append(instance)
-                print(
-                    f"[computeAnaTuple] Loaded processor: {p['name']} ({p['class']})",
-                    file=sys.stderr,
-                )
-            except Exception as e:
-                print(
-                    f"[computeAnaTuple] Failed to load processor {p}: {e}",
-                    file=sys.stderr,
-                )
     for syst_name, source_name in syst_dict.items():
         if source_name not in uncertainties and "all" not in uncertainties:
             continue
@@ -172,8 +158,6 @@ def createAnatuple(
         if len(suffix) and not store_noncentral:
             continue
         columns_to_save = anaTupleDef.getDefaultColumnsToSave(isData)
-        if "sample_type" in columns_to_save:
-            columns_to_save.remove("sample_type")
         dfw = Utilities.DataFrameWrapper(df_empty, columns_to_save)
         dfw.Apply(Baseline.SelectRecoP4, syst_name, setup.global_params["nano_version"])
         # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFilters#Analysis_Recommendations_for_any
@@ -250,36 +234,16 @@ def createAnatuple(
 
             weight_branches = dfw.Apply(
                 corrections.getNormalisationCorrections,
-                setup.global_params,
-                setup.samples,
-                sample_name,
-                lepton_legs,
-                offline_legs,
-                triggers_to_use,
-                syst_name,
-                source_name,
+                lepton_legs=lepton_legs,
+                offline_legs=offline_legs,
+                trigger_names=triggers_to_use,
+                syst_name=syst_name,
+                source_name=source_name,
+                ana_caches=anaCaches,
                 return_variations=is_central and compute_unc_variations,
                 isCentral=is_central,
-                ana_cache=anaCache,
+                use_genWeight_sign_only=True,
             )
-            print("")
-            # Hook the onAnaTupleProd processor(s) before saving
-            for proc in processor_instances:
-                if hasattr(proc, "onAnaTupleProd"):
-                    try:
-                        dfw.df, extra_branches = proc.onAnaTupleProd(
-                            dfw.df,
-                            setup.global_params,
-                            setup.samples,
-                            sample_name,
-                            anaCache=anaCache,
-                        )
-                        dfw.colToSave.extend(extra_branches)
-                    except Exception as e:
-                        print(
-                            f"[computeAnaTuple] Processor {proc.__class__.__name__} failed: {e}",
-                            file=sys.stderr,
-                        )
             puIDbranches = [
                 "weight_Jet_PUJetID_Central_tmp",
                 "weight_Jet_PUJetID_effUp_rel_tmp",
@@ -335,9 +299,8 @@ def createAnatuple(
         #     report.Print()
 
     # Dump
-    if jsonName == None:
-        jsonName = f"{inFileName.split('.')[0]}.json"
-    jsonName = os.path.join(outDir, f"{jsonName}")
+    jsonName = jsonName or f"{inFileName.split('.')[0]}.json"
+    jsonName = os.path.join(outDir, jsonName)
 
     # Move GetValue() to here so it only runs loop once (after the snaps list)
     json_dict_for_cache["nEvents_Filtered"] = nEventsAfterFilter.GetValue()
@@ -355,8 +318,9 @@ if __name__ == "__main__":
     parser.add_argument("--inFile", required=True, type=str)
     parser.add_argument("--outDir", required=True, type=str)
     parser.add_argument("--inFileName", required=True, type=str)
-    parser.add_argument("--sample", required=True, type=str)
+    parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--anaCache", required=True, type=str)
+    parser.add_argument("--anaCacheOthers", required=False, default=None, type=str)
     parser.add_argument("--anaTupleDef", required=True, type=str)
     parser.add_argument(
         "--store-noncentral", action="store_true", help="Store ES variations."
@@ -376,7 +340,6 @@ if __name__ == "__main__":
     parser.add_argument("--nEvents", type=int, default=None)
     parser.add_argument("--evtIds", type=str, default="")
     parser.add_argument("--jsonName", type=str, default=None)
-    parser.add_argument("--processors", required=True, type=str)
 
     args = parser.parse_args()
     from FLAF.Common.Utilities import DeserializeObjectFromString
@@ -390,8 +353,15 @@ if __name__ == "__main__":
     with open(args.anaCache, "r") as f:
         anaCache = yaml.safe_load(f)
 
+    anaCaches = { args.dataset: anaCache }
+
+    if args.anaCacheOthers:
+        anaCacheFiles = DeserializeObjectFromString(args.anaCacheOthers)
+        for ds_name, cache_file in anaCacheFiles.items():
+            with open(cache_file, "r") as f:
+                anaCaches[ds_name] = yaml.safe_load(f)
+
     channels = setup.global_params["channelSelection"]
-    processors_param = DeserializeObjectFromString(args.processors)
     if args.channels:
         channels = (
             args.channels.split(",") if type(args.channels) == str else args.channels
@@ -409,21 +379,20 @@ if __name__ == "__main__":
     )
     snapshotOptions.fCompressionLevel = args.compressionLevel
     createAnatuple(
-        args.inFile,
-        args.inFileName,
-        args.treeName,
-        args.outDir,
-        setup,
-        args.sample,
-        anaCache,
-        snapshotOptions,
-        args.nEvents,
-        args.evtIds,
-        args.store_noncentral,
-        args.compute_unc_variations,
-        args.uncertainties.split(","),
-        anaTupleDef,
-        channels,
-        processors_param,
+        inFile=args.inFile,
+        inFileName=args.inFileName,
+        treeName=args.treeName,
+        outDir=args.outDir,
+        setup=setup,
+        dataset_name=args.dataset,
+        anaCaches=anaCaches,
+        snapshotOptions=snapshotOptions,
+        range=args.nEvents,
+        evtIds=args.evtIds,
+        store_noncentral=args.store_noncentral,
+        compute_unc_variations=args.compute_unc_variations,
+        uncertainties=args.uncertainties.split(","),
+        anaTupleDef=anaTupleDef,
+        channels=channels,
         jsonName=args.jsonName,
     )

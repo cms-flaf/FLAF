@@ -313,12 +313,18 @@ def crc16(
                 crc >>= 1
     return crc & 0xFFFF
 
+
 def load_processor(p_entry, stage, global_params, verbose=0):
     try:
         module = importlib.import_module(p_entry["module"])
         cls = getattr(module, p_entry["class"])
         init_sig = signature(cls.__init__)
-        kwargs = {"global_params": global_params, "processor_entry": p_entry, "stage": stage, "verbose": verbose}
+        kwargs = {
+            "global_params": global_params,
+            "processor_entry": p_entry,
+            "stage": stage,
+            "verbose": verbose,
+        }
         to_remove = []
         for key in kwargs:
             if key not in init_sig.parameters:
@@ -339,13 +345,16 @@ def load_processor(p_entry, stage, global_params, verbose=0):
         )
         raise
 
+
 def create_processor_instances(global_params, processor_entries, stage, verbose=0):
-    processor_instances = { }
+    processor_instances = {}
     if processor_entries:
         for p_entry in processor_entries:
             p_name = p_entry["name"]
             if p_name in processor_instances:
-                raise RuntimeError(f"Processor {p_name} already exists in anaCache computation")
+                raise RuntimeError(
+                    f"Processor {p_name} already exists in anaCache computation"
+                )
             processor = load_processor(p_entry, stage, global_params, verbose=verbose)
             processor_instances[p_name] = processor
     return processor_instances

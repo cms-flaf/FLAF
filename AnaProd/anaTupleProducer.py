@@ -29,7 +29,8 @@ def SelectBTagShapeSF(df, weight_name):
     return df
 
 
-def createAnatuple(*,
+def createAnatuple(
+    *,
     inFile,
     inFileName,
     treeName,
@@ -70,7 +71,9 @@ def createAnatuple(*,
         trigger_class = Triggers.Triggers(triggerFile)
     process_name = dataset_cfg["process_name"]
     process = setup.base_processes[process_name]
-    processors_cfg, processor_instances = setup.get_processors(process_name, stage='AnaTuple', create_instances=True)
+    processors_cfg, processor_instances = setup.get_processors(
+        process_name, stage="AnaTuple", create_instances=True
+    )
     if len(processors_cfg) == 0:
         processor_instances["default"] = DefaultAnaCacheProcessor()
     Corrections.initializeGlobal(
@@ -353,7 +356,7 @@ if __name__ == "__main__":
     with open(args.anaCache, "r") as f:
         anaCache = yaml.safe_load(f)
 
-    anaCaches = { args.dataset: anaCache }
+    anaCaches = {args.dataset: anaCache}
 
     if args.anaCacheOthers:
         anaCacheFiles = DeserializeObjectFromString(args.anaCacheOthers)

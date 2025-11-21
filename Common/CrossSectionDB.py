@@ -2,6 +2,7 @@ import math
 import yaml
 import os
 
+
 class CrossSectionDB:
 
     @staticmethod
@@ -26,15 +27,18 @@ class CrossSectionDB:
                     continue
                 self.addEntry(key, entry)
 
-
     def addEntry(self, entry_name, entry):
         if entry_name in self.entries:
             raise RuntimeError(f"CrossSectionDB: duplicate entry '{entry_name}'")
         if "crossSec" not in entry and "BR" not in entry:
-            raise RuntimeError(f"CrossSectionDB: missing 'crossSec' or 'BR' for entry '{entry_name}'")
+            raise RuntimeError(
+                f"CrossSectionDB: missing 'crossSec' or 'BR' for entry '{entry_name}'"
+            )
         if "crossSec" in entry and "BR" in entry:
-            raise RuntimeError(f"CrossSectionDB: both 'crossSec' and 'BR' defined for entry '{entry_name}'")
-        entry_type = 'BR' if "BR" in entry else 'crossSec'
+            raise RuntimeError(
+                f"CrossSectionDB: both 'crossSec' and 'BR' defined for entry '{entry_name}'"
+            )
+        entry_type = "BR" if "BR" in entry else "crossSec"
         value = self.evaluateExpression(entry[entry_type], entry_name=entry_name)
         entry[f"{entry_type}_orig"] = entry[entry_type]
         entry["type"] = entry_type
@@ -73,4 +77,6 @@ class CrossSectionDB:
             msg = f"'{expr}'"
             if entry_name is not None:
                 msg += f" for entry '{entry_name}'"
-            raise RuntimeError(f"CrossSectionDB: error evaluating expression {msg}: {e}")
+            raise RuntimeError(
+                f"CrossSectionDB: error evaluating expression {msg}: {e}"
+            )

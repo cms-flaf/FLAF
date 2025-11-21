@@ -13,18 +13,23 @@ from Corrections.Corrections import Corrections
 from Corrections.CorrectionsCore import central, getScales, getSystName
 from Corrections.pu import puWeightProducer
 
+
 class DefaultAnaCacheProcessor:
     def onAnaCache_initializeDenomEntry(self):
         return []
 
-    def onAnaCache_updateDenomEntry(self, entry, df, output_branch_name, weights_to_apply):
-        weight_formula = '*'.join(weights_to_apply) if len(weights_to_apply) > 0 else '1.0'
+    def onAnaCache_updateDenomEntry(
+        self, entry, df, output_branch_name, weights_to_apply
+    ):
+        weight_formula = (
+            "*".join(weights_to_apply) if len(weights_to_apply) > 0 else "1.0"
+        )
         df = df.Define(output_branch_name, weight_formula)
         entry.append(df.Sum(output_branch_name))
         return entry
 
     def onAnaCache_materializeDenomEntry(self, entry):
-        return [ x.GetValue() if type(x) != float else x for x in entry  ]
+        return [x.GetValue() if type(x) != float else x for x in entry]
 
     def onAnaCache_finalizeDenomEntry(self, entry):
         return sum(entry)
@@ -32,25 +37,47 @@ class DefaultAnaCacheProcessor:
     def onAnaCache_combineAnaCaches(self, entries):
         return sum(entries)
 
-    def onAnaTuple_defineCrossSection(self, df, crossSectionBranch, xs_db, dataset_name, dataset_entry):
+    def onAnaTuple_defineCrossSection(
+        self, df, crossSectionBranch, xs_db, dataset_name, dataset_entry
+    ):
         xs_name = dataset_entry["crossSection"]
         xs_value = xs_db.getValue(xs_name)
         return df.Define(crossSectionBranch, str(xs_value))
 
-    def onAnaTuple_defineDenominator(self, df, denomBranch, processor_name, dataset_name, source_name, scale_name, ana_caches):
+    def onAnaTuple_defineDenominator(
+        self,
+        df,
+        denomBranch,
+        processor_name,
+        dataset_name,
+        source_name,
+        scale_name,
+        ana_caches,
+    ):
         ana_cache = ana_caches[dataset_name]
         denom_value = ana_cache["denominator"][source_name][scale_name][processor_name]
         return df.Define(denomBranch, str(denom_value))
 
 
-def createAnaCacheProcessorInstances(global_params, processor_entries, stage="AnaCache", verbose=0):
-    processor_instances = { "default": DefaultAnaCacheProcessor() }
-    processor_instances.update(create_processor_instances(global_params, processor_entries, stage, verbose=verbose))
+def createAnaCacheProcessorInstances(
+    global_params, processor_entries, stage="AnaCache", verbose=0
+):
+    processor_instances = {"default": DefaultAnaCacheProcessor()}
+    processor_instances.update(
+        create_processor_instances(
+            global_params, processor_entries, stage, verbose=verbose
+        )
+    )
     return processor_instances
 
 
 def computeAnaCache(
-    file_lists, global_params, use_genWeight_sign_only=True, processor_entries=None, event_range=None, verbose=0
+    file_lists,
+    global_params,
+    use_genWeight_sign_only=True,
+    processor_entries=None,
+    event_range=None,
+    verbose=0,
 ):
     """
     Compute analysis cache. Dynamically loads and executes processors
@@ -59,14 +86,26 @@ def computeAnaCache(
 
     start_time = datetime.datetime.now()
     Corrections.initializeGlobal(
-        global_params=global_params, isData=False, load_corr_lib=True,
-        dataset_name=None, dataset_cfg=None, process_name=None, process_cfg=None,
-        processors=None, trigger_class=None
+        global_params=global_params,
+        isData=False,
+        load_corr_lib=True,
+        dataset_name=None,
+        dataset_cfg=None,
+        process_name=None,
+        process_cfg=None,
+        processors=None,
+        trigger_class=None,
     )
 
-    processor_instances = createAnaCacheProcessorInstances(global_params, processor_entries, verbose=verbose)
+    processor_instances = createAnaCacheProcessorInstances(
+        global_params, processor_entries, verbose=verbose
+    )
 
-    genWeight_def = "std::copysign<double>(1., genWeight)" if use_genWeight_sign_only else "double(genWeight)"
+    genWeight_def = (
+        "std::copysign<double>(1., genWeight)"
+        if use_genWeight_sign_only
+        else "double(genWeight)"
+    )
     sources = [central]
     if "pu" in Corrections.getGlobal().to_apply:
         sources += puWeightProducer.uncSource
@@ -77,7 +116,9 @@ def computeAnaCache(
         for scale in getScales(source):
             denominator[source][scale] = {}
             for p_name, p_instance in processor_instances.items():
-                denominator[source][scale][p_name] = p_instance.onAnaCache_initializeDenomEntry()
+                denominator[source][scale][
+                    p_name
+                ] = p_instance.onAnaCache_initializeDenomEntry()
 
     for tree, file_list in file_lists.items():
         df = ROOT.RDataFrame(tree, file_list)
@@ -89,22 +130,37 @@ def computeAnaCache(
         for source in sources:
             for scale in getScales(source):
                 syst_name = getSystName(source, scale)
-                weights_to_apply = [ "genWeightD" ]
+                weights_to_apply = ["genWeightD"]
                 if "pu" in Corrections.getGlobal().to_apply:
                     weights_to_apply.append(f"puWeight_{scale}")
                 for p_name, p_instance in processor_instances.items():
                     output_branch_name = f"weight_denom_{p_name}_{syst_name}"
-                    denominator[source][scale][p_name] = p_instance.onAnaCache_updateDenomEntry(denominator[source][scale][p_name], df, output_branch_name, weights_to_apply)
+                    denominator[source][scale][p_name] = (
+                        p_instance.onAnaCache_updateDenomEntry(
+                            denominator[source][scale][p_name],
+                            df,
+                            output_branch_name,
+                            weights_to_apply,
+                        )
+                    )
 
         for source in sources:
             for scale in getScales(source):
                 for p_name, p_instance in processor_instances.items():
-                    denominator[source][scale][p_name] = p_instance.onAnaCache_materializeDenomEntry(denominator[source][scale][p_name])
+                    denominator[source][scale][p_name] = (
+                        p_instance.onAnaCache_materializeDenomEntry(
+                            denominator[source][scale][p_name]
+                        )
+                    )
 
     for source in sources:
         for scale in getScales(source):
             for p_name, p_instance in processor_instances.items():
-                denominator[source][scale][p_name] = p_instance.onAnaCache_finalizeDenomEntry(denominator[source][scale][p_name])
+                denominator[source][scale][p_name] = (
+                    p_instance.onAnaCache_finalizeDenomEntry(
+                        denominator[source][scale][p_name]
+                    )
+                )
 
     end_time = datetime.datetime.now()
     anaCache = {
@@ -135,14 +191,26 @@ def combineAnaCaches(anaCaches, processors):
         for scale in getScales(source):
             for processor in anaCache_processors:
                 if processor not in processors:
-                    raise RuntimeError(f"combineAnaCaches: processor {processor} not provided for combining anaCaches")
+                    raise RuntimeError(
+                        f"combineAnaCaches: processor {processor} not provided for combining anaCaches"
+                    )
                 entries = []
                 for anaCache in anaCaches:
-                    if source in anaCache["denominator"] and scale in anaCache["denominator"][source] and processor in anaCache["denominator"][source][scale]:
-                        entries.append(anaCache["denominator"][source][scale][processor])
+                    if (
+                        source in anaCache["denominator"]
+                        and scale in anaCache["denominator"][source]
+                        and processor in anaCache["denominator"][source][scale]
+                    ):
+                        entries.append(
+                            anaCache["denominator"][source][scale][processor]
+                        )
                     else:
-                        raise RuntimeError(f"combineAnaCaches: missing entry for {source}/{scale}/{processor} in one of the caches")
-                denominator[source][scale][processor] = processors[processor].onAnaCache_combineAnaCaches(entries)
+                        raise RuntimeError(
+                            f"combineAnaCaches: missing entry for {source}/{scale}/{processor} in one of the caches"
+                        )
+                denominator[source][scale][processor] = processors[
+                    processor
+                ].onAnaCache_combineAnaCaches(entries)
 
     runtime = sum(anaCache["runtime"] for anaCache in anaCaches)
     anaCacheSum = {
@@ -153,13 +221,15 @@ def combineAnaCaches(anaCaches, processors):
 
 
 def create_filelists(input_files, keys=["Events", "EventsNotSelected"]):
-    file_lists = { key: [] for key in keys }
+    file_lists = {key: [] for key in keys}
     for input_file in input_files:
         with ROOT.TFile.Open(input_file) as tmp_file:
             for key in keys:
                 if key in tmp_file.GetListOfKeys():
                     file_lists[key].append(input_file)
-    file_lists = { key: file_list for key, file_list in file_lists.items() if len(file_list) > 0 }
+    file_lists = {
+        key: file_list for key, file_list in file_lists.items() if len(file_list) > 0
+    }
     return file_lists
 
 
@@ -180,7 +250,9 @@ if __name__ == "__main__":
 
     input_files = args.input_files.split(",")
     global_params = DeserializeObjectFromString(args.global_params)
-    processors_entries = DeserializeObjectFromString(args.processors) if args.processors else None
+    processors_entries = (
+        DeserializeObjectFromString(args.processors) if args.processors else None
+    )
 
     file_lists = create_filelists(input_files)
     anaCache = computeAnaCache(

@@ -8,6 +8,7 @@ from FLAF.RunKit.envToJson import get_cmsenv
 from FLAF.RunKit.law_wlcg import WLCGFileSystem
 from FLAF.Common.Utilities import create_processor_instances
 
+
 def select_items(all_items, filters):
     def name_match(name, pattern):
         if pattern[0] == "^":
@@ -51,7 +52,7 @@ def select_items(all_items, filters):
 
 
 class Config:
-    def __init__(self, name, paths, file_names, special_items_prefix='.'):
+    def __init__(self, name, paths, file_names, special_items_prefix="."):
         self.name = name
         yaml_str = ""
         self.considered_paths = []
@@ -63,10 +64,16 @@ class Config:
                     with open(full_path, "r") as f:
                         yaml_str += f.read() + "\n"
         if len(yaml_str) == 0:
-            raise RuntimeError(f'No configuration files {file_names} found in paths {paths}.')
+            raise RuntimeError(
+                f"No configuration files {file_names} found in paths {paths}."
+            )
         config_dict = yaml.safe_load(yaml_str)
         if special_items_prefix is not None:
-            config_dict = {k: v for k, v in config_dict.items() if not k.startswith(special_items_prefix)}
+            config_dict = {
+                k: v
+                for k, v in config_dict.items()
+                if not k.startswith(special_items_prefix)
+            }
         self.config_dict = config_dict
 
     def __getitem__(self, key):
@@ -97,38 +104,56 @@ class PhysicsModel:
 
     def __init__(self, name, model_dict):
         self.name = name
-        extra_keys = model_dict.keys() - PhysicsModel.allowed_process_types - PhysicsModel.other_attributes
+        extra_keys = (
+            model_dict.keys()
+            - PhysicsModel.allowed_process_types
+            - PhysicsModel.other_attributes
+        )
         if len(extra_keys) > 0:
-            raise RuntimeError(f"Physics model '{name}' contains invalid process types: {extra_keys}")
+            raise RuntimeError(
+                f"Physics model '{name}' contains invalid process types: {extra_keys}"
+            )
         self._processes = {}
         for key in PhysicsModel.allowed_process_types:
             items = model_dict.get(key, [])
             for item in items:
                 if item in self._processes:
-                    raise RuntimeError(f"Process '{item}' is defined multiple times in physics model '{name}'.")
+                    raise RuntimeError(
+                        f"Process '{item}' is defined multiple times in physics model '{name}'."
+                    )
                 self._processes[item] = key
         self._base_processes = {}
 
     def processes(self, process_type=None):
         if process_type is None:
             return list(self._processes.keys())
-        return [proc for proc, p_type in self._processes.items() if p_type == process_type]
+        return [
+            proc for proc, p_type in self._processes.items() if p_type == process_type
+        ]
 
     def process_type(self, process_name):
         if process_name not in self._processes:
-            raise RuntimeError(f"Process '{process_name}' not found in physics model '{self.name}'.")
+            raise RuntimeError(
+                f"Process '{process_name}' not found in physics model '{self.name}'."
+            )
         return self._processes[process_name]
 
-    def replace_process(self, old_process_name, new_process_names, ignore_missing=False):
+    def replace_process(
+        self, old_process_name, new_process_names, ignore_missing=False
+    ):
         if old_process_name not in self._processes:
             if ignore_missing:
                 return
-            raise RuntimeError(f"Process '{old_process_name}' not found in physics model '{self.name}'.")
+            raise RuntimeError(
+                f"Process '{old_process_name}' not found in physics model '{self.name}'."
+            )
         process_type = self._processes[old_process_name]
         del self._processes[old_process_name]
         for new_process_name in new_process_names:
             if new_process_name in self._processes:
-                raise RuntimeError(f"Process '{new_process_name}' already exists in physics model '{self.name}'.")
+                raise RuntimeError(
+                    f"Process '{new_process_name}' already exists in physics model '{self.name}'."
+                )
             self._processes[new_process_name] = process_type
 
     def select_processes(self, filters):
@@ -140,13 +165,17 @@ class PhysicsModel:
                 orig_base.extend(bases)
             selected_base = set(select_items(set(orig_base), filters))
             if len(selected_base) == 0:
-                raise RuntimeError(f"No processes selected in physics model '{self.name}' with filters: {filters}")
+                raise RuntimeError(
+                    f"No processes selected in physics model '{self.name}' with filters: {filters}"
+                )
             selected = set()
             for process_name, base_process_names in self._base_processes.items():
                 if any(base in selected_base for base in base_process_names):
                     selected.add(process_name)
             if len(selected) != 1:
-                raise RuntimeError(f"Multiple processes selected via base processes in physics model '{self.name}' with filters: {filters}")
+                raise RuntimeError(
+                    f"Multiple processes selected via base processes in physics model '{self.name}' with filters: {filters}"
+                )
         else:
             selected_base = None
         to_remove = set(self._processes.keys()) - selected
@@ -156,17 +185,23 @@ class PhysicsModel:
                 del self._base_processes[process_name]
         if selected_base is not None:
             for process_name, base_process_names in self._base_processes.items():
-                new_bases = [base for base in base_process_names if base in selected_base]
+                new_bases = [
+                    base for base in base_process_names if base in selected_base
+                ]
                 self._base_processes[process_name] = new_bases
 
     def set_base_processes(self, process_name, base_process_names):
         if process_name not in self._processes:
-            raise RuntimeError(f"Process '{process_name}' not found in physics model '{self.name}'.")
+            raise RuntimeError(
+                f"Process '{process_name}' not found in physics model '{self.name}'."
+            )
         self._base_processes[process_name] = base_process_names
 
     def base_processes(self, process_name):
         if process_name not in self._processes:
-            raise RuntimeError(f"Process '{process_name}' not found in physics model '{self.name}'.")
+            raise RuntimeError(
+                f"Process '{process_name}' not found in physics model '{self.name}'."
+            )
         if process_name not in self._base_processes:
             raise RuntimeError(f"Base processes for '{process_name}' are not set.")
         return self._base_processes[process_name]
@@ -200,8 +235,14 @@ def apply_customisations(config_dict, customisations):
 class Setup:
     _global_instances = {}
 
-    def __init__(self, ana_path, period, custom_process_selection=None, custom_dataset_selection=None,
-                 customisations=None):
+    def __init__(
+        self,
+        ana_path,
+        period,
+        custom_process_selection=None,
+        custom_dataset_selection=None,
+        customisations=None,
+    ):
         self.ana_path = ana_path
         self.period = period
 
@@ -212,15 +253,21 @@ class Setup:
             os.path.join(ana_path, "config", period),
         ]
 
-        self.global_params = Config("global", self.config_path_order, [ "global.yaml", "user_custom.yaml" ])
+        self.global_params = Config(
+            "global", self.config_path_order, ["global.yaml", "user_custom.yaml"]
+        )
 
         apply_customisations(self.global_params, customisations)
 
-        phys_models = Config("phys_models", self.config_path_order, [ "phys_models.yaml" ])
+        phys_models = Config(
+            "phys_models", self.config_path_order, ["phys_models.yaml"]
+        )
         phys_model_name = self.global_params["phys_model"]
         self.phys_model = PhysicsModel(phys_model_name, phys_models[phys_model_name])
 
-        processes_config = Config("processes", self.config_path_order, [ "processes.yaml" ])
+        processes_config = Config(
+            "processes", self.config_path_order, ["processes.yaml"]
+        )
         processes = {}
         for key, item in processes_config.items():
             if item.get("is_meta_process", False):
@@ -262,7 +309,9 @@ class Setup:
                     processes[proc_name] = new_process
                     new_process_names_for_model.append(proc_name)
 
-                self.phys_model.replace_process(key, new_process_names_for_model, ignore_missing=True)
+                self.phys_model.replace_process(
+                    key, new_process_names_for_model, ignore_missing=True
+                )
             else:
                 processes[key] = item
 
@@ -292,7 +341,9 @@ class Setup:
         if custom_process_selection is not None:
             if type(custom_process_selection) == str:
                 custom_process_selection = custom_process_selection.split(",")
-            filters = [ 'drop ^.*' ] + [ f'keep {pattern}' for pattern in custom_process_selection ]
+            filters = ["drop ^.*"] + [
+                f"keep {pattern}" for pattern in custom_process_selection
+            ]
             self.phys_model.select_processes(filters)
         self.base_processes = {}
         self.parent_processes = {}
@@ -303,7 +354,7 @@ class Setup:
                 self.base_processes[b_process_name] = b_process
                 self.parent_processes[process_name] = process_name
 
-        all_datasets = Config("datasets", self.config_path_order, [ "datasets.yaml" ])
+        all_datasets = Config("datasets", self.config_path_order, ["datasets.yaml"])
         active_datasets = {}
         for process_name, process in self.base_processes.items():
             for dataset_name in process.get("datasets", []):
@@ -313,30 +364,37 @@ class Setup:
                     )
                 active_datasets[dataset_name] = all_datasets[dataset_name]
                 active_datasets[dataset_name]["process_name"] = process_name
-                active_datasets[dataset_name]["process_group"] = self.phys_model.process_type(process["parent_process"])
+                active_datasets[dataset_name]["process_group"] = (
+                    self.phys_model.process_type(process["parent_process"])
+                )
         if custom_dataset_selection is not None:
             if type(custom_dataset_selection) == str:
                 custom_dataset_selection = custom_dataset_selection.split(",")
-            filters = [ 'drop ^.*' ] + [ f'keep {pattern}' for pattern in custom_dataset_selection ]
+            filters = ["drop ^.*"] + [
+                f"keep {pattern}" for pattern in custom_dataset_selection
+            ]
             selected_datasets = select_items(set(active_datasets.keys()), filters)
             if len(selected_datasets) == 0:
-                raise RuntimeError(f"No datasets selected with a custom selection: {custom_dataset_selection}")
-            active_datasets = {
-                key: active_datasets[key]
-                for key in selected_datasets
-            }
+                raise RuntimeError(
+                    f"No datasets selected with a custom selection: {custom_dataset_selection}"
+                )
+            active_datasets = {key: active_datasets[key] for key in selected_datasets}
         self.datasets = active_datasets
 
         # create payload -> what producer delivers it
         # will be used to check if cache is needed
         self.var_producer_map = {}
-        for producer_name, producer_config in self.global_params.get("payload_producers", {}).items():
+        for producer_name, producer_config in self.global_params.get(
+            "payload_producers", {}
+        ).items():
             columns_delivered = producer_config.get("columns")
             if columns_delivered:
                 for col in columns_delivered:
                     self.var_producer_map[f"{producer_name}_{col}"] = producer_name
 
-        self.weights_config = Config("weights", self.config_path_order, [ "weights.yaml" ])
+        self.weights_config = Config(
+            "weights", self.config_path_order, ["weights.yaml"]
+        )
         self.fs_dict = {}
         self.hists_ = None
         self.cmssw_env_ = None
@@ -351,15 +409,19 @@ class Setup:
             elif process_name in self.parent_processes:
                 process = self.parent_processes[process_name]
             else:
-                raise RuntimeError(f"Process '{process_name}' not found in base processes.")
+                raise RuntimeError(
+                    f"Process '{process_name}' not found in base processes."
+                )
             all_processors = process.get("processors", {})
             stage_processors = []
             for entry in all_processors:
                 if stage in entry["stages"]:
                     stage_processors.append(entry)
             if create_instances:
-                processors = create_processor_instances(self.global_params, stage_processors, stage)
-                value =(stage_processors, processors)
+                processors = create_processor_instances(
+                    self.global_params, stage_processors, stage
+                )
+                value = (stage_processors, processors)
             else:
                 value = stage_processors
             self.processors_cache[key] = value
@@ -450,17 +512,33 @@ class Setup:
     @property
     def hists(self):
         if self.hists_ is None:
-            self.hists_ = Config("histograms", self.config_path_order, [ "plot/histograms.yaml" ])
+            self.hists_ = Config(
+                "histograms", self.config_path_order, ["plot/histograms.yaml"]
+            )
         return self.hists_
 
     @staticmethod
-    def getGlobal(ana_path, period, custom_process_selection=None, custom_dataset_selection=None,
-                 customisations=None):
-        key = (ana_path, period, custom_process_selection, custom_dataset_selection, customisations)
+    def getGlobal(
+        ana_path,
+        period,
+        custom_process_selection=None,
+        custom_dataset_selection=None,
+        customisations=None,
+    ):
+        key = (
+            ana_path,
+            period,
+            custom_process_selection,
+            custom_dataset_selection,
+            customisations,
+        )
         if key not in Setup._global_instances:
             Setup._global_instances[key] = Setup(
-                ana_path, period, custom_process_selection=custom_process_selection, custom_dataset_selection=custom_dataset_selection,
-                customisations=customisations
+                ana_path,
+                period,
+                custom_process_selection=custom_process_selection,
+                custom_dataset_selection=custom_dataset_selection,
+                customisations=customisations,
             )
         return Setup._global_instances[key]
 

@@ -49,10 +49,11 @@ class Task(law.Task):
     def __init__(self, *args, **kwargs):
         super(Task, self).__init__(*args, **kwargs)
         self.setup = Setup.getGlobal(
-            os.getenv("ANALYSIS_PATH"), self.period,
+            os.getenv("ANALYSIS_PATH"),
+            self.period,
             custom_process_selection=self.process if len(self.process) > 0 else None,
             custom_dataset_selection=self.dataset if len(self.dataset) > 0 else None,
-            customisations=self.customisations
+            customisations=self.customisations,
         )
         self._dataset_id_name_list = None
         self._dataset_id_name_dict = None
@@ -148,7 +149,9 @@ class Task(law.Task):
             self._dataset_id_name_list = []
             self._dataset_id_name_dict = {}
             self._dataset_name_id_dict = {}
-            for dataset_id, dataset_name in enumerate(natural_sort(self.datasets.keys())):
+            for dataset_id, dataset_name in enumerate(
+                natural_sort(self.datasets.keys())
+            ):
                 self._dataset_id_name_list.append((dataset_id, dataset_name))
                 self._dataset_id_name_dict[dataset_id] = dataset_name
                 self._dataset_name_id_dict[dataset_name] = dataset_id
@@ -169,6 +172,7 @@ class Task(law.Task):
         if dataset_name not in self._dataset_name_id_dict:
             raise KeyError(f"dataset name '{dataset_name}' not found")
         return self._dataset_name_id_dict[dataset_name]
+
 
 class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     """

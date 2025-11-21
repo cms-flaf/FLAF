@@ -1,4 +1,4 @@
-crossSections: {}
+crossSections: { }
 # totalCrossSection: DYto2L_M_50_amcatnloFXFX
 bins:
   - name: NpNLO_0

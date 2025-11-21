@@ -139,7 +139,6 @@ class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self.input()[0].path, dir_to_list, test=self.test > 0
         )
         ana_caches = []
-        generator_name = self.datasets[dataset_name]["generator"] if not isData else ""
         global_params_str = SerializeObjectToString(self.global_params)
         process_name = self.datasets[dataset_name]["process_name"]
         processors_cfg = self.setup.get_processors(process_name, stage="AnaCache")
@@ -169,8 +168,6 @@ class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     input_local.path,
                     "--global-params",
                     global_params_str,
-                    "--generator-name",
-                    generator_name,
                     "--verbose",
                     "1",
                 ]

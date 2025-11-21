@@ -240,7 +240,6 @@ if __name__ == "__main__":
     parser.add_argument("--input-files", required=True, type=str)
     parser.add_argument("--output", required=False, default=None, type=str)
     parser.add_argument("--global-params", required=True, type=str)
-    parser.add_argument("--generator-name", required=True, type=str)
     parser.add_argument("--processors", required=False, type=str, default=None)
     parser.add_argument("--n-events", type=int, default=None)
     parser.add_argument("--verbose", type=int, default=1)
@@ -258,7 +257,6 @@ if __name__ == "__main__":
     anaCache = computeAnaCache(
         file_lists,
         global_params,
-        args.generator_name,
         processor_entries=processors_entries,
         event_range=args.n_events,
         verbose=args.verbose,

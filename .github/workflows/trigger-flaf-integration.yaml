@@ -13,7 +13,7 @@ jobs:
   process-trigger-request:
     runs-on: ubuntu-latest
     steps:
-      - uses: cms-flaf/FLAF/.github/actions/checkout-flaf@main
+      # - uses: cms-flaf/FLAF/.github/actions/checkout-flaf@main
 
       - name: Install js-yaml
         run: npm install js-yaml

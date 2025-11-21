@@ -31,7 +31,7 @@ jobs:
       - name: Checkout PR branch
         if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}
         run: |
-          hub pr checkout ${{ github.event.issue.number }}
+          gh pr checkout ${{ github.event.issue.number }}
 
       - name: Install js-yaml
         if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}

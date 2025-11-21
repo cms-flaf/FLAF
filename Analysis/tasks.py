@@ -213,7 +213,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if len(btag_shape_weight_branch_set) > 0:
                 reqs["btagShapeWeight"] = BtagShapeWeightTask.req(self, branch=-1, branches=tuple(btag_shape_weight_branch_set), sample=sample)
                 # reqs["btagShapeWeight"] = BtagShapeWeightTask.req(self, branch=btag_shape_weight_branch_set, sample=sample)
-        print(reqs)
         return reqs
 
     def requires(self):

@@ -240,7 +240,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     startTime = time.time()
-    setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period, "")
+    setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period)
 
     treeName = setup.global_params[
         "treeName"
@@ -253,13 +253,13 @@ if __name__ == "__main__":
         else setup.global_params["channelSelection"]
     )
     process_name = (
-        setup.samples[args.dataset]["process_name"]
+        setup.datasets[args.dataset]["process_name"]
         if args.dataset != "data"
         else "data"
     )
     setup.global_params["process_name"] = process_name
     process_group = (
-        setup.samples[args.dataset]["process_group"]
+        setup.datasets[args.dataset]["process_group"]
         if args.dataset != "data"
         else "data"
     )

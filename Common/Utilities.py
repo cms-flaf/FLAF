@@ -157,6 +157,10 @@ class DataFrameWrapper:
         self.Define(varToDefine, varToCall)
         self.colToSave.append(varToDefine)
 
+    def RedefineAndAppend(self, varToDefine, varToCall):
+        self.Redefine(varToDefine, varToCall)
+        self.colToSave.append(varToDefine)
+
     def Apply(self, func, *args, **kwargs):
         result = func(self.df, *args, **kwargs)
         if isinstance(result, tuple):

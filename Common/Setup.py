@@ -82,6 +82,9 @@ class Config:
             raise KeyError(f'Key "{key}" not found in {self.name} configuration.')
         return value
 
+    def __setitem__(self, key, value):
+        self.config_dict[key] = value
+
     def __contains__(self, key):
         return key in self.config_dict
 
@@ -248,8 +251,8 @@ class Setup:
 
         self.config_path_order = [
             os.path.join(ana_path, "FLAF", "config"),
-            os.path.join(ana_path, "config"),
             os.path.join(ana_path, "FLAF", "config", period),
+            os.path.join(ana_path, "config"),
             os.path.join(ana_path, "config", period),
         ]
 
@@ -364,7 +367,7 @@ class Setup:
                 b_process = processes[b_process_name]
                 b_process["parent_process"] = process_name
                 self.base_processes[b_process_name] = b_process
-                self.parent_processes[process_name] = process_name
+                self.parent_processes[process_name] = processes[process_name]
 
         all_datasets = Config("datasets", self.config_path_order, ["datasets.yaml"])
         active_datasets = {}

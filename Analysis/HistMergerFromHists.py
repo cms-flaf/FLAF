@@ -231,7 +231,7 @@ if __name__ == "__main__":
             )
             continue
         with ROOT.TFile.Open(inFile_path, "READ") as inFile:
-        # check that the file is ok
+            # check that the file is ok
             if inFile.IsZombie():
                 raise RuntimeError(f"{inFile_path} is zombie")
             if not checkFile(inFile, channels, regions, all_categories):

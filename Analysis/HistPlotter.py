@@ -8,7 +8,8 @@ if __name__ == "__main__":
 
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
-#from FLAF.Analysis.HistMerger import *
+
+# from FLAF.Analysis.HistMerger import *
 
 
 def GetHistName(dataset_name, dataset_type, uncName, unc_scale, global_cfg_dict):
@@ -188,7 +189,9 @@ if __name__ == "__main__":
                 all_datasets_dict[all_datasets_key] = {}
                 all_datasets_dict[all_datasets_key]["process_name"] = process_name
                 all_datasets_dict[all_datasets_key]["process_group"] = process_group
-                all_datasets_dict[all_datasets_key]["plot_name"] = process.get("name", process_name)
+                all_datasets_dict[all_datasets_key]["plot_name"] = process.get(
+                    "name", process_name
+                )
                 all_datasets_dict[all_datasets_key]["plot_color"] = process["color"]
 
         plotter = Plotter.Plotter(

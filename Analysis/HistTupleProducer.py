@@ -144,7 +144,8 @@ def createHistTuple(
     evtIds,
     histTupleDef,
     inFile_keys,
-    btag_integral_ratios
+    btag_integral_ratios,
+    is_data
 ):
     # compression_settings = snapshotOptions.fCompressionAlgorithm * 100 + snapshotOptions.fCompressionLevel
     histTupleDef.Initialize()
@@ -185,7 +186,8 @@ def createHistTuple(
     # does not modify the integral
     # if empty btag_integral_ratios passed, UpdateBtagWeight will do nothing
     weight_corrector = BtagShapeWeightCorrector(btag_integral_ratios)
-    dfw_central = weight_corrector.UpdateBtagWeight(dfw_central)
+    if not is_data:
+        dfw_central = weight_corrector.UpdateBtagWeight(dfw_central)
 
     col_names_central = dfw_central.colNames
     col_types_central = dfw_central.colTypes
@@ -259,7 +261,8 @@ def createHistTuple(
                     )
                     final_weight_name = "weight_Central"
 
-                    dfw_shift = weight_corrector.UpdateBtagWeight(dfw_shift, unc_src=unc, unc_scale=scale)
+                    if not is_data:
+                        dfw_shift = weight_corrector.UpdateBtagWeight(dfw_shift, unc_src=unc, unc_scale=scale)
 
                     histTupleDef.DefineWeightForHistograms(
                         dfw_shift,
@@ -356,6 +359,8 @@ if __name__ == "__main__":
     )
     setup.global_params["process_group"] = process_group
 
+    is_data = process_group == "data"
+
     setup.global_params["compute_rel_weights"] = (
         args.compute_rel_weights and process_group != "data"
     )
@@ -405,7 +410,8 @@ if __name__ == "__main__":
             args.evtIds,
             histTupleDef,
             inFile_keys,
-            btag_integral_ratios
+            btag_integral_ratios,
+            is_data
         )
         if tmp_fileNames:
             hadd_str = f"hadd -f -j -O {args.outFile} "

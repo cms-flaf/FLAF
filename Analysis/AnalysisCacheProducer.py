@@ -18,6 +18,7 @@ import FLAF.Common.Utilities as Utilities
 defaultColToSave = ["FullEventId"]
 scales = ["Up", "Down"]
 
+
 def createCacheQuantities(dfWrapped_cache, cache_map_name, cache_entry_name):
     df_cache = dfWrapped_cache.df
     map_creator_cache = ROOT.analysis.CacheCreator(*dfWrapped_cache.colTypes)()
@@ -28,6 +29,7 @@ def createCacheQuantities(dfWrapped_cache, cache_map_name, cache_entry_name):
         cache_entry_name,
     )
     return df_cache
+
 
 def AddCacheColumnsInDf(
     dfWrapped_central,
@@ -46,6 +48,7 @@ def AddCacheColumnsInDf(
     if dfWrapped_cache.df.Filter(f"{cache_map_name} > 0").Count().GetValue() <= 0:
         raise RuntimeError("no events passed map placeolder")
     dfWrapped_central.AddCacheColumns(col_names_cache, col_types_cache, cache_map_name)
+
 
 def getKeyNames(root_file_name):
     root_file = ROOT.TFile(root_file_name, "READ")

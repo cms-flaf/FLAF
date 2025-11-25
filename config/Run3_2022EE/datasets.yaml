@@ -1,34 +1,19 @@
 ############## Data ##############
-EGamma_Run2022E:
-  sampleType: data
-EGamma_Run2022F:
-  sampleType: data
-EGamma_Run2022G:
-  sampleType: data
-Muon_Run2022E:
-  sampleType: data
-Muon_Run2022F:
-  sampleType: data
-Muon_Run2022G:
-  sampleType: data
-MuonEG_Run2022E:
-  sampleType: data
-MuonEG_Run2022F:
-  sampleType: data
-MuonEG_Run2022G:
-  sampleType: data
-Tau_Run2022E:
-  sampleType: data
-Tau_Run2022F:
-  sampleType: data
-Tau_Run2022G:
-  sampleType: data
-JetMET_Run2022E:
-  sampleType: data
-JetMET_Run2022F:
-  sampleType: data
-JetMET_Run2022G:
-  sampleType: data
+EGamma_Run2022E: {}
+EGamma_Run2022F: {}
+EGamma_Run2022G: {}
+Muon_Run2022E: {}
+Muon_Run2022F: {}
+Muon_Run2022G: {}
+MuonEG_Run2022E: {}
+MuonEG_Run2022F: {}
+MuonEG_Run2022G: {}
+Tau_Run2022E: {}
+Tau_Run2022F: {}
+Tau_Run2022G: {}
+JetMET_Run2022E: {}
+JetMET_Run2022F: {}
+JetMET_Run2022G: {}
 ############## DY ##############
 DYto2E_MLL_10to50_powheg:
   crossSection: DYto2E_MLL_10to50_powheg

@@ -557,13 +557,13 @@ class Setup:
             )
         return Setup._global_instances[key]
 
-    def getAnaTupleFileList(self, sample_name, remote_file):
-        if sample_name in self.anaTupleFiles.keys():
-            return self.anaTupleFiles[sample_name]
+    def getAnaTupleFileList(self, dataset_name, remote_file):
+        if dataset_name in self.anaTupleFiles.keys():
+            return self.anaTupleFiles[dataset_name]
         else:
             with remote_file.localize("r") as f:
                 with open(f.path, "r") as this_file:
                     json_dict = json.load(this_file)
-                    sample_dict = json_dict
-                    self.anaTupleFiles[sample_name] = sample_dict
-            return self.anaTupleFiles[sample_name]
+                    dataset_dict = json_dict
+                    self.anaTupleFiles[dataset_name] = dataset_dict
+            return self.anaTupleFiles[dataset_name]

@@ -1,18 +1,18 @@
 ############## Data ##############
-EGamma_Run2022C: {}
-EGamma_Run2022D: {}
-Muon_Run2022C: {}
-Muon_Run2022D: {}
-SingleMuon_Run2022C: {}
-DoubleMuon_Run2022C: {}
-MuonEG_Run2022C: {}
-MuonEG_Run2022D: {}
-Tau_Run2022C: {}
-Tau_Run2022D: {}
-JetHT_Run2022C: {}
-JetMET_Run2022C: {}
-MET_Run2022C: {}
-JetMET_Run2022D: {}
+EGamma_Run2022C: { }
+EGamma_Run2022D: { }
+Muon_Run2022C: { }
+Muon_Run2022D: { }
+SingleMuon_Run2022C: { }
+DoubleMuon_Run2022C: { }
+MuonEG_Run2022C: { }
+MuonEG_Run2022D: { }
+Tau_Run2022C: { }
+Tau_Run2022D: { }
+JetHT_Run2022C: { }
+JetMET_Run2022C: { }
+MET_Run2022C: { }
+JetMET_Run2022D: { }
 ############## DY ##############
 ############## powheg ##############
 ############## DYto2E ##############

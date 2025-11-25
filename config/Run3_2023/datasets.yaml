@@ -1,96 +1,50 @@
 ############## Data ##############
-EGamma0_Run2023C_v1:
-  sampleType: data
-EGamma0_Run2023C_v2:
-  sampleType: data
-EGamma0_Run2023C_v3:
-  sampleType: data
-EGamma0_Run2023C_v4:
-  sampleType: data
-EGamma1_Run2023C_v1:
-  sampleType: data
-EGamma1_Run2023C_v2:
-  sampleType: data
-EGamma1_Run2023C_v3:
-  sampleType: data
-EGamma1_Run2023C_v4:
-  sampleType: data
-JetMET0_Run2023C_v1:
-  sampleType: data
-JetMET0_Run2023C_v2:
-  sampleType: data
-JetMET0_Run2023C_v3:
-  sampleType: data
-JetMET0_Run2023C_v4:
-  sampleType: data
-JetMET1_Run2023C_v1:
-  sampleType: data
-JetMET1_Run2023C_v2:
-  sampleType: data
-JetMET1_Run2023C_v3:
-  sampleType: data
-JetMET1_Run2023C_v4:
-  sampleType: data
-Muon0_Run2023C_v1:
-  sampleType: data
-Muon0_Run2023C_v2:
-  sampleType: data
-Muon0_Run2023C_v3:
-  sampleType: data
-Muon0_Run2023C_v4:
-  sampleType: data
-Muon1_Run2023C_v1:
-  sampleType: data
-Muon1_Run2023C_v2:
-  sampleType: data
-Muon1_Run2023C_v3:
-  sampleType: data
-Muon1_Run2023C_v4:
-  sampleType: data
-MuonEG_Run2023C_v1:
-  sampleType: data
-MuonEG_Run2023C_v2:
-  sampleType: data
-MuonEG_Run2023C_v3:
-  sampleType: data
-MuonEG_Run2023C_v4:
-  sampleType: data
-ParkingHH_Run2023C_v3:
-  sampleType: data
-ParkingHH_Run2023C_v4:
-  sampleType: data
-ParkingVBF0_Run2023C_v3:
-  sampleType: data
-ParkingVBF0_Run2023C_v4:
-  sampleType: data
-ParkingVBF1_Run2023C_v3:
-  sampleType: data
-ParkingVBF1_Run2023C_v4:
-  sampleType: data
-ParkingVBF2_Run2023C_v3:
-  sampleType: data
-ParkingVBF2_Run2023C_v4:
-  sampleType: data
-ParkingVBF3_Run2023C_v3:
-  sampleType: data
-ParkingVBF3_Run2023C_v4:
-  sampleType: data
-ParkingVBF4_Run2023C_v4:
-  sampleType: data
-ParkingVBF5_Run2023C_v4:
-  sampleType: data
-ParkingVBF6_Run2023C_v4:
-  sampleType: data
-ParkingVBF7_Run2023C_v4:
-  sampleType: data
-Tau_Run2023C_v1:
-  sampleType: data
-Tau_Run2023C_v2:
-  sampleType: data
-Tau_Run2023C_v3:
-  sampleType: data
-Tau_Run2023C_v4:
-  sampleType: data
+EGamma0_Run2023C_v1: {}
+EGamma0_Run2023C_v2: {}
+EGamma0_Run2023C_v3: {}
+EGamma0_Run2023C_v4: {}
+EGamma1_Run2023C_v1: {}
+EGamma1_Run2023C_v2: {}
+EGamma1_Run2023C_v3: {}
+EGamma1_Run2023C_v4: {}
+JetMET0_Run2023C_v1: {}
+JetMET0_Run2023C_v2: {}
+JetMET0_Run2023C_v3: {}
+JetMET0_Run2023C_v4: {}
+JetMET1_Run2023C_v1: {}
+JetMET1_Run2023C_v2: {}
+JetMET1_Run2023C_v3: {}
+JetMET1_Run2023C_v4: {}
+Muon0_Run2023C_v1: {}
+Muon0_Run2023C_v2: {}
+Muon0_Run2023C_v3: {}
+Muon0_Run2023C_v4: {}
+Muon1_Run2023C_v1: {}
+Muon1_Run2023C_v2: {}
+Muon1_Run2023C_v3: {}
+Muon1_Run2023C_v4: {}
+MuonEG_Run2023C_v1: {}
+MuonEG_Run2023C_v2: {}
+MuonEG_Run2023C_v3: {}
+MuonEG_Run2023C_v4: {}
+ParkingHH_Run2023C_v3: {}
+ParkingHH_Run2023C_v4: {}
+ParkingVBF0_Run2023C_v3: {}
+ParkingVBF0_Run2023C_v4: {}
+ParkingVBF1_Run2023C_v3: {}
+ParkingVBF1_Run2023C_v4: {}
+ParkingVBF2_Run2023C_v3: {}
+ParkingVBF2_Run2023C_v4: {}
+ParkingVBF3_Run2023C_v3: {}
+ParkingVBF3_Run2023C_v4: {}
+ParkingVBF4_Run2023C_v4: {}
+ParkingVBF5_Run2023C_v4: {}
+ParkingVBF6_Run2023C_v4: {}
+ParkingVBF7_Run2023C_v4: {}
+Tau_Run2023C_v1: {}
+Tau_Run2023C_v2: {}
+Tau_Run2023C_v3: {}
+Tau_Run2023C_v4: {}
 ############## DY ##############
 ############## powheg ##############
 ############## DYto2E ##############

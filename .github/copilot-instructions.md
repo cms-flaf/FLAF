@@ -2,7 +2,7 @@
 
 ## Overview
 
-**FLAF** (Flexible LAW-based Analysis Framework) is a CMS (CERN) high-energy physics analysis framework for HH → bb𝜏𝜏 analysis. The project uses [LAW](https://github.com/riga/law) (Luigi Analysis Workflow) for task management and is designed to run on CERN computing infrastructure (lxplus, HTCondor, CVMFS).
+**FLAF** (Flexible LAW-based Analysis Framework) is a CMS (CERN) high-energy physics analysis framework designed to support multiple analyses. The project uses [LAW](https://github.com/riga/law) (Luigi Analysis Workflow) for task management and is designed to run on CERN computing infrastructure (lxplus, HTCondor, CVMFS).
 
 - **Repository size**: ~2 MB
 - **Languages**: Python (~13,000 lines), C++ headers, Bash scripts, YAML configs

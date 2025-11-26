@@ -14,6 +14,7 @@ from FLAF.Common.HistHelper import *
 # ROOT.EnableImplicitMT(1)
 ROOT.EnableThreadSafety()
 
+
 class BtagShapeWeightCorrector:
     def __init__(self, btag_integral_ratios):
         self.exisiting_srcScale_combs = [key for key in btag_integral_ratios.keys()]
@@ -28,18 +29,19 @@ class BtagShapeWeightCorrector:
 
     def _declare_cpp_map_and_resc_func(self, btag_integral_ratios, unc_src_scale):
         correction_factors = btag_integral_ratios[unc_src_scale]
-    
+
         # init c++ map
         cpp_map_entries = []
         for cat, multipl_dict in correction_factors.items():
             channelId = cat_to_channelId[cat]
             for key, ratio in multipl_dict.items():
                 # key has structure f"ratio_ncetnralJet_{number}""
-                num_jet = int(key.split('_')[-1])
-                cpp_map_entries.append(f'{{{{{channelId}, {num_jet}}}, {ratio}}}')
+                num_jet = int(key.split("_")[-1])
+                cpp_map_entries.append(f"{{{{{channelId}, {num_jet}}}, {ratio}}}")
         cpp_init = ", ".join(cpp_map_entries)
 
-        ROOT.gInterpreter.Declare(f"""
+        ROOT.gInterpreter.Declare(
+            f"""
             static const std::map<std::pair<int, int>, float> ratios_{unc_src_scale} = {{
                 {cpp_init}
             }};
@@ -66,25 +68,22 @@ class BtagShapeWeightCorrector:
         if unc_scale is None:
             unc_scale = ""
         unc_src_scale = f"{unc_src}{unc_scale}"
-        
+
         if unc_src_scale not in self.exisiting_srcScale_combs:
-            raise RuntimeError(f"`BtagShapeWeight.json` does not contain key `{unc_src_scale}`.")
-        
-        dfw.df = (
-            dfw.df
-            .Filter("ncentralJet >= 2 && ncentralJet <= 8")
-            .Redefine("weight_bTagShape_Central", f"return integral_correction_ratio_{unc_src_scale}(ncentralJet, channelId)*weight_bTagShape_Central;")
+            raise RuntimeError(
+                f"`BtagShapeWeight.json` does not contain key `{unc_src_scale}`."
+            )
+
+        dfw.df = dfw.df.Filter("ncentralJet >= 2 && ncentralJet <= 8").Redefine(
+            "weight_bTagShape_Central",
+            f"return integral_correction_ratio_{unc_src_scale}(ncentralJet, channelId)*weight_bTagShape_Central;",
         )
 
-        return dfw     
+        return dfw
 
-cat_to_channelId = {
-    "e": 1,
-    "mu": 2,
-    "eE": 11,
-    "eMu": 12,
-    "muMu": 22 
-}
+
+cat_to_channelId = {"e": 1, "mu": 2, "eE": 11, "eMu": 12, "muMu": 22}
+
 
 def DefineBinnedColumn(hist_cfg_dict, var):
     x_bins = hist_cfg_dict[var]["x_bins"]
@@ -137,7 +136,7 @@ def createHistTuple(
     histTupleDef,
     inFile_keys,
     btag_integral_ratios,
-    is_data
+    is_data,
 ):
     # compression_settings = snapshotOptions.fCompressionAlgorithm * 100 + snapshotOptions.fCompressionLevel
     histTupleDef.Initialize()
@@ -255,7 +254,9 @@ def createHistTuple(
                     final_weight_name = "weight_Central"
 
                     if not is_data:
-                        dfw_shift = weight_corrector.UpdateBtagWeight(dfw_shift, unc_src=unc, unc_scale=scale)
+                        dfw_shift = weight_corrector.UpdateBtagWeight(
+                            dfw_shift, unc_src=unc, unc_scale=scale
+                        )
 
                     histTupleDef.DefineWeightForHistograms(
                         dfw_shift,
@@ -324,7 +325,7 @@ if __name__ == "__main__":
 
     btag_integral_ratios = {}
     if args.btag_json:
-        with open(args.btag_json, 'r') as file:
+        with open(args.btag_json, "r") as file:
             btag_integral_ratios = json.load(file)
 
     treeName = setup.global_params[
@@ -402,7 +403,7 @@ if __name__ == "__main__":
             histTupleDef,
             inFile_keys,
             btag_integral_ratios,
-            is_data
+            is_data,
         )
         if tmp_fileNames:
             hadd_str = f"hadd -f -j -O {args.outFile} "

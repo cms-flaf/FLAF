@@ -216,7 +216,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 self, branch=-1
             ).create_branch_map()
             hist_tuple_producers_sample_name = (
-                sample_name  # name of the sample which HistTupleProducer is running
+                dataset_name  # name of the sample which HistTupleProducer is running
             )
             # in btag_branches collect all branches of BtagShapeWeightTask that HistTupleProducer needs to run this sample
             # for some reason, passing a tuple to branches argument of BtagShapeWeightTask is not working
@@ -1355,8 +1355,8 @@ class BtagShapeWeightTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 "BtagShape": AnalysisCacheTask.req(
                     self,
                     branches=(),
-                    max_runtime=AnaTupleTask.max_runtime._default,
-                    n_cpus=AnaTupleTask.n_cpus._default,
+                    max_runtime=AnalysisCacheTask.max_runtime._default,
+                    n_cpus=AnalysisCacheTask.n_cpus._default,
                     customisations=self.customisations,
                     producer_to_run="BtagShape",
                 ),
@@ -1371,8 +1371,8 @@ class BtagShapeWeightTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             "BtagShape": AnalysisCacheTask.req(
                 self,
                 branches=tuple(branches),
-                max_runtime=AnaTupleTask.max_runtime._default,
-                n_cpus=AnaTupleTask.n_cpus._default,
+                max_runtime=AnalysisCacheTask.max_runtime._default,
+                n_cpus=AnalysisCacheTask.n_cpus._default,
                 customisations=self.customisations,
                 producer_to_run="BtagShape",
             )

@@ -92,7 +92,7 @@ These run automatically on PRs to `main`:
 
 4. **Binary files**: Never commit binary files directly. Use git LFS if needed.
 
-5. **Git submodules**: `RunKit` and `PlotKit` are submodules. Python imports use `from FLAF.RunKit.* import ...` and `from FLAF.PlotKit.* import ...` patterns.
+5. **Git submodules**: `RunKit` and `PlotKit` are submodules. Python imports follow the pattern `from FLAF.RunKit.<module> import <function>` (e.g., `from FLAF.RunKit.run_tools import ps_call`).
 
 ## Validation Checklist
 

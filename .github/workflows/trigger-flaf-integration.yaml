@@ -13,8 +13,6 @@ jobs:
   process-trigger-request:
     runs-on: ubuntu-latest
     steps:
-      - uses: cms-flaf/FLAF/.github/actions/checkout-flaf@main
-
       - name: Get PR number
         id: get_pr_number
         uses: actions/github-script@v6
@@ -34,6 +32,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh pr checkout ${{ github.event.issue.number }}
+
+      - name: Checkout FLAF@main
+        if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}
+        uses: cms-flaf/FLAF/.github/actions/checkout-flaf@main
 
       - name: Install js-yaml
         if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}

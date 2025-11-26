@@ -1,5 +1,4 @@
 import os
-import sys
 import yaml
 import ROOT
 import datetime
@@ -16,7 +15,6 @@ from FLAF.Common.Utilities import DeclareHeader
 from FLAF.RunKit.run_tools import ps_call
 import FLAF.Common.LegacyVariables as LegacyVariables
 import FLAF.Common.Utilities as Utilities
-from FLAF.Analysis.HistProducerFile import AddCacheColumnsInDf
 
 defaultColToSave = ["FullEventId"]
 scales = ["Up", "Down"]
@@ -29,6 +27,37 @@ def str2bool(v):
     if v.lower() in ("no", "false", "f", "0"):
         return False
     raise argparse.ArgumentTypeError("Boolean value expected (True/False).")
+
+def createCacheQuantities(dfWrapped_cache, cache_map_name, cache_entry_name):
+    df_cache = dfWrapped_cache.df
+    map_creator_cache = ROOT.analysis.CacheCreator(*dfWrapped_cache.colTypes)()
+    df_cache = map_creator_cache.processCache(
+        ROOT.RDF.AsRNode(df_cache),
+        Utilities.ListToVector(dfWrapped_cache.colNames),
+        cache_map_name,
+        cache_entry_name,
+    )
+    return df_cache
+
+
+def AddCacheColumnsInDf(
+    dfWrapped_central,
+    dfWrapped_cache,
+    cache_map_name="cache_map_placeholder",
+    cache_entry_name="_cache_entry",
+):
+    col_names_cache = dfWrapped_cache.colNames
+    col_types_cache = dfWrapped_cache.colTypes
+    # print(col_names_cache)
+    # if "kinFit_result" in col_names_cache:
+    #    col_names_cache.remove("kinFit_result")
+    dfWrapped_cache.df = createCacheQuantities(
+        dfWrapped_cache, cache_map_name, cache_entry_name
+    )
+    if dfWrapped_cache.df.Filter(f"{cache_map_name} > 0").Count().GetValue() <= 0:
+        raise RuntimeError("no events passed map placeolder")
+    dfWrapped_central.AddCacheColumns(col_names_cache, col_types_cache, cache_map_name)
+
 
 def getKeyNames(root_file_name):
     root_file = ROOT.TFile(root_file_name, "READ")

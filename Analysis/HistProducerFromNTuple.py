@@ -182,7 +182,7 @@ if __name__ == "__main__":
     parser.add_argument("inputFiles", nargs="+", type=str)
     parser.add_argument("--period", required=True, type=str)
     parser.add_argument("--outFile", required=True, type=str)
-    parser.add_argument("--sample_name", required=True, type=str)
+    parser.add_argument("--dataset_name", required=True, type=str)
     parser.add_argument("--customisations", type=str, default=None)
     parser.add_argument("--channels", type=str, default=None)
     parser.add_argument("--var", type=str, default=None)
@@ -263,23 +263,24 @@ if __name__ == "__main__":
 
     variables = setup.global_params["variables"]
     vars_needed = set(variables)
-    for further_cut_name, (var_for_cut, _) in further_cuts.items():
-        if var_for_cut:
-            vars_needed.add(var_for_cut)
+    for further_cut_name, (vars_for_cut, _) in further_cuts.items():
+        for var_for_cut in vars_for_cut:
+            if var_for_cut:
+                vars_needed.add(var_for_cut)
 
     all_trees = {}
     for tree_name, rdf in base_rdfs.items():
         for var in vars_needed:
             if var not in rdf.GetColumnNames():
                 print(f"attenzione, {var} not in column names")
-        for further_cut_name, (var_for_cut, cut_expr) in further_cuts.items():
+        for further_cut_name, (vars_for_cut, cut_expr) in further_cuts.items():
             if further_cut_name not in rdf.GetColumnNames():
                 rdf = rdf.Define(further_cut_name, cut_expr)
         all_trees[tree_name] = rdf
 
     uncs_to_compute = {}
     uncs_to_compute["Central"] = ["Central"]
-    if args.sample_name != "data":
+    if args.dataset_name != "data":
         if args.compute_rel_weights:
             uncs_to_compute.update(
                 {

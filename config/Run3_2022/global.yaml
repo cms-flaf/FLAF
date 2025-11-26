@@ -1,0 +1,19 @@
+era: Run3_2022
+luminosity: 7980.4  # pb-1
+fs_nanoAOD:
+  - 'T2_CH_CERN:/store/group/phys_higgs/HLepRare/skim_2025_v1/Run3_2022'
+nano_version: v14
+crossSectionsFile: FLAF/config/crossSections13p6TeV.yaml
+use_stitching: false
+met_type: PFMET
+MET_flags:  # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersRun2#Run_3_2022_and_2023_data_and_MC
+  - Flag_goodVertices
+  - Flag_globalSuperTightHalo2016Filter
+  - Flag_EcalDeadCellTriggerPrimitiveFilter
+  - Flag_BadPFMuonFilter
+  - Flag_BadPFMuonDzFilter
+  - Flag_hfNoisyHitsFilter
+  - Flag_eeBadScFilter
+  - Flag_ecalBadCalibFilter
+# lumiFile: /eos/user/c/cmsdqm/www/CAF/certification/Collisions22/Cert_Collisions2022_355100_362760_Golden.json
+lumiFile: Corrections/data/golden_json/Cert_Collisions2022_355100_362760_Golden.json

@@ -64,11 +64,6 @@ DYto2L_M_50_0J_amcatnloFXFX:
   reference: XSDB DYto2L-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:07
   unc: 8.007 / 3
   comments: "divided by 3 to account for e, mu, tau"
-DYto2Tau_M_50_0J_amcatnloFXFX:
-  crossSec: 5378.0 / 3
-  reference: XSDB DYto2L-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:07
-  unc: 8.007 / 3
-  comments: "divided by 3 to account for e, mu, tau"
 DYto2Tau_M_50_0J_Filtered_amcatnloFXFX:
   crossSec: 847.035 / 3
   reference: GenXSecAnalyzer /DYto2Tau-2Jets_M-50_0J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v3/MINIAODSIM
@@ -79,26 +74,12 @@ DYto2L_M_50_1J_amcatnloFXFX:
   reference: XSDB DYto2L-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:09
   unc: 6.264 / 3
   comments: "divided by 3 to account for e, mu, tau"
-DYto2Tau_M_50_1J_amcatnloFXFX:
-  crossSec: 1017.0 / 3
-  reference: XSDB DYto2Tau-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8
-  unc: 6.264 / 3
-  comments: "divided by 3 to account for e, mu, tau"
 DYto2Tau_M_50_1J_Filtered_amcatnloFXFX:
   crossSec: 210.112 / 3
   reference: GenXSecAnalyzer /DYto2Tau-2Jets_M-50_1J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v3/MINIAODSIM
   unc: 11.8 / 3
   comments: "divided by 3 to account for e, mu, tau"
-DYto2L_M_50_1J_madgraphMLM:
-  crossSec: 973.1
-  reference: XSDB DYto2L-4Jets_MLL-50_1J_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 19:19:40
-  unc: 2.613
 DYto2L_M_50_2J_amcatnloFXFX:
-  crossSec: 385.5 / 3
-  reference: XSDB DYto2L-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:12
-  unc: 3.858 / 3
-  comments: "divided by 3 to account for e, mu, tau"
-DYto2Tau_M_50_2J_amcatnloFXFX:
   crossSec: 385.5 / 3
   reference: XSDB DYto2L-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:12
   unc: 3.858 / 3
@@ -108,6 +89,10 @@ DYto2Tau_M_50_2J_Filtered_amcatnloFXFX:
   reference: GenXSecAnalyzer /DYto2Tau-2Jets_M-50_2J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v4/MINIAODSIM
   unc: 8.875 / 3
   comments: "divided by 3 to account for e, mu, tau"
+DYto2L_M_50_1J_madgraphMLM:
+  crossSec: 973.1
+  reference: XSDB DYto2L-4Jets_MLL-50_1J_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 19:19:40
+  unc: 2.613
 DYto2L_M_50_2J_madgraphMLM:
   crossSec: 312.4 / 3
   reference: XSDB DYto2L-4Jets_MLL-50_2J_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 19:19:42

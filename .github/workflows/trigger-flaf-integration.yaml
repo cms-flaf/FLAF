@@ -15,10 +15,32 @@ jobs:
     steps:
       - uses: cms-flaf/FLAF/.github/actions/checkout-flaf@main
 
+      - name: Get PR number
+        id: get_pr_number
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const prNumber = context.payload.issue?.pull_request ? context.payload.issue.number : null;
+            if (!prNumber) {
+              console.log('Not a PR event. Skipping.');
+              core.setOutput('is_pr', 'false');
+              return;
+            }
+            core.setOutput('is_pr', 'true');
+
+      - name: Checkout PR branch
+        if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr checkout ${{ github.event.issue.number }}
+
       - name: Install js-yaml
+        if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}
         run: npm install js-yaml
 
       - name: Parse comment
+        if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}
         id: parse_comment
         uses: actions/github-script@v6
         env:
@@ -31,6 +53,9 @@ jobs:
               console.log('Not a PR event. Skipping.');
               return;
             }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
 
             const commentBody = context.payload.comment.body;
             const commentAuthor = context.payload.comment.user.login;
@@ -90,9 +115,6 @@ jobs:
               console.log(`User ${commentAuthor} is not authorized to trigger the pipeline. Skipping.`);
               return;
             }
-
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
 
             var variables = cfg["variables"];
             let packages = Object.keys(variables).filter(key => key.endsWith('_version')).map(key => key.slice(0, -8));

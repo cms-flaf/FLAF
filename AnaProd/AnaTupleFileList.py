@@ -1,21 +1,9 @@
-import ROOT
-import sys
 import os
-import math
-import shutil
 import json
-from FLAF.RunKit.run_tools import ps_call
 
-if __name__ == "__main__":
-    sys.path.append(os.environ["ANALYSIS_PATH"])
-
-# HistProducerSample.py --histDir my/hist/dir --outDir my/out/dir --hists m_tautau,tau1_pt --file-name-pattern 'nano_{id}.root' --file-ids '0-100'
-
-import FLAF.Common.Utilities as Utilities
 
 if __name__ == "__main__":
     import argparse
-    import yaml
 
     parser = argparse.ArgumentParser()
     parser.add_argument("inputFile", nargs="+", type=str)
@@ -47,8 +35,8 @@ if __name__ == "__main__":
 
             nEvents = data["nEvents_Filtered"]
             nEventsCounter += nEvents
-            sample_name = data["sample_name"]
-            file_name = os.path.join(sample_name, data["nano_file_name"])
+            dataset_name = data["dataset_name"]
+            file_name = os.path.join(dataset_name, data["nano_file_name"])
             input_file_list.append(file_name)
 
             if nEventsCounter > args.nEventsPerFile and not args.isData:

@@ -396,6 +396,14 @@ class Setup:
             active_datasets = {key: active_datasets[key] for key in selected_datasets}
         self.datasets = active_datasets
 
+        for process_name, process in (
+            self.base_processes | self.parent_processes
+        ).items():
+            if "datasets" in process:
+                process["datasets"] = [
+                    ds for ds in process["datasets"] if ds in self.datasets
+                ]
+
         # create payload -> what producer delivers it
         # will be used to check if cache is needed
         self.var_producer_map = {}

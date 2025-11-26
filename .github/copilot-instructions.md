@@ -88,11 +88,11 @@ These run automatically on PRs to `main`:
 
 2. **LAW tasks** (`AnaProd/tasks.py`, `Analysis/tasks.py`): Inherit from `Task` or `HTCondorWorkflow` in `run_tools/law_customizations.py`. After adding new tasks, run `law index --verbose`.
 
-3. **Environment**: The framework requires CERN infrastructure (CVMFS, grid certificates). Local development needs `env.sh` sourced, which sets up a Python venv at `$ANALYSIS_SOFT_PATH/flaf_env/` using LCG_107_cuda.
+3. **Environment**: The framework requires CERN infrastructure (CVMFS, grid certificates). Local development needs `env.sh` sourced, which sets up a Python venv at `$ANALYSIS_SOFT_PATH/flaf_env/` using LCG_107_cuda. The `ANALYSIS_SOFT_PATH` environment variable (defaulting to `$ANALYSIS_PATH/soft`) is set automatically by `env.sh`.
 
 4. **Binary files**: Never commit binary files directly. Use git LFS if needed.
 
-5. **Git submodules**: `RunKit` and `PlotKit` are submodules. Imports use `FLAF.RunKit.*` and `FLAF.PlotKit.*` patterns.
+5. **Git submodules**: `RunKit` and `PlotKit` are submodules. Python imports use `from FLAF.RunKit.* import ...` and `from FLAF.PlotKit.* import ...` patterns.
 
 ## Validation Checklist
 

@@ -182,7 +182,7 @@ if __name__ == "__main__":
     parser.add_argument("inputFiles", nargs="+", type=str)
     parser.add_argument("--period", required=True, type=str)
     parser.add_argument("--outFile", required=True, type=str)
-    parser.add_argument("--sample_name", required=True, type=str)
+    parser.add_argument("--dataset_name", required=True, type=str)
     parser.add_argument("--customisations", type=str, default=None)
     parser.add_argument("--channels", type=str, default=None)
     parser.add_argument("--var", type=str, default=None)
@@ -280,7 +280,7 @@ if __name__ == "__main__":
 
     uncs_to_compute = {}
     uncs_to_compute["Central"] = ["Central"]
-    if args.sample_name != "data":
+    if args.dataset_name != "data":
         if args.compute_rel_weights:
             uncs_to_compute.update(
                 {

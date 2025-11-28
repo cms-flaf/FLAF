@@ -75,9 +75,11 @@ class BtagShapeWeightCorrector:
                 f"`BtagShapeWeight.json` does not contain key `{unc_src_scale}`."
             )
 
-        dfw.df = dfw.df.Filter("ncentralJet >= 2 && ncentralJet <= 8").Redefine(
+        dfw.df = dfw.df.Redefine(
             "weight_bTagShape_Central",
-            f"return integral_correction_ratio_{unc_src_scale}(ncentralJet, channelId)*weight_bTagShape_Central;",
+            f"""if (ncentralJet >= 2 && ncentralJet <= 8) 
+                    return integral_correction_ratio_{unc_src_scale}(ncentralJet, channelId)*weight_bTagShape_Central;
+                return weight_bTagShape_Central;""",
         )
 
         return dfw
@@ -137,7 +139,7 @@ def createHistTuple(
     histTupleDef,
     inFile_keys,
     btag_integral_ratios,
-    is_data,
+    isData,
 ):
     # compression_settings = snapshotOptions.fCompressionAlgorithm * 100 + snapshotOptions.fCompressionLevel
     histTupleDef.Initialize()
@@ -179,7 +181,7 @@ def createHistTuple(
     # does not modify the integral
     # if empty btag_integral_ratios passed, UpdateBtagWeight will do nothing
     weight_corrector = BtagShapeWeightCorrector(btag_integral_ratios)
-    if not is_data:
+    if not isData:
         dfw_central = weight_corrector.UpdateBtagWeight(dfw_central)
 
     col_names_central = dfw_central.colNames
@@ -254,7 +256,7 @@ def createHistTuple(
                     )
                     final_weight_name = "weight_Central"
 
-                    if not is_data:
+                    if not isData:
                         dfw_shift = weight_corrector.UpdateBtagWeight(
                             dfw_shift, unc_src=unc, unc_scale=scale
                         )
@@ -352,7 +354,7 @@ if __name__ == "__main__":
     )
     setup.global_params["process_group"] = process_group
 
-    is_data = process_group == "data"
+    isData = process_group == "data"
 
     setup.global_params["compute_rel_weights"] = (
         args.compute_rel_weights and process_group != "data"
@@ -404,7 +406,7 @@ if __name__ == "__main__":
             histTupleDef,
             inFile_keys,
             btag_integral_ratios,
-            is_data,
+            isData,
         )
         if tmp_fileNames:
             hadd_str = f"hadd -f -j -O {args.outFile} "

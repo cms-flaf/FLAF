@@ -116,6 +116,10 @@ struct PdG {
         static const int pdg = ParticleDB::GetParticleInfo("Z0").pdgId;
         return pdg;
     }
+    static int HeavyHiggs() {
+        static const int pdg = ParticleDB::GetParticleInfo("H0").pdgId;
+        return pdg;
+    }
 
     static bool isNeutrino(int pdg) {
         static const std::set<int> neutrinos = {nu_e(), nu_mu(), nu_tau()};

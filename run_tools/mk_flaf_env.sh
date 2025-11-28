@@ -37,13 +37,13 @@ install() {
 
 create() {
     local env_base=$1
-    local lcg_view=$2
+    local lcg_version=$2
     local lcg_arch=$3
 
-    local lcg_base=/cvmfs/sft.cern.ch/lcg/views/$lcg_view/$lcg_arch
+    local lcg_base=/cvmfs/sft.cern.ch/lcg/views/$lcg_version/$lcg_arch
 
-    echo "Loading $lcg_view for $lcg_arch"
-    run_cmd source /cvmfs/sft.cern.ch/lcg/views/setupViews.sh $lcg_view $lcg_arch
+    echo "Loading $lcg_version for $lcg_arch"
+    run_cmd source /cvmfs/sft.cern.ch/lcg/views/setupViews.sh $lcg_version $lcg_arch
     echo "Creating virtual environment in $env_base"
     run_cmd python3 -m venv $env_base --prompt flaf_env
     local root_path=$(realpath $(which root))
@@ -52,21 +52,26 @@ create() {
 
 export ROOTSYS=${root_dir}
 export ROOT_INCLUDE_PATH=${env_base}/include
-export LD_LIBRARY_PATH=${env_base}/lib/python3.11/site-packages
+export LD_LIBRARY_PATH=${env_base}/lib/python3.12/site-packages:${env_base}/lib/python3.12/site-packages/torch/lib:${env_base}/lib/python3.12/site-packages/tensorflow:${env_base}/lib/python3.12/site-packages/tensorflow/contrib/tensor_forest:${env_base}/lib/python3.12/site-packages/tensorflow/python/framework:${env_base}/lib:/cvmfs/sft.cern.ch/lcg/releases/clang/19.1.3-e838d/x86_64-el9/lib:/cvmfs/sft.cern.ch/lcg/releases/clang/19.1.3-e838d/x86_64-el9/lib/clang/19/lib/x86_64-unknown-linux-gnu:/cvmfs/sft.cern.ch/lcg/releases/clang/19.1.3-e838d/x86_64-el9/lib/x86_64-unknown-linux-gnu:/cvmfs/sft.cern.ch/lcg/releases/gcc/14.2.0-2f0a0/x86_64-el9/lib:/cvmfs/sft.cern.ch/lcg/releases/gcc/14.2.0-2f0a0/x86_64-el9/lib64:/cvmfs/sft.cern.ch/lcg/releases/binutils/2.40-acaab/x86_64-el9/lib:/cvmfs/sft.cern.ch/lcg/releases/binutils/2.40-acaab/x86_64-el9/lib
 
 EOF
-    link_all $lcg_base/bin $env_base/bin pip pip3 pip3.11 python python3 python3.11 gosam2herwig gosam-config.py gosam.py git java
-    link_all $lcg_base/lib $env_base/lib/python3.11/site-packages python3.11
-    link_all $lcg_base/lib/python3.11/site-packages $env_base/lib/python3.11/site-packages _distutils_hack distutils-precedence.pth pip pkg_resources setuptools graphviz py __pycache__ gosam-2.1.1_4b98559-py3.11.egg-info
-    link_all $lcg_base/lib64 $env_base/lib/python3.11/site-packages cmake libonnx_proto.a libsvm.so.2 pkgconfig ThePEG libavh_olo.a libff.a libqcdloop.a
-    link_all $lcg_base/include $env_base/include python3.11 gosam-contrib
+
+    link_all $lcg_base/bin $env_base/bin pip pip3 pip3.12 python python3 python3.12 gosam2herwig gosam-config.py gosam.py git java
+    link_all $lcg_base/lib $env_base/lib/python3.12/site-packages python3.12
+    link_all $lcg_base/lib/python3.12/site-packages $env_base/lib/python3.12/site-packages _distutils_hack distutils-precedence.pth pip pkg_resources setuptools graphviz py __pycache__ gosam-2.1.1_4b98559-py3.12.egg-info tenacity tenacity-9.0.0.dist-info servicex servicex-3.1.0.dist-info paramiko paramiko-2.9.2-py3.12.egg-info
+    link_all $lcg_base/lib64 $env_base/lib/python3.12/site-packages cairo cmake libonnx_proto.a libsvm.so.2 pkgconfig ThePEG libavh_olo.a libff.a libqcdloop.a python3.12
+    link_all $lcg_base/include $env_base/include python3.12 gosam-contrib
 }
 
 action() {
     local this_file="$( [ ! -z "$ZSH_VERSION" ] && echo "${(%):-%x}" || echo "${BASH_SOURCE[0]}" )"
     local env_base="$1"
-    run_cmd "$this_file" create "$env_base" LCG_107_cuda x86_64-el9-gcc11-opt
+    local lcg_version="$2"
+    local lcg_arch="$3"
+    # currently tuned for LCG_108a x86_64-el9-clang19-opt
+    run_cmd "$this_file" create "$env_base" "$lcg_version" "$lcg_arch"
     run_cmd "$this_file" install "$env_base"
+    run_cmd touch "$env_base/.${lcg_version}_${lcg_arch}"
 }
 
 if [[ "$1" == "create" ]]; then

@@ -168,9 +168,15 @@ load_flaf_env() {
     run_cmd mkdir -p "$ANALYSIS_DATA_PATH"
   fi
 
-  if [[ ! -f "$FLAF_ENVIRONMENT_PATH/bin/activate" ]]; then
-    echo "Installing FLAF environment in $FLAF_ENVIRONMENT_PATH ..."
-    run_cmd $FLAF_PATH/run_tools/mk_flaf_env.sh "$FLAF_ENVIRONMENT_PATH"
+  local FLAF_LCG_VERSION="LCG_108a"
+  local FLAF_LCG_ARCH="x86_64-el9-clang19-opt"
+  if [[ ! -f "$FLAF_ENVIRONMENT_PATH/.${FLAF_LCG_VERSION}_${FLAF_LCG_ARCH}" ]]; then
+    if [[ -d "$FLAF_ENVIRONMENT_PATH" ]]; then
+      echo "Removing old FLAF environment installation in $FLAF_ENVIRONMENT_PATH ..."
+      run_cmd rm -rf "$FLAF_ENVIRONMENT_PATH"
+    fi
+    echo "Creating FLAF environment in $FLAF_ENVIRONMENT_PATH ..."
+    run_cmd $FLAF_PATH/run_tools/mk_flaf_env.sh "$FLAF_ENVIRONMENT_PATH" "$FLAF_LCG_VERSION" "$FLAF_LCG_ARCH"
   fi
   source "$FLAF_ENVIRONMENT_PATH/bin/activate"
 

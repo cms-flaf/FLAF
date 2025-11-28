@@ -200,7 +200,7 @@ load_flaf_env() {
     local cmb_os_prefix=$(get_os_prefix $cmb_os_version)
     local cmb_os=$cmb_os_prefix$cmb_os_version
     export FLAF_COMBINE_PATH="$FLAF_CMSSW_BASE/src/HiggsAnalysis/CombinedLimit"
-    install_combine "$env_file" $node_os $cmb_os "$FLAF_COMBINE_PATH"
+    # install_combine "$env_file" $node_os $cmb_os "$FLAF_COMBINE_PATH"
 
     export PATH="$FLAF_COMBINE_PATH/build/bin:$PATH"
     export LD_LIBRARY_PATH="$FLAF_COMBINE_PATH/build/lib:$LD_LIBRARY_PATH"

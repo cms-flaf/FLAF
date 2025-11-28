@@ -1056,9 +1056,8 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         )
 
                         isData = process_group == "data"
-                        analysisCacheProducer_cmd.extend(
-                            ["--isData", "True" if isData else "False"]
-                        )
+                        if isData:
+                            analysisCacheProducer_cmd.append("--isData")
 
                         ps_call(analysisCacheProducer_cmd, env=prod_env, verbose=1)
                     print(

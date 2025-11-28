@@ -8,6 +8,7 @@ import importlib
 import uproot
 import awkward as ak
 import json
+import sys
 
 ROOT.EnableThreadSafety()
 
@@ -18,16 +19,6 @@ import FLAF.Common.Utilities as Utilities
 
 defaultColToSave = ["FullEventId"]
 scales = ["Up", "Down"]
-
-
-def str2bool(v):
-    if isinstance(v, bool):
-        return v
-    if v.lower() in ("yes", "true", "t", "1"):
-        return True
-    if v.lower() in ("no", "false", "f", "0"):
-        return False
-    raise argparse.ArgumentTypeError("Boolean value expected (True/False).")
 
 
 def createCacheQuantities(dfWrapped_cache, cache_map_name, cache_entry_name):
@@ -344,18 +335,8 @@ if __name__ == "__main__":
     parser.add_argument("--producer", type=str, default=None)
     parser.add_argument("--workingDir", required=True, type=str)
     parser.add_argument("--cacheFileNames", required=False, type=str)
-
-    parser.add_argument(
-        "--compute_unc_variations",
-        type=str2bool,
-        default=False,
-    )
-
-    parser.add_argument(
-        "--isData",
-        type=str2bool,
-        default=False,
-    )
+    parser.add_argument("--compute_unc_variations", type=bool, default=False)
+    parser.add_argument("--isData", action="store_true")
 
     args = parser.parse_args()
 

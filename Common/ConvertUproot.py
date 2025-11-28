@@ -1,8 +1,6 @@
 import uproot
 import awkward as ak
-import ROOT
 import os
-import numpy as np
 
 
 def saveFile(outFile, out_tree_dict, histograms):
@@ -67,9 +65,10 @@ def toUproot(inFile, outFile):
             out_tree[col_name] = ak.zip(
                 {column: df[col_name + "_" + column] for column in columns}
             )
-
+        n_columns = ["n" + col_name for col_name in collections.keys()]
         for column in other_columns:
-            out_tree[column] = df[column]
+            if column not in n_columns:
+                out_tree[column] = df[column]
         out_trees[dfName] = out_tree
     # print(histograms)
     # print(out_trees)

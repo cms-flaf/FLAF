@@ -62,7 +62,7 @@ if __name__ == "__main__":
         for lep_cat, lep_cat_dict in unc_dict.items():
             matches = list({bs for bs in base_sources if bs in unc_src})
             if len(matches) != 1:
-                raise RuntimeError(f"Bullshit: unc_src={unc_src}, matches={matches}")
+                raise RuntimeError(f"Unexpected number of matching base sources for unc_src={unc_src}. Expected 1, got {len(matches)}: {matches}")
             base_src = matches[0]
 
             for key, val in lep_cat_dict.items():

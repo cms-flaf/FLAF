@@ -150,7 +150,7 @@ def make_df(
     snapshotOptions.fOverwriteIfExists = False
     snapshotOptions.fLazy = True
     snapshotOptions.fMode = "RECREATE"
-    snapshotOptions.fCompressionAlgorithm = getattr(ROOT.ROOT, "k" + "ZLIB")
+    snapshotOptions.fCompressionAlgorithm = ROOT.ROOT.RCompressionSetting.EAlgorithm.kZLIB
     snapshotOptions.fCompressionLevel = 4
     colToSave_noDiff_v = ListToVector(colToNotToMakeDiff)
     colToSave_diff_v = ListToVector(colToSave_diff + colToNotToMakeDiff)

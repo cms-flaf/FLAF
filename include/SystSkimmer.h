@@ -77,14 +77,14 @@ namespace analysis {
         void processIn(const std::vector<std::string> &var_names) {
             auto df_node = df_in.Define(
                 "_entry",
-                [=](const Args &...args) {
+                [=, this](const Args &...args) {
                     auto entry = std::make_shared<Entry>(var_names.size());
                     int index = 0;
                     (void)std::initializer_list<int>{(entry->Add(index++, args), 0)...};
                     return entry;
                 },
                 var_names);
-            thread = std::make_unique<std::thread>([=]() {
+            thread = std::make_unique<std::thread>([=, this]() {
                 std::cout << "TupleMaker::processIn: thread started." << std::endl;
                 {
                     std::unique_lock<std::mutex> lock(mutex);
@@ -118,7 +118,7 @@ namespace analysis {
             };
             df_out =
                 df_out.Define("_entryCentral",
-                              [=](ULong64_t FullEventIdShifted) {
+                              [=, this](ULong64_t FullEventIdShifted) {
                                   std::shared_ptr<Entry> entryCentral;
                                   try {
                                       static bool notified = notify();

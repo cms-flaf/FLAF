@@ -1,18 +1,9 @@
 import ROOT
 import os
-import shutil
-import sys
+from functools import cmp_to_key
 
 ROOT.gROOT.SetBatch(True)
 ROOT.EnableThreadSafety()
-
-
-if __name__ == "__main__":
-    sys.path.append(os.environ["ANALYSIS_PATH"])
-
-import FLAF.Common.Utilities as Utilities
-from FLAF.RunKit.run_tools import ps_call
-
 
 def createVoidTree(file_name, tree_name):
     df = ROOT.RDataFrame(0)
@@ -65,6 +56,18 @@ col_type_dict = {
     "ROOT::VecOps::RVec<Bool_t>": "ROOT::VecOps::RVec<bool>",
 }
 
+def compare_column_names(a, b):
+    if a[0] == "FullEventId":
+        return -1
+    if b[0] == "FullEventId":
+        return 1
+    is_vec_a = a[1].startswith("ROOT::VecOps::RVec")
+    is_vec_b = b[1].startswith("ROOT::VecOps::RVec")
+    if is_vec_a and not is_vec_b:
+        return 1
+    if not is_vec_a and is_vec_b:
+        return -1
+    return 0
 
 def make_df(
     inputFileCentral,
@@ -105,9 +108,10 @@ def make_df(
             os.path.join(outDir, f"{treeName}_noDiff.root"), f"{treeName}_noDiff.root"
         )
         return
-    FullEventIdIdx = colNames.index("FullEventId")
-    colNames[FullEventIdIdx], colNames[0] = colNames[0], colNames[FullEventIdIdx]
     col_types = [str(df_out.GetColumnType(c)) for c in colNames]
+    col_name_types = list(sorted(zip(colNames, col_types), key=cmp_to_key(compare_column_names)))
+    colNames = [n for n, t in col_name_types]
+    col_types = [t for n, t in col_name_types]
     tuple_maker = ROOT.analysis.TupleMaker(*col_types)(
         ROOT.RDataFrame(treeName_central, inputFileCentral), 4
     )

@@ -270,20 +270,21 @@ if __name__ == "__main__":
         )
     else:
         all_hists_dict_1D = all_hists_dict
+    """
 
     if not analysis_import == "Analysis.H_mumu":
         fixNegativeContributions = False
         error_on_qcdnorm, error_on_qcdnorm_varied = AddQCDInHistDict(
             args.var,
-            all_hists_dict_1D,
+            all_hists_dict,
             channels,
             all_categories,
             args.uncSource,
-            all_samples_types.keys(),
+            list(all_hists_dict.keys()),
             scales,
             wantNegativeContributions=False,
         )
-    """
+
     all_unc_dict = unc_cfg_dict["norm"].copy()
     all_unc_dict.update(unc_cfg_dict["shape"])
 

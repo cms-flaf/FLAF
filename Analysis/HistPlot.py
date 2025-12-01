@@ -169,6 +169,13 @@ if __name__ == "__main__":
             "plot_name": "data",
             "plot_color": "kBlack",
         }
+        if args.wantQCD:
+            all_samples_dict["QCD"] = {
+                "process_name": "QCD",
+                "process_group": "backgrounds",
+                "plot_name": "QCD",
+                "plot_color": "kGray+2",
+            }
 
         for sample_name in setup.samples.keys():
             process_name = setup.samples[sample_name]["process_name"]

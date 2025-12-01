@@ -32,21 +32,21 @@ def toUproot(inFile, outFile, verbose=1):
         elif "TH1" in obj.classname:
             histograms[obj.name] = obj
         else:
-            raise RuntimeError(f'Unknown object type: {obj.classname}')
+            raise RuntimeError(f"Unknown object type: {obj.classname}")
     out_trees = {}
 
     for dfName in dfNames:
         if verbose > 1:
-            print(f'Processing {dfName}')
+            print(f"Processing {dfName}")
         input_tree = input_file[dfName]
         keys = input_tree.keys()
         if verbose > 1:
-            print(f'  n_entireties={input_tree.num_entries}')
-            print(f'  n_keys={len(keys)}')
+            print(f"  n_entireties={input_tree.num_entries}")
+            print(f"  n_keys={len(keys)}")
         out_tree = {}
         if len(keys) == 0 or input_tree.num_entries == 0:
             if verbose > 1:
-                print(f'  Skipping empty tree')
+                print(f"  Skipping empty tree")
             continue
         df = input_tree.arrays()
         collections = {}
@@ -67,7 +67,7 @@ def toUproot(inFile, outFile, verbose=1):
                 {column: df[col_name + "_" + column] for column in columns}
             )
         counter_columns = ["n" + col_name for col_name in collections.keys()]
-        other_columns = [ col for col in other_columns if col not in counter_columns ]
+        other_columns = [col for col in other_columns if col not in counter_columns]
         if verbose > 1:
             print(f"  Other columns: {other_columns}")
         for column in other_columns:
@@ -77,17 +77,15 @@ def toUproot(inFile, outFile, verbose=1):
         print(f"Histograms: {histograms.keys()}")
     return saveFile(outFile, out_trees, histograms)
 
+
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(
         description="Convert ROOT file with TTree to Uproot TTree format with zipped columns"
     )
-    parser.add_argument(
-        "--inFile", type=str, required=True, help="Input ROOT file"
-    )
-    parser.add_argument(
-        "--outFile", type=str, required=True, help="Output ROOT file"
-    )
+    parser.add_argument("--inFile", type=str, required=True, help="Input ROOT file")
+    parser.add_argument("--outFile", type=str, required=True, help="Output ROOT file")
     args = parser.parse_args()
 
     toUproot(args.inFile, args.outFile, verbose=2)

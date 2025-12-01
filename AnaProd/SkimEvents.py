@@ -5,6 +5,7 @@ from functools import cmp_to_key
 ROOT.gROOT.SetBatch(True)
 ROOT.EnableThreadSafety()
 
+
 def createVoidTree(file_name, tree_name):
     df = ROOT.RDataFrame(0)
     df = df.Define("test", "return true;")
@@ -56,6 +57,7 @@ col_type_dict = {
     "ROOT::VecOps::RVec<Bool_t>": "ROOT::VecOps::RVec<bool>",
 }
 
+
 def compare_column_names(a, b):
     if a[0] == "FullEventId":
         return -1
@@ -68,6 +70,7 @@ def compare_column_names(a, b):
     if not is_vec_a and is_vec_b:
         return -1
     return 0
+
 
 def make_df(
     inputFileCentral,
@@ -109,7 +112,9 @@ def make_df(
         )
         return
     col_types = [str(df_out.GetColumnType(c)) for c in colNames]
-    col_name_types = list(sorted(zip(colNames, col_types), key=cmp_to_key(compare_column_names)))
+    col_name_types = list(
+        sorted(zip(colNames, col_types), key=cmp_to_key(compare_column_names))
+    )
     colNames = [n for n, t in col_name_types]
     col_types = [t for n, t in col_name_types]
     tuple_maker = ROOT.analysis.TupleMaker(*col_types)(

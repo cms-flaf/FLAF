@@ -18,7 +18,7 @@ def create_file(file_name, times=None):
         os.utime(file_name, times)
 
 
-def getTreeName(systFile):
+def getTreeName(systFile, verbose=False):
     treeName_elements = systFile.split(".")[0].split("_")
     print(systFile)
     good_treeName = []
@@ -32,7 +32,7 @@ def getTreeName(systFile):
         ):
             continue
         good_treeName.append(element)
-    if args.test:
+    if verbose:
         print(f"good_treename elements are {good_treeName}")
     treeName = "Events_"
     good_treeName = treeName_elements[1:]
@@ -50,15 +50,15 @@ if __name__ == "__main__":
     parser.add_argument("--outputFile", required=True, type=str)
     parser.add_argument("--centralFile", required=False, type=str, default="nano.root")
     parser.add_argument("--treeName", required=False, type=str, default="Events")
-    parser.add_argument("--recreateOutDir", required=False, type=bool, default=False)
-    parser.add_argument("--test", required=False, type=bool, default=False)
+    parser.add_argument("--recreateOutDir", action="store_true", default=False)
+    parser.add_argument("--verbose", action="store_true", default=False)
     args = parser.parse_args()
     all_files = os.listdir(args.inputDir)
     central_idx = all_files.index(args.centralFile)
     other_files = all_files.pop(central_idx)
 
     inFileCentralName = os.path.join(args.inputDir, args.centralFile)
-    if args.test:
+    if args.verbose:
         print("CentralFile = ", inFileCentralName)
     if args.recreateOutDir:
         if os.path.exists(args.workingDir):
@@ -73,27 +73,22 @@ if __name__ == "__main__":
     for systFile in all_files:
         if not systFile.endswith("root"):
             continue
-        if args.test and k >= 10:
-            # print(systFile)
-            continue
         inFileShiftedName = os.path.join(args.inputDir, systFile)
-        if args.test:
+        if args.verbose:
             print("shifted file = ", inFileShiftedName)
-        if args.test:
             print("index = ", k)
-        # print(getTreeName(systFile))
-        treeName = getTreeName(systFile)
-        # if args.test : print(f"final TreeName is {treeName}")
+        treeName = getTreeName(systFile, verbose=args.verbose)
+        # if args.verbose : print(f"final TreeName is {treeName}")
         skimEventsPython = os.path.join(
             os.environ["FLAF_PATH"], "AnaProd", "SkimEvents.py"
         )
         cmd = f"""python3 {skimEventsPython} --inFileCentral {inFileCentralName} --inFileShifted {inFileShiftedName} --outDir {args.workingDir} --treeName_out {treeName}"""
-        if args.test:
+        if args.verbose:
             print(cmd)
         ps_call(cmd, True)
         k += 1
     for file_syst in os.listdir(args.workingDir) + [inFileCentralName]:
-        if args.test:
+        if args.verbose:
             print(f"file_syst name is {file_syst}")
         inFileUproot = os.path.join(args.workingDir, file_syst)
         outFileUproot = os.path.join(args.workingDir, f"uproot_{file_syst}")
@@ -104,30 +99,30 @@ if __name__ == "__main__":
         ConvertUproot.toUproot(inFileUproot, outFileUproot)
         # except: create_file(outFileUproot)
         # ConvertUproot.toUproot(inFileUproot,outFileUproot)
-        if args.test:
+        if args.verbose:
             print(f"UprootFileName name is {outFileUproot}")
         syst_files_to_merge.append(outFileUproot)
-    # if args.test:
+    # if args.verbose:
     # for f in syst_files_to_merge:
     # print(f)
     outFileName = os.path.join(args.workingDir, args.outputFile)
-    if args.test:
+    if args.verbose:
         print(f"outFileName is {outFileName}")
     hadd_str = f"hadd -f209 -j -O {outFileName} "
     hadd_str += " ".join(f for f in syst_files_to_merge)
 
-    if args.test:
+    if args.verbose:
         print(f"hadd_str is {hadd_str}")
     try:
         ps_call([hadd_str], True)
     except:
         create_file(outFileName)
-    if args.test:
+    if args.verbose:
         print(f"outFileName is {outFileName}")
     # print(syst_files_to_merge)
     if os.path.exists(outFileName) and len(syst_files_to_merge) != 0:
         for file_syst in syst_files_to_merge:  # + [outFileCentralName]:
-            if args.test:
+            if args.verbose:
                 print(file_syst)
             if file_syst == outFileName:
                 continue

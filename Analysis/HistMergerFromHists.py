@@ -1,10 +1,8 @@
 import ROOT
 import sys
 import os
-import math
-import shutil
 import time
-from FLAF.RunKit.run_tools import ps_call
+import importlib
 
 
 if __name__ == "__main__":
@@ -14,8 +12,6 @@ import FLAF.Common.Utilities as Utilities
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
 from FLAF.Analysis.QCD_estimation import *
-
-import importlib
 
 
 def checkFile(inFileRoot, channels, qcdRegions, categories):
@@ -45,7 +41,7 @@ def checkFile(inFileRoot, channels, qcdRegions, categories):
 
 def fill_all_hists_dict(
     items_dict,
-    all_hist_dict_per_var_and_sampletype,
+    all_hist_dict_per_var_and_datasettype,
     var_input,
     unc_source="Central",
 ):
@@ -59,35 +55,35 @@ def fill_all_hists_dict(
                 if var != var_check:
                     continue
                 final_key = (key_tuple, (unc_source, scale))
-                if final_key not in all_hist_dict_per_var_and_sampletype:
-                    all_hist_dict_per_var_and_sampletype[final_key] = []
-                all_hist_dict_per_var_and_sampletype[final_key].append(var_hist)
+                if final_key not in all_hist_dict_per_var_and_datasettype:
+                    all_hist_dict_per_var_and_datasettype[final_key] = []
+                all_hist_dict_per_var_and_datasettype[final_key].append(var_hist)
 
 
 def MergeHistogramsPerType(all_hists_dict):
     old_hist_dict = all_hists_dict.copy()
     all_hists_dict.clear()
-    for sample_type in old_hist_dict.keys():
-        if sample_type == "data":
-            print(f"DURING MERGE HISTOGRAMS, sample_type is data")
-        if sample_type not in all_hists_dict.keys():
-            all_hists_dict[sample_type] = {}
-        for key_name, histlist in old_hist_dict[sample_type].items():
+    for dataset_type in old_hist_dict.keys():
+        if dataset_type == "data":
+            print(f"DURING MERGE HISTOGRAMS, dataset_type is data")
+        if dataset_type not in all_hists_dict.keys():
+            all_hists_dict[dataset_type] = {}
+        for key_name, histlist in old_hist_dict[dataset_type].items():
             final_hist = histlist[0]
             objsToMerge = ROOT.TList()
             for hist in histlist[1:]:
                 objsToMerge.Add(hist)
             final_hist.Merge(objsToMerge)
-            all_hists_dict[sample_type][key_name] = final_hist
+            all_hists_dict[dataset_type][key_name] = final_hist
 
 
 def GetBTagWeightDict(
     var, all_hists_dict, categories, boosted_categories, boosted_variables
 ):
     all_hists_dict_1D = {}
-    for sample_type in all_hists_dict.keys():
-        all_hists_dict_1D[sample_type] = {}
-        for key_name, histogram in all_hists_dict[sample_type].items():
+    for dataset_type in all_hists_dict.keys():
+        all_hists_dict_1D[dataset_type] = {}
+        for key_name, histogram in all_hists_dict[dataset_type].items():
             (key_1, key_2) = key_name
 
             if var not in boosted_variables:
@@ -96,13 +92,13 @@ def GetBTagWeightDict(
                 key_tuple_num = ((ch, reg, "btag_shape"), key_2)
                 key_tuple_den = ((ch, reg, "inclusive"), key_2)
                 ratio_num_hist = (
-                    all_hists_dict[sample_type][key_tuple_num]
-                    if key_tuple_num in all_hists_dict[sample_type].keys()
+                    all_hists_dict[dataset_type][key_tuple_num]
+                    if key_tuple_num in all_hists_dict[dataset_type].keys()
                     else None
                 )
                 ratio_den_hist = (
-                    all_hists_dict[sample_type][key_tuple_den]
-                    if key_tuple_den in all_hists_dict[sample_type].keys()
+                    all_hists_dict[dataset_type][key_tuple_den]
+                    if key_tuple_den in all_hists_dict[dataset_type].keys()
                     else None
                 )
                 num = ratio_num_hist.Integral(0, ratio_num_hist.GetNbinsX() + 1)
@@ -124,7 +120,7 @@ def GetBTagWeightDict(
                     f"for var {var} no ratio is considered and the histogram is directly saved"
                 )
 
-            all_hists_dict_1D[sample_type][key_name] = histogram
+            all_hists_dict_1D[dataset_type][key_name] = histogram
     return all_hists_dict_1D
 
 
@@ -216,48 +212,39 @@ if __name__ == "__main__":
 
     # file structure : channel - region - category - varName_unc (if not central, else only varName)
 
-    # Samples
-    sample_cfg_dict = setup.samples
-    sample_cfg_dict["data"] = {
+    # Datasets
+    dataset_cfg_dict = setup.datasets
+    dataset_cfg_dict["data"] = {
         "process_name": "data"
     }  # Data isn't actually in config dict, but just add it here to keep working format
-    sample_types_to_merge = list(
-        set([samp["process_name"] for samp in setup.samples.values()])
-    )
-    # print(sample_cfg_dict)
+    # print(dataset_cfg_dict)
     all_hists_dict = {}
-    all_samples = args.dataset_names.split(",")
-    for sample_name, inFile_path in zip(all_samples, args.inFiles):
+    all_datasets = args.dataset_names.split(",")
+    for dataset_name, inFile_path in zip(all_datasets, args.inFiles):
         if unc_exception.keys():
             for unc_condition in unc_exception.keys():
                 if unc_condition and args.uncSource in unc_exception[key]:
                     continue
         if not os.path.exists(inFile_path):
             print(
-                f"input file for sample {sample_name} (with path= {inFile_path}) does not exist, skipping"
+                f"input file for dataset {dataset_name} (with path= {inFile_path}) does not exist, skipping"
             )
             continue
-        inFile = ROOT.TFile.Open(inFile_path, "READ")
-        # check that the file is ok
-        if inFile.IsZombie():
-            inFile.Close()
-            os.remove(inFile_path)
-            ignore_samples.append(sample_name)
-            raise RuntimeError(f"{inFile_path} is Zombie")
-        if not checkFile(inFile, channels, regions, all_categories):
-            print(f"{sample_name} has void file")
-            ignore_samples.append(sample_name)
-            inFile.Close()
-            continue
-        inFile.Close()
+        with ROOT.TFile.Open(inFile_path, "READ") as inFile:
+            # check that the file is ok
+            if inFile.IsZombie():
+                raise RuntimeError(f"{inFile_path} is zombie")
+            if not checkFile(inFile, channels, regions, all_categories):
+                raise RuntimeError(f"{dataset_name} has void file")
 
-        sample_type = sample_cfg_dict[sample_name]["process_name"]
-        if sample_type not in all_hists_dict.keys():
-            all_hists_dict[sample_type] = {}
+        base_process_name = dataset_cfg_dict[dataset_name]["process_name"]
+        dataset_type = setup.base_processes[base_process_name]["parent_process"]
+        if dataset_type not in all_hists_dict.keys():
+            all_hists_dict[dataset_type] = {}
 
         all_items = load_all_items(inFile_path)
         fill_all_hists_dict(
-            all_items, all_hists_dict[sample_type], args.var, args.uncSource
+            all_items, all_hists_dict[dataset_type], args.var, args.uncSource
         )  # to add: , unc_source="Central", scale="Central"
     MergeHistogramsPerType(all_hists_dict)
 
@@ -289,18 +276,18 @@ if __name__ == "__main__":
     all_unc_dict.update(unc_cfg_dict["shape"])
 
     outFile = ROOT.TFile(args.outFile, "RECREATE")
-    for sample_type in all_hists_dict.keys():
-        for key in all_hists_dict[sample_type].keys():
+    for dataset_type in all_hists_dict.keys():
+        for key in all_hists_dict[dataset_type].keys():
             (key_dir, (uncName, uncScale)) = key
-            # here there can be some custom requirements - e.g. regions / categories to not merge, samples to ignore
+            # here there can be some custom requirements - e.g. regions / categories to not merge, datasets to ignore
             dir_name = "/".join(key_dir)
             dir_ptr = Utilities.mkdir(outFile, dir_name)
-            hist = all_hists_dict[sample_type][key]
-            hist_name = sample_type
+            hist = all_hists_dict[dataset_type][key]
+            hist_name = dataset_type
             if uncName != args.uncSource:
                 continue
             if uncName != "Central":
-                if sample_type == "data":
+                if dataset_type == "data":
                     continue
                 if uncScale == "Central":
                     continue

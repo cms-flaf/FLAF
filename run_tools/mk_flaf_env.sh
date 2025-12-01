@@ -32,6 +32,7 @@ install() {
     run_cmd pip install https://github.com/riga/plotlib/archive/refs/heads/master.zip
     run_cmd pip install fastcrc
     run_cmd pip install bayesian-optimization
+    run_cmd pip install yamllint
 }
 
 create() {

@@ -42,14 +42,22 @@ class Task(law.Task):
     prefer_params_cli = ["version"]
     period = luigi.Parameter()
     customisations = luigi.Parameter(default="")
-    test = luigi.BoolParameter(default=False)
-    sample = luigi.Parameter(default="")
+    test = luigi.IntParameter(default=-1)
+    dataset = luigi.Parameter(default="")
+    process = luigi.Parameter(default="")
 
     def __init__(self, *args, **kwargs):
         super(Task, self).__init__(*args, **kwargs)
         self.setup = Setup.getGlobal(
-            os.getenv("ANALYSIS_PATH"), self.period, self.sample, self.customisations
+            os.getenv("ANALYSIS_PATH"),
+            self.period,
+            custom_process_selection=self.process if len(self.process) > 0 else None,
+            custom_dataset_selection=self.dataset if len(self.dataset) > 0 else None,
+            customisations=self.customisations,
         )
+        self._dataset_id_name_list = None
+        self._dataset_id_name_dict = None
+        self._dataset_name_id_dict = None
 
     def store_parts(self):
         return (self.__class__.__name__, self.version, self.period)
@@ -59,8 +67,8 @@ class Task(law.Task):
         return self.setup.cmssw_env
 
     @property
-    def samples(self):
-        return self.setup.samples
+    def datasets(self):
+        return self.setup.datasets
 
     @property
     def global_params(self):
@@ -136,9 +144,34 @@ class Task(law.Task):
     def poll_callback(self, poll_data):
         update_kinit(verbose=0)
 
-    def iter_samples(self):
-        for sample_id, sample_name in enumerate(natural_sort(self.samples.keys())):
-            yield sample_id, sample_name
+    def _create_dataset_mappings(self):
+        if self._dataset_id_name_list is None:
+            self._dataset_id_name_list = []
+            self._dataset_id_name_dict = {}
+            self._dataset_name_id_dict = {}
+            for dataset_id, dataset_name in enumerate(
+                natural_sort(self.datasets.keys())
+            ):
+                self._dataset_id_name_list.append((dataset_id, dataset_name))
+                self._dataset_id_name_dict[dataset_id] = dataset_name
+                self._dataset_name_id_dict[dataset_name] = dataset_id
+
+    def iter_datasets(self):
+        self._create_dataset_mappings()
+        for dataset_id, dataset_name in self._dataset_id_name_list:
+            yield dataset_id, dataset_name
+
+    def get_dataset_name(self, dataset_id):
+        self._create_dataset_mappings()
+        if dataset_id not in self._dataset_id_name_dict:
+            raise KeyError(f"dataset id '{dataset_id}' not found")
+        return self._dataset_id_name_dict[dataset_id]
+
+    def get_dataset_id(self, dataset_name):
+        self._create_dataset_mappings()
+        if dataset_name not in self._dataset_name_id_dict:
+            raise KeyError(f"dataset name '{dataset_name}' not found")
+        return self._dataset_name_id_dict[dataset_name]
 
 
 class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):

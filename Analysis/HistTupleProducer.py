@@ -2,22 +2,14 @@ import time
 import os
 import sys
 import ROOT
-import shutil
-import zlib
-
-# import fastcrc
-import json
-
 
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
 import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
-import importlib
 from FLAF.RunKit.run_tools import ps_call
 from FLAF.Common.HistHelper import *
-from FLAF.Common.Utilities import getCustomisationSplit
 
 # ROOT.EnableImplicitMT(1)
 ROOT.EnableThreadSafety()
@@ -95,6 +87,7 @@ def createHistTuple(
             df_cache_central.append(ROOT.RDataFrame(treeName, cacheFile))
 
     ROOT.RDF.Experimental.AddProgressBar(df_central)
+
     if range is not None:
         df_central = df_central.Range(range)
     if len(evtIds) > 0:
@@ -228,8 +221,6 @@ def createVoidTree(file_name, tree_name):
 
 if __name__ == "__main__":
     import argparse
-    import os
-    import yaml
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--period", required=True, type=str)
@@ -249,7 +240,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     startTime = time.time()
-    setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period, "")
+    setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period)
 
     treeName = setup.global_params[
         "treeName"
@@ -262,13 +253,13 @@ if __name__ == "__main__":
         else setup.global_params["channelSelection"]
     )
     process_name = (
-        setup.samples[args.dataset]["process_name"]
+        setup.datasets[args.dataset]["process_name"]
         if args.dataset != "data"
         else "data"
     )
     setup.global_params["process_name"] = process_name
     process_group = (
-        setup.samples[args.dataset]["process_group"]
+        setup.datasets[args.dataset]["process_group"]
         if args.dataset != "data"
         else "data"
     )

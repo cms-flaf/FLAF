@@ -165,6 +165,7 @@ def createHistTuple(
                 hist_cfg_dict=hist_cfg_dict,
                 global_params=setup.global_params,
                 final_weight_name=final_weight_name,
+                df_is_central=True,
             )
             dfw_central.colToSave.append(final_weight_name)
     for var in variables:
@@ -211,13 +212,15 @@ def createHistTuple(
                     final_weight_name = "weight_Central"
 
                     histTupleDef.DefineWeightForHistograms(
-                        dfw_shift,
-                        unc,
-                        scale,
-                        unc_cfg_dict,
-                        hist_cfg_dict,
-                        setup.global_params,
-                        final_weight_name,
+                        dfw=dfw_shift,
+                        isData=isData,
+                        uncName=unc,
+                        uncScale=scale,
+                        unc_cfg_dict=unc_cfg_dict,
+                        hist_cfg_dict=hist_cfg_dict,
+                        global_params=setup.global_params,
+                        final_weight_name=final_weight_name,
+                        df_is_central=False,
                     )
                     dfw_shift.colToSave.append(final_weight_name)
                     for var in variables:

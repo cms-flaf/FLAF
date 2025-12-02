@@ -175,7 +175,7 @@ def createAnalysisCache(
 ):
     start_time = datetime.datetime.now()
     verbosity = ROOT.RLogScopedVerbosity(
-        ROOT.Detail.RDF.RDFLogChannel(), ROOT.ELogLevel.kInfo
+        ROOT.Detail.RDF.RDFLogChannel(), ROOT.ELogLevel.kLogInfo
     )
     snaps = []
     all_files = []

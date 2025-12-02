@@ -169,7 +169,7 @@ load_flaf_env() {
   fi
 
   local FLAF_LCG_VERSION="LCG_108a"
-  local FLAF_LCG_ARCH="x86_64-el9-clang19-opt"
+  local FLAF_LCG_ARCH="x86_64-el9-gcc15-opt"
   if [[ ! -f "$FLAF_ENVIRONMENT_PATH/.${FLAF_LCG_VERSION}_${FLAF_LCG_ARCH}" ]]; then
     if [[ -d "$FLAF_ENVIRONMENT_PATH" ]]; then
       echo "Removing old FLAF environment installation in $FLAF_ENVIRONMENT_PATH ..."

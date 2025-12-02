@@ -87,6 +87,7 @@ def computeAnaCache(
     start_time = datetime.datetime.now()
     Corrections.initializeGlobal(
         global_params=global_params,
+        stage='AnaCache',
         isData=False,
         load_corr_lib=True,
         dataset_name=None,

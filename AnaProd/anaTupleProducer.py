@@ -78,6 +78,7 @@ def createAnatuple(
         processor_instances["default"] = DefaultAnaCacheProcessor()
     Corrections.initializeGlobal(
         global_params=setup.global_params,
+        stage="AnaTuple",
         dataset_name=dataset_name,
         dataset_cfg=dataset_cfg,
         process_name=process_name,

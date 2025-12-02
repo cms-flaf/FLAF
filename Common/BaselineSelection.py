@@ -37,7 +37,7 @@ def Initialize(loadTF=False, loadHHBtag=False):
     global initialized
     if not initialized:
         headers_dir = os.path.dirname(os.path.abspath(__file__))
-        for include_path in [ "ANALYSIS_PATH", "FLAF_PATH"]:
+        for include_path in ["ANALYSIS_PATH", "FLAF_PATH"]:
             if include_path in os.environ:
                 ROOT.gROOT.ProcessLine(".include " + os.environ[include_path])
         header_path_RootExt = "include/RootExt.h"

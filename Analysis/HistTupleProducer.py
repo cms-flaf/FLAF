@@ -72,13 +72,21 @@ def createHistTuple(
     inFile_keys,
 ):
     Baseline.Initialize(False, False)
-    dataset_cfg = setup.datasets[dataset_name]
-    process_name = dataset_cfg["process_name"]
-    process = setup.base_processes[process_name]
-    isData = dataset_cfg["process_group"] == "data"
-    processors_cfg, processor_instances = setup.get_processors(
-        process_name, stage="HistTuple", create_instances=True
-    )
+    if dataset_name == "data":
+        dataset_cfg = {}
+        process_name = "data"
+        process = {}
+        isData = True
+        processors_cfg = {}
+        processor_instances = {}
+    else:
+        dataset_cfg = setup.datasets[dataset_name]
+        process_name = dataset_cfg["process_name"]
+        process = setup.base_processes[process_name]
+        isData = dataset_cfg["process_group"] == "data"
+        processors_cfg, processor_instances = setup.get_processors(
+            process_name, stage="HistTuple", create_instances=True
+        )
     triggerFile = setup.global_params.get("triggerFile")
     trigger_class = None
     if triggerFile is not None:

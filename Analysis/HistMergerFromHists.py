@@ -214,8 +214,13 @@ if __name__ == "__main__":
 
     # Datasets
     dataset_cfg_dict = setup.datasets
+    data_process_name = "data"
+    data_processes = setup.phys_model.processes(process_type="data")
+    if len(data_processes) > 0:
+        data_base_processes = setup.phys_model.base_processes(data_processes[0])
+        data_process_name = data_base_processes[0]
     dataset_cfg_dict["data"] = {
-        "process_name": "data"
+        "process_name": data_process_name
     }  # Data isn't actually in config dict, but just add it here to keep working format
     # print(dataset_cfg_dict)
     all_hists_dict = {}

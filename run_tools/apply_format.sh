@@ -14,6 +14,9 @@ declare -a PYTHON_FILES=()
 declare -a CPP_FILES=()
 declare -a YAML_FILES=()
 for file in $(git log --name-only --pretty="" origin/main..HEAD | sort | uniq); do
+    if [ ! -f "$file" ]; then
+        continue
+    fi
     if [[ $file == *.py ]]; then
         PYTHON_FILES+=("$file")
     elif [[ $file == *.cpp || $file == *.h || $file == *.hpp || $file == *.cc ]]; then

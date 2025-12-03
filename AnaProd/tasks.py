@@ -491,10 +491,11 @@ class AnaTupleFileListTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ).create_branch_map()
         branch_set = set()
         for idx, (dataset_name, process_group) in self.branch_map.items():
-            for br_idx, (anaTuple_dataset_id,
-                    anaTuple_dataset_name,
-                    anaTuple_dataset_dependencies,
-                    anaTuple_fileintot,
+            for br_idx, (
+                anaTuple_dataset_id,
+                anaTuple_dataset_name,
+                anaTuple_dataset_dependencies,
+                anaTuple_fileintot,
             ) in AnaTuple_map.items():
                 match = dataset_name == anaTuple_dataset_name
                 if not match and process_group == "data":

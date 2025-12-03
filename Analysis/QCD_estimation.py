@@ -544,14 +544,22 @@ def AddQCDInHistDict(
                         error_on_qcdnorm,
                         error_on_qcdnorm_varied,
                     ) = QCD_Estimation(
-                        all_histograms, all_samples_list, channel, cat, uncName, scale, True
+                        all_histograms,
+                        all_samples_list,
+                        channel,
+                        cat,
+                        uncName,
+                        scale,
+                        True,
                     )
                 except Exception as ex:
-                    print(f"[QCD] ERROR computing QCD for {(channel,cat,uncName,scale)}: {ex}")
+                    print(
+                        f"[QCD] ERROR computing QCD for {(channel,cat,uncName,scale)}: {ex}"
+                    )
                     # leave empty histogram instead of crashing
                     hist_qcd_Central = ROOT.TH1D()
-                    hist_qcd_Up  = ROOT.TH1D()
-                    hist_qcd_Down= ROOT.TH1D()
+                    hist_qcd_Up = ROOT.TH1D()
+                    hist_qcd_Down = ROOT.TH1D()
                     error_on_qcdnorm = error_on_qcdnorm_varied = 0.0
                 all_histograms["QCD"][key] = hist_qcd_Central
             if uncName == "QCDScale":

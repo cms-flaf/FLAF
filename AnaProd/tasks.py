@@ -494,12 +494,15 @@ class AnaTupleFileListTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             for br_idx, (
                 anaTuple_dataset_id,
                 anaTuple_dataset_name,
-                anaTuple_process_group,
-                anaTuple_input_file,
+                anaTuple_dataset_dependencies,
+                anaTuple_fileintot,
             ) in AnaTuple_map.items():
-                if (dataset_name == anaTuple_dataset_name) or (
-                    process_group == "data" and anaTuple_process_group == "data"
-                ):
+                match = dataset_name == anaTuple_dataset_name
+                if not match and process_group == "data":
+                    anaTuple_dataset = self.datasets[anaTuple_dataset_name]
+                    anaTuple_process_group = anaTuple_dataset["process_group"]
+                    match = anaTuple_process_group == "data"
+                if match:
                     branch_set.add(br_idx)
 
         deps = {
@@ -522,12 +525,15 @@ class AnaTupleFileListTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         for br_idx, (
             anaTuple_dataset_id,
             anaTuple_dataset_name,
-            anaTuple_process_group,
-            anaTuple_input_file,
+            anaTuple_dataset_dependencies,
+            anaTuple_fileintot,
         ) in AnaTuple_map.items():
-            if (dataset_name == anaTuple_dataset_name) or (
-                process_group == "data" and anaTuple_process_group == "data"
-            ):
+            match = dataset_name == anaTuple_dataset_name
+            if not match and process_group == "data":
+                anaTuple_dataset = self.datasets[anaTuple_dataset_name]
+                anaTuple_process_group = anaTuple_dataset["process_group"]
+                match = anaTuple_process_group == "data"
+            if match:
                 branch_set.add(br_idx)
 
         reqs = [
@@ -592,6 +598,7 @@ class AnaTupleFileListTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             local_inputs = [
                 stack.enter_context(inp[1].localize("r")).path for inp in self.input()
             ]
+            print(f"Localized {len(local_inputs)} inputs")
 
             job_home, remove_job_home = self.law_job_home()
             tmpFile = os.path.join(job_home, f"AnaTupleFileList_tmp.json")
@@ -666,12 +673,15 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             for br_idx, (
                 anaTuple_dataset_id,
                 anaTuple_dataset_name,
-                anaTuple_process_group,
-                anaTuple_input_file,
+                anaTuple_dataset_dependencies,
+                anaTuple_fileintot,
             ) in anaTuple_branch_map.items():
-                if (dataset_name == anaTuple_dataset_name) or (
-                    process_group == "data" and anaTuple_process_group == "data"
-                ):
+                match = dataset_name == anaTuple_dataset_name
+                if not match and process_group == "data":
+                    anaTuple_dataset = self.datasets[anaTuple_dataset_name]
+                    anaTuple_process_group = anaTuple_dataset["process_group"]
+                    match = anaTuple_process_group == "data"
+                if match:
                     anaTuple_branch_set.add(br_idx)
 
         return {
@@ -703,14 +713,17 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         for prod_br, (
             anaTuple_dataset_id,
             anaTuple_dataset_name,
-            anaTuple_process_group,
-            file_location,
+            anaTuple_dataset_dependencies,
+            anaTuple_fileintot,
         ) in anaTuple_branch_map.items():
-            if anaTuple_dataset_name == dataset_name or (
-                process_group == "data" and anaTuple_process_group == "data"
-            ):
+            match = dataset_name == anaTuple_dataset_name
+            if not match and process_group == "data":
+                anaTuple_dataset = self.datasets[anaTuple_dataset_name]
+                anaTuple_process_group = anaTuple_dataset["process_group"]
+                match = anaTuple_process_group == "data"
+            if match:
                 # print(f"{anaTuple_dataset_name}, {dataset_name} are the same, thus including:")
-                file_name = file_location.path.split("/")[-1]
+                file_name = anaTuple_fileintot.path.split("/")[-1]
                 # print(input_file_list)
                 # print(f"anaTuple_dataset_name/file_name  = {anaTuple_dataset_name}/{file_name}  in input_fileList? ", f"{anaTuple_dataset_name}/{file_name}" in input_file_list)
                 if (

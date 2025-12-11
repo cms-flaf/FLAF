@@ -14,12 +14,13 @@ def QCD_Estimation(
     category,
     uncName,
     scale,
+    data_process_name,
     wantNegativeContributions,
 ):
     key_B = ((channel, "OS_AntiIso", category), (uncName, scale))
     key_C = ((channel, "SS_Iso", category), (uncName, scale))
     key_D = ((channel, "SS_AntiIso", category), (uncName, scale))
-    hist_data = histograms["Data"]
+    hist_data = histograms[data_process_name]
     hist_data_B = hist_data[key_B].Clone()
     hist_data_C = hist_data[key_C].Clone()
     hist_data_D = hist_data[key_D].Clone()
@@ -526,6 +527,7 @@ def AddQCDInHistDict(
     uncName,
     all_samples_list,
     scales,
+    data_process_name=None,
     wantNegativeContributions=False,
 ):
     if "QCD" not in all_histograms.keys():
@@ -552,17 +554,9 @@ def AddQCDInHistDict(
                     cat,
                     uncName,
                     scale,
+                    data_process_name,
                     True,
                 )
-                # except Exception as ex:
-                #     print(
-                #         f"[QCD] ERROR computing QCD for {(channel,cat,uncName,scale)}: {ex}"
-                #     )
-
-                #     hist_qcd_Central = ROOT.TH1D()
-                #     hist_qcd_Up = ROOT.TH1D()
-                #     hist_qcd_Down = ROOT.TH1D()
-                #     error_on_qcdnorm = error_on_qcdnorm_varied = 0.0
                 all_histograms["QCD"][key] = hist_qcd_Central
             if uncName == "QCDScale":
                 keyQCD_up = ((channel, "OS_Iso", cat), ("QCDScale", "Up"))

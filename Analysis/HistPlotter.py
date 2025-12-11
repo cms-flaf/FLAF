@@ -174,6 +174,14 @@ if __name__ == "__main__":
                 "plot_color": "kBlack",
             }
 
+        if args.wantQCD:
+            all_datasets_dict["QCD"] = {
+                "process_name": "QCD",
+                "process_group": "backgrounds",
+                "plot_name": "QCD",
+                "plot_color": "kGray+2",
+            }
+
         for dataset_name in setup.datasets.keys():
             base_process_name = setup.datasets[dataset_name]["process_name"]
             process_group = setup.datasets[dataset_name]["process_group"]

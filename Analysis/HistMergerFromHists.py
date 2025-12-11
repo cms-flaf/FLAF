@@ -268,7 +268,11 @@ if __name__ == "__main__":
     data_processes = setup.phys_model.processes(process_type="data")
     if len(data_processes) > 0:
         data_processes = data_processes[0]
-    if not analysis_import == "Analysis.H_mumu" and estimateQCD and data_processes in all_hists_dict.keys():
+    if (
+        not analysis_import == "Analysis.H_mumu" 
+        and estimateQCD 
+        and data_processes in all_hists_dict.keys()
+    ):
         fixNegativeContributions = False
         error_on_qcdnorm, error_on_qcdnorm_varied = AddQCDInHistDict(
             args.var,
@@ -278,7 +282,7 @@ if __name__ == "__main__":
             args.uncSource,
             list(all_hists_dict.keys()),
             scales,
-            data_process_name=data_process,
+            data_process_name=data_processes,
             wantNegativeContributions=False,
         )
 

@@ -269,8 +269,8 @@ if __name__ == "__main__":
     if len(data_processes) > 0:
         data_processes = data_processes[0]
     if (
-        not analysis_import == "Analysis.H_mumu" 
-        and estimateQCD 
+        not analysis_import == "Analysis.H_mumu"
+        and estimateQCD
         and data_processes in all_hists_dict.keys()
     ):
         fixNegativeContributions = False

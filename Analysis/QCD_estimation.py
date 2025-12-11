@@ -19,7 +19,7 @@ def QCD_Estimation(
     key_B = ((channel, "OS_AntiIso", category), (uncName, scale))
     key_C = ((channel, "SS_Iso", category), (uncName, scale))
     key_D = ((channel, "SS_AntiIso", category), (uncName, scale))
-    hist_data = histograms["data"]
+    hist_data = histograms["Data"]
     hist_data_B = hist_data[key_B].Clone()
     hist_data_C = hist_data[key_C].Clone()
     hist_data_D = hist_data[key_D].Clone()
@@ -31,7 +31,9 @@ def QCD_Estimation(
     print(f"Initially Yield for data in SS AntiIso region is{key_D} is {n_data_D}")
     for sample in all_samples_list:
         if (
-            sample == "data"
+            sample == "Data"
+            or "GluGluToHHto2B2Tau" in sample
+            or "VBFHHto2B2Tau" in sample
             or "GluGluToBulkGraviton" in sample
             or "GluGluToRadion" in sample
             or "VBFToBulkGraviton" in sample
@@ -536,31 +538,31 @@ def AddQCDInHistDict(
                 if uncName != "Central" and scale == "Central":
                     continue
                 key = ((channel, "OS_Iso", cat), (uncName, scale))
-                try:
-                    (
-                        hist_qcd_Central,
-                        hist_qcd_Up,
-                        hist_qcd_Down,
-                        error_on_qcdnorm,
-                        error_on_qcdnorm_varied,
-                    ) = QCD_Estimation(
-                        all_histograms,
-                        all_samples_list,
-                        channel,
-                        cat,
-                        uncName,
-                        scale,
-                        True,
-                    )
-                except Exception as ex:
-                    print(
-                        f"[QCD] ERROR computing QCD for {(channel,cat,uncName,scale)}: {ex}"
-                    )
-                    # leave empty histogram instead of crashing
-                    hist_qcd_Central = ROOT.TH1D()
-                    hist_qcd_Up = ROOT.TH1D()
-                    hist_qcd_Down = ROOT.TH1D()
-                    error_on_qcdnorm = error_on_qcdnorm_varied = 0.0
+                # try:
+                (
+                    hist_qcd_Central,
+                    hist_qcd_Up,
+                    hist_qcd_Down,
+                    error_on_qcdnorm,
+                    error_on_qcdnorm_varied,
+                ) = QCD_Estimation(
+                    all_histograms,
+                    all_samples_list,
+                    channel,
+                    cat,
+                    uncName,
+                    scale,
+                    True,
+                )
+                # except Exception as ex:
+                #     print(
+                #         f"[QCD] ERROR computing QCD for {(channel,cat,uncName,scale)}: {ex}"
+                #     )
+
+                #     hist_qcd_Central = ROOT.TH1D()
+                #     hist_qcd_Up = ROOT.TH1D()
+                #     hist_qcd_Down = ROOT.TH1D()
+                #     error_on_qcdnorm = error_on_qcdnorm_varied = 0.0
                 all_histograms["QCD"][key] = hist_qcd_Central
             if uncName == "QCDScale":
                 keyQCD_up = ((channel, "OS_Iso", cat), ("QCDScale", "Up"))

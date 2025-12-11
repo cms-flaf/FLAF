@@ -164,19 +164,12 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 deps.extend(caches_list)
         return deps
 
-    def create_branch_map(self):
-        merge_organization_complete = AnaTupleFileListTask.req(
-            self, branches=()
-        ).complete()
-        if not merge_organization_complete:
-            self.cache_branch_map = False
-            if not hasattr(self, "_branches_backup"):
-                self._branches_backup = copy.deepcopy(self.branches)
-            return {0: ()}
-        self.cache_branch_map = True
-        if hasattr(self, "_branches_backup"):
-            self.branches = self._branches_backup
+    @law.dynamic_workflow_condition
+    def workflow_condition(self):
+        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
 
+    @workflow_condition.create_branch_map
+    def create_branch_map(self):
         var_produced_by = self.setup.var_producer_map
 
         n = 0
@@ -226,9 +219,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 n += 1
         return branches
 
+    @workflow_condition.output
     def output(self):
-        if len(self.branch_data) == 0:
-            return self.local_target("dummy.txt")
         dataset_name, prod_br, need_cache_global, producer_list, input_index = (
             self.branch_data
         )
@@ -243,10 +235,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         dataset_name, prod_br, need_cache_global, producer_list, input_index = (
             self.branch_data
         )
-        # print("My inputs are")
-        # print(self.input())
-        # input_paths = [ x.path for x in self.input() ]
-        # print(input_paths[0])
         input_file = self.input()[0][input_index]
         customisation_dict = getCustomisationSplit(self.customisations)
         channels = customisation_dict.get(
@@ -375,20 +363,17 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         )
         return reqs
 
+    @law.dynamic_workflow_condition
+    def workflow_condition(self):
+        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
+
+    @workflow_condition.create_branch_map
     def create_branch_map(self):
         branches = {}
         prod_br_list = []
         current_dataset = None
         n = 0
 
-        merge_organization_complete = AnaTupleFileListTask.req(
-            self, branches=()
-        ).complete()
-        if not merge_organization_complete:
-            self.cache_branch_map = False
-            if not hasattr(self, "_branches_backup"):
-                self._branches_backup = copy.deepcopy(self.branches)
-            return {0: ()}
         dataset_to_branches = {}
         HistTupleBranchMap = HistTupleProducerTask.req(
             self, branches=()
@@ -409,9 +394,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         return branches
 
+    @workflow_condition.output
     def output(self):
-        if len(self.branch_data) == 0:
-            return self.local_target("dummy.txt")
         var, prod_br, dataset_name = self.branch_data
         output_path = os.path.join(
             "hists", self.version, self.period, var, f"{dataset_name}.root"
@@ -548,18 +532,12 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         return reqs
 
+    @law.dynamic_workflow_condition
+    def workflow_condition(self):
+        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
+
+    @workflow_condition.create_branch_map
     def create_branch_map(self):
-        merge_organization_complete = AnaTupleFileListTask.req(
-            self, branches=()
-        ).complete()
-        if not merge_organization_complete:
-            self.cache_branch_map = False
-            if not hasattr(self, "_branches_backup"):
-                self._branches_backup = copy.deepcopy(self.branches)
-            return {0: ()}
-        self.cache_branch_map = True
-        if hasattr(self, "_branches_backup"):
-            self.branches = self._branches_backup
         HistFromNtupleProducerTask_branch_map = HistFromNtupleProducerTask.req(
             self, branches=()
         ).create_branch_map()
@@ -585,9 +563,8 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             k += 1
         return branches
 
+    @workflow_condition.output
     def output(self):
-        if len(self.branch_data) == 0:
-            return self.local_target("dummy.txt")
         var_name, br_indices, datasets = self.branch_data
         output_path = os.path.join("merged_hists", self.version, self.period, var_name)
         output_file_name = os.path.join(output_path, f"{var_name}.root")
@@ -834,19 +811,13 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 )
         return requires_list
 
+    @law.dynamic_workflow_condition
+    def workflow_condition(self):
+        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
+
+    @workflow_condition.create_branch_map
     def create_branch_map(self):
-        merge_organization_complete = AnaTupleFileListTask.req(
-            self, branches=()
-        ).complete()
-        if not merge_organization_complete:
-            self.cache_branch_map = False
-            if not hasattr(self, "_branches_backup"):
-                self._branches_backup = copy.deepcopy(self.branches)
-            return {0: ()}
         branches = {}
-        self.cache_branch_map = True
-        if hasattr(self, "_branches_backup"):
-            self.branches = self._branches_backup
         anaProd_branch_map = AnaTupleMergeTask.req(
             self, branch=-1, branches=()
         ).branch_map
@@ -859,9 +830,8 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             branches[br_idx] = (dataset_name, process_group, len(output_file_list))
         return branches
 
+    @workflow_condition.output
     def output(self):
-        if len(self.branch_data) == 0:
-            return self.local_target("dummy.txt")
         dataset_name, process_group, nInputs = self.branch_data
         return_list = []
         for idx in range(nInputs):
@@ -1083,23 +1053,6 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
         }
 
-    def create_branch_map(self):
-        merge_organization_complete = AnaTupleFileListTask.req(
-            self, branches=()
-        ).complete()
-        if not merge_organization_complete:
-            self.cache_branch_map = False
-            if not hasattr(self, "_branches_backup"):
-                self._branches_backup = copy.deepcopy(self.branches)
-            return {0: ()}
-        branches = {}
-        merge_map = HistMergerTask.req(
-            self, branch=-1, branches=(), customisations=self.customisations
-        ).create_branch_map()
-        for k, (_, (var, _, _)) in enumerate(merge_map.items()):
-            branches[k] = var
-        return branches
-
     def requires(self):
         var = self.branch_data
 
@@ -1115,9 +1068,22 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             max_runtime=HistMergerTask.max_runtime._default,
         )
 
+    @law.dynamic_workflow_condition
+    def workflow_condition(self):
+        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
+
+    @workflow_condition.create_branch_map
+    def create_branch_map(self):
+        branches = {}
+        merge_map = HistMergerTask.req(
+            self, branch=-1, branches=(), customisations=self.customisations
+        ).create_branch_map()
+        for k, (_, (var, _, _)) in enumerate(merge_map.items()):
+            branches[k] = var
+        return branches
+
+    @workflow_condition.output
     def output(self):
-        if len(self.branch_data) == 0:
-            return self.local_target("dummy.txt")
         var = self.branch_data
         outputs = {}
         customisation_dict = getCustomisationSplit(self.customisations)

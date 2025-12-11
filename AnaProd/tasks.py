@@ -622,10 +622,10 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
 class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
     def workflow_requires(self):
-        return { "AnaTupleFileListBuilderTask": AnaTupleFileListBuilderTask.req(self) }
+        return {"AnaTupleFileListBuilderTask": AnaTupleFileListBuilderTask.req(self)}
 
     def requires(self):
-        return [ AnaTupleFileListBuilderTask.req(self) ]
+        return [AnaTupleFileListBuilderTask.req(self)]
 
     def output(self):
         dataset_name, process_group = self.branch_data
@@ -635,6 +635,7 @@ class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
         with self.input()[0].localize("r") as input_local:
             self.output().makedirs()
             shutil.copy(input_local.path, self.output().path)
+
 
 class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 24.0)

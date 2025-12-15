@@ -12,6 +12,73 @@ def saveFile(outFile, out_tree_dict, histograms):
         for out_tree_key in out_tree_dict.keys():
             out_file[out_tree_key] = out_tree_dict[out_tree_key]
 
+def parseColumnName(column_name):
+    if len(column_name) == 0:
+        raise RuntimeError("Empty column name")
+    meta_split = column_name.split("__")
+    if len(meta_split) not in [1, 3, 4] or any(len(part) == 0 for part in meta_split):
+        raise RuntimeError(f"Cannot parse column name: {column_name}")
+    if len(meta_split) == 1:
+        column_name_base = meta_split[0]
+        unc_source = None
+        unc_scale = None
+        representation = None
+    else:
+        unc_source = meta_split[0]
+        unc_scale = meta_split[1]
+        column_name_base = meta_split[2]
+        representation = meta_split[3] if len(meta_split) >= 4 else None
+    name_split = column_name_base.split("_", 1)
+    if len(name_split) == 1:
+        var_name = column_name_base
+        full_var_name = column_name
+        collection_name = None
+        full_collection_name = None
+    else:
+        var_name = name_split[1]
+        full_var_name = f'{var_name}__{representation}' if representation is not None else var_name
+        collection_name = name_split[0]
+        full_collection_name = f'{unc_source}__{unc_scale}__{collection_name}' if unc_source is not None else collection_name
+
+    return {
+        "var_name": var_name,
+        "collection_name": collection_name,
+        "full_var_name": full_var_name,
+        "full_collection_name": full_collection_name,
+        "unc_source": unc_source,
+        "unc_scale": unc_scale,
+        "representation": representation,
+    }
+
+
+def defineColumnGrouping(arrays, keys, verbose=1):
+    groupped_arrays = {}
+    collections = {}
+    other_columns = []
+    for key in keys:
+        column_desc = parseColumnName(key)
+        collection_name, column_name = column_desc["full_collection_name"], column_desc["full_var_name"]
+        if collection_name is None:
+            other_columns.append(key)
+        else:
+            if collection_name not in collections:
+                collections[collection_name] = []
+            collections[collection_name].append(column_name)
+
+    for collection_name, columns in collections.items():
+        if verbose > 1:
+            print(f"  {collection_name}: {columns}")
+        groupped_arrays[collection_name] = ak.zip(
+            {column: arrays[collection_name + "_" + column] for column in columns}
+        )
+    counter_columns = ["n" + col_name for col_name in collections.keys()]
+    other_columns = [col for col in other_columns if col not in counter_columns]
+    if verbose > 1:
+        print(f"  Other columns: {other_columns}")
+    for column in other_columns:
+        groupped_arrays[column] = arrays[column]
+
+    return groupped_arrays
 
 def toUproot(inFile, outFile, verbose=1):
     dfNames = []
@@ -49,30 +116,7 @@ def toUproot(inFile, outFile, verbose=1):
                 print(f"  Skipping empty tree")
             continue
         df = input_tree.arrays()
-        collections = {}
-        other_columns = []
-        for key in keys:
-            parts = key.split("_", 1)
-            if len(parts) == 1:
-                other_columns.append(key)
-            else:
-                col_name, br_name = parts
-                if not col_name in collections:
-                    collections[col_name] = []
-                collections[col_name].append(br_name)
-        for col_name, columns in collections.items():
-            if verbose > 1:
-                print(f"  {col_name}: {columns}")
-            out_tree[col_name] = ak.zip(
-                {column: df[col_name + "_" + column] for column in columns}
-            )
-        counter_columns = ["n" + col_name for col_name in collections.keys()]
-        other_columns = [col for col in other_columns if col not in counter_columns]
-        if verbose > 1:
-            print(f"  Other columns: {other_columns}")
-        for column in other_columns:
-            out_tree[column] = df[column]
-        out_trees[dfName] = out_tree
+        out_trees[dfName] = defineColumnGrouping(df, keys, verbose=verbose)
     if verbose > 1 and len(histograms) > 0:
         print(f"Histograms: {histograms.keys()}")
     return saveFile(outFile, out_trees, histograms)

@@ -147,9 +147,15 @@ def createAnatuple(
         ]
         df, syst_dict = corrections.applyScaleUncertainties(df, ana_reco_objects)
     df_empty = df
-    snaps = []
-    reports = []
-    outfilesNames = []
+
+    outfile_prefix = inFile.split("/")[-1]
+    outfile_prefix = outfile_prefix.split(".")[0]
+    outFileName = os.path.join(outDir, f"{outfile_prefix}_empty.root")
+
+    outfilesNames = [ outFileName ]
+    snaps = [ df.Snapshot(f"Events", outFileName, ["FullEventId"], snapshotOptions) ]
+    reports = [ df.Report() ]
+
     k = 0
     print(f"syst_dict={syst_dict}")
     for syst_name, source_name in syst_dict.items():

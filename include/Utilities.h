@@ -79,8 +79,18 @@ namespace analysis {
     }
 
     template <typename T>
+    T Delta(const T& shifted, const T& central, bool shifted_valid, bool central_valid) {
+        return shifted_valid && central_valid ? Delta(shifted, central) : shifted;
+    }
+
+    template <typename T>
     T FromDelta(const T& delta, const T& central) {
         return ::detail::DeltaImpl<T>::FromDelta(delta, central);
+    }
+
+    template <typename T>
+    T FromDelta(const T& delta, const T& central, bool shifted_valid, bool central_valid) {
+        return shifted_valid && central_valid ? FromDelta(delta, central) : delta;
     }
 
     template <typename T>

@@ -164,12 +164,23 @@ if __name__ == "__main__":
         all_histlist = {}
 
         all_datasets_dict = {}
-        all_datasets_dict["data"] = {
-            "process_name": "data",
-            "process_group": "data",
-            "plot_name": "data",
-            "plot_color": "kBlack",
-        }
+        data_processes = setup.phys_model.processes(process_type="data")
+        if len(data_processes) > 0:
+            data_process = data_processes[0]
+            all_datasets_dict[data_process] = {
+                "process_name": data_process,
+                "process_group": "data",
+                "plot_name": "data",
+                "plot_color": "kBlack",
+            }
+
+        if args.wantQCD:
+            all_datasets_dict["QCD"] = {
+                "process_name": "QCD",
+                "process_group": "backgrounds",
+                "plot_name": "QCD",
+                "plot_color": "kGray+2",
+            }
 
         for dataset_name in setup.datasets.keys():
             base_process_name = setup.datasets[dataset_name]["process_name"]

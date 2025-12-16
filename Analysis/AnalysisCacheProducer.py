@@ -202,8 +202,8 @@ def createAnalysisCache(
     cacheFileNames="",
 ):
     start_time = datetime.datetime.now()
-    verbosity = ROOT.Experimental.RLogScopedVerbosity(
-        ROOT.Detail.RDF.RDFLogChannel(), ROOT.Experimental.ELogLevel.kInfo
+    verbosity = ROOT.RLogScopedVerbosity(
+        ROOT.Detail.RDF.RDFLogChannel(), ROOT.ELogLevel.kLogInfo
     )
     snaps = []
     all_files = []
@@ -356,7 +356,7 @@ if __name__ == "__main__":
     snapshotOptions.fLazy = False
     snapshotOptions.fMode = "RECREATE"
     snapshotOptions.fCompressionAlgorithm = getattr(
-        ROOT.ROOT, "k" + args.compressionAlgo
+        ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + args.compressionAlgo
     )
     snapshotOptions.fCompressionLevel = args.compressionLevel
     unc_cfg_dict = {}

@@ -13,8 +13,7 @@ jobs:
   process-trigger-request:
     runs-on: ubuntu-latest
     steps:
-      - uses: cms-flaf/FLAF/.github/actions/checkout-flaf@main
-
+    
       - name: Get PR number
         id: get_pr_number
         uses: actions/github-script@v6
@@ -27,6 +26,10 @@ jobs:
               return;
             }
             core.setOutput('is_pr', 'true');
+
+      - name: Checkout repository
+        if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}
+        uses: actions/checkout@v4
 
       - name: Checkout PR branch
         if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}

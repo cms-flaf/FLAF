@@ -1,5 +1,4 @@
-/*! Common CERN ROOT extensions.
-This file is part of https://github.com/hh-italian-group/TauMLTools. */
+/*! Common CERN ROOT extensions. */
 
 #pragma once
 
@@ -18,9 +17,10 @@ This file is part of https://github.com/hh-italian-group/TauMLTools. */
 
 namespace root_ext {
 
-    std::shared_ptr<TFile> inline CreateRootFile(const std::string &file_name,
-                                                 ROOT::ECompressionAlgorithm compression = ROOT::kZLIB,
-                                                 int compression_level = 9) {
+    std::shared_ptr<TFile> inline CreateRootFile(
+        const std::string &file_name,
+        ROOT::RCompressionSetting::EAlgorithm::EValues compression = ROOT::RCompressionSetting::EAlgorithm::kZLIB,
+        int compression_level = 9) {
         std::shared_ptr<TFile> file(
             TFile::Open(file_name.c_str(), "RECREATE", "", compression * 100 + compression_level));
         if (!file || file->IsZombie())

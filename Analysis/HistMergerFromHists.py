@@ -147,6 +147,7 @@ if __name__ == "__main__":
 
     analysis_import = global_cfg_dict["analysis_import"]
     analysis = importlib.import_module(f"{analysis_import}")
+    estimateQCD = global_cfg_dict.get("plot_wantQCD", False)
 
     # ----> this part is analysis dependent. Need to be put in proper place <-----
 
@@ -214,8 +215,13 @@ if __name__ == "__main__":
 
     # Datasets
     dataset_cfg_dict = setup.datasets
+    data_process_name = "data"
+    data_processes = setup.phys_model.processes(process_type="data")
+    if len(data_processes) > 0:
+        data_base_processes = setup.phys_model.base_processes(data_processes[0])
+        data_process_name = data_base_processes[0]
     dataset_cfg_dict["data"] = {
-        "process_name": "data"
+        "process_name": data_process_name
     }  # Data isn't actually in config dict, but just add it here to keep working format
     # print(dataset_cfg_dict)
     all_hists_dict = {}
@@ -257,20 +263,29 @@ if __name__ == "__main__":
         )
     else:
         all_hists_dict_1D = all_hists_dict
+    """
 
-    if not analysis_import == "Analysis.H_mumu":
+    data_processes = setup.phys_model.processes(process_type="data")
+    if len(data_processes) > 0:
+        data_processes = data_processes[0]
+    if (
+        not analysis_import == "Analysis.H_mumu"
+        and estimateQCD
+        and data_processes in all_hists_dict.keys()
+    ):
         fixNegativeContributions = False
         error_on_qcdnorm, error_on_qcdnorm_varied = AddQCDInHistDict(
             args.var,
-            all_hists_dict_1D,
+            all_hists_dict,
             channels,
             all_categories,
             args.uncSource,
-            all_datasets_types.keys(),
+            list(all_hists_dict.keys()),
             scales,
+            data_process_name=data_processes,
             wantNegativeContributions=False,
         )
-    """
+
     all_unc_dict = unc_cfg_dict["norm"].copy()
     all_unc_dict.update(unc_cfg_dict["shape"])
 

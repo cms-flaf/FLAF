@@ -10,6 +10,10 @@ runs:
       run: |
         echo "Repository: ${{ github.repository }}"
         git config --global url."https://github.com/".insteadOf "git@github.com:"
-        git submodule update --init FLAF
-        cd FLAF
-        git checkout main
+        if [ -d FLAF ]; then
+          git submodule update --init FLAF
+          cd FLAF
+          git checkout main
+        else
+          git clone https://github.com/cms-flaf/FLAF.git FLAF
+        fi

@@ -322,7 +322,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
             dataset = self.datasets[dataset_name]
             process_group = dataset["process_group"]
-            jsonName = f"{os.path.basename(input_file.path).split('.')[0]}.json"
             producer_anatuples = os.path.join(
                 self.ana_path(), "FLAF", "AnaProd", "anaTupleProducer.py"
             )
@@ -369,6 +368,9 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             anaTupleDef = os.path.join(
                 self.ana_path(), self.global_params["anaTupleDef"]
             )
+            reportJsonName = f"{os.path.basename(input_file.path).split('.')[0]}.json"
+            reportPath = os.path.join(outdir_anatuples, reportJsonName)
+
             with contextlib.ExitStack() as stack:
                 local_input = stack.enter_context(input_file.localize("r")).path
                 anaCache_main = stack.enter_context(
@@ -396,8 +398,8 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     channels,
                     "--inFileName",
                     inFileName,
-                    "--jsonName",
-                    jsonName,
+                    "--reportOutput",
+                    reportPath,
                 ]
                 if len(anaCache_remotes[1]) > 0:
                     anaCache_others = {}
@@ -427,6 +429,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             outFileName = os.path.basename(input_file.path)
 
             print(f"outFileName is {outFileName}")
+            raise RuntimeError("Stop here")
             tmpFile = os.path.join(outdir_skimtuples, outFileName)
             tmpjsonFile = os.path.join(outdir_anatuples, jsonName)
             if process_group != "data":

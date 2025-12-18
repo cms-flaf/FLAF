@@ -127,7 +127,7 @@ def computeAnaCache(
             df = df.Range(event_range)
         df = df.Define("genWeightD", genWeight_def)
         if "pu" in Corrections.getGlobal().to_apply:
-            df, _ = Corrections.getGlobal().pu.getWeight(df)
+            df = Corrections.getGlobal().pu.getWeight(df)
         for source in sources:
             for scale in getScales(source):
                 syst_name = getSystName(source, scale)

@@ -108,9 +108,6 @@ def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose
         print(f"The original number of events: {n_events_total}")
         print(f"The number of unique selected events: {n_unique_events}")
     for (unc_source, unc_scale), input in inputs.items():
-        if verbose > 0:
-            print(f"{unc_source}/{unc_scale}: processing...")
-
         out_name = f"aligned_{unc_source}_{unc_scale}.root"
         out_full_name = os.path.join(work_dir, out_name)
         input['aligned_file'] = out_full_name
@@ -143,12 +140,13 @@ def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose
 
         for (unc_source, unc_scale), input in shifted_inputs.items():
             if verbose > 0:
-                print(f"{unc_source}/{unc_scale}: defining deltas... ", end="", flush=True)
+                print(f"{unc_source}/{unc_scale}: creating a snapshot with deltas... ")
             with ROOT.TFile.Open(input['aligned_file'], "READ") as shifted_file:
                 shifted_tree = shifted_file.Get(tree_name)
                 shifted_tree.AddFriend(central_tree, "central")
                 df = ROOT.RDataFrame(shifted_tree)
-                ROOT.RDF.Experimental.AddProgressBar(df)
+                if verbose > 0:
+                    ROOT.RDF.Experimental.AddProgressBar(df)
 
                 columns_to_store = []
                 for column in df.GetColumnNames():
@@ -164,9 +162,7 @@ def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose
                     else:
                         column_to_store = column
                     columns_to_store.append(column_to_store)
-                print("done.")
                 input['delta_file'] = os.path.join(work_dir, f"delta_{unc_source}_{unc_scale}.root")
-                print(f"{unc_source}/{unc_scale}: creating a snapshot...")
                 df.Snapshot(tree_name, input['delta_file'], columns_to_store, snapshotOptions)
 
     if verbose > 1:
@@ -174,7 +170,7 @@ def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose
 
     output_file_path = os.path.join(work_dir, tuple_output)
     if verbose > 0:
-        print(f"Collecting the final output into {output_file_path}... ", end="", flush=True)
+        print(f"Collecting outputs into {output_file_path}... ", end="", flush=True)
     sources = []
     for (unc_source, unc_scale), input in inputs.items():
         suffix = f"__{unc_source}__{unc_scale}" if unc_source != central else ""

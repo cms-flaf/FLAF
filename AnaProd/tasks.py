@@ -325,9 +325,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             producer_anatuples = os.path.join(
                 self.ana_path(), "FLAF", "AnaProd", "anaTupleProducer.py"
             )
-            producer_skimtuples = os.path.join(
-                self.ana_path(), "FLAF", "AnaProd", "SkimProducer.py"
-            )
 
             anaCache_remotes = self.input()
             customisation_dict = getCustomisationSplit(self.customisations)
@@ -363,13 +360,13 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             print(f"dataset_dependencies: {','.join(dataset_dependencies.keys())}")
             print(f"input_file = {input_file.uri()}")
 
-            print("step 1: nanoAOD -> anaTupleS")
-            outdir_anatuples = os.path.join(job_home, "anaTuples", dataset_name)
+            print("step 1: nanoAOD -> raw anaTuples")
+            outdir_anatuples = os.path.join(job_home, "rawAnaTuples")
             anaTupleDef = os.path.join(
                 self.ana_path(), self.global_params["anaTupleDef"]
             )
-            reportJsonName = f"{os.path.basename(input_file.path).split('.')[0]}.json"
-            reportPath = os.path.join(outdir_anatuples, reportJsonName)
+            reportFileName = "report.json"
+            rawReportPath = os.path.join(outdir_anatuples, reportFileName)
 
             with contextlib.ExitStack() as stack:
                 local_input = stack.enter_context(input_file.localize("r")).path
@@ -399,7 +396,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     "--inFileName",
                     inFileName,
                     "--reportOutput",
-                    reportPath,
+                    rawReportPath,
                 ]
                 if len(anaCache_remotes[1]) > 0:
                     anaCache_others = {}
@@ -424,41 +421,34 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     anatuple_cmd.extend(["--nEvents", str(self.test)])
                 ps_call(anatuple_cmd, env=self.cmssw_env, verbose=1)
 
-            print("step 2: anaTupleS -> skimTuplE")
-            outdir_skimtuples = os.path.join(job_home, "skim", dataset_name)
+            print("step 2: raw anaTuples -> fused anaTuples")
+            producer_fuseTuples = os.path.join(
+                self.ana_path(), "FLAF", "AnaProd", "FuseAnaTuples.py"
+            )
+            outdir_fusedTuples = os.path.join(job_home, "fusedAnaTuples")
             outFileName = os.path.basename(input_file.path)
+            outFilePath = os.path.join(outdir_fusedTuples, outFileName)
+            finalReportPath = os.path.join(outdir_fusedTuples, reportFileName)
+            verbosity = "2" if self.test > 0 else "1"
+            fuseTuple_cmd = [
+                "python",
+                "-u",
+                producer_fuseTuples,
+                "--input-config",
+                rawReportPath,
+                "--work-dir", outdir_fusedTuples,
+                "--tuple-output", outFileName,
+                "--report-output", reportFileName,
+                "--verbose", verbosity,
+            ]
+            ps_call(fuseTuple_cmd, verbose=1)
 
-            print(f"outFileName is {outFileName}")
-            raise RuntimeError("Stop here")
-            tmpFile = os.path.join(outdir_skimtuples, outFileName)
-            tmpjsonFile = os.path.join(outdir_anatuples, jsonName)
-            if process_group != "data":
-                skimtuple_cmd = [
-                    "python",
-                    producer_skimtuples,
-                    "--inputDir",
-                    outdir_anatuples,
-                    "--centralFile",
-                    centralFileName,
-                    "--workingDir",
-                    outdir_skimtuples,
-                    "--outputFile",
-                    outFileName,
-                ]
-                if self.test > 0:
-                    skimtuple_cmd.extend(["--verbose"])
-                ps_call(skimtuple_cmd, verbose=1)
-            else:
-                tmpFile = os.path.join(outdir_anatuples, centralFileName)
-
-            nano_output = self.output()[0]
-            json_output = self.output()[1]
-            with nano_output.localize("w") as tmp_local_file:
-                out_local_path = tmp_local_file.path
-                shutil.move(tmpFile, out_local_path)
-            with json_output.localize("w") as tmp_local_file:
-                out_local_path = tmp_local_file.path
-                shutil.move(tmpjsonFile, out_local_path)
+            tuple_output = self.output()[0]
+            report_output = self.output()[1]
+            with tuple_output.localize("w") as local_file:
+                shutil.move(outFilePath, local_file.path)
+            with report_output.localize("w") as local_file:
+                shutil.move(finalReportPath, local_file.path)
 
             if remove_job_home:
                 shutil.rmtree(job_home)

@@ -3,7 +3,6 @@ import os
 import sys
 import ROOT
 import shutil
-import importlib
 import json
 
 
@@ -189,47 +188,7 @@ def createAnatuple(
             setup.global_params,
             channels,
         )
-        if setup.global_params["nano_version"] == "v12":
-            dfw.DefineAndAppend("weight_L1PreFiring_Central", "L1PreFiringWeight_Nom")
-            dfw.DefineAndAppend(
-                "weight_L1PreFiring_ECAL_Central", "L1PreFiringWeight_ECAL_Nom"
-            )
-            dfw.DefineAndAppend(
-                "weight_L1PreFiring_Muon_Central", "L1PreFiringWeight_Muon_Nom"
-            )
-            if is_central and compute_unc_variations:
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiringDown_rel",
-                    "L1PreFiringWeight_Dn/L1PreFiringWeight_Nom",
-                )
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiringUp_rel",
-                    "L1PreFiringWeight_Up/L1PreFiringWeight_Nom",
-                )
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiring_ECALDown_rel",
-                    "L1PreFiringWeight_ECAL_Dn/L1PreFiringWeight_ECAL_Nom",
-                )
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiring_ECALUp_rel",
-                    "L1PreFiringWeight_ECAL_Up/L1PreFiringWeight_ECAL_Nom",
-                )
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiring_Muon_StatDown_rel",
-                    "L1PreFiringWeight_Muon_StatDn/L1PreFiringWeight_Muon_Nom",
-                )
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiring_Muon_StatUp_rel",
-                    "L1PreFiringWeight_Muon_StatUp/L1PreFiringWeight_Muon_Nom",
-                )
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiring_Muon_SystDown_rel",
-                    "L1PreFiringWeight_Muon_SystDn/L1PreFiringWeight_Muon_Nom",
-                )
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiring_Muon_SystUp_rel",
-                    "L1PreFiringWeight_Muon_SystUp/L1PreFiringWeight_Muon_Nom",
-                )
+
         if not isData:
             triggers_to_use = set()
             for channel in channels:

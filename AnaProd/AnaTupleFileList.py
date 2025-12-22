@@ -33,7 +33,7 @@ if __name__ == "__main__":
         with open(this_json, "r") as file:
             data = json.load(file)
 
-            nEvents = data["nEvents_Filtered"]
+            nEvents = data["n_events"]
             nEventsCounter += nEvents
             dataset_name = data["dataset_name"]
             file_name = os.path.join(dataset_name, data["nano_file_name"])

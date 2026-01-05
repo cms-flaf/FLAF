@@ -169,7 +169,7 @@ def DefineGenObjects(
 def SelectRecoP4(df, syst_name="nano", nano_version="v12"):
     for obj in ana_reco_object_collections[nano_version]:
         if f"{obj}_pt" not in df.GetColumnNames():
-            print( f"{obj}_pt not in col names")
+            print(f"{obj}_pt not in col names")
             continue
         df = df.Define(f"{obj}_p4", f"{obj}_p4_{syst_name}")
     return df
@@ -193,7 +193,7 @@ def CreateRecoP4(df, suffix="nano", nano_version="v12"):
                 continue
             df = df.Define(
                 f"{obj}_p4{suffix}", f"LorentzVectorM({obj}_pt, 0., {obj}_phi, 0.)"
-            ) 
+            )
         else:
             df = df.Define(f"{obj}_idx", f"CreateIndexes({obj}_pt.size())")
             df = df.Define(
@@ -211,13 +211,21 @@ def CreateRecoP4(df, suffix="nano", nano_version="v12"):
 # From json file:
 # Non-zero value for (eta, phi) indicates that the region is vetoed.
 
+
 def ApplyJetVetoMap(df, apply_filter=True, isV12=False):
-    function_for_jetId = "RedefineJet_passJetIdTight_v12(Jet_p4, Jet_neHEF, Jet_neEmEF, Jet_jetId)" if isV12 else "RedefineJet_passJetIdTight_v13(Jet_p4, Jet_neHEF, Jet_neEmEF, Jet_chHEF, Jet_chMultiplicity, Jet_neMultiplicity )"
+    function_for_jetId = (
+        "RedefineJet_passJetIdTight_v12(Jet_p4, Jet_neHEF, Jet_neEmEF, Jet_jetId)"
+        if isV12
+        else "RedefineJet_passJetIdTight_v13(Jet_p4, Jet_neHEF, Jet_neEmEF, Jet_chHEF, Jet_chMultiplicity, Jet_neMultiplicity )"
+    )
     df = df.Define(f"Jet_passJetIdTight", function_for_jetId)
-    df = df.Define(f"Jet_passJetIdTightLepVeto", "Redefine_Jet_passJetIdTightLepVeto(Jet_p4, Jet_passJetIdTight, Jet_muEF, Jet_chEmEF)")
+    df = df.Define(
+        f"Jet_passJetIdTightLepVeto",
+        "Redefine_Jet_passJetIdTightLepVeto(Jet_p4, Jet_passJetIdTight, Jet_muEF, Jet_chEmEF)",
+    )
     df = df.Define(
         f"Jet_vetoMapLooseRegion_presel",
-        "Jet_pt > 15 && ( Jet_passJetIdTightLepVeto ) && (Jet_chEmEF + Jet_neEmEF < 0.9) && Jet_isInsideVetoRegion", # here goes the new Jet ID
+        "Jet_pt > 15 && ( Jet_passJetIdTightLepVeto ) && (Jet_chEmEF + Jet_neEmEF < 0.9) && Jet_isInsideVetoRegion",  # here goes the new Jet ID
     )  #  (Jet_puId > 0 || Jet_pt >50) &&  for CHS jets
 
     # no longer required apparently:

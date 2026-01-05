@@ -18,8 +18,16 @@ import FLAF.Common.BaselineSelection as Baseline
 ROOT.EnableThreadSafety()
 
 
+def findBinEntry(hist_cfg_dict, var):
+    # var can be mu1_pt_corr and entry can be mu1_pt so a subset of var
+    for var_entry in hist_cfg_dict.keys():
+        if var_entry in var:
+            return var_entry
+
+
 def DefineBinnedColumn(hist_cfg_dict, var):
-    x_bins = hist_cfg_dict[var]["x_bins"]
+    var_entry = findBinEntry(hist_cfg_dict, var)
+    x_bins = hist_cfg_dict[var_entry]["x_bins"]
     func_name = f"get_{var}_bin"
     axis_definition = ""
 

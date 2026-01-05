@@ -183,6 +183,7 @@ def createAnatuple(
             applyTriggerFilter,
             setup.global_params,
             channels,
+            dataset_cfg,
         )
         if setup.global_params["nano_version"] == "v12":
             dfw.DefineAndAppend("weight_L1PreFiring_Central", "L1PreFiringWeight_Nom")

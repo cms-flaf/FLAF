@@ -2,22 +2,17 @@ import time
 import os
 import sys
 import ROOT
-import shutil
-import zlib
-
-# import fastcrc
-import json
-
 
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
 import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
-import importlib
 from FLAF.RunKit.run_tools import ps_call
 from FLAF.Common.HistHelper import *
-from FLAF.Common.Utilities import getCustomisationSplit
+from Corrections.Corrections import Corrections
+import FLAF.Common.triggerSel as Triggers
+import FLAF.Common.BaselineSelection as Baseline
 
 # ROOT.EnableImplicitMT(1)
 ROOT.EnableThreadSafety()
@@ -62,10 +57,12 @@ def DefineBinnedColumn(hist_cfg_dict, var):
 
 
 def createHistTuple(
+    *,
+    setup,
+    dataset_name,
     inFile,
     cacheFiles,
     treeName,
-    setup,
     hist_cfg_dict,
     unc_cfg_dict,
     snapshotOptions,
@@ -74,7 +71,41 @@ def createHistTuple(
     histTupleDef,
     inFile_keys,
 ):
-    # compression_settings = snapshotOptions.fCompressionAlgorithm * 100 + snapshotOptions.fCompressionLevel
+    Baseline.Initialize(False, False)
+    if dataset_name == "data":
+        dataset_cfg = {}
+        process_name = "data"
+        process = {}
+        isData = True
+        processors_cfg = {}
+        processor_instances = {}
+    else:
+        dataset_cfg = setup.datasets[dataset_name]
+        process_name = dataset_cfg["process_name"]
+        process = setup.base_processes[process_name]
+        isData = dataset_cfg["process_group"] == "data"
+        processors_cfg, processor_instances = setup.get_processors(
+            process_name, stage="HistTuple", create_instances=True
+        )
+    triggerFile = setup.global_params.get("triggerFile")
+    trigger_class = None
+    if triggerFile is not None:
+        triggerFile = os.path.join(os.environ["ANALYSIS_PATH"], triggerFile)
+        trigger_class = Triggers.Triggers(triggerFile)
+
+    Corrections.initializeGlobal(
+        global_params=setup.global_params,
+        stage="HistTuple",
+        dataset_name=dataset_name,
+        dataset_cfg=dataset_cfg,
+        process_name=process_name,
+        process_cfg=process,
+        processors=processor_instances,
+        isData=isData,
+        load_corr_lib=True,
+        trigger_class=trigger_class,
+    )
+
     histTupleDef.Initialize()
     histTupleDef.analysis_setup(setup)
 
@@ -95,6 +126,7 @@ def createHistTuple(
             df_cache_central.append(ROOT.RDataFrame(treeName, cacheFile))
 
     ROOT.RDF.Experimental.AddProgressBar(df_central)
+
     if range is not None:
         df_central = df_central.Range(range)
     if len(evtIds) > 0:
@@ -133,13 +165,15 @@ def createHistTuple(
                 f"weight_{unc}_{scale}" if unc != "Central" else "weight_Central"
             )
             histTupleDef.DefineWeightForHistograms(
-                dfw_central,
-                unc,
-                scale,
-                unc_cfg_dict,
-                hist_cfg_dict,
-                setup.global_params,
-                final_weight_name,
+                dfw=dfw_central,
+                isData=isData,
+                uncName=unc,
+                uncScale=scale,
+                unc_cfg_dict=unc_cfg_dict,
+                hist_cfg_dict=hist_cfg_dict,
+                global_params=setup.global_params,
+                final_weight_name=final_weight_name,
+                df_is_central=True,
             )
             dfw_central.colToSave.append(final_weight_name)
     for var in variables:
@@ -186,13 +220,15 @@ def createHistTuple(
                     final_weight_name = "weight_Central"
 
                     histTupleDef.DefineWeightForHistograms(
-                        dfw_shift,
-                        unc,
-                        scale,
-                        unc_cfg_dict,
-                        hist_cfg_dict,
-                        setup.global_params,
-                        final_weight_name,
+                        dfw=dfw_shift,
+                        isData=isData,
+                        uncName=unc,
+                        uncScale=scale,
+                        unc_cfg_dict=unc_cfg_dict,
+                        hist_cfg_dict=hist_cfg_dict,
+                        global_params=setup.global_params,
+                        final_weight_name=final_weight_name,
+                        df_is_central=False,
                     )
                     dfw_shift.colToSave.append(final_weight_name)
                     for var in variables:
@@ -228,8 +264,6 @@ def createVoidTree(file_name, tree_name):
 
 if __name__ == "__main__":
     import argparse
-    import os
-    import yaml
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--period", required=True, type=str)
@@ -249,7 +283,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     startTime = time.time()
-    setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period, "")
+    setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period)
 
     treeName = setup.global_params[
         "treeName"
@@ -262,13 +296,13 @@ if __name__ == "__main__":
         else setup.global_params["channelSelection"]
     )
     process_name = (
-        setup.samples[args.dataset]["process_name"]
+        setup.datasets[args.dataset]["process_name"]
         if args.dataset != "data"
         else "data"
     )
     setup.global_params["process_name"] = process_name
     process_group = (
-        setup.samples[args.dataset]["process_group"]
+        setup.datasets[args.dataset]["process_group"]
         if args.dataset != "data"
         else "data"
     )
@@ -280,11 +314,9 @@ if __name__ == "__main__":
     setup.global_params["compute_unc_variations"] = (
         args.compute_unc_variations and process_group != "data"
     )
-    histTupleDef = Utilities.load_module(args.histTupleDef)
     cacheFiles = None
     if args.cacheFiles:
         cacheFiles = args.cacheFiles.split(",")
-    dont_create_HistTuple = False
     key_not_exist = False
     df_empty = False
     inFile_root = ROOT.TFile.Open(args.inFile, "READ")
@@ -312,17 +344,18 @@ if __name__ == "__main__":
         # snapshotOptions.fCompressionLevel = args.compressionLevel
 
         tmp_fileNames = createHistTuple(
-            args.inFile,
-            cacheFiles,
-            treeName,
-            setup,
-            hist_cfg_dict,
-            unc_cfg_dict,
-            snapshotOptions,
-            args.nEvents,
-            args.evtIds,
-            histTupleDef,
-            inFile_keys,
+            setup=setup,
+            dataset_name=args.dataset,
+            inFile=args.inFile,
+            cacheFiles=cacheFiles,
+            treeName=treeName,
+            hist_cfg_dict=hist_cfg_dict,
+            unc_cfg_dict=unc_cfg_dict,
+            snapshotOptions=snapshotOptions,
+            range=args.nEvents,
+            evtIds=args.evtIds,
+            histTupleDef=histTupleDef,
+            inFile_keys=inFile_keys,
         )
         if tmp_fileNames:
             hadd_str = f"hadd -f -j -O {args.outFile} "

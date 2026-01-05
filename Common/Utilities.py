@@ -1,4 +1,5 @@
 from enum import Enum
+from inspect import signature
 import ROOT
 import base64
 import copy
@@ -156,6 +157,10 @@ class DataFrameWrapper:
         self.Define(varToDefine, varToCall)
         self.colToSave.append(varToDefine)
 
+    def RedefineAndAppend(self, varToDefine, varToCall):
+        self.Redefine(varToDefine, varToCall)
+        self.colToSave.append(varToDefine)
+
     def Apply(self, func, *args, **kwargs):
         result = func(self.df, *args, **kwargs)
         if isinstance(result, tuple):
@@ -311,3 +316,49 @@ def crc16(
             else:
                 crc >>= 1
     return crc & 0xFFFF
+
+
+def load_processor(p_entry, stage, global_params, verbose=0):
+    try:
+        module = importlib.import_module(p_entry["module"])
+        cls = getattr(module, p_entry["class"])
+        init_sig = signature(cls.__init__)
+        kwargs = {
+            "global_params": global_params,
+            "processor_entry": p_entry,
+            "stage": stage,
+            "verbose": verbose,
+        }
+        to_remove = []
+        for key in kwargs:
+            if key not in init_sig.parameters:
+                to_remove.append(key)
+        for key in to_remove:
+            del kwargs[key]
+        instance = cls(**kwargs)
+        if verbose > 0:
+            print(
+                f"Loaded processor: {p_entry['name']}",
+                file=sys.stderr,
+            )
+        return instance
+    except Exception as e:
+        print(
+            f"Failed to load processor {p_entry}: {e}",
+            file=sys.stderr,
+        )
+        raise
+
+
+def create_processor_instances(global_params, processor_entries, stage, verbose=0):
+    processor_instances = {}
+    if processor_entries:
+        for p_entry in processor_entries:
+            p_name = p_entry["name"]
+            if p_name in processor_instances:
+                raise RuntimeError(
+                    f"Processor {p_name} already exists in anaCache computation"
+                )
+            processor = load_processor(p_entry, stage, global_params, verbose=verbose)
+            processor_instances[p_name] = processor
+    return processor_instances

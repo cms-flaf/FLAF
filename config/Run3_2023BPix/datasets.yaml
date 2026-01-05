@@ -1,94 +1,39 @@
-GLOBAL:
-  era: Run3_2023BPix
-  luminosity: 9693.0  # pb-1
-  fs_nanoAOD:
-    - 'T2_CH_CERN:/store/group/phys_higgs/HLepRare/skim_2025_v1/Run3_2023BPix'
-  nano_version: v14
-  crossSectionsFile: FLAF/config/crossSections13p6TeV.yaml
-  use_stitching: false
-  met_type: PFMET
-  MET_flags:  # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersRun2#Run_3_2022_and_2023_data_and_MC
-    - Flag_goodVertices
-    - Flag_globalSuperTightHalo2016Filter
-    - Flag_EcalDeadCellTriggerPrimitiveFilter
-    - Flag_BadPFMuonFilter
-    - Flag_BadPFMuonDzFilter
-    - Flag_hfNoisyHitsFilter
-    - Flag_eeBadScFilter
-    - Flag_ecalBadCalibFilter
-  # lumiFile: /eos/user/c/cmsdqm/www/CAF/certification/Collisions23/Cert_Collisions2023_366442_370790_Golden.json
-  lumiFile: Corrections/data/golden_json/Cert_Collisions2023_366442_370790_Golden.json
-
-
 ############## DY ##############
-EGamma0_Run2023D_v1:
-  sampleType: data
-EGamma0_Run2023D_v2:
-  sampleType: data
-EGamma1_Run2023D_v1:
-  sampleType: data
-EGamma1_Run2023D_v2:
-  sampleType: data
-JetMET0_Run2023D_v1:
-  sampleType: data
-JetMET0_Run2023D_v2:
-  sampleType: data
-JetMET1_Run2023D_v1:
-  sampleType: data
-JetMET1_Run2023D_v2:
-  sampleType: data
-Muon0_Run2023D_v1:
-  sampleType: data
-Muon0_Run2023D_v2:
-  sampleType: data
-Muon1_Run2023D_v1:
-  sampleType: data
-Muon1_Run2023D_v2:
-  sampleType: data
-MuonEG_Run2023D_v1:
-  sampleType: data
-MuonEG_Run2023D_v2:
-  sampleType: data
-ParkingHH_Run2023D_v1:
-  sampleType: data
-ParkingHH_Run2023D_v2:
-  sampleType: data
-ParkingVBF0_Run2023D_v1:
-  sampleType: data
-ParkingVBF0_Run2023D_v2:
-  sampleType: data
-ParkingVBF1_Run2023D_v1:
-  sampleType: data
-ParkingVBF1_Run2023D_v2:
-  sampleType: data
-ParkingVBF2_Run2023D_v1:
-  sampleType: data
-ParkingVBF2_Run2023D_v2:
-  sampleType: data
-ParkingVBF3_Run2023D_v1:
-  sampleType: data
-ParkingVBF3_Run2023D_v2:
-  sampleType: data
-ParkingVBF4_Run2023D_v1:
-  sampleType: data
-ParkingVBF4_Run2023D_v2:
-  sampleType: data
-ParkingVBF5_Run2023D_v1:
-  sampleType: data
-ParkingVBF5_Run2023D_v2:
-  sampleType: data
-ParkingVBF6_Run2023D_v1:
-  sampleType: data
-ParkingVBF6_Run2023D_v2:
-  sampleType: data
-ParkingVBF7_Run2023D_v1:
-  sampleType: data
-ParkingVBF7_Run2023D_v2:
-  sampleType: data
-Tau_Run2023D_v1:
-  sampleType: data
-Tau_Run2023D_v2:
-  sampleType: data
+EGamma0_Run2023D_v1: { }
+EGamma0_Run2023D_v2: { }
+EGamma1_Run2023D_v1: { }
+EGamma1_Run2023D_v2: { }
+JetMET0_Run2023D_v1: { }
+JetMET0_Run2023D_v2: { }
+JetMET1_Run2023D_v1: { }
+JetMET1_Run2023D_v2: { }
+Muon0_Run2023D_v1: { }
+Muon0_Run2023D_v2: { }
+Muon1_Run2023D_v1: { }
+Muon1_Run2023D_v2: { }
+MuonEG_Run2023D_v1: { }
+MuonEG_Run2023D_v2: { }
+ParkingHH_Run2023D_v1: { }
+ParkingHH_Run2023D_v2: { }
+ParkingVBF0_Run2023D_v1: { }
+ParkingVBF0_Run2023D_v2: { }
+ParkingVBF1_Run2023D_v1: { }
+ParkingVBF1_Run2023D_v2: { }
+ParkingVBF2_Run2023D_v1: { }
+ParkingVBF2_Run2023D_v2: { }
+ParkingVBF3_Run2023D_v1: { }
+ParkingVBF3_Run2023D_v2: { }
+ParkingVBF4_Run2023D_v1: { }
+ParkingVBF4_Run2023D_v2: { }
+ParkingVBF5_Run2023D_v1: { }
+ParkingVBF5_Run2023D_v2: { }
+ParkingVBF6_Run2023D_v1: { }
+ParkingVBF6_Run2023D_v2: { }
+ParkingVBF7_Run2023D_v1: { }
+ParkingVBF7_Run2023D_v2: { }
+Tau_Run2023D_v1: { }
+Tau_Run2023D_v2: { }
+
 ############## powheg ##############
 ############## DYto2E ##############
 DYto2E_MLL_10to50_powheg:
@@ -145,12 +90,12 @@ DYto2Mu_M_10to50_amcatnloFXFX:
   miniAOD: /DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2_ext1-v3/MINIAODSIM
   dirName: DYto2L_M_10to50_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
-# DYto2Tau_M_10to50_amcatnloFXFX:
-#   crossSection: DYto2L_M_10to50_amcatnloFXFX
-#   generator: amcatnlo
-#   miniAOD: /DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2_ext1-v3/MINIAODSIM
-#   dirName: DYto2L_M_10to50_amcatnloFXFX
-#   fileNamePattern: ^nanoTauTau_\d+\.root$
+DYto2Tau_M_10to50_amcatnloFXFX:
+  crossSection: DYto2L_M_10to50_amcatnloFXFX
+  generator: amcatnloFXFX
+  miniAOD: /DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2_ext1-v3/MINIAODSIM
+  dirName: DYto2L_M_10to50_amcatnloFXFX
+  fileNamePattern: ^nanoTauTau_\d+\.root$
 
 DYto2E_M_50_amcatnloFXFX:
   crossSection: DYto2L_M_50_amcatnloFXFX

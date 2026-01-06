@@ -14,6 +14,7 @@ import FLAF.Common.Utilities as Utilities
 
 import re
 
+
 def findBinEntry(hist_cfg_dict, var_name):
     """
     Match variable name against regex-based histogram config entries.
@@ -26,17 +27,12 @@ def findBinEntry(hist_cfg_dict, var_name):
             matches.append(pattern)
 
     if not matches:
-        raise KeyError(
-            f"No histogram config pattern matches variable '{var_name}'"
-        )
+        raise KeyError(f"No histogram config pattern matches variable '{var_name}'")
 
     if len(matches) > 1:
-        raise RuntimeError(
-            f"Ambiguous histogram config for '{var_name}': {matches}"
-        )
+        raise RuntimeError(f"Ambiguous histogram config for '{var_name}': {matches}")
 
     return matches[0]
-
 
 
 def get_all_items_recursive(root_dir, path=()):

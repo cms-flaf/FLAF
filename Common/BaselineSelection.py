@@ -200,6 +200,15 @@ def CreateRecoP4(df, suffix="nano", nano_version="v12"):
                 f"{obj}_p4{suffix}",
                 f"GetP4({obj}_pt, {obj}_eta, {obj}_phi, {obj}_mass, {obj}_idx)",
             )
+            if obj == "Muon":
+                df = df.Define(
+                    f"{obj}_bsConstrainedPt_idx",
+                    f"CreateIndexes({obj}_bsConstrainedPt.size())",
+                )
+                df = df.Define(
+                    f"{obj}_p4_bsConstrainedPt",
+                    f"GetP4({obj}_bsConstrainedPt, {obj}_eta, {obj}_phi, {obj}_mass, {obj}_bsConstrainedPt_idx)",
+                )
     return df
 
 

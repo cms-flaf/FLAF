@@ -169,8 +169,7 @@ def DefineGenObjects(
 def SelectRecoP4(df, syst_name="nano", nano_version="v12"):
     for obj in ana_reco_object_collections[nano_version]:
         if f"{obj}_pt" not in df.GetColumnNames():
-            print(f"{obj}_pt not in col names")
-            continue
+            raise RuntimeError(f"{obj}_pt not in col names")
         df = df.Define(f"{obj}_p4", f"{obj}_p4_{syst_name}")
     return df
 
@@ -189,8 +188,7 @@ def CreateRecoP4(df, suffix="nano", nano_version="v12"):
     for obj in ana_reco_object_collections[nano_version]:
         if "MET" in obj:
             if f"{obj}_pt" not in df.GetColumnNames():
-                print(f"{obj}_pt not in df columns")
-                continue
+                raise RuntimeError(f"{obj}_pt not in col names")
             df = df.Define(
                 f"{obj}_p4{suffix}", f"LorentzVectorM({obj}_pt, 0., {obj}_phi, 0.)"
             )
@@ -202,12 +200,8 @@ def CreateRecoP4(df, suffix="nano", nano_version="v12"):
             )
             if obj == "Muon":
                 df = df.Define(
-                    f"{obj}_bsConstrainedPt_idx",
-                    f"CreateIndexes({obj}_bsConstrainedPt.size())",
-                )
-                df = df.Define(
                     f"{obj}_p4_bsConstrainedPt",
-                    f"GetP4({obj}_bsConstrainedPt, {obj}_eta, {obj}_phi, {obj}_mass, {obj}_bsConstrainedPt_idx)",
+                    f"GetP4({obj}_bsConstrainedPt, {obj}_eta, {obj}_phi, {obj}_mass, {obj}_idx)",
                 )
     return df
 

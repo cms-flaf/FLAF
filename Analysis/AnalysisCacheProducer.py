@@ -106,7 +106,6 @@ def check_columns(expected_columns, columns_to_save, available_columns):
 def run_producer(
     producer,
     dfw,
-    period,
     dataset,
     producer_config,
     outFileName,
@@ -204,7 +203,6 @@ def createAnalysisCache(
     run_producer(
         producer,
         dfw,
-        period,
         dataset,
         producer_config,
         f"{outFileName}_Central.root",
@@ -240,7 +238,6 @@ def createAnalysisCache(
                     run_producer(
                         producer,
                         dfW_noDiff,
-                        period,
                         dataset,
                         producer_config,
                         f"{outFileName}_{uncName}{scale}_noDiff.root",
@@ -264,7 +261,6 @@ def createAnalysisCache(
                     run_producer(
                         producer,
                         dfW_Valid,
-                        period,
                         dataset,
                         producer_config,
                         f"{outFileName}_{uncName}{scale}_Valid.root",
@@ -287,7 +283,6 @@ def createAnalysisCache(
                     run_producer(
                         producer,
                         dfW_nonValid,
-                        period,
                         dataset,
                         producer_config,
                         f"{outFileName}_{uncName}{scale}_nonValid.root",

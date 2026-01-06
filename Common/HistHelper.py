@@ -4,6 +4,7 @@ import ROOT
 import os
 import numpy as np
 import array
+import re
 
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
@@ -13,9 +14,12 @@ import FLAF.Common.Utilities as Utilities
 
 def findBinEntry(hist_cfg_dict, var):
     # var can be mu1_pt_corr and entry can be mu1_pt so a subset of var
-    for var_entry in hist_cfg_dict.keys():
-        if var_entry in var:
-            return var_entry
+    for base in hist_cfg_dict.keys():
+        pattern = rf"^{base}(_.*)?$"
+        if re.match(pattern, var):
+            return base
+    return None
+
 
 
 def get_all_items_recursive(root_dir, path=()):

@@ -38,13 +38,7 @@ def bTagProdEff(inDir, config, sample_name, range, evtIds):
     wpValues = Corrections.btag.getWPValues()
 
     triggerFile = config["GLOBAL"]["triggerFile"]
-    trigger_class = (
-        Triggers.Triggers(
-            triggerFile, config.get("mu_pt_for_triggerMatchingAndSF", "nano")
-        )
-        if triggerFile is not None
-        else None
-    )
+    trigger_class = Triggers.Triggers(triggerFile) if triggerFile is not None else None
     df = ROOT.RDataFrame("Events", f"{inDir}/*.root")
     if range is not None:
         df = df.Range(range)

@@ -12,13 +12,30 @@ if __name__ == "__main__":
 import FLAF.Common.Utilities as Utilities
 
 
-def findBinEntry(hist_cfg_dict, var):
-    # var can be mu1_pt_corr and entry can be mu1_pt so a subset of var
-    for base in hist_cfg_dict.keys():
-        pattern = rf"^{base}(_.*)?$"
-        if re.match(pattern, var):
-            return base
-    return None
+import re
+
+def findBinEntry(hist_cfg_dict, var_name):
+    """
+    Match variable name against regex-based histogram config entries.
+    """
+
+    matches = []
+
+    for pattern in hist_cfg_dict.keys():
+        if re.fullmatch(pattern, var_name):
+            matches.append(pattern)
+
+    if not matches:
+        raise KeyError(
+            f"No histogram config pattern matches variable '{var_name}'"
+        )
+
+    if len(matches) > 1:
+        raise RuntimeError(
+            f"Ambiguous histogram config for '{var_name}': {matches}"
+        )
+
+    return matches[0]
 
 
 

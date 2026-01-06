@@ -68,10 +68,7 @@ def createAnatuple(
     trigger_class = None
     if triggerFile is not None:
         triggerFile = os.path.join(os.environ["ANALYSIS_PATH"], triggerFile)
-        trigger_class = Triggers.Triggers(
-            triggerFile,
-            setup.global_params.get("mu_pt_for_triggerMatchingAndSF", "pt_nano"),
-        )
+        trigger_class = Triggers.Triggers(triggerFile)
     process_name = dataset_cfg["process_name"]
     process = setup.base_processes[process_name]
     processors_cfg, processor_instances = setup.get_processors(

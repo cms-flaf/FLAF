@@ -4,14 +4,14 @@ import yaml
 class Triggers:
     dict_legtypes = {"Electron": "Leg::e", "Muon": "Leg::mu", "Tau": "Leg::tau"}
 
-    def __init__(self, triggerFile, muon_pt="nano", deltaR_matching=0.4):
+    def __init__(self, triggerFile, deltaR_matching=0.4):
         with open(triggerFile, "r") as stream:
             self.trigger_dict = yaml.safe_load(stream)
         self.deltaR_matching = deltaR_matching
-        self.muon_pt = muon_pt
-        print(f"using muon pT for trigger matching and SF: {self.muon_pt}")
 
-    def ApplyTriggers(self, df, offline_legs, isData=False, applyTriggerFilter=False):
+    def ApplyTriggers(
+        self, df, offline_legs, isData=False, applyTriggerFilter=False, extraFormat=""
+    ):
         hltBranches = []
         matchedObjectsBranches = []
         for path, path_dict in self.trigger_dict.items():
@@ -28,7 +28,7 @@ class Triggers:
                 leg_dict_offline = leg_tuple["offline_obj"]
                 for obj in offline_legs:
                     offline_cut = leg_dict_offline["cut"].format(
-                        obj=obj, muon_pt=f"{self.muon_pt}"
+                        obj=obj, extraFormat=extraFormat
                     )
                     var_name_offline = f"{obj}_offlineCut_{leg_id+1}_{path}"
                     df = df.Define(var_name_offline, offline_cut)

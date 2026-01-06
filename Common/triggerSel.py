@@ -25,7 +25,7 @@ class Triggers:
             for leg_id, leg_tuple in enumerate(path_dict["legs"]):
                 leg_dict_offline = leg_tuple["offline_obj"]
                 for obj in offline_legs:
-                    offline_cut = leg_dict_offline["cut"].format(obj=obj)
+                    offline_cut = leg_dict_offline["cut"].format(obj=obj,muon_pt=leg_dict_offline.get("muon_pt","pt_nano"))
                     var_name_offline = f"{obj}_offlineCut_{leg_id+1}_{path}"
                     df = df.Define(var_name_offline, offline_cut)
                     leg_dict_online = leg_tuple["online_obj"]

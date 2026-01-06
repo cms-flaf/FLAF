@@ -2,6 +2,7 @@ import time
 import os
 import sys
 import ROOT
+import json
 
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
@@ -16,6 +17,78 @@ import FLAF.Common.BaselineSelection as Baseline
 
 # ROOT.EnableImplicitMT(1)
 ROOT.EnableThreadSafety()
+
+
+class BtagShapeWeightCorrector:
+    def __init__(self, btag_integral_ratios):
+        self.exisiting_srcScale_combs = [key for key in btag_integral_ratios.keys()]
+        # if the btag_integral_ratios dictionary is not empty, do stuff
+        if self.exisiting_srcScale_combs:
+            ROOT.gInterpreter.Declare("#include <map>")
+
+            for key in btag_integral_ratios.keys():
+                # key in btag_integral_ratios has form f"{source}{scale}", so function expects that
+                # and creates a map and function to rescale btag weights for each f"{source}{scale}" value
+                self._declare_cpp_map_and_resc_func(btag_integral_ratios, key)
+
+    def _declare_cpp_map_and_resc_func(self, btag_integral_ratios, unc_src_scale):
+        correction_factors = btag_integral_ratios[unc_src_scale]
+
+        # init c++ map
+        cpp_map_entries = []
+        for cat, multipl_dict in correction_factors.items():
+            channelId = cat_to_channelId[cat]
+            for key, ratio in multipl_dict.items():
+                # key has structure f"ratio_ncetnralJet_{number}""
+                num_jet = int(key.split("_")[-1])
+                cpp_map_entries.append(f"{{{{{channelId}, {num_jet}}}, {ratio}}}")
+        cpp_init = ", ".join(cpp_map_entries)
+
+        ROOT.gInterpreter.Declare(
+            f"""
+            static const std::map<std::pair<int, int>, float> ratios_{unc_src_scale} = {{
+                {cpp_init}
+            }};
+
+            float integral_correction_ratio_{unc_src_scale}(int ncentralJet, int channelId) {{
+                std::pair<int, int> key{{channelId, ncentralJet}};
+                try 
+                {{
+                    float ratio = ratios_{unc_src_scale}.at(key);
+                    return ratio;
+                }}
+                catch (...)
+                {{
+                    return 1.0f;
+                }}
+            }}"""
+        )
+
+    def UpdateBtagWeight(self, dfw, unc_src="Central", unc_scale=None):
+        # return original dfw if empty dict was passed to constructor
+        if not self.exisiting_srcScale_combs:
+            return dfw
+
+        if unc_scale is None:
+            unc_scale = ""
+        unc_src_scale = f"{unc_src}{unc_scale}"
+
+        if unc_src_scale not in self.exisiting_srcScale_combs:
+            raise RuntimeError(
+                f"`BtagShapeWeight.json` does not contain key `{unc_src_scale}`."
+            )
+
+        dfw.df = dfw.df.Redefine(
+            "weight_bTagShape_Central",
+            f"""if (ncentralJet >= 2 && ncentralJet <= 8) 
+                    return integral_correction_ratio_{unc_src_scale}(ncentralJet, channelId)*weight_bTagShape_Central;
+                return weight_bTagShape_Central;""",
+        )
+
+        return dfw
+
+
+cat_to_channelId = {"e": 1, "mu": 2, "eE": 11, "eMu": 12, "muMu": 22}
 
 
 def DefineBinnedColumn(hist_cfg_dict, var):
@@ -70,6 +143,8 @@ def createHistTuple(
     evtIds,
     histTupleDef,
     inFile_keys,
+    btag_integral_ratios,
+    isData,
 ):
     Baseline.Initialize(False, False)
     if dataset_name == "data":
@@ -109,8 +184,6 @@ def createHistTuple(
     histTupleDef.Initialize()
     histTupleDef.analysis_setup(setup)
 
-    isCentral = True
-
     snaps = []
     outfilesNames = []
     variables = []
@@ -142,6 +215,13 @@ def createHistTuple(
         variables = setup.global_params["variables"].keys()
 
     dfw_central = histTupleDef.GetDfw(df_central, df_cache_central, setup.global_params)
+
+    # here correction to btag weights is applied to ensure that application of btag shape weights
+    # does not modify the integral
+    # if empty btag_integral_ratios passed, UpdateBtagWeight will do nothing
+    weight_corrector = BtagShapeWeightCorrector(btag_integral_ratios)
+    if not isData:
+        dfw_central = weight_corrector.UpdateBtagWeight(dfw_central)
 
     col_names_central = dfw_central.colNames
     col_types_central = dfw_central.colTypes
@@ -198,8 +278,6 @@ def createHistTuple(
 
             for shift in shifts:
                 treeName_shift = f"{treeName}_{shift}"
-                print(treeName_shift)
-
                 if treeName_shift in inFile_keys:
                     df_shift_caches = []
                     if cacheFiles:
@@ -218,6 +296,11 @@ def createHistTuple(
                         f"cache_map_{unc}{scale}_{shift}",
                     )
                     final_weight_name = "weight_Central"
+
+                    if not isData:
+                        dfw_shift = weight_corrector.UpdateBtagWeight(
+                            dfw_shift, unc_src=unc, unc_scale=scale
+                        )
 
                     histTupleDef.DefineWeightForHistograms(
                         dfw=dfw_shift,
@@ -280,10 +363,16 @@ if __name__ == "__main__":
     parser.add_argument("--channels", type=str, default=None)
     parser.add_argument("--nEvents", type=int, default=None)
     parser.add_argument("--evtIds", type=str, default="")
+    parser.add_argument("--btag_json", type=str, default="")
 
     args = parser.parse_args()
     startTime = time.time()
     setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period)
+
+    btag_integral_ratios = {}
+    if args.btag_json:
+        with open(args.btag_json, "r") as file:
+            btag_integral_ratios = json.load(file)
 
     treeName = setup.global_params[
         "treeName"
@@ -307,6 +396,8 @@ if __name__ == "__main__":
         else "data"
     )
     setup.global_params["process_group"] = process_group
+
+    isData = process_group == "data"
 
     setup.global_params["compute_rel_weights"] = (
         args.compute_rel_weights and process_group != "data"
@@ -356,6 +447,8 @@ if __name__ == "__main__":
             evtIds=args.evtIds,
             histTupleDef=histTupleDef,
             inFile_keys=inFile_keys,
+            btag_integral_ratios=args.btag_integral_ratios,
+            isData=args.isData,
         )
         if tmp_fileNames:
             hadd_str = f"hadd -f -j -O {args.outFile} "

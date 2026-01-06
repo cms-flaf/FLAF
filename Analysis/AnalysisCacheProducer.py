@@ -16,6 +16,9 @@ from FLAF.Common.Utilities import DeclareHeader
 from FLAF.RunKit.run_tools import ps_call
 import FLAF.Common.LegacyVariables as LegacyVariables
 import FLAF.Common.Utilities as Utilities
+from Corrections.Corrections import Corrections
+import FLAF.Common.triggerSel as Triggers
+from FLAF.Common.Setup import Setup
 
 defaultColToSave = ["FullEventId"]
 scales = ["Up", "Down"]
@@ -199,6 +202,9 @@ def createAnalysisCache(
     producer_to_run,
     uprootCompression,
     workingDir,
+    setup,
+    dataset_name,
+    histTupleDef,
     cacheFileNames="",
 ):
     start_time = datetime.datetime.now()
@@ -211,6 +217,40 @@ def createAnalysisCache(
 
     df = merge_cache_files(inFileName, cacheFileNames, "Events")
     dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
+
+    if dataset_name == "data":
+        dataset_cfg = {}
+        process_name = "data"
+        process = {}
+        isData = True
+        processors_cfg = {}
+        processor_instances = {}
+    else:
+        dataset_cfg = setup.datasets[dataset_name]
+        process_name = dataset_cfg["process_name"]
+        process = setup.base_processes[process_name]
+        isData = dataset_cfg["process_group"] == "data"
+        processors_cfg, processor_instances = setup.get_processors(
+            process_name, stage="HistTuple", create_instances=True
+        )
+    triggerFile = setup.global_params.get("triggerFile")
+    trigger_class = None
+    if triggerFile is not None:
+        triggerFile = os.path.join(os.environ["ANALYSIS_PATH"], triggerFile)
+        trigger_class = Triggers.Triggers(triggerFile)
+
+    Corrections.initializeGlobal(
+        global_params=setup.global_params,
+        stage="HistTuple",
+        dataset_name=dataset_name,
+        dataset_cfg=dataset_cfg,
+        process_name=process_name,
+        process_cfg=process,
+        processors=processor_instances,
+        isData=isData,
+        load_corr_lib=True,
+        trigger_class=trigger_class,
+    )
 
     if not producer_to_run:
         raise RuntimeError("Producer must be specified to compute analysis cache")
@@ -337,6 +377,8 @@ if __name__ == "__main__":
     parser.add_argument("--cacheFileNames", required=False, type=str)
     parser.add_argument("--compute_unc_variations", type=bool, default=False)
     parser.add_argument("--isData", action="store_true")
+    parser.add_argument("--period", required=True, type=str)
+    parser.add_argument("--dataset", required=True, type=str)
 
     args = parser.parse_args()
 
@@ -350,6 +392,9 @@ if __name__ == "__main__":
     ]
     for header in headers:
         DeclareHeader(os.environ["ANALYSIS_PATH"] + "/" + header)
+
+    setup = Setup.getGlobal(ana_path, args.period)
+    histTupleDef = os.path.join(ana_path, setup.global_params["histTupleDef"])
 
     snapshotOptions = ROOT.RDF.RSnapshotOptions()
     snapshotOptions.fOverwriteIfExists = True
@@ -396,6 +441,9 @@ if __name__ == "__main__":
         args.producer,
         uprootCompression,
         args.workingDir,
+        setup,
+        args.dataset,
+        histTupleDef,
         cacheFileNames,
     )
     match save_as:

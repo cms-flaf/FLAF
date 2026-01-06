@@ -1004,6 +1004,10 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             self.producer_to_run,
                             "--workingDir",
                             job_home,
+                            "--dataset", 
+                            dataset_name,
+                            "--period",
+                            self.period,
                         ]
                         if (
                             self.global_params["store_noncentral"]

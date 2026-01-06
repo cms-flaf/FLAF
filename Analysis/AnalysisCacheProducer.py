@@ -106,6 +106,8 @@ def check_columns(expected_columns, columns_to_save, available_columns):
 def run_producer(
     producer,
     dfw,
+    period,
+    dataset,
     producer_config,
     outFileName,
     treeName,
@@ -121,7 +123,7 @@ def run_producer(
     if producer_config.get("awkward_based", False):
         vars_to_save = []
         if hasattr(producer, "prepare_dfw"):
-            dfw = producer.prepare_dfw(dfw)
+            dfw = producer.prepare_dfw(dfw, dataset)
         vars_to_save = list(producer.vars_to_save)
         if "FullEventId" not in vars_to_save:
             vars_to_save.append("FullEventId")
@@ -163,6 +165,8 @@ def merge_cache_files(inFileName, cacheFileNames, treeName):
 def createAnalysisCache(
     inFileName,
     outFileName,
+    period,
+    dataset,
     unc_cfg_dict,
     global_cfg_dict,
     snapshotOptions,
@@ -196,10 +200,12 @@ def createAnalysisCache(
     producer_name = producer_config["producer_name"]
     producers_module = importlib.import_module(producers_module_name)
     producer_class = getattr(producers_module, producer_name)
-    producer = producer_class(producer_config, producer_to_run)
+    producer = producer_class(producer_config, producer_to_run, period)
     run_producer(
         producer,
         dfw,
+        period,
+        dataset,
         producer_config,
         f"{outFileName}_Central.root",
         "Events",
@@ -234,6 +240,8 @@ def createAnalysisCache(
                     run_producer(
                         producer,
                         dfW_noDiff,
+                        period,
+                        dataset,
                         producer_config,
                         f"{outFileName}_{uncName}{scale}_noDiff.root",
                         treeName_noDiff,
@@ -256,6 +264,8 @@ def createAnalysisCache(
                     run_producer(
                         producer,
                         dfW_Valid,
+                        period,
+                        dataset,
                         producer_config,
                         f"{outFileName}_{uncName}{scale}_Valid.root",
                         treeName_Valid,
@@ -277,6 +287,8 @@ def createAnalysisCache(
                     run_producer(
                         producer,
                         dfW_nonValid,
+                        period,
+                        dataset,
                         producer_config,
                         f"{outFileName}_{uncName}{scale}_nonValid.root",
                         treeName_nonValid,
@@ -305,6 +317,8 @@ if __name__ == "__main__":
     parser.add_argument("--producer", type=str, default=None)
     parser.add_argument("--workingDir", required=True, type=str)
     parser.add_argument("--cacheFileNames", required=False, type=str)
+    parser.add_argument("--period", required=False, type=str)
+    parser.add_argument("--dataset", required=False, type=str)
     args = parser.parse_args()
 
     ana_path = os.environ["ANALYSIS_PATH"]
@@ -343,6 +357,8 @@ if __name__ == "__main__":
     all_files = createAnalysisCache(
         args.inFileName,
         args.outFileName,
+        args.period,
+        args.dataset,
         unc_cfg_dict,
         global_cfg_dict,
         snapshotOptions,

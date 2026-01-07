@@ -215,7 +215,7 @@ def CreateRecoP4(df, suffix="nano", nano_version="v12"):
 # Non-zero value for (eta, phi) indicates that the region is vetoed.
 
 
-def ApplyJetVetoMap(df, apply_filter=True, isV12=False):
+def ApplyJetVetoMap(df, apply_filter=True, defineElectronCleaning=False, isV12=False):
     function_for_jetId = (
         "RedefineJet_passJetIdTight_v12(Jet_p4, Jet_neHEF, Jet_neEmEF, Jet_jetId)"
         if isV12
@@ -239,11 +239,12 @@ def ApplyJetVetoMap(df, apply_filter=True, isV12=False):
         f"Jet_vetoMap",
         " RemoveOverlaps(Jet_p4, Jet_vetoMapLooseRegion_presel, Muon_p4_pfCand, 0.2)",
     )
-    df = df.Define(f"Electron_p4_pfCand", "Electron_p4[Electron_isPFcand]")
-    df = df.Define(
-        f"Jet_vetoMapEle",
-        " RemoveOverlaps(Jet_p4, Jet_vetoMap, Electron_p4_pfCand, 0.2)",
-    )
+    if defineElectronCleaning:
+        df = df.Define(f"Electron_p4_pfCand", "Electron_p4[Electron_isPFcand]")
+        df = df.Define(
+            f"Jet_vetoMapEle",
+            " RemoveOverlaps(Jet_p4, Jet_vetoMap, Electron_p4_pfCand, 0.2)",
+        )
     if apply_filter:
         return df.Filter(f"Jet_p4[Jet_vetoMap].size()==0", "Jet Veto Map filter")
     return df

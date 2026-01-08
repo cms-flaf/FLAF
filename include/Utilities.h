@@ -105,7 +105,7 @@ namespace detail {
         static double Delta(double shifted, double central) {
             static constexpr int n_bits = 8;
             if (std::isnormal(central)) {
-                const float delta = shifted - central;
+                const double delta = shifted - central;
                 return ReduceMantissaToNbitsWithRounding<double, n_bits>::Reduce(delta);
             }
             return shifted;

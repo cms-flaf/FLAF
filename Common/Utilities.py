@@ -173,77 +173,86 @@ class DataFrameWrapper:
 
 
 class DataFrameBuilderBase:
-    def CreateColumnTypes(self):
-        colNames = [
-            str(c) for c in self.df.GetColumnNames()
-        ]  # if 'kinFit_result' not in str(c)]
-        FullEventIdIdx = 0
-        if "FullEventId" in colNames:
-            FullEventIdIdx = colNames.index("FullEventId")
-        if "entryIndex" in colNames:
-            FullEventIdIdx = colNames.index("entryIndex")
-        colNames[FullEventIdIdx], colNames[0] = colNames[0], colNames[FullEventIdIdx]
-        self.colNames = colNames
-        self.colTypes = [str(self.df.GetColumnType(c)) for c in self.colNames]
-
-    def __init__(self, df, **kwargs):
+    def __init__(self, df):
         self.df = df
-        self.colNames = []
-        self.colTypes = []
-        self.var_list = []
-        self.CreateColumnTypes()
 
-    def CreateFromDelta(self, central_columns, central_col_types):
-        var_list = []
-        for var_idx, var_name in enumerate(self.colNames):
-            if not var_name.endswith("Diff"):
-                continue
-            var_name_forDelta = var_name.removesuffix("Diff")
-            central_col_idx = central_columns.index(var_name_forDelta)
-            if central_columns[central_col_idx] != var_name_forDelta:
-                raise RuntimeError(
-                    f"CreateFromDelta: {central_columns[central_col_idx]} != {var_name_forDelta}"
-                )
-            if var_name_forDelta in self.df.GetColumnNames():
-                print(f"{var_name_forDelta} already exists, redefining it")
-                if var_name_forDelta.startswith("n"):
-                    self.df = self.df.Redefine(
-                        f"{var_name_forDelta}",
-                        f"""analysis::FromDelta({var_name}, analysis::GetEntriesMap()[FullEventId]->GetValue<{self.colTypes[var_idx]}>({central_col_idx}) )""",
-                    )
-                else:
-                    raise RuntimeError(f"Re-definition of {var_name_forDelta}")
+
+
+def CreateDataFrame(*, treeName, fileName, caches, files, centralTree=None, centralCaches=None, central="Central",
+                    specialColumns=["FullEventId"], valid_column="valid", filter_valid=True):
+
+    def GetFile(file_name):
+        if file_name not in files:
+            file = ROOT.TFile.Open(file_name)
+            files[file_name] = file
+        return files[file_name]
+
+    def GetTree(treeName, fileName):
+        file = GetFile(fileName)
+        tree = file.Get(treeName)
+        if tree is None or tree.IsZombie():
+            raise RuntimeError(f"ERROR: tree {treeName} not found in file {fileName}")
+        if type(tree) != ROOT.TTree:
+            raise RuntimeError(f"ERROR: object {treeName} in file {fileName} has type {type(tree)}, while a TTree is expected.")
+        return tree
+
+    tree = GetTree(treeName, fileName)
+    cacheTrees = {}
+    for cacheName, cacheFileName in caches.items():
+        cacheTree = GetTree(treeName, cacheFileName)
+        tree.AddFriend(cacheTree, cacheName)
+        cacheTrees[cacheName] = cacheTree
+    if centralTree is not None:
+        tree.AddFriend(centralTree, central)
+    if centralCaches is not None:
+        for cacheName, cacheFileName in centralCaches.items():
+            cacheTree = GetTree(treeName, cacheFileName)
+            tree.AddFriend(cacheTree, f'{cacheName}__{central}')
+    df_orig = ROOT.RDataFrame(tree)
+    df = df_orig
+    columns = [ str(c) for c in df.GetColumnNames() ]
+    for column in columns:
+        origin_split = column.split('.')
+        if len(origin_split) == 2:
+            origin = origin_split[0]
+            full_name = origin_split[1]
+        elif len(origin_split) == 1:
+            origin = None
+            full_name = origin_split[0]
+        else:
+            raise RuntimeError(f"Invalid column name: {column}. Unable to parse origin and name.")
+        if origin is not None and (origin == central or origin.endswith(f'__{central}')):
+            continue
+        name_split = full_name.split('__')
+        if len(name_split) == 2:
+            suffix = name_split[1]
+            if suffix != "delta":
+                raise RuntimeError(f"Unknown column suffix: {suffix}")
+            column_name = name_split[0]
+        elif len(name_split) == 1:
+            column_name = name_split[0]
+            suffix = None
+        else:
+            raise RuntimeError(f"Invalid column name: {column}. Unable to parse name and suffix.")
+        if column_name in specialColumns or column_name == valid_column:
+            continue
+        if suffix is None:
+            if origin is not None:
+                df = df.Define(column_name, column)
+        elif column_name not in columns:
+            central_valid = f'{central}.{valid_column}'
+            if origin is None:
+                central_column = f'{central}.{column_name}'
             else:
-                self.df = self.df.Define(
-                    f"{var_name_forDelta}",
-                    f"""analysis::FromDelta({var_name},
-                                        analysis::GetEntriesMap()[FullEventId]->GetValue<{self.colTypes[var_idx]}>({central_col_idx}) )""",
-                )
-            var_list.append(f"{var_name_forDelta}")
-
-    def AddMissingColumns(self, central_columns, central_col_types, verbose=0):
-        for central_col_idx, central_col in enumerate(central_columns):
-            if central_col in self.df.GetColumnNames():
-                continue
-            if verbose > 0:
-                print(
-                    f"Adding missing column {central_col} of type {central_col_types[central_col_idx]}"
-                )
-            self.df = self.df.Define(
-                central_col,
-                f"""analysis::GetEntriesMap()[FullEventId]->GetValue<{central_col_types[central_col_idx]}>({central_col_idx})""",
-            )
-
-    def AddCacheColumns(self, cache_cols, cache_col_types, cache_name):
-        for cache_col_idx, cache_col in enumerate(cache_cols):
-            if cache_col in self.df.GetColumnNames():
-                continue
-            if cache_col.replace(".", "_") in self.df.GetColumnNames():
-                continue
-            self.df = self.df.Define(
-                cache_col.replace(".", "_"),
-                f"""analysis::GetCacheEntriesMap("{cache_name}").at(FullEventId)->GetValue<{cache_col_types[cache_col_idx]}>({cache_col_idx})""",
-            )
+                central_column = f'{origin}__{central}.{column_name}'
+            for c in [ central_column, valid_column, central_valid ]:
+                if c not in columns:
+                    print("Available columns:", sorted(columns))
+                    raise RuntimeError(f"Column {c} needed to compute {column_name} from {column} is missing.")
+            df = df.Redefine(column_name, f"::analysis::FromDelta({column}, {central_column}, {valid_column}, {central_valid})")
+    if filter_valid:
+        df = df.Filter(valid_column)
+    return df_orig, df, tree, cacheTrees
 
 
 def GetValues(collection):

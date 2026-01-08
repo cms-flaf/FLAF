@@ -67,9 +67,9 @@ if __name__ == "__main__":
     snapshotOptions.fLazy = False
     snapshotOptions.fMode = "UPDATE"
     snapshotOptions.fCompressionAlgorithm = getattr(
-        ROOT.ROOT.RCompressionSetting.EAlgorithm, "kZLIB"
+        ROOT.ROOT.RCompressionSetting.EAlgorithm, "kLZMA"
     )
-    snapshotOptions.fCompressionLevel = 4
+    snapshotOptions.fCompressionLevel = 9
     inputFiles = [
         (fileName, ROOT.TFile(fileName, "READ")) for fileName in args.inputFile
     ]

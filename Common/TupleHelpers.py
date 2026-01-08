@@ -245,7 +245,7 @@ if __name__ == "__main__":
 
     copyFileContent(
         args.inFile,
-        args.outFile,
+        args.outputFile,
         copyTrees=not args.no_copyTrees,
         copyHistograms=not args.no_copyHistograms,
         appendIfExists=args.appendIfExists,

@@ -26,10 +26,15 @@ def find_keys(inFiles_list):
     return sorted(unique_keys)
 
 
-def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale):
+def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
+    model, unit_hist, rdf = hist_list[0]
+    if verbose > 0:
+        print(
+            f"Saving hist for key: {key_tuple}, unc: {unc}, scale: {scale}. Number of RDF runs: {rdf.GetNRuns()}"
+        )
     dir_name = "/".join(key_tuple)
     dir_ptr = Utilities.mkdir(outFile, dir_name)
-    model, unit_hist = hist_list[0]
+
     merged_hist = model.GetHistogram().Clone()
     for i in range(0, unit_hist.GetNbinsX() + 2):
         bin_content = unit_hist.GetBinContent(i)
@@ -87,20 +92,23 @@ def SaveSingleHistSet(
             model, unit_hist = GetUnitBinHist(
                 rdf_shift, var, filter_expr, "weight_Central", unc, scale
             )
-            hist_list.append((model, unit_hist))
+            hist_list.append((model, unit_hist, rdf_shift))
     else:
         weight_name = f"weight_{unc}_{scale}" if unc != "Central" else "weight_Central"
         rdf_central = all_trees[treeName]
         model, unit_hist = GetUnitBinHist(
             rdf_central, var, filter_expr, weight_name, unc, scale
         )
-        hist_list.append((model, unit_hist))
+        hist_list.append((model, unit_hist, rdf_central))
 
-    if hist_list:
-        key_tuple = key
-        if further_cut_name:
-            key_tuple = key + (further_cut_name,)
-        SaveHist(key_tuple, outFile, hist_list, var, unc, scale)
+    def save_fn():
+        if hist_list:
+            key_tuple = key
+            if further_cut_name:
+                key_tuple = key + (further_cut_name,)
+            SaveHist(key_tuple, outFile, hist_list, var, unc, scale)
+
+    return save_fn
 
 
 def SaveTmpFileUnc(
@@ -113,9 +121,10 @@ def SaveTmpFileUnc(
     further_cuts,
     treeName,
 ):
+    tmp_file = f"tmp_{var}.root"
+    tmp_file_root = ROOT.TFile(tmp_file, "RECREATE")
+    save_fns = []
     for unc, scales in uncs_to_compute.items():
-        tmp_file = f"tmp_{var}_{unc}.root"
-        tmp_file_root = ROOT.TFile(tmp_file, "RECREATE")
         is_shift_unc = unc in unc_cfg_dict["shape"].keys()
 
         for scale in scales:
@@ -126,7 +135,7 @@ def SaveTmpFileUnc(
                         filter_to_apply_final = (
                             f"{filter_to_apply_base} && {further_cut_name}"
                         )
-                        SaveSingleHistSet(
+                        save_fn = SaveSingleHistSet(
                             all_trees,
                             var,
                             filter_to_apply_final,
@@ -138,8 +147,9 @@ def SaveTmpFileUnc(
                             treeName,
                             further_cut_name,
                         )
+                        save_fns.append(save_fn)
                 else:
-                    SaveSingleHistSet(
+                    save_fn = SaveSingleHistSet(
                         all_trees,
                         var,
                         filter_to_apply_final,
@@ -150,8 +160,11 @@ def SaveTmpFileUnc(
                         is_shift_unc,
                         treeName,
                     )
-        tmp_file_root.Close()
-        tmp_files.append(tmp_file)
+                    save_fns.append(save_fn)
+    for fn in save_fns:
+        fn()
+    tmp_file_root.Close()
+    tmp_files.append(tmp_file)
 
 
 def CreateFakeStructure(outFile, setup, var, key_filter_dict, further_cuts):
@@ -231,6 +244,7 @@ if __name__ == "__main__":
 
         if valid_files and has_entries:
             base_rdfs[key] = ROOT.RDataFrame(key, Utilities.ListToVector(valid_files))
+            ROOT.RDF.Experimental.AddProgressBar(base_rdfs[key])
         else:
             print(f"{key} tree not found or with 0 entries: fake structure creation")
             outFile_root = ROOT.TFile(args.outFile, "UPDATE")
@@ -310,7 +324,7 @@ if __name__ == "__main__":
         )
 
     if tmp_files:
-        hadd_str = f"hadd -f -j -O {args.outFile} " + " ".join(tmp_files)
+        hadd_str = f"hadd -f209 -j -O {args.outFile} " + " ".join(tmp_files)
         ps_call([hadd_str], True)
 
     for f in tmp_files:

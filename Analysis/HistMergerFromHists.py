@@ -11,7 +11,6 @@ if __name__ == "__main__":
 import FLAF.Common.Utilities as Utilities
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
-from FLAF.Analysis.QCD_estimation import *
 
 
 def checkFile(inFileRoot, channels, qcdRegions, categories):
@@ -269,10 +268,12 @@ if __name__ == "__main__":
     if len(data_processes) > 0:
         data_processes = data_processes[0]
     if (
-        not analysis_import == "Analysis.H_mumu"
+        analysis_import == "Analysis.hh_bbtautau"
         and estimateQCD
         and data_processes in all_hists_dict.keys()
     ):
+        from Analysis.QCD_estimation import AddQCDInHistDict
+
         fixNegativeContributions = False
         error_on_qcdnorm, error_on_qcdnorm_varied = AddQCDInHistDict(
             args.var,

@@ -436,10 +436,14 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 producer_fuseTuples,
                 "--input-config",
                 rawReportPath,
-                "--work-dir", outdir_fusedTuples,
-                "--tuple-output", outFileName,
-                "--report-output", reportFileName,
-                "--verbose", verbosity,
+                "--work-dir",
+                outdir_fusedTuples,
+                "--tuple-output",
+                outFileName,
+                "--report-output",
+                reportFileName,
+                "--verbose",
+                verbosity,
             ]
             ps_call(fuseTuple_cmd, verbose=1)
 

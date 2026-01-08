@@ -29,7 +29,9 @@ def find_keys(inFiles_list):
 def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     model, unit_hist, rdf = hist_list[0]
     if verbose > 0:
-        print(f"Saving hist for key: {key_tuple}, unc: {unc}, scale: {scale}. Number of RDF runs: {rdf.GetNRuns()}")
+        print(
+            f"Saving hist for key: {key_tuple}, unc: {unc}, scale: {scale}. Number of RDF runs: {rdf.GetNRuns()}"
+        )
     dir_name = "/".join(key_tuple)
     dir_ptr = Utilities.mkdir(outFile, dir_name)
 

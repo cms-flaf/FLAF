@@ -177,9 +177,19 @@ class DataFrameBuilderBase:
         self.df = df
 
 
-
-def CreateDataFrame(*, treeName, fileName, caches, files, centralTree=None, centralCaches=None, central="Central",
-                    specialColumns=["FullEventId"], valid_column="valid", filter_valid=True):
+def CreateDataFrame(
+    *,
+    treeName,
+    fileName,
+    caches,
+    files,
+    centralTree=None,
+    centralCaches=None,
+    central="Central",
+    specialColumns=["FullEventId"],
+    valid_column="valid",
+    filter_valid=True,
+):
 
     def GetFile(file_name):
         if file_name not in files:
@@ -193,7 +203,9 @@ def CreateDataFrame(*, treeName, fileName, caches, files, centralTree=None, cent
         if tree is None or not tree or tree.IsZombie():
             raise RuntimeError(f"ERROR: tree {treeName} not found in file {fileName}")
         if type(tree) != ROOT.TTree:
-            raise RuntimeError(f"ERROR: object {treeName} in file {fileName} has type {type(tree)}, while a TTree is expected.")
+            raise RuntimeError(
+                f"ERROR: object {treeName} in file {fileName} has type {type(tree)}, while a TTree is expected."
+            )
         return tree
 
     tree = GetTree(treeName, fileName)
@@ -206,12 +218,12 @@ def CreateDataFrame(*, treeName, fileName, caches, files, centralTree=None, cent
         tree.AddFriend(centralTree, central)
     if centralCaches is not None:
         for cacheName, cacheTree in centralCaches.items():
-            tree.AddFriend(cacheTree, f'{cacheName}__{central}')
+            tree.AddFriend(cacheTree, f"{cacheName}__{central}")
     df_orig = ROOT.RDataFrame(tree)
     df = df_orig
-    columns = [ str(c) for c in df.GetColumnNames() ]
+    columns = [str(c) for c in df.GetColumnNames()]
     for column in columns:
-        origin_split = column.split('.')
+        origin_split = column.split(".")
         if len(origin_split) == 2:
             origin = origin_split[0]
             full_name = origin_split[1]
@@ -219,10 +231,14 @@ def CreateDataFrame(*, treeName, fileName, caches, files, centralTree=None, cent
             origin = None
             full_name = origin_split[0]
         else:
-            raise RuntimeError(f"Invalid column name: {column}. Unable to parse origin and name.")
-        if origin is not None and (origin == central or origin.endswith(f'__{central}')):
+            raise RuntimeError(
+                f"Invalid column name: {column}. Unable to parse origin and name."
+            )
+        if origin is not None and (
+            origin == central or origin.endswith(f"__{central}")
+        ):
             continue
-        name_split = full_name.split('__')
+        name_split = full_name.split("__")
         if len(name_split) == 2:
             suffix = name_split[1]
             if suffix != "delta":
@@ -232,23 +248,30 @@ def CreateDataFrame(*, treeName, fileName, caches, files, centralTree=None, cent
             column_name = name_split[0]
             suffix = None
         else:
-            raise RuntimeError(f"Invalid column name: {column}. Unable to parse name and suffix.")
+            raise RuntimeError(
+                f"Invalid column name: {column}. Unable to parse name and suffix."
+            )
         if column_name in specialColumns or column_name == valid_column:
             continue
         if suffix is None:
             if origin is not None:
                 df = df.Redefine(column_name, column)
         elif column_name not in columns:
-            central_valid = f'{central}.{valid_column}'
+            central_valid = f"{central}.{valid_column}"
             if origin is None:
-                central_column = f'{central}.{column_name}'
+                central_column = f"{central}.{column_name}"
             else:
-                central_column = f'{origin}__{central}.{column_name}'
-            for c in [ central_column, valid_column, central_valid ]:
+                central_column = f"{origin}__{central}.{column_name}"
+            for c in [central_column, valid_column, central_valid]:
                 if c not in columns:
                     print("Available columns:", sorted(columns))
-                    raise RuntimeError(f"Column {c} needed to compute {column_name} from {column} is missing.")
-            df = df.Redefine(column_name, f"::analysis::FromDelta({column}, {central_column}, {valid_column}, {central_valid})")
+                    raise RuntimeError(
+                        f"Column {c} needed to compute {column_name} from {column} is missing."
+                    )
+            df = df.Redefine(
+                column_name,
+                f"::analysis::FromDelta({column}, {central_column}, {valid_column}, {central_valid})",
+            )
     if filter_valid:
         df = df.Filter(valid_column)
     return df_orig, df, tree, cacheTrees

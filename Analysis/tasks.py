@@ -260,11 +260,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         cache_file[input_index].localize("r")
                     ).path
                 local_anacaches_str = ",".join(
-                    f'{producer}:{path}' for producer, path in local_anacaches.items()
+                    f"{producer}:{path}" for producer, path in local_anacaches.items()
                 )
-                HistTupleProducer_cmd.extend(
-                    ["--cacheFile", local_anacaches_str]
-                )
+                HistTupleProducer_cmd.extend(["--cacheFile", local_anacaches_str])
             ps_call(HistTupleProducer_cmd, verbose=1)
 
             with self.output().localize("w") as local_output:
@@ -761,7 +759,9 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         anaCaches = {}
         if producer_dependencies:
             for dependency in producer_dependencies:
-                anaCaches[dependency] = AnalysisCacheTask.req(self, producer_to_run=dependency)
+                anaCaches[dependency] = AnalysisCacheTask.req(
+                    self, producer_to_run=dependency
+                )
         requirements["anaCaches"] = anaCaches
 
         return requirements
@@ -835,12 +835,15 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     input_file = self.input()["anaTuple"][idx]
                     if len(self.input()["anaCaches"]) > 1:
                         local_anacaches = {}
-                        for producer_name, cache_files in self.input()["anaCaches"].items():
+                        for producer_name, cache_files in self.input()[
+                            "anaCaches"
+                        ].items():
                             local_anacaches[producer_name] = stack.enter_context(
                                 cache_files[idx].localize("r")
                             ).path
                         local_anacaches_str = ",".join(
-                            f'{producer}:{path}' for producer, path in local_anacaches.items()
+                            f"{producer}:{path}"
+                            for producer, path in local_anacaches.items()
                         )
                         print(f"Task has cache input files {local_anacaches_str}")
                     else:

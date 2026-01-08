@@ -24,8 +24,9 @@ namespace detail {
         static FloatType Reduce(FloatType x) {
             static_assert(bits >= 0 && bits <= mantissaSize - 1, "max mantissa size exceeded");
 
-            static constexpr UIntType lowMask = (static_cast<UIntType>(1) << mantissaSize) - 1; // mask to keep lowest mantissaSize bits = mantissa
-            static constexpr UIntType highMask = ~lowMask; // mask to keep highest bits = the rest
+            static constexpr UIntType lowMask =
+                (static_cast<UIntType>(1) << mantissaSize) - 1;  // mask to keep lowest mantissaSize bits = mantissa
+            static constexpr UIntType highMask = ~lowMask;       // mask to keep highest bits = the rest
             static constexpr int shift = mantissaSize - bits;
             static constexpr UIntType mask = (static_cast<UIntType>(-1) >> shift) << shift;
             static constexpr UIntType test = static_cast<UIntType>(1) << (shift - 1);
@@ -50,7 +51,7 @@ namespace detail {
     };
 
     template <typename T, int bits>
-    struct ReduceMantissaToNbitsWithRounding { };
+    struct ReduceMantissaToNbitsWithRounding {};
 
     template <int bits>
     struct ReduceMantissaToNbitsWithRounding<float, bits> {
@@ -70,7 +71,7 @@ namespace detail {
 
     template <typename T, int... ints>
     std::array<T (*)(T), sizeof...(ints)> make_function_array(std::integer_sequence<int, ints...>) {
-        return { &ReduceMantissaToNbitsWithRounding<T, ints>::Reduce... };
+        return {&ReduceMantissaToNbitsWithRounding<T, ints>::Reduce...};
     }
 
     template <typename T>
@@ -89,23 +90,21 @@ namespace detail {
     struct DeltaImpl<float> {
         static float Delta(float shifted, float central) {
             static constexpr int n_bits = 8;
-            if(std::isnormal(central)) {
+            if (std::isnormal(central)) {
                 const float delta = shifted - central;
                 return ReduceMantissaToNbitsWithRounding<float, n_bits>::Reduce(delta);
             }
             return shifted;
         }
 
-        static float FromDelta(float delta, float central) {
-            return std::isnormal(central) ? delta + central : delta;
-        }
+        static float FromDelta(float delta, float central) { return std::isnormal(central) ? delta + central : delta; }
     };
 
     template <>
     struct DeltaImpl<double> {
         static double Delta(double shifted, double central) {
             static constexpr int n_bits = 8;
-            if(std::isnormal(central)) {
+            if (std::isnormal(central)) {
                 const float delta = shifted - central;
                 return ReduceMantissaToNbitsWithRounding<double, n_bits>::Reduce(delta);
             }
@@ -116,7 +115,6 @@ namespace detail {
             return std::isnormal(central) ? delta + central : delta;
         }
     };
-
 
     template <typename T>
     struct DeltaImpl<ROOT::VecOps::RVec<T>> {
@@ -188,8 +186,8 @@ namespace analysis {
     template <typename T>
     T ReduceMantissaToNbitsWithRounding(T x, int bits) {
         static constexpr int mantissaSize = ::detail::ReduceMantissaToNbitsWithRounding<T, 0>::mantissaSize;
-        static const std::array<T (*)(T), mantissaSize> reducers = ::detail::make_function_array<T>(
-            std::make_integer_sequence<int, mantissaSize>{});
+        static const std::array<T (*)(T), mantissaSize> reducers =
+            ::detail::make_function_array<T>(std::make_integer_sequence<int, mantissaSize>{});
 
         assert(bits >= 0 && bits <= mantissaSize);
         return reducers[bits](x);

@@ -151,9 +151,9 @@ def createAnatuple(
     treeName = "Events"
     report["tree_name"] = treeName
     report["full_event_id_column"] = fullEventIdColumn
-    outfilesNames = [ outFileName ]
-    snaps = [ df.Snapshot(treeName, outFileName, [fullEventIdColumn], snapshotOptions) ]
-    selection_reports = [ df.Report() ]
+    outfilesNames = [outFileName]
+    snaps = [df.Snapshot(treeName, outFileName, [fullEventIdColumn], snapshotOptions)]
+    selection_reports = [df.Report()]
 
     print(f"syst_dict={syst_dict}")
     for syst_name, (unc_source, unc_scale) in syst_dict.items():
@@ -223,15 +223,15 @@ def createAnatuple(
         outfile_prefix = outfile_prefix.split(".")[0]
         outFileName = os.path.join(outDir, f"{outfile_prefix}{suffix}.root")
         outfilesNames.append(outFileName)
-        report["output_files"].append({
-            "unc_source": unc_source,
-            "unc_scale": unc_scale,
-            "file_name": outFileName,
-        })
-        selection_reports.append(dfw.df.Report())
-        snaps.append(
-            dfw.df.Snapshot(treeName, outFileName, varToSave, snapshotOptions)
+        report["output_files"].append(
+            {
+                "unc_source": unc_source,
+                "unc_scale": unc_scale,
+                "file_name": outFileName,
+            }
         )
+        selection_reports.append(dfw.df.Report())
+        snaps.append(dfw.df.Snapshot(treeName, outFileName, varToSave, snapshotOptions))
 
     if snapshotOptions.fLazy == True:
         ROOT.RDF.RunGraphs(snaps)
@@ -240,7 +240,9 @@ def createAnatuple(
     hist_time.SetBinContent(1, (end_time - start_time).total_seconds())
     for index, fileName in enumerate(outfilesNames):
         outputRootFile = ROOT.TFile(fileName, "UPDATE", "", compression_settings)
-        rep = ReportTools.SaveReport(selection_reports[index].GetValue(), reoprtName=f"Report")
+        rep = ReportTools.SaveReport(
+            selection_reports[index].GetValue(), reoprtName=f"Report"
+        )
         outputRootFile.WriteTObject(rep, f"Report", "Overwrite")
         if index == 0:
             outputRootFile.WriteTObject(hist_time, f"runtime", "Overwrite")

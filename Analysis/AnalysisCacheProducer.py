@@ -98,6 +98,7 @@ def run_producer(
             f"Mismatch in number of events before and after producer {n_orig} != {n_final}"
         )
 
+
 def createAnalysisCache(
     *,
     setup,
@@ -107,7 +108,7 @@ def createAnalysisCache(
     snapshotOptions,
     producer_to_run,
     uprootCompression,
-    workingDir
+    workingDir,
 ):
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
@@ -170,14 +171,18 @@ def createAnalysisCache(
         for unc_scale in getScales(unc_source):
             print(f"Processing events for: {unc_source} {unc_scale}")
             isCentral = unc_source == central
-            fullTreeName = treeName if isCentral else f"Events__{unc_source}__{unc_scale}"
-            df_orig, df, tree, cacheTrees = Utilities.CreateDataFrame(treeName=fullTreeName,
-                                                                      fileName=inFileName,
-                                                                      caches=cacheFileNames,
-                                                                      files=allRootFiles,
-                                                                      centralTree=centralTree,
-                                                                      centralCaches=centralCaches, central=central,
-                                                                      filter_valid=False,
+            fullTreeName = (
+                treeName if isCentral else f"Events__{unc_source}__{unc_scale}"
+            )
+            df_orig, df, tree, cacheTrees = Utilities.CreateDataFrame(
+                treeName=fullTreeName,
+                fileName=inFileName,
+                caches=cacheFileNames,
+                files=allRootFiles,
+                centralTree=centralTree,
+                centralCaches=centralCaches,
+                central=central,
+                filter_valid=False,
             )
             if isCentral:
                 centralTree = tree
@@ -262,7 +267,9 @@ if __name__ == "__main__":
     snapshotOptions.fOverwriteIfExists = False
     snapshotOptions.fLazy = False
     snapshotOptions.fMode = "RECREATE"
-    snapshotOptions.fCompressionAlgorithm = getattr(ROOT.ROOT.RCompressionSetting.EAlgorithm, 'k' + args.compressionAlgo)
+    snapshotOptions.fCompressionAlgorithm = getattr(
+        ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + args.compressionAlgo
+    )
     snapshotOptions.fCompressionLevel = args.compressionLevel
 
     unc_cfg_dict = {}

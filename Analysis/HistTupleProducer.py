@@ -9,6 +9,7 @@ if __name__ == "__main__":
 import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
 from FLAF.RunKit.run_tools import ps_call
+
 # from FLAF.Common.HistHelper import *
 from Corrections.CorrectionsCore import getScales, central
 from Corrections.Corrections import Corrections
@@ -57,6 +58,7 @@ def DefineBinnedColumn(hist_cfg_dict, var):
         """
     )
 
+
 def createHistTuple(
     *,
     setup,
@@ -66,7 +68,7 @@ def createHistTuple(
     snapshotOptions,
     range,
     evtIds,
-    histTupleDef
+    histTupleDef,
 ):
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
@@ -138,14 +140,18 @@ def createHistTuple(
         for unc_scale in getScales(unc_source):
             print(f"Processing events for {unc_source} {unc_scale}")
             isCentral = unc_source == central
-            fullTreeName = treeName if isCentral else f"Events__{unc_source}__{unc_scale}"
-            df_orig, df, tree, cacheTrees = Utilities.CreateDataFrame(treeName=fullTreeName,
-                                                                      fileName=inFileName,
-                                                                      caches=cacheFileNames,
-                                                                      files=allRootFiles,
-                                                                      centralTree=centralTree,
-                                                                      centralCaches=centralCaches, central=central,
-                                                                      filter_valid=True,
+            fullTreeName = (
+                treeName if isCentral else f"Events__{unc_source}__{unc_scale}"
+            )
+            df_orig, df, tree, cacheTrees = Utilities.CreateDataFrame(
+                treeName=fullTreeName,
+                fileName=inFileName,
+                caches=cacheFileNames,
+                files=allRootFiles,
+                centralTree=centralTree,
+                centralCaches=centralCaches,
+                central=central,
+                filter_valid=True,
             )
             if isCentral:
                 centralTree = tree
@@ -161,19 +167,19 @@ def createHistTuple(
 
             print("Defining DF wrapper")
             dfw = histTupleDef.GetDfw(df, setup.global_params)
-            iter_descs = [{
-                "source": unc_source,
-                "scale": unc_scale,
-                "weight": "weight_Central"
-            }]
+            iter_descs = [
+                {"source": unc_source, "scale": unc_scale, "weight": "weight_Central"}
+            ]
             if isCentral:
                 for unc_source_norm in norm_uncertainties:
                     for unc_scale_norm in getScales(unc_source_norm):
-                        iter_descs.append({
-                            "source": unc_source_norm,
-                            "scale": unc_scale_norm,
-                            "weight": f"weight_{unc_source_norm}_{unc_scale_norm}"
-                        })
+                        iter_descs.append(
+                            {
+                                "source": unc_source_norm,
+                                "scale": unc_scale_norm,
+                                "weight": f"weight_{unc_source_norm}_{unc_scale_norm}",
+                            }
+                        )
             for desc in iter_descs:
                 print(f"Defining the final weight for {desc['source']} {desc['scale']}")
                 histTupleDef.DefineWeightForHistograms(
@@ -267,14 +273,15 @@ if __name__ == "__main__":
                 raise RuntimeError(f"Cache file for {name} already specified.")
             cacheFileNames[name] = file
 
-
     histTupleDef = Utilities.load_module(args.histTupleDef)
 
     snapshotOptions = ROOT.RDF.RSnapshotOptions()
     snapshotOptions.fOverwriteIfExists = False
     snapshotOptions.fLazy = False
     snapshotOptions.fMode = "RECREATE"
-    snapshotOptions.fCompressionAlgorithm = getattr(ROOT.ROOT.RCompressionSetting.EAlgorithm, 'k' + args.compressionAlgo)
+    snapshotOptions.fCompressionAlgorithm = getattr(
+        ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + args.compressionAlgo
+    )
     snapshotOptions.fCompressionLevel = args.compressionLevel
 
     tmp_fileNames = createHistTuple(

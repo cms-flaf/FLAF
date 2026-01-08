@@ -205,8 +205,7 @@ def CreateDataFrame(*, treeName, fileName, caches, files, centralTree=None, cent
     if centralTree is not None:
         tree.AddFriend(centralTree, central)
     if centralCaches is not None:
-        for cacheName, cacheFileName in centralCaches.items():
-            cacheTree = GetTree(treeName, cacheFileName)
+        for cacheName, cacheTree in centralCaches.items():
             tree.AddFriend(cacheTree, f'{cacheName}__{central}')
     df_orig = ROOT.RDataFrame(tree)
     df = df_orig
@@ -238,7 +237,7 @@ def CreateDataFrame(*, treeName, fileName, caches, files, centralTree=None, cent
             continue
         if suffix is None:
             if origin is not None:
-                df = df.Define(column_name, column)
+                df = df.Redefine(column_name, column)
         elif column_name not in columns:
             central_valid = f'{central}.{valid_column}'
             if origin is None:

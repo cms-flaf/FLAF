@@ -136,7 +136,7 @@ def createHistTuple(
     allRootFiles = {}
     for unc_source in [central] + list(scale_uncertainties):
         for unc_scale in getScales(unc_source):
-            print(f"Processing events for: {unc_source} {unc_scale}")
+            print(f"Processing events for {unc_source} {unc_scale}")
             isCentral = unc_source == central
             fullTreeName = treeName if isCentral else f"Events__{unc_source}__{unc_scale}"
             df_orig, df, tree, cacheTrees = Utilities.CreateDataFrame(treeName=fullTreeName,
@@ -175,7 +175,7 @@ def createHistTuple(
                             "weight": f"weight_{unc_source_norm}_{unc_scale_norm}"
                         })
             for desc in iter_descs:
-                print(f"Defining the final weight for: {desc['source']} {desc['scale']}")
+                print(f"Defining the final weight for {desc['source']} {desc['scale']}")
                 histTupleDef.DefineWeightForHistograms(
                     dfw=dfw,
                     isData=isData,

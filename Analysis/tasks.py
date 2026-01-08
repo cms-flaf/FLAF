@@ -833,7 +833,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 with contextlib.ExitStack() as stack:
                     # Enter a stack to maybe load the analysis cache files
                     input_file = self.input()["anaTuple"][idx]
-                    if len(self.input()["anaCaches"]) > 1:
+                    if len(self.input()["anaCaches"]) > 0:
                         local_anacaches = {}
                         for producer_name, cache_files in self.input()[
                             "anaCaches"

@@ -241,7 +241,7 @@ def createAnatuple(
     for index, fileName in enumerate(outfilesNames):
         outputRootFile = ROOT.TFile(fileName, "UPDATE", "", compression_settings)
         rep = ReportTools.SaveReport(
-            selection_reports[index].GetValue(), reoprtName=f"Report"
+            selection_reports[index].GetValue(), reportName=f"Report"
         )
         outputRootFile.WriteTObject(rep, f"Report", "Overwrite")
         if index == 0:

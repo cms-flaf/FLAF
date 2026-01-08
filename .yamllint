@@ -28,6 +28,7 @@ rules:
     require-starting-space: true
     ignore-shebangs: true
     min-spaces-from-content: 1
+  comments-indentation: false
   anchors:
     forbid-undeclared-aliases: false
     forbid-duplicated-anchors: true

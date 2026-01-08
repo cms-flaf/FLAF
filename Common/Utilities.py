@@ -190,7 +190,7 @@ def CreateDataFrame(*, treeName, fileName, caches, files, centralTree=None, cent
     def GetTree(treeName, fileName):
         file = GetFile(fileName)
         tree = file.Get(treeName)
-        if tree is None or tree.IsZombie():
+        if tree is None or not tree or tree.IsZombie():
             raise RuntimeError(f"ERROR: tree {treeName} not found in file {fileName}")
         if type(tree) != ROOT.TTree:
             raise RuntimeError(f"ERROR: object {treeName} in file {fileName} has type {type(tree)}, while a TTree is expected.")

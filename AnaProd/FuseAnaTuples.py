@@ -15,6 +15,7 @@ default_values = {
     'bool': False,
     'float': np.float32(0.0),
     'uint8_t': np.uint8(0),
+    'int16_t': np.int16(0),
 }
 
 def getDefaultValue(type_name):

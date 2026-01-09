@@ -10,7 +10,7 @@ import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
 from FLAF.RunKit.run_tools import ps_call
 
-# from FLAF.Common.HistHelper import *
+from FLAF.Common.HistHelper import *
 from Corrections.CorrectionsCore import getScales, central
 from Corrections.Corrections import Corrections
 

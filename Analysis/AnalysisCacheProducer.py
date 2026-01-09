@@ -73,8 +73,6 @@ def run_producer(
                     f"Mismatch in number of events between input and output {len(new_array['FullEventId'])} != {len(array['FullEventId'])}"
                 )
             if np.any(new_array["FullEventId"] != array["FullEventId"]):
-                print("orig FullEventId:", array["FullEventId"])
-                print("new FullEventId:", new_array["FullEventId"])
                 raise Exception("Mismatch in FullEventId between input and output")
             if final_array is None:
                 final_array = new_array
@@ -106,7 +104,6 @@ def createAnalysisCache(
     dataset_name,
     inFileName,
     period,
-    dataset,
     cacheFileNames,
     snapshotOptions,
     producer_to_run,
@@ -191,13 +188,12 @@ def createAnalysisCache(
                 centralTree = tree
                 centralCaches = cacheTrees
             ROOT.RDF.Experimental.AddProgressBar(df_orig)
-
             dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
             tmp_fileName = f"{fullTreeName}.root"
             run_producer(
                 producer,
                 dfw,
-                dataset,
+                dataset_name,
                 producer_config,
                 tmp_fileName,
                 fullTreeName,
@@ -226,8 +222,6 @@ if __name__ == "__main__":
     parser.add_argument("--compressionAlgo", type=str, default="LZMA")
     parser.add_argument("--channels", type=str, default=None)
     parser.add_argument("--workingDir", required=True, type=str)
-    parser.add_argument("--period", required=False, type=str)
-    parser.add_argument("--dataset", required=False, type=str)
     args = parser.parse_args()
 
     startTime = time.time()

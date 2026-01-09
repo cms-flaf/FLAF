@@ -1,6 +1,5 @@
 import ROOT
 import os
-import shutil
 import sys
 
 ROOT.gROOT.SetBatch(True)
@@ -10,23 +9,13 @@ if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
 
-import FLAF.Common.ConvertUproot as ConvertUproot
+from FLAF.Common.TupleHelpers import copyFileContent
 
 ROOT.gInterpreter.Declare(
     """
     using lumiEventMapType = std::map < unsigned int, std::set <unsigned long long > >;
     using eventMapType =  std::map < unsigned int ,  lumiEventMapType >;
     using RunLumiEventSet = std::set < std::tuple < unsigned int, unsigned int, unsigned long long > > ;
-    namespace kin_fit{
-        struct FitResults {
-            double mass, chi2, probability;
-            int convergence;
-            bool HasValidMass() const { return convergence > 0; }
-            FitResults() : convergence(std::numeric_limits<int>::lowest()) {}
-            FitResults(double _mass, double _chi2, double _probability, int _convergence) :
-                mass(_mass), chi2(_chi2), probability(_probability), convergence(_convergence) {}
-        };
-    }
     bool saveEvent(unsigned int run, unsigned int lumi, unsigned long long event){
         static eventMapType eventMap;
         static std::mutex eventMap_mutex;
@@ -78,9 +67,9 @@ if __name__ == "__main__":
     snapshotOptions.fLazy = False
     snapshotOptions.fMode = "UPDATE"
     snapshotOptions.fCompressionAlgorithm = getattr(
-        ROOT.ROOT.RCompressionSetting.EAlgorithm, "kZLIB"
+        ROOT.ROOT.RCompressionSetting.EAlgorithm, "kLZMA"
     )
-    snapshotOptions.fCompressionLevel = 4
+    snapshotOptions.fCompressionLevel = 9
     inputFiles = [
         (fileName, ROOT.TFile(fileName, "READ")) for fileName in args.inputFile
     ]
@@ -153,7 +142,7 @@ if __name__ == "__main__":
         df.Snapshot(obj_name, tmpFileName, df.GetColumnNames(), snapshotOptions)
     # print(tmpFileName)
     if args.useUproot:
-        ConvertUproot.toUproot(tmpFileName, args.outFile)
+        copyFileContent(tmpFileName, args.outFile)
         # if os.path.exists(args.outFile):
         #    os.remove(tmpFileName)
 

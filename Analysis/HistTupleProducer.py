@@ -9,8 +9,11 @@ if __name__ == "__main__":
 import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
 from FLAF.RunKit.run_tools import ps_call
-from FLAF.Common.HistHelper import *
+
+# from FLAF.Common.HistHelper import *
+from Corrections.CorrectionsCore import getScales, central
 from Corrections.Corrections import Corrections
+
 import FLAF.Common.triggerSel as Triggers
 import FLAF.Common.BaselineSelection as Baseline
 
@@ -61,17 +64,17 @@ def createHistTuple(
     *,
     setup,
     dataset_name,
-    inFile,
-    cacheFiles,
-    treeName,
-    hist_cfg_dict,
-    unc_cfg_dict,
+    inFileName,
+    cacheFileNames,
     snapshotOptions,
     range,
     evtIds,
     histTupleDef,
-    inFile_keys,
 ):
+    treeName = setup.global_params.get("treeName", "Events")
+    unc_cfg_dict = setup.weights_config
+    hist_cfg_dict = setup.hists
+
     Baseline.Initialize(False, False)
     if dataset_name == "data":
         dataset_cfg = {}
@@ -110,157 +113,106 @@ def createHistTuple(
     histTupleDef.Initialize()
     histTupleDef.analysis_setup(setup)
 
-    isCentral = True
-
-    snaps = []
-    outfilesNames = []
-    variables = []
-    tmp_fileNames = []
-    if treeName not in inFile_keys:
-        print(f"ERRORE, {treeName} non esiste nel file, ritorno il nulla")
-        return tmp_fileNames
-
-    df_central = ROOT.RDataFrame(treeName, inFile)
-    df_cache_central = []
-    if cacheFiles:
-        for cacheFile in cacheFiles:
-            df_cache_central.append(ROOT.RDataFrame(treeName, cacheFile))
-
-    ROOT.RDF.Experimental.AddProgressBar(df_central)
-
-    if range is not None:
-        df_central = df_central.Range(range)
-    if len(evtIds) > 0:
-        df_central = df_central.Filter(
-            f"static const std::set<ULong64_t> evts = {{ {evtIds} }}; return evts.count(event) > 0;"
-        )
-
-    # Central + weights shifting:
-
     if type(setup.global_params["variables"]) == list:
         variables = setup.global_params["variables"]
     elif type(setup.global_params["variables"]) == dict:
         variables = setup.global_params["variables"].keys()
 
-    dfw_central = histTupleDef.GetDfw(df_central, df_cache_central, setup.global_params)
-
-    col_names_central = dfw_central.colNames
-    col_types_central = dfw_central.colTypes
-
-    all_rel_uncs_to_compute = []
+    norm_uncertainties = set()
     if setup.global_params["compute_rel_weights"]:
-        all_rel_uncs_to_compute.extend(unc_cfg_dict["norm"].keys())
-    all_shifts_to_compute = []
+        norm_uncertainties.update(unc_cfg_dict["norm"].keys())
+    print("Norm uncertainties to consider:", norm_uncertainties)
+    scale_uncertainties = set()
     if setup.global_params["compute_unc_variations"]:
-        df_central = createCentralQuantities(
-            df_central, col_types_central, col_names_central
-        )
-        if df_central.Filter("map_placeholder > 0").Count().GetValue() <= 0:
-            raise RuntimeError("no events passed map placeolder")
-        all_shifts_to_compute.extend(unc_cfg_dict["shape"].keys())
+        scale_uncertainties.update(unc_cfg_dict["shape"].keys())
+    print("Scale uncertainties to consider:", scale_uncertainties)
 
-    for unc in ["Central"] + all_rel_uncs_to_compute:
-        scales = setup.global_params["scales"] if unc != "Central" else ["Central"]
-        for scale in scales:
-            final_weight_name = (
-                f"weight_{unc}_{scale}" if unc != "Central" else "weight_Central"
-            )
-            histTupleDef.DefineWeightForHistograms(
-                dfw=dfw_central,
-                isData=isData,
-                uncName=unc,
-                uncScale=scale,
-                unc_cfg_dict=unc_cfg_dict,
-                hist_cfg_dict=hist_cfg_dict,
-                global_params=setup.global_params,
-                final_weight_name=final_weight_name,
-                df_is_central=True,
-            )
-            dfw_central.colToSave.append(final_weight_name)
+    print("Defining binnings for variables")
     for var in variables:
         DefineBinnedColumn(hist_cfg_dict, var)
-        dfw_central.df = dfw_central.df.Define(f"{var}_bin", f"get_{var}_bin({var})")
-        dfw_central.colToSave.append(f"{var}_bin")
 
-    varToSave = Utilities.ListToVector(list(set(dfw_central.colToSave)))
-    tmp_fileName = f"{treeName}.root"
-    tmp_fileNames.append(tmp_fileName)
-    snaps.append(
-        dfw_central.df.Snapshot(treeName, tmp_fileName, varToSave, snapshotOptions)
-    )
+    snaps = []
+    tmp_fileNames = []
 
-    #### shifted trees
+    centralTree = None
+    centralCaches = None
+    allRootFiles = {}
+    for unc_source in [central] + list(scale_uncertainties):
+        for unc_scale in getScales(unc_source):
+            print(f"Processing events for {unc_source} {unc_scale}")
+            isCentral = unc_source == central
+            fullTreeName = (
+                treeName if isCentral else f"Events__{unc_source}__{unc_scale}"
+            )
+            df_orig, df, tree, cacheTrees = Utilities.CreateDataFrame(
+                treeName=fullTreeName,
+                fileName=inFileName,
+                caches=cacheFileNames,
+                files=allRootFiles,
+                centralTree=centralTree,
+                centralCaches=centralCaches,
+                central=central,
+                filter_valid=True,
+            )
+            if isCentral:
+                centralTree = tree
+                centralCaches = cacheTrees
+            ROOT.RDF.Experimental.AddProgressBar(df_orig)
 
-    for unc in all_shifts_to_compute:
-        scales = setup.global_params["scales"]
-        for scale in scales:
-            treeName = f"Events_{unc}{scale}"
-            shifts = ["noDiff", "Valid", "nonValid"]
+            if range is not None:
+                df = df.Range(range)
+            if evtIds and len(evtIds) > 0:
+                df = df.Filter(
+                    f"static const std::set<ULong64_t> evts = {{ {evtIds} }}; return evts.count(event) > 0;"
+                )
 
-            for shift in shifts:
-                treeName_shift = f"{treeName}_{shift}"
-                print(treeName_shift)
-
-                if treeName_shift in inFile_keys:
-                    df_shift_caches = []
-                    if cacheFiles:
-                        for cacheFile in cacheFiles:
-                            df_shift_caches.append(
-                                ROOT.RDataFrame(treeName_shift, cacheFile)
-                            )
-
-                    dfw_shift = histTupleDef.GetDfw(
-                        ROOT.RDataFrame(treeName_shift, inFile),
-                        df_shift_caches,
-                        setup.global_params,
-                        shift,
-                        col_names_central,
-                        col_types_central,
-                        f"cache_map_{unc}{scale}_{shift}",
-                    )
-                    final_weight_name = "weight_Central"
-
-                    histTupleDef.DefineWeightForHistograms(
-                        dfw=dfw_shift,
-                        isData=isData,
-                        uncName=unc,
-                        uncScale=scale,
-                        unc_cfg_dict=unc_cfg_dict,
-                        hist_cfg_dict=hist_cfg_dict,
-                        global_params=setup.global_params,
-                        final_weight_name=final_weight_name,
-                        df_is_central=False,
-                    )
-                    dfw_shift.colToSave.append(final_weight_name)
-                    for var in variables:
-                        dfw_shift.df = dfw_shift.df.Define(
-                            f"{var}_bin", f"get_{var}_bin({var})"
+            print("Defining DF wrapper")
+            dfw = histTupleDef.GetDfw(df, setup.global_params)
+            iter_descs = [
+                {"source": unc_source, "scale": unc_scale, "weight": "weight_Central"}
+            ]
+            if isCentral:
+                for unc_source_norm in norm_uncertainties:
+                    for unc_scale_norm in getScales(unc_source_norm):
+                        iter_descs.append(
+                            {
+                                "source": unc_source_norm,
+                                "scale": unc_scale_norm,
+                                "weight": f"weight_{unc_source_norm}_{unc_scale_norm}",
+                            }
                         )
-                        dfw_shift.colToSave.append(f"{var}_bin")
+            for desc in iter_descs:
+                print(f"Defining the final weight for {desc['source']} {desc['scale']}")
+                histTupleDef.DefineWeightForHistograms(
+                    dfw=dfw,
+                    isData=isData,
+                    uncName=desc["source"],
+                    uncScale=desc["scale"],
+                    unc_cfg_dict=unc_cfg_dict,
+                    hist_cfg_dict=hist_cfg_dict,
+                    global_params=setup.global_params,
+                    final_weight_name=desc["weight"],
+                    df_is_central=isCentral,
+                )
+                dfw.colToSave.append(desc["weight"])
 
-                    varToSave = Utilities.ListToVector(list(set(dfw_shift.colToSave)))
+            print("Defining binned columns")
+            for var in variables:
+                dfw.df = dfw.df.Define(f"{var}_bin", f"get_{var}_bin({var})")
+                dfw.colToSave.append(f"{var}_bin")
 
-                    tmp_fileName = f"{treeName_shift}.root"
-                    tmp_fileNames.append(tmp_fileName)
-
-                    snaps.append(
-                        dfw_shift.df.Snapshot(
-                            treeName_shift,
-                            tmp_fileName,
-                            varToSave,
-                            snapshotOptions,
-                        )
-                    )
+            varToSave = Utilities.ListToVector(list(set(dfw.colToSave)))
+            tmp_fileName = f"{fullTreeName}.root"
+            tmp_fileNames.append(tmp_fileName)
+            print("Creating snapshot")
+            snaps.append(
+                dfw.df.Snapshot(fullTreeName, tmp_fileName, varToSave, snapshotOptions)
+            )
 
     if snapshotOptions.fLazy == True:
         ROOT.RDF.RunGraphs(snaps)
+
     return tmp_fileNames
-
-
-def createVoidTree(file_name, tree_name):
-    df = ROOT.RDataFrame(0)
-    df = df.Define("test", "return true;")
-    df.Snapshot(tree_name, file_name, {"test"})
 
 
 if __name__ == "__main__":
@@ -276,21 +228,20 @@ if __name__ == "__main__":
     parser.add_argument("--compute_unc_variations", type=bool, default=False)
     parser.add_argument("--compute_rel_weights", type=bool, default=False)
     parser.add_argument("--customisations", type=str, default=None)
-    parser.add_argument("--compressionLevel", type=int, default=4)
-    parser.add_argument("--compressionAlgo", type=str, default="ZLIB")
+    parser.add_argument("--compressionLevel", type=int, default=9)
+    parser.add_argument("--compressionAlgo", type=str, default="LZMA")
     parser.add_argument("--channels", type=str, default=None)
     parser.add_argument("--nEvents", type=int, default=None)
-    parser.add_argument("--evtIds", type=str, default="")
+    parser.add_argument("--evtIds", type=str, default=None)
 
     args = parser.parse_args()
     startTime = time.time()
+
+    ROOT.gROOT.ProcessLine(".include " + os.environ["FLAF_PATH"])
+    ROOT.gROOT.ProcessLine('#include "include/Utilities.h"')
+
     setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period)
 
-    treeName = setup.global_params[
-        "treeName"
-    ]  # treeName should be inside global params if not in customisations
-
-    channels = setup.global_params["channelSelection"]
     setup.global_params["channels_to_consider"] = (
         args.channels.split(",")
         if args.channels
@@ -315,62 +266,42 @@ if __name__ == "__main__":
     setup.global_params["compute_unc_variations"] = (
         args.compute_unc_variations and process_group != "data"
     )
-    cacheFiles = None
+    cacheFileNames = {}
     if args.cacheFiles:
-        cacheFiles = args.cacheFiles.split(",")
-    key_not_exist = False
-    df_empty = False
-    inFile_root = ROOT.TFile.Open(args.inFile, "READ")
-    inFile_keys = [k.GetName() for k in inFile_root.GetListOfKeys()]
-    if treeName not in inFile_keys:
-        key_not_exist = True
-    inFile_root.Close()
-    if (
-        not key_not_exist
-        and ROOT.RDataFrame(treeName, args.inFile).Count().GetValue() == 0
-    ):
-        df_empty = True
-    dont_create_HistTuple = key_not_exist or df_empty
-
-    unc_cfg_dict = setup.weights_config
-    hist_cfg_dict = setup.hists
+        for entry in args.cacheFiles.split(","):
+            name, file = entry.split(":")
+            if name in cacheFileNames:
+                raise RuntimeError(f"Cache file for {name} already specified.")
+            cacheFileNames[name] = file
 
     histTupleDef = Utilities.load_module(args.histTupleDef)
-    if not dont_create_HistTuple:
-        snapshotOptions = ROOT.RDF.RSnapshotOptions()
-        snapshotOptions.fOverwriteIfExists = False
-        snapshotOptions.fLazy = True
-        snapshotOptions.fMode = "RECREATE"
-        # snapshotOptions.fCompressionAlgorithm = getattr(ROOT.ROOT, 'k' + args.compressionAlgo)
-        # snapshotOptions.fCompressionLevel = args.compressionLevel
 
-        tmp_fileNames = createHistTuple(
-            setup=setup,
-            dataset_name=args.dataset,
-            inFile=args.inFile,
-            cacheFiles=cacheFiles,
-            treeName=treeName,
-            hist_cfg_dict=hist_cfg_dict,
-            unc_cfg_dict=unc_cfg_dict,
-            snapshotOptions=snapshotOptions,
-            range=args.nEvents,
-            evtIds=args.evtIds,
-            histTupleDef=histTupleDef,
-            inFile_keys=inFile_keys,
-        )
-        if tmp_fileNames:
-            hadd_str = f"hadd -f -j -O {args.outFile} "
-            hadd_str += " ".join(f for f in tmp_fileNames)
-            print(f"hadd_str is {hadd_str}")
-            ps_call([hadd_str], True)
-            if os.path.exists(args.outFile) and len(tmp_fileNames) != 0:
-                for file_syst in tmp_fileNames:
-                    if file_syst == args.outFile:
-                        continue
-                    os.remove(file_syst)
-    else:
-        print(f"NO HISTOGRAM CREATED!!!! dataset: {args.dataset} ")
-        createVoidTree(args.outFile, f"Events")
+    snapshotOptions = ROOT.RDF.RSnapshotOptions()
+    snapshotOptions.fOverwriteIfExists = False
+    snapshotOptions.fLazy = False
+    snapshotOptions.fMode = "RECREATE"
+    snapshotOptions.fCompressionAlgorithm = getattr(
+        ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + args.compressionAlgo
+    )
+    snapshotOptions.fCompressionLevel = args.compressionLevel
+
+    tmp_fileNames = createHistTuple(
+        setup=setup,
+        dataset_name=args.dataset,
+        inFileName=args.inFile,
+        cacheFileNames=cacheFileNames,
+        snapshotOptions=snapshotOptions,
+        range=args.nEvents,
+        evtIds=args.evtIds,
+        histTupleDef=histTupleDef,
+    )
+    hadd_cmd = ["hadd", "-j", args.outFile]
+    hadd_cmd.extend(tmp_fileNames)
+    ps_call(hadd_cmd, verbose=1)
+    if os.path.exists(args.outFile) and len(tmp_fileNames) != 0:
+        for file_syst in tmp_fileNames:
+            if file_syst != args.outFile:
+                os.remove(file_syst)
 
     executionTime = time.time() - startTime
     print("Execution time in seconds: " + str(executionTime))

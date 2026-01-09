@@ -1,95 +1,26 @@
 import os
 import yaml
 import ROOT
-import datetime
 import time
 import shutil
 import importlib
 import uproot
 import awkward as ak
+import numpy as np
 
 ROOT.EnableThreadSafety()
 
 from FLAF.Common.Utilities import DeclareHeader
 from FLAF.RunKit.run_tools import ps_call
-import FLAF.Common.LegacyVariables as LegacyVariables
 import FLAF.Common.Utilities as Utilities
+from FLAF.Common.Setup import Setup
+from Corrections.Corrections import Corrections
+
+import FLAF.Common.triggerSel as Triggers
+import FLAF.Common.BaselineSelection as Baseline
+from Corrections.CorrectionsCore import getScales, central
 
 defaultColToSave = ["FullEventId"]
-scales = ["Up", "Down"]
-
-
-def createCacheQuantities(dfWrapped_cache, cache_map_name, cache_entry_name):
-    df_cache = dfWrapped_cache.df
-    map_creator_cache = ROOT.analysis.CacheCreator(*dfWrapped_cache.colTypes)()
-    df_cache = map_creator_cache.processCache(
-        ROOT.RDF.AsRNode(df_cache),
-        Utilities.ListToVector(dfWrapped_cache.colNames),
-        cache_map_name,
-        cache_entry_name,
-    )
-    return df_cache
-
-
-def AddCacheColumnsInDf(
-    dfWrapped_central,
-    dfWrapped_cache,
-    cache_map_name="cache_map_placeholder",
-    cache_entry_name="_cache_entry",
-):
-    col_names_cache = dfWrapped_cache.colNames
-    col_types_cache = dfWrapped_cache.colTypes
-    # print(col_names_cache)
-    # if "kinFit_result" in col_names_cache:
-    #    col_names_cache.remove("kinFit_result")
-    dfWrapped_cache.df = createCacheQuantities(
-        dfWrapped_cache, cache_map_name, cache_entry_name
-    )
-    if dfWrapped_cache.df.Filter(f"{cache_map_name} > 0").Count().GetValue() <= 0:
-        raise RuntimeError("no events passed map placeolder")
-    dfWrapped_central.AddCacheColumns(col_names_cache, col_types_cache, cache_map_name)
-
-
-def getKeyNames(root_file_name):
-    root_file = ROOT.TFile(root_file_name, "READ")
-    key_names = [str(k.GetName()) for k in root_file.GetListOfKeys()]
-    root_file.Close()
-    return key_names
-
-
-def applyLegacyVariables(dfw, global_cfg_dict, is_central=True):
-    channels = global_cfg_dict["channelSelection"]
-    trg_strings = {}
-    for channel in channels:
-        ch_value = global_cfg_dict["channelDefinition"][channel]
-        dfw.df = dfw.df.Define(f"{channel}", f"channelId=={ch_value}")
-        trigger_list = global_cfg_dict["triggers"][channel]
-        trg_strings[channel] = "("
-        trg_strings[channel] += " || ".join(f"HLT_{trg}" for trg in trigger_list)
-        trg_strings[channel] += ")"
-        for trigger in trigger_list:
-            trigger_name = "HLT_" + trigger
-            if trigger_name not in dfw.df.GetColumnNames():
-                dfw.df = dfw.df.Define(trigger_name, "1")
-    entryvalid_stri = "("
-    entryvalid_stri += " || ".join(f"({ch} & {trg_strings[ch]})" for ch in channels)
-    entryvalid_stri += ")"
-    dfw.DefineAndAppend("entry_valid", entryvalid_stri)
-    MT2Branches = dfw.Apply(LegacyVariables.GetMT2)
-    dfw.colToSave.extend(MT2Branches)
-    KinFitBranches = dfw.Apply(LegacyVariables.GetKinFit)
-    dfw.colToSave.extend(KinFitBranches)
-    if is_central:
-        SVFitBranches = dfw.Apply(LegacyVariables.GetSVFit)
-        dfw.colToSave.extend(SVFitBranches)
-
-
-def createCentralQuantities(df_central, central_col_types, central_columns):
-    map_creator = ROOT.analysis.MapCreator(*central_col_types)()
-    df_central = map_creator.processCentral(
-        ROOT.RDF.AsRNode(df_central), Utilities.ListToVector(central_columns)
-    )
-    return df_central
 
 
 def check_columns(expected_columns, columns_to_save, available_columns):
@@ -126,173 +57,157 @@ def run_producer(
         vars_to_save = list(producer.vars_to_save)
         if "FullEventId" not in vars_to_save:
             vars_to_save.append("FullEventId")
+        n_orig = dfw.df.Count()
         dfw.df.Snapshot(
             f"tmp", os.path.join(workingDir, "tmp.root"), vars_to_save, snapshotOptions
         )
+        n_orig = n_orig.GetValue()
         final_array = None
         uproot_stepsize = producer_config.get("uproot_stepsize", "100MB")
         for array in uproot.iterate(
             f"{os.path.join(workingDir, 'tmp.root')}:tmp", step_size=uproot_stepsize
         ):  # For DNN 50MB translates to ~300_000 events
             new_array = producer.run(array)
+            if len(new_array["FullEventId"]) != len(array["FullEventId"]):
+                raise Exception(
+                    f"Mismatch in number of events between input and output {len(new_array['FullEventId'])} != {len(array['FullEventId'])}"
+                )
+            if np.any(new_array["FullEventId"] != array["FullEventId"]):
+                print("orig FullEventId:", array["FullEventId"])
+                print("new FullEventId:", new_array["FullEventId"])
+                raise Exception("Mismatch in FullEventId between input and output")
             if final_array is None:
                 final_array = new_array
             else:
                 final_array = ak.concatenate([final_array, new_array])
         check_columns(expected_columns, final_array.fields, final_array.fields)
+        n_final = len(final_array["FullEventId"])
         with uproot.recreate(outFileName, compression=uprootCompression) as outfile:
             outfile[treeName] = final_array
 
     else:
+        n_orig = dfw.df.Count()
         dfw = producer.run(dfw)
+        n_final = dfw.df.Count()
         check_columns(expected_columns, dfw.colToSave, dfw.df.GetColumnNames())
         varToSave = Utilities.ListToVector(dfw.colToSave)
         dfw.df.Snapshot(treeName, outFileName, varToSave, snapshotOptions)
+        n_orig = n_orig.GetValue()
+        n_final = n_final.GetValue()
+    if n_orig != n_final:
+        raise Exception(
+            f"Mismatch in number of events before and after producer {n_orig} != {n_final}"
+        )
 
 
-def merge_cache_files(inFileName, cacheFileNames, treeName):
-    dfw = Utilities.DataFrameBuilderBase(ROOT.RDataFrame(treeName, inFileName))
-    if len(cacheFileNames) == 0:
-        return dfw.df
-    for i, cacheFileName in enumerate(cacheFileNames):
-        cache = Utilities.DataFrameBuilderBase(ROOT.RDataFrame(treeName, cacheFileName))
-        AddCacheColumnsInDf(dfw, cache, f"cache_map_Central_{i}", f"_cache_entry_{i}")
-    return dfw.df
-
-
-# add extra argument to this function - which payload producer to run
 def createAnalysisCache(
+    *,
+    setup,
+    dataset_name,
     inFileName,
-    outFileName,
     period,
     dataset,
-    unc_cfg_dict,
-    global_cfg_dict,
+    cacheFileNames,
     snapshotOptions,
-    compute_unc_variations,
-    deepTauVersion,
     producer_to_run,
     uprootCompression,
     workingDir,
-    cacheFileNames="",
 ):
-    start_time = datetime.datetime.now()
-    verbosity = ROOT.RLogScopedVerbosity(
-        ROOT.Detail.RDF.RDFLogChannel(), ROOT.ELogLevel.kLogInfo
+    treeName = setup.global_params.get("treeName", "Events")
+    unc_cfg_dict = setup.weights_config
+
+    # verbosity = ROOT.RLogScopedVerbosity(
+    #     ROOT.Detail.RDF.RDFLogChannel(), ROOT.ELogLevel.kLogInfo
+    # )
+
+    Baseline.Initialize(False, False)
+    if dataset_name == "data":
+        dataset_cfg = {}
+        process_name = "data"
+        process = {}
+        isData = True
+        processor_instances = {}
+    else:
+        dataset_cfg = setup.datasets[dataset_name]
+        process_name = dataset_cfg["process_name"]
+        process = setup.base_processes[process_name]
+        isData = dataset_cfg["process_group"] == "data"
+        _, processor_instances = setup.get_processors(
+            process_name, stage="HistTuple", create_instances=True
+        )
+    triggerFile = setup.global_params.get("triggerFile")
+    trigger_class = None
+    if triggerFile is not None:
+        triggerFile = os.path.join(os.environ["ANALYSIS_PATH"], triggerFile)
+        trigger_class = Triggers.Triggers(triggerFile)
+
+    Corrections.initializeGlobal(
+        global_params=setup.global_params,
+        stage="HistTuple",
+        dataset_name=dataset_name,
+        dataset_cfg=dataset_cfg,
+        process_name=process_name,
+        process_cfg=process,
+        processors=processor_instances,
+        isData=isData,
+        load_corr_lib=True,
+        trigger_class=trigger_class,
     )
-    snaps = []
-    all_files = []
-    file_keys = getKeyNames(inFileName)
 
-    df = merge_cache_files(inFileName, cacheFileNames, "Events")
-    dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
+    scale_uncertainties = set()
+    if setup.global_params["compute_unc_variations"]:
+        scale_uncertainties.update(unc_cfg_dict["shape"].keys())
+    print("Scale uncertainties to consider:", scale_uncertainties)
 
-    # df = ROOT.RDataFrame('Events', inFileName)
-    # df_begin = df
-    # dfw = Utilities.DataFrameWrapper(df_begin,defaultColToSave)
-
-    if not producer_to_run:
-        raise RuntimeError("Producer must be specified to compute analysis cache")
-
-    producer_config = global_cfg_dict["payload_producers"][producer_to_run]
+    producer_config = setup.global_params["payload_producers"][producer_to_run]
     producers_module_name = producer_config["producers_module_name"]
     producer_name = producer_config["producer_name"]
     producers_module = importlib.import_module(producers_module_name)
     producer_class = getattr(producers_module, producer_name)
     producer = producer_class(producer_config, producer_to_run, period)
-    run_producer(
-        producer,
-        dfw,
-        dataset,
-        producer_config,
-        f"{outFileName}_Central.root",
-        "Events",
-        snapshotOptions,
-        uprootCompression,
-        workingDir,
-    )
-    all_files.append(f"{outFileName}_Central.root")
 
-    if compute_unc_variations:
-        dfWrapped_central = Utilities.DataFrameBuilderBase(df)
-        colNames = dfWrapped_central.colNames
-        colTypes = dfWrapped_central.colTypes
-        dfWrapped_central.df = createCentralQuantities(df, colTypes, colNames)
-        if dfWrapped_central.df.Filter("map_placeholder > 0").Count().GetValue() <= 0:
-            raise RuntimeError("no events passed map placeolder")
-        print("finished defining central quantities")
-        for uncName in unc_cfg_dict["shape"].keys():
-            for scale in scales:
-                treeName = f"Events_{uncName}{scale}"
-                treeName_noDiff = f"{treeName}_noDiff"
-                if treeName_noDiff in file_keys:
-                    df_noDiff = merge_cache_files(
-                        inFileName, cacheFileNames, treeName_noDiff
-                    )
-                    dfWrapped_noDiff = Utilities.DataFrameBuilderBase(df_noDiff)
-                    dfWrapped_noDiff.CreateFromDelta(colNames, colTypes)
-                    dfWrapped_noDiff.AddMissingColumns(colNames, colTypes)
-                    dfW_noDiff = Utilities.DataFrameWrapper(
-                        dfWrapped_noDiff.df, defaultColToSave
-                    )
-                    run_producer(
-                        producer,
-                        dfW_noDiff,
-                        dataset,
-                        producer_config,
-                        f"{outFileName}_{uncName}{scale}_noDiff.root",
-                        treeName_noDiff,
-                        snapshotOptions,
-                        uprootCompression,
-                        workingDir,
-                    )
-                    all_files.append(f"{outFileName}_{uncName}{scale}_noDiff.root")
-                treeName_Valid = f"{treeName}_Valid"
-                if treeName_Valid in file_keys:
-                    df_Valid = merge_cache_files(
-                        inFileName, cacheFileNames, treeName_Valid
-                    )
-                    dfWrapped_Valid = Utilities.DataFrameBuilderBase(df_Valid)
-                    dfWrapped_Valid.CreateFromDelta(colNames, colTypes)
-                    dfWrapped_Valid.AddMissingColumns(colNames, colTypes)
-                    dfW_Valid = Utilities.DataFrameWrapper(
-                        dfWrapped_Valid.df, defaultColToSave
-                    )
-                    run_producer(
-                        producer,
-                        dfW_Valid,
-                        dataset,
-                        producer_config,
-                        f"{outFileName}_{uncName}{scale}_Valid.root",
-                        treeName_Valid,
-                        snapshotOptions,
-                        uprootCompression,
-                        workingDir,
-                    )
-                    all_files.append(f"{outFileName}_{uncName}{scale}_Valid.root")
-                treeName_nonValid = f"{treeName}_nonValid"
-                if treeName_nonValid in file_keys:
-                    df_nonValid = merge_cache_files(
-                        inFileName, cacheFileNames, treeName_nonValid
-                    )
-                    dfWrapped_nonValid = Utilities.DataFrameBuilderBase(df_nonValid)
-                    dfWrapped_nonValid.AddMissingColumns(colNames, colTypes)
-                    dfW_nonValid = Utilities.DataFrameWrapper(
-                        dfWrapped_nonValid.df, defaultColToSave
-                    )
-                    run_producer(
-                        producer,
-                        dfW_nonValid,
-                        dataset,
-                        producer_config,
-                        f"{outFileName}_{uncName}{scale}_nonValid.root",
-                        treeName_nonValid,
-                        snapshotOptions,
-                        uprootCompression,
-                        workingDir,
-                    )
-                    all_files.append(f"{outFileName}_{uncName}{scale}_nonValid.root")
-    return all_files
+    tmp_fileNames = []
+    centralTree = None
+    centralCaches = None
+    allRootFiles = {}
+    for unc_source in [central] + list(scale_uncertainties):
+        for unc_scale in getScales(unc_source):
+            print(f"Processing events for: {unc_source} {unc_scale}")
+            isCentral = unc_source == central
+            fullTreeName = (
+                treeName if isCentral else f"Events__{unc_source}__{unc_scale}"
+            )
+            df_orig, df, tree, cacheTrees = Utilities.CreateDataFrame(
+                treeName=fullTreeName,
+                fileName=inFileName,
+                caches=cacheFileNames,
+                files=allRootFiles,
+                centralTree=centralTree,
+                centralCaches=centralCaches,
+                central=central,
+                filter_valid=False,
+            )
+            if isCentral:
+                centralTree = tree
+                centralCaches = cacheTrees
+            ROOT.RDF.Experimental.AddProgressBar(df_orig)
+
+            dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
+            tmp_fileName = f"{fullTreeName}.root"
+            run_producer(
+                producer,
+                dfw,
+                dataset,
+                producer_config,
+                tmp_fileName,
+                fullTreeName,
+                snapshotOptions,
+                uprootCompression,
+                workingDir,
+            )
+            tmp_fileNames.append(tmp_fileName)
+
+    return tmp_fileNames
 
 
 if __name__ == "__main__":
@@ -300,80 +215,93 @@ if __name__ == "__main__":
     import os
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--inFileName", required=True, type=str)
-    parser.add_argument("--outFileName", required=True, type=str)
-    parser.add_argument("--uncConfig", required=True, type=str)
-    parser.add_argument("--globalConfig", required=True, type=str)
-    parser.add_argument("--compute_unc_variations", type=bool, default=False)
-    parser.add_argument("--compressionLevel", type=int, default=4)
-    parser.add_argument("--compressionAlgo", type=str, default="ZLIB")
-    parser.add_argument("--deepTauVersion", type=str, default="v2p1")
-    parser.add_argument("--channels", type=str, default=None)
+    parser.add_argument("--period", required=True, type=str)
+    parser.add_argument("--inFile", required=True, type=str)
+    parser.add_argument("--outFile", required=True, type=str)
+    parser.add_argument("--cacheFiles", required=False, type=str, default=None)
+    parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--producer", type=str, default=None)
+    parser.add_argument("--compute_unc_variations", type=bool, default=False)
+    parser.add_argument("--compressionLevel", type=int, default=9)
+    parser.add_argument("--compressionAlgo", type=str, default="LZMA")
+    parser.add_argument("--channels", type=str, default=None)
     parser.add_argument("--workingDir", required=True, type=str)
-    parser.add_argument("--cacheFileNames", required=False, type=str)
     parser.add_argument("--period", required=False, type=str)
     parser.add_argument("--dataset", required=False, type=str)
     args = parser.parse_args()
 
+    startTime = time.time()
+
     ana_path = os.environ["ANALYSIS_PATH"]
-    # headers = [ "FLAF/include/KinFitInterface.h", "FLAF/include/HistHelper.h", "FLAF/include/Utilities.h" ]
     headers = ["FLAF/include/HistHelper.h", "FLAF/include/Utilities.h"]
     for header in headers:
         DeclareHeader(os.environ["ANALYSIS_PATH"] + "/" + header)
 
+    setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period)
+
+    setup.global_params["channels_to_consider"] = (
+        args.channels.split(",")
+        if args.channels
+        else setup.global_params["channelSelection"]
+    )
+    process_name = (
+        setup.datasets[args.dataset]["process_name"]
+        if args.dataset != "data"
+        else "data"
+    )
+    setup.global_params["process_name"] = process_name
+    process_group = (
+        setup.datasets[args.dataset]["process_group"]
+        if args.dataset != "data"
+        else "data"
+    )
+    setup.global_params["process_group"] = process_group
+
+    setup.global_params["compute_unc_variations"] = (
+        args.compute_unc_variations and process_group != "data"
+    )
+
+    cacheFileNames = {}
+    if args.cacheFiles:
+        for entry in args.cacheFiles.split(","):
+            name, file = entry.split(":")
+            if name in cacheFileNames:
+                raise RuntimeError(f"Cache file for {name} already specified.")
+            cacheFileNames[name] = file
+
     snapshotOptions = ROOT.RDF.RSnapshotOptions()
-    snapshotOptions.fOverwriteIfExists = True
+    snapshotOptions.fOverwriteIfExists = False
     snapshotOptions.fLazy = False
     snapshotOptions.fMode = "RECREATE"
     snapshotOptions.fCompressionAlgorithm = getattr(
         ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + args.compressionAlgo
     )
     snapshotOptions.fCompressionLevel = args.compressionLevel
+
     unc_cfg_dict = {}
 
     uprootCompression = getattr(uproot, args.compressionAlgo)
     uprootCompression = uprootCompression(args.compressionLevel)
 
-    with open(args.uncConfig, "r") as f:
-        unc_cfg_dict = yaml.safe_load(f)
-
-    global_cfg_dict = {}
-    with open(args.globalConfig, "r") as f:
-        global_cfg_dict = yaml.safe_load(f)
-
-    startTime = time.time()
-    if args.channels:
-        global_cfg_dict["channelSelection"] = (
-            args.channels.split(",") if type(args.channels) == str else args.channels
-        )
-    outFileNameFinal = f"{args.outFileName}"
-    cacheFileNames = args.cacheFileNames.split(",") if args.cacheFileNames else ""
-    all_files = createAnalysisCache(
-        args.inFileName,
-        args.outFileName,
-        args.period,
-        args.dataset,
-        unc_cfg_dict,
-        global_cfg_dict,
-        snapshotOptions,
-        args.compute_unc_variations,
-        args.deepTauVersion,
-        args.producer,
-        uprootCompression,
-        args.workingDir,
-        cacheFileNames,
+    tmp_fileNames = createAnalysisCache(
+        setup=setup,
+        dataset_name=args.dataset,
+        inFileName=args.inFile,
+        period=args.period,
+        cacheFileNames=cacheFileNames,
+        snapshotOptions=snapshotOptions,
+        producer_to_run=args.producer,
+        uprootCompression=uprootCompression,
+        workingDir=args.workingDir,
     )
-    hadd_str = f"hadd -f209 -n10 {outFileNameFinal} "
-    hadd_str += " ".join(f for f in all_files)
-    if len(all_files) > 1:
-        ps_call([hadd_str], True)
-    else:
-        shutil.copy(all_files[0], outFileNameFinal)
-    if os.path.exists(outFileNameFinal):
-        for histFile in all_files:
-            if histFile == outFileNameFinal:
-                continue
-            os.remove(histFile)
+
+    hadd_cmd = ["hadd", "-j", args.outFile]
+    hadd_cmd.extend(tmp_fileNames)
+    ps_call(hadd_cmd, verbose=1)
+    if os.path.exists(args.outFile) and len(tmp_fileNames) != 0:
+        for file_syst in tmp_fileNames:
+            if file_syst != args.outFile:
+                os.remove(file_syst)
+
     executionTime = time.time() - startTime
     print("Execution time in seconds: " + str(executionTime))

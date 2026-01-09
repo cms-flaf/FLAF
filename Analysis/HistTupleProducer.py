@@ -10,7 +10,7 @@ import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
 from FLAF.RunKit.run_tools import ps_call
 
-# from FLAF.Common.HistHelper import *
+from FLAF.Common.HistHelper import findBinEntry
 from Corrections.CorrectionsCore import getScales, central
 from Corrections.Corrections import Corrections
 
@@ -22,7 +22,8 @@ ROOT.EnableThreadSafety()
 
 
 def DefineBinnedColumn(hist_cfg_dict, var):
-    x_bins = hist_cfg_dict[var]["x_bins"]
+    var_entry = findBinEntry(hist_cfg_dict, var)
+    x_bins = hist_cfg_dict[var_entry]["x_bins"]
     func_name = f"get_{var}_bin"
     axis_definition = ""
 

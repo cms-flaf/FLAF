@@ -870,6 +870,8 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             tmpFile,
                             "--dataset",
                             dataset_name,
+                            "--period",
+                            self.period,
                             "--channels",
                             channels,
                             "--producer",

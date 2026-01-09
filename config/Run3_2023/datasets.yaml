@@ -93,111 +93,111 @@ DYto2E_MLL_6000_powheg:
 ############## DYto2L ##############
 DYto2E_M_10to50_amcatnloFXFX:
   crossSection: DYto2L_M_10to50_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14_ext1-v3/MINIAODSIM
   dirName: DYto2L_M_10to50_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_10to50_amcatnloFXFX:
   crossSection: DYto2L_M_10to50_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14_ext1-v3/MINIAODSIM
   dirName: DYto2L_M_10to50_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 DYto2Tau_M_10to50_amcatnloFXFX:
   crossSection: DYto2L_M_10to50_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14_ext1-v3/MINIAODSIM
   dirName: DYto2L_M_10to50_amcatnloFXFX
   fileNamePattern: ^nanoTauTau_\d+\.root$
 
 DYto2E_M_50_amcatnloFXFX:
   crossSection: DYto2L_M_50_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   fileNamePattern: ^nanoEE_\d+\.root$
   dirName: DYto2L_M_50_amcatnloFXFX
 DYto2Mu_M_50_amcatnloFXFX:
   crossSection: DYto2L_M_50_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   fileNamePattern: ^nanoMuMu_\d+\.root$
   dirName: DYto2L_M_50_amcatnloFXFX
 # DYto2Tau_M_50_amcatnloFXFX:
 #   crossSection: DYto2L_M_50_amcatnloFXFX
-#   generator: amcatnloFXFX
+#   generator: amcatnlo
 #   miniAOD: /DYto2L-2Jets_MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
 #   dirName: DYto2L_M_50_amcatnloFXFX_ext1
 ############## DYto2L_M-50_nJ ##############
 DYto2E_M_50_0J_amcatnloFXFX:
   crossSection: DYto2L_M_50_0J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
   dirName: DYto2L_M_50_0J_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_50_0J_amcatnloFXFX:
   crossSection: DYto2L_M_50_0J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
   dirName: DYto2L_M_50_0J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 DYto2Tau_M_50_0J_amcatnloFXFX:
   crossSection: DYto2Tau_M_50_0J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2Tau-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
   dirName: DYto2Tau_MLL_50_0J_amcatnloFXFX
   fileNamePattern: ^nano_\d+\.root$
 DYto2Tau_M_50_0J_Filtered_amcatnloFXFX:
   crossSection: DYto2Tau_M_50_0J_Filtered_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2Tau-2Jets_M-50_0J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v3/MINIAODSIM
   dirName: DYto2Tau_MLL_50_0J_Filtered_amcatnloFXFX
   fileNamePattern: ^nano_\d+\.root$
 DYto2E_M_50_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
   dirName: DYto2L_M_50_1J_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_50_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
   dirName: DYto2L_M_50_1J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 DYto2Tau_M_50_1J_amcatnloFXFX:
   crossSection: DYto2Tau_M_50_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2Tau-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
   dirName: DYto2Tau_MLL_50_1J_amcatnloFXFX
   fileNamePattern: ^nano_\d+\.root$
 DYto2Tau_M_50_1J_Filtered_amcatnloFXFX:
   crossSection: DYto2Tau_M_50_1J_Filtered_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2Tau-2Jets_M-50_1J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v3/MINIAODSIM
   dirName: DYto2Tau_MLL_50_1J_Filtered_amcatnloFXFX
   fileNamePattern: ^nano_\d+\.root$
 DYto2E_M_50_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
   dirName: DYto2L_M_50_2J_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_50_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
   dirName: DYto2L_M_50_2J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 DYto2Tau_M_50_2J_amcatnloFXFX:
   crossSection: DYto2Tau_M_50_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2Tau-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
   dirName: DYto2Tau_MLL_50_2J_amcatnloFXFX
   fileNamePattern: ^nano_\d+\.root$
 DYto2Tau_M_50_2J_Filtered_amcatnloFXFX:
   crossSection: DYto2Tau_M_50_2J_Filtered_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2Tau-2Jets_M-50_2J_Filtered_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v3/MINIAODSIM
   dirName: DYto2Tau_MLL_50_2J_Filtered_amcatnloFXFX
   fileNamePattern: ^nano_\d+\.root$
@@ -205,181 +205,181 @@ DYto2Tau_M_50_2J_Filtered_amcatnloFXFX:
 ############## DYto2L_M_*_PTLL ##############
 DYto2E_M_50_PTLL_40to100_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-40to100_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_50_PTLL_40to100_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-40to100_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 # DYto2Tau_M_50_PTLL_40to100_1J_amcatnloFXFX:
 #   crossSection: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
-#   generator: amcatnloFXFX
+#   generator: amcatnlo
 #   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-40to100_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 #   dirName: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
 DYto2E_M_50_PTLL_40to100_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-40to100_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_50_PTLL_40to100_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-40to100_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 # DYto2Tau_M_50_PTLL_40to100_2J_amcatnloFXFX:
 #   crossSection: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
-#   generator: amcatnloFXFX
+#   generator: amcatnlo
 #   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-40to100_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 #   dirName: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
 DYto2E_M_50_PTLL_100to200_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100to200_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_50_PTLL_100to200_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100to200_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 # DYto2Tau_M_50_PTLL_100to200_1J_amcatnloFXFX:
 #   crossSection: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
-#   generator: amcatnloFXFX
+#   generator: amcatnlo
 #   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100to200_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 #   dirName: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
 DYto2E_M_50_PTLL_100to200_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100to200_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_50_PTLL_100to200_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100to200_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 # DYto2Tau_M_50_PTLL_100to200_2J_amcatnloFXFX:
 #   crossSection: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
-#   generator: amcatnloFXFX
+#   generator: amcatnlo
 #   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100to200_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 #  dirName: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
 #  fileNamePattern: ^nanoTauTau_\d+\.root$
 DYto2E_M_50_PTLL_200to400_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200to400_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_50_PTLL_200to400_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200to400_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 # DYto2Tau_M_50_PTLL_200to400_1J_amcatnloFXFX:
 #   crossSection: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
-#   generator: amcatnloFXFX
+#   generator: amcatnlo
 #   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200to400_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 #   dirName: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
 DYto2E_M_50_PTLL_200to400_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200to400_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_50_PTLL_200to400_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200to400_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 # DYto2Tau_M_50_PTLL_200to400_2J_amcatnloFXFX:
 #   crossSection: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
-#   generator: amcatnloFXFX
+#   generator: amcatnlo
 #   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200to400_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 #   dirName: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
 DYto2E_M_50_PTLL_400to600_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400to600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_50_PTLL_400to600_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400to600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 # DYto2Tau_M_50_PTLL_400to600_1J_amcatnloFXFX:
 #   crossSection: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
-#   generator: amcatnloFXFX
+#   generator: amcatnlo
 #   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400to600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 #   dirName: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
 DYto2E_M_50_PTLL_400to600_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400to600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_50_PTLL_400to600_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400to600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 # DYto2Tau_M_50_PTLL_400to600_2J_amcatnloFXFX:
 #   crossSection: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
-#   generator: amcatnloFXFX
+#   generator: amcatnlo
 #   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400to600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 #   dirName: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
 DYto2E_M_50_PTLL_600_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_50_PTLL_600_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 # DYto2Tau_M_50_PTLL_600_1J_amcatnloFXFX:
 #   crossSection: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
-#   generator: amcatnloFXFX
+#   generator: amcatnlo
 #   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 #   dirName: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
 DYto2E_M_50_PTLL_600_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
   fileNamePattern: ^nanoEE_\d+\.root$
 DYto2Mu_M_50_PTLL_600_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   dirName: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 # DYto2Tau_M_50_PTLL_600_2J_amcatnloFXFX:
 #   crossSection: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
-#   generator: amcatnloFXFX
+#   generator: amcatnlo
 #   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
 #   dirName: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
@@ -883,11 +883,11 @@ WplusHto2Tau_UncorrelatedDecay_UnFiltered:
   miniAOD: /WplusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 WtoLNu_0J_amcatnloFXFX:
   crossSection: WtoLNu_0J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /WtoLNu-2Jets_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 WtoLNu_1J_amcatnloFXFX:
   crossSection: WtoLNu_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /WtoLNu-2Jets_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 WtoLNu_1J_madgraphMLM:
   crossSection: WtoLNu_1J_madgraphMLM
@@ -895,7 +895,7 @@ WtoLNu_1J_madgraphMLM:
   miniAOD: /WtoLNu-4Jets_1J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 WtoLNu_2J_amcatnloFXFX:
   crossSection: WtoLNu_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /WtoLNu-2Jets_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 WtoLNu_2J_madgraphMLM:
   crossSection: WtoLNu_2J_madgraphMLM
@@ -911,7 +911,7 @@ WtoLNu_4J_madgraphMLM:
   miniAOD: /WtoLNu-4Jets_4J_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 WtoLNu_amcatnloFXFX:
   crossSection: WtoLNu_NNLO_QCD+NLO_EW
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /WtoLNu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
 WtoLNu_madgraphMLM:
   crossSection: WtoLNu_NNLO_QCD+NLO_EW
@@ -941,43 +941,43 @@ WtoLNu_madgraphMLM:
 #   miniAOD: /WtoLNu-4Jets_MLNu-0to120_HT-1500to2500_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v4/MINIAODSIM
 WtoLNu_PTLNu_40to100_1J_amcatnloFXFX:
   crossSection: WtoLNu_PTLNu_40to100_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /WtoLNu-2Jets_PTLNu-40to100_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 WtoLNu_PTLNu_40to100_2J_amcatnloFXFX:
   crossSection: WtoLNu_PTLNu_40to100_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /WtoLNu-2Jets_PTLNu-40to100_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 WtoLNu_PTLNu_100to200_1J_amcatnloFXFX:
   crossSection: WtoLNu_PTLNu_100to200_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /WtoLNu-2Jets_PTLNu-100to200_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 WtoLNu_PTLNu_100to200_2J_amcatnloFXFX:
   crossSection: WtoLNu_PTLNu_100to200_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /WtoLNu-2Jets_PTLNu-100to200_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 WtoLNu_PTLNu_200to400_1J_amcatnloFXFX:
   crossSection: WtoLNu_PTLNu_200to400_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /WtoLNu-2Jets_PTLNu-200to400_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 WtoLNu_PTLNu_200to400_2J_amcatnloFXFX:
   crossSection: WtoLNu_PTLNu_200to400_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /WtoLNu-2Jets_PTLNu-200to400_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 WtoLNu_PTLNu_400to600_1J_amcatnloFXFX:
   crossSection: WtoLNu_PTLNu_400to600_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /WtoLNu-2Jets_PTLNu-400to600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 WtoLNu_PTLNu_400to600_2J_amcatnloFXFX:
   crossSection: WtoLNu_PTLNu_400to600_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /WtoLNu-2Jets_PTLNu-400to600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 WtoLNu_PTLNu_600_1J_amcatnloFXFX:
   crossSection: WtoLNu_PTLNu_600_1J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /WtoLNu-2Jets_PTLNu-600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 WtoLNu_PTLNu_600_2J_amcatnloFXFX:
   crossSection: WtoLNu_PTLNu_600_2J_amcatnloFXFX
-  generator: amcatnloFXFX
+  generator: amcatnlo
   miniAOD: /WtoLNu-2Jets_PTLNu-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 ############## VV ##############
 WW:
@@ -1015,7 +1015,7 @@ WZto2L2Q_powheg:
   miniAOD: /WZto2L2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 # WZto3LNu_amcatnloFXFX:
 #   crossSection: WZto3LNu_amcatnloFXFX
-#   generator: amcatnloFXFX
+#   generator: amcatnlo
 #   miniAOD: /WZto3LNu-1Jets-4FS_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 WZto3LNu_powheg:
   crossSection: WZto3LNu_powheg
@@ -1023,11 +1023,11 @@ WZto3LNu_powheg:
   miniAOD: /WZto3LNu_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
 # WZtoL3Nu_amcatnloFXFX:
 #   crossSection: WZtoL3Nu_amcatnloFXFX
-#   generator: amcatnloFXFX
+#   generator: amcatnlo
 #   miniAOD: /WZtoL3Nu-1Jets-4FS_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 # WZtoLNu2Q_amcatnloFXFX:
 #   crossSection: WZtoLNu2Q_amcatnloFXFX
-#   generator: amcatnloFXFX
+#   generator: amcatnlo
 #   miniAOD: /WZtoLNu2Q-1Jets-4FS_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
 WZtoLNu2Q_powheg:
   crossSection: WZtoLNu2Q_powheg

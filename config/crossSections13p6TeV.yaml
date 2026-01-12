@@ -749,12 +749,12 @@ WtoLNu_4J_madgraphMLM:
   crossSec: 416.5
   reference: XSDB WtoLNu-4Jets_4J_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 20:10:17
   unc: 1.28
-WtoLNu_NNLO_QCD+NLO_EW:
-  crossSec: 3 * WtoLNu_NNLO_QCD+NLO_EW_one_flav
+WtoLNu_NNLO_QCD_NLO_EW_one_flav:
+  crossSec: (9013.3 + 12128.4)
   reference: https://twiki.cern.ch/twiki/bin/viewauth/CMS/MATRIXCrossSectionsat13p6TeV
   unc: +1.2%% -1.1%% +-0.8%% (e-nu) +1.1%% -1.4%% +-0.7%% (e+nu)
-WtoLNu_NNLO_QCD+NLO_EW_one_flav:
-  crossSec: (9013.3 + 12128.4)
+WtoLNu_NNLO_QCD+NLO_EW:
+  crossSec: 3 * WtoLNu_NNLO_QCD_NLO_EW_one_flav
   reference: https://twiki.cern.ch/twiki/bin/viewauth/CMS/MATRIXCrossSectionsat13p6TeV
   unc: +1.2%% -1.1%% +-0.8%% (e-nu) +1.1%% -1.4%% +-0.7%% (e+nu)
 WtoLNu_MLNu_0to120_HT_40To100_madgraph:

@@ -159,17 +159,17 @@ WplusH_Hto2Mu_WtoAll:
   nanoAOD: /WplusH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
   miniAOD: /WplusH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
 WtoENu_amcatnloFXFX:
-  crossSection: WtoLNu_NNLO_QCD+NLO_EW_one_flav
+  crossSection: WtoLNu_NNLO_QCD_NLO_EW_one_flav
   generator: amcatnlo
   nanoAOD: /WtoENu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
   miniAOD: /WtoENu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
 WtoMuNu_amcatnloFXFX:
-  crossSection: WtoLNu_NNLO_QCD+NLO_EW_one_flav
+  crossSection: WtoLNu_NNLO_QCD_NLO_EW_one_flav
   generator: amcatnlo
   nanoAOD: /WtoMuNu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
   miniAOD: /WtoMuNu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
 WtoTauNu_amcatnloFXFX:
-  crossSection: WtoLNu_NNLO_QCD+NLO_EW_one_flav
+  crossSection: WtoLNu_NNLO_QCD_NLO_EW_one_flav
   generator: amcatnlo
   nanoAOD: /WtoTauNu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
   miniAOD: /WtoTauNu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM

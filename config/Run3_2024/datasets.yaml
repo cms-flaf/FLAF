@@ -29,7 +29,7 @@ Muon1_Run2024H:
   nanoAOD: /Muon1/Run2024H-MINIv6NANOv15-v2/NANOAOD
 Muon1_Run2024I_v1:
   nanoAOD: /Muon1/Run2024I-MINIv6NANOv15-v1/NANOAOD
-Muon0_Run2024I_v2:
+Muon1_Run2024I_v2:
   nanoAOD: /Muon1/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
 
 ############## amcatnloFXFX ##############

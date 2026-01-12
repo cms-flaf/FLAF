@@ -3,7 +3,6 @@ import os
 import sys
 import ROOT
 import shutil
-import importlib
 import json
 
 
@@ -24,11 +23,6 @@ from FLAF.AnaProd.anaCacheProducer import DefaultAnaCacheProcessor
 ROOT.EnableThreadSafety()
 
 
-def SelectBTagShapeSF(df, weight_name):
-    df = df.Define("weight_bTagShapeSF", weight_name)
-    return df
-
-
 def createAnatuple(
     *,
     inFile,
@@ -46,7 +40,7 @@ def createAnatuple(
     uncertainties,
     anaTupleDef,
     channels,
-    jsonName=None,
+    reportOutput=None,
 ):
     start_time = datetime.datetime.now()
     compression_settings = (
@@ -90,7 +84,7 @@ def createAnatuple(
     )
     corrections = Corrections.getGlobal()
     df = ROOT.RDataFrame(treeName, inFile)
-    json_dict_for_cache = {}
+    report = {}
     nEventsInFile = (
         df.Count().GetValue()
     )  # If range exists, it only loads that number of events -- does this mean the same file could be loaded by multiple anaTuple jobs? This could be an issue for normalizing later
@@ -100,9 +94,10 @@ def createAnatuple(
     # runs_val = runs.GetValue()
     # run_lumi = [ f"{run}:{lumi}" for run,lumi in zip(runs_val,lumis_val) ]
     # unique_run_lumi = list(set(run_lumi))
-    json_dict_for_cache["nano_file_name"] = inFileName
-    json_dict_for_cache["nEvents"] = nEventsInFile
-    json_dict_for_cache["dataset_name"] = dataset_name
+    report["nano_file_name"] = inFileName
+    report["n_original_events"] = nEventsInFile
+    report["dataset_name"] = dataset_name
+    report["output_files"] = []
     # if isData: json_dict_for_cache['RunLumi'] = unique_run_lumi
     ROOT.RDF.Experimental.AddProgressBar(df)
     if range is not None:
@@ -125,8 +120,9 @@ def createAnatuple(
     df = df.Define(
         "X_spin", f"static_cast<int>({spin})"
     )  # this has to be moved in specific analyses def
+    fullEventIdColumn = "FullEventId"
     df = df.Define(
-        "FullEventId",
+        fullEventIdColumn,
         f"""eventId::encodeFullEventId({Utilities.crc16(dataset_name.encode())}, {Utilities.crc16(inFileName.encode())}, rdfentry_)""",
     )
 
@@ -147,13 +143,21 @@ def createAnatuple(
         ]
         df, syst_dict = corrections.applyScaleUncertainties(df, ana_reco_objects)
     df_empty = df
-    snaps = []
-    reports = []
-    outfilesNames = []
-    k = 0
+
+    outfile_prefix = inFile.split("/")[-1]
+    outfile_prefix = outfile_prefix.split(".")[0]
+    outFileName = os.path.join(outDir, f"{outfile_prefix}_reference.root")
+    report["reference_file"] = outFileName
+    treeName = "Events"
+    report["tree_name"] = treeName
+    report["full_event_id_column"] = fullEventIdColumn
+    outfilesNames = [outFileName]
+    snaps = [df.Snapshot(treeName, outFileName, [fullEventIdColumn], snapshotOptions)]
+    selection_reports = [df.Report()]
+
     print(f"syst_dict={syst_dict}")
-    for syst_name, source_name in syst_dict.items():
-        if source_name not in uncertainties and "all" not in uncertainties:
+    for syst_name, (unc_source, unc_scale) in syst_dict.items():
+        if unc_source not in uncertainties and "all" not in uncertainties:
             continue
         is_central = syst_name in ["Central", "nano"]
         if not is_central and not compute_unc_variations:
@@ -184,47 +188,7 @@ def createAnatuple(
             setup.global_params,
             channels,
         )
-        if setup.global_params["nano_version"] == "v12":
-            dfw.DefineAndAppend("weight_L1PreFiring_Central", "L1PreFiringWeight_Nom")
-            dfw.DefineAndAppend(
-                "weight_L1PreFiring_ECAL_Central", "L1PreFiringWeight_ECAL_Nom"
-            )
-            dfw.DefineAndAppend(
-                "weight_L1PreFiring_Muon_Central", "L1PreFiringWeight_Muon_Nom"
-            )
-            if is_central and compute_unc_variations:
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiringDown_rel",
-                    "L1PreFiringWeight_Dn/L1PreFiringWeight_Nom",
-                )
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiringUp_rel",
-                    "L1PreFiringWeight_Up/L1PreFiringWeight_Nom",
-                )
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiring_ECALDown_rel",
-                    "L1PreFiringWeight_ECAL_Dn/L1PreFiringWeight_ECAL_Nom",
-                )
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiring_ECALUp_rel",
-                    "L1PreFiringWeight_ECAL_Up/L1PreFiringWeight_ECAL_Nom",
-                )
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiring_Muon_StatDown_rel",
-                    "L1PreFiringWeight_Muon_StatDn/L1PreFiringWeight_Muon_Nom",
-                )
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiring_Muon_StatUp_rel",
-                    "L1PreFiringWeight_Muon_StatUp/L1PreFiringWeight_Muon_Nom",
-                )
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiring_Muon_SystDown_rel",
-                    "L1PreFiringWeight_Muon_SystDn/L1PreFiringWeight_Muon_Nom",
-                )
-                dfw.DefineAndAppend(
-                    "weight_L1PreFiring_Muon_SystUp_rel",
-                    "L1PreFiringWeight_Muon_SystUp/L1PreFiringWeight_Muon_Nom",
-                )
+
         if not isData:
             triggers_to_use = set()
             for channel in channels:
@@ -241,33 +205,12 @@ def createAnatuple(
                 lepton_legs=lepton_legs,
                 offline_legs=offline_legs,
                 trigger_names=triggers_to_use,
-                syst_name=syst_name,
-                source_name=source_name,
+                unc_source=unc_source,
+                unc_scale=unc_scale,
                 ana_caches=anaCaches,
                 return_variations=is_central and compute_unc_variations,
-                isCentral=is_central,
                 use_genWeight_sign_only=True,
             )
-            puIDbranches = [
-                "weight_Jet_PUJetID_Central_tmp",
-                "weight_Jet_PUJetID_effUp_rel_tmp",
-                "weight_Jet_PUJetID_effDown_rel_tmp",
-            ]
-            for puIDbranch in puIDbranches:
-                if puIDbranch in dfw.df.GetColumnNames():
-                    new_branch_name = puIDbranch.strip("_tmp")
-                    dfw.Define(
-                        f"""ExtraJet_{new_branch_name}""", f"{puIDbranch}[ExtraJet_B1]"
-                    )
-                    if setup.global_params["storeExtraJets"]:
-                        dfw.colToSave.append(f"""ExtraJet_{new_branch_name}""")
-                    for bjet_idx in [1, 2]:
-                        dfw.DefineAndAppend(
-                            f"{new_branch_name}_b{bjet_idx}",
-                            f"Hbb_isValid ? {puIDbranch}[b{bjet_idx}_idx] : -100.f",
-                        )
-                if puIDbranch in weight_branches:
-                    weight_branches.remove(puIDbranch)
             dfw.colToSave.extend(weight_branches)
         # Analysis anaTupleDef should define a legType as a leg obj
         # But to save with RDF, it needs to be converted to an int
@@ -280,13 +223,16 @@ def createAnatuple(
         outfile_prefix = outfile_prefix.split(".")[0]
         outFileName = os.path.join(outDir, f"{outfile_prefix}{suffix}.root")
         outfilesNames.append(outFileName)
-        reports.append(dfw.df.Report())
-        snaps.append(
-            dfw.df.Snapshot(f"Events", outFileName, varToSave, snapshotOptions)
+        report["output_files"].append(
+            {
+                "unc_source": unc_source,
+                "unc_scale": unc_scale,
+                "file_name": outFileName,
+            }
         )
+        selection_reports.append(dfw.df.Report())
+        snaps.append(dfw.df.Snapshot(treeName, outFileName, varToSave, snapshotOptions))
 
-        if is_central:
-            nEventsAfterFilter = dfw.df.Count()  # .GetValue()
     if snapshotOptions.fLazy == True:
         ROOT.RDF.RunGraphs(snaps)
     hist_time = ROOT.TH1D(f"time", f"time", 1, 0, 1)
@@ -294,7 +240,9 @@ def createAnatuple(
     hist_time.SetBinContent(1, (end_time - start_time).total_seconds())
     for index, fileName in enumerate(outfilesNames):
         outputRootFile = ROOT.TFile(fileName, "UPDATE", "", compression_settings)
-        rep = ReportTools.SaveReport(reports[index].GetValue(), reoprtName=f"Report")
+        rep = ReportTools.SaveReport(
+            selection_reports[index].GetValue(), reportName=f"Report"
+        )
         outputRootFile.WriteTObject(rep, f"Report", "Overwrite")
         if index == 0:
             outputRootFile.WriteTObject(hist_time, f"runtime", "Overwrite")
@@ -302,14 +250,9 @@ def createAnatuple(
         # if print_cutflow:
         #     report.Print()
 
-    # Dump
-    jsonName = jsonName or f"{inFileName.split('.')[0]}.json"
-    jsonName = os.path.join(outDir, jsonName)
-
-    # Move GetValue() to here so it only runs loop once (after the snaps list)
-    json_dict_for_cache["nEvents_Filtered"] = nEventsAfterFilter.GetValue()
-    with open(jsonName, "w") as fp:
-        json.dump(json_dict_for_cache, fp)
+    if reportOutput is not None:
+        with open(reportOutput, "w") as f:
+            json.dump(report, f)
 
 
 if __name__ == "__main__":
@@ -343,7 +286,7 @@ if __name__ == "__main__":
     parser.add_argument("--channels", type=str, default=None)
     parser.add_argument("--nEvents", type=int, default=None)
     parser.add_argument("--evtIds", type=str, default="")
-    parser.add_argument("--jsonName", type=str, default=None)
+    parser.add_argument("--reportOutput", type=str, default=None)
 
     args = parser.parse_args()
     from FLAF.Common.Utilities import DeserializeObjectFromString
@@ -398,5 +341,5 @@ if __name__ == "__main__":
         uncertainties=args.uncertainties.split(","),
         anaTupleDef=anaTupleDef,
         channels=channels,
-        jsonName=args.jsonName,
+        reportOutput=args.reportOutput,
     )

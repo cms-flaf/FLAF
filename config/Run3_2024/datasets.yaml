@@ -1,18 +1,36 @@
 ############## data ##############
-Muon0_Run2024C: { }
-Muon0_Run2024D: { }
-Muon0_Run2024E: { }
-Muon0_Run2024F: { }
-Muon0_Run2024G: { }
-Muon0_Run2024H: { }
-Muon0_Run2024I: { }
-Muon1_Run2024C: { }
-Muon1_Run2024D: { }
-Muon1_Run2024E: { }
-Muon1_Run2024F: { }
-Muon1_Run2024G: { }
-Muon1_Run2024H: { }
-Muon1_Run2024I: { }
+Muon0_Run2024C:
+  nanoAOD: /Muon0/Run2024C-MINIv6NANOv15-v1/NANOAOD
+Muon0_Run2024D:
+  nanoAOD: /Muon0/Run2024D-MINIv6NANOv15-v1/NANOAOD
+Muon0_Run2024E:
+  nanoAOD: /Muon0/Run2024E-MINIv6NANOv15-v1/NANOAOD
+Muon0_Run2024F:
+  nanoAOD: /Muon0/Run2024F-MINIv6NANOv15-v1/NANOAOD
+Muon0_Run2024G:
+  nanoAOD: /Muon0/Run2024G-MINIv6NANOv15-v1/NANOAOD
+Muon0_Run2024H:
+  nanoAOD: /Muon0/Run2024H-MINIv6NANOv15-v1/NANOAOD
+Muon0_Run2024I_v1:
+  nanoAOD: /Muon0/Run2024I-MINIv6NANOv15-v1/NANOAOD
+Muon0_Run2024I_v2:
+  nanoAOD: /Muon0/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
+Muon1_Run2024C:
+  nanoAOD: /Muon1/Run2024C-MINIv6NANOv15-v1/NANOAOD
+Muon1_Run2024D:
+  nanoAOD: /Muon1/Run2024D-MINIv6NANOv15-v1/NANOAOD
+Muon1_Run2024E:
+  nanoAOD: /Muon1/Run2024E-MINIv6NANOv15-v1/NANOAOD
+Muon1_Run2024F:
+  nanoAOD: /Muon1/Run2024F-MINIv6NANOv15-v1/NANOAOD
+Muon1_Run2024G:
+  nanoAOD: /Muon1/Run2024G-MINIv6NANOv15-v2/NANOAOD
+Muon1_Run2024H:
+  nanoAOD: /Muon1/Run2024H-MINIv6NANOv15-v2/NANOAOD
+Muon1_Run2024I_v1:
+  nanoAOD: /Muon1/Run2024I-MINIv6NANOv15-v1/NANOAOD
+Muon0_Run2024I_v2:
+  nanoAOD: /Muon1/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
 
 ############## amcatnloFXFX ##############
 ############## DYto2L ##############

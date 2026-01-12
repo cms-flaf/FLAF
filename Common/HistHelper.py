@@ -11,6 +11,7 @@ if __name__ == "__main__":
 
 import FLAF.Common.Utilities as Utilities
 
+
 def findBinEntry(hist_cfg_dict, var_name):
     """
     Match variable name against regex-based histogram config entries.

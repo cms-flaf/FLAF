@@ -59,10 +59,13 @@ def RebinHisto(hist_initial, new_binning, dataset, wantOverflow=True, verbose=Fa
 
 
 def findNewBins(hist_cfg_dict, var, **keys):
+
     cfg = hist_cfg_dict.get(var, {})
 
     if "x_rebin" not in cfg:
-        return cfg.get("x_bins", [])
+        if "x_bins" not in cfg:
+            raise RuntimeError(f'bins definition not found for "{var}"')
+        return cfg["x_bins"]
 
     x_rebin = cfg["x_rebin"]
 
@@ -92,7 +95,9 @@ def findNewBins(hist_cfg_dict, var, **keys):
 
     result = recursive_search(x_rebin, {k: v for k, v in keys.items() if v is not None})
 
-    return result if result is not None else cfg.get("x_bins", [])
+    if result is None:
+        raise RuntimeError(f'Unable to find correct rebin for "{var}"')
+    return result
 
 
 def getNewBins(bins):

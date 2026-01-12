@@ -452,8 +452,8 @@ RVecB RedefineJet_passJetIdTight_v12(const RVecLV& Jet_p4, const RVecF& Jet_neHE
         }
     }
     return Jet_passJetIdTight ;
-
 }
+
 RVecB RedefineJet_passJetIdTight_v13(const RVecLV& Jet_p4, const RVecF& Jet_neHEF, const RVecF& Jet_neEmEF, const RVecF& Jet_chHEF, const RVecF& Jet_chMultiplicity, const RVecF& Jet_neMultiplicity ){
     RVecB Jet_passJetIdTight(Jet_p4.size(),false);
     for(size_t jet_index = 0; jet_index < Jet_p4.size(); jet_index ++){

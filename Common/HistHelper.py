@@ -11,10 +11,6 @@ if __name__ == "__main__":
 
 import FLAF.Common.Utilities as Utilities
 
-
-import re
-
-
 def findBinEntry(hist_cfg_dict, var_name):
     """
     Match variable name against regex-based histogram config entries.
@@ -93,7 +89,7 @@ def GetUncNameTypes(unc_cfg_dict):
     return uncNames
 
 
-def createVoidHist(outFileName, hist_cfg_dict):
+def createVoidHist(outFileName, hist_cfg_dict, var):
     var_entry = findBinEntry(hist_cfg_dict, var)
     x_bins = hist_cfg_dict[var_entry]["x_bins"]
     if type(hist_cfg_dict["x_bins"]) == list:

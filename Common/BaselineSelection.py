@@ -231,8 +231,6 @@ def ApplyJetVetoMap(df, apply_filter=True, defineElectronCleaning=False, isV12=F
         "Jet_pt > 15 && ( Jet_passJetIdTightLepVeto ) && (Jet_chEmEF + Jet_neEmEF < 0.9) && Jet_isInsideVetoRegion",  # here goes the new Jet ID
     )  #  (Jet_puId > 0 || Jet_pt >50) &&  for CHS jets
 
-    # no longer required apparently:
-
     df = df.Define(f"Muon_p4_pfCand", "Muon_p4[Muon_isPFcand]")
 
     df = df.Define(

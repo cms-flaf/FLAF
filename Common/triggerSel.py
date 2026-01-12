@@ -10,7 +10,7 @@ class Triggers:
         self.deltaR_matching = deltaR_matching
 
     def ApplyTriggers(
-        self, df, offline_legs, isData=False, applyTriggerFilter=False, extraFormat=""
+        self, df, offline_legs, isData=False, applyTriggerFilter=False, extraFormat={}
     ):
         hltBranches = []
         matchedObjectsBranches = []
@@ -28,7 +28,7 @@ class Triggers:
                 leg_dict_offline = leg_tuple["offline_obj"]
                 for obj in offline_legs:
                     offline_cut = leg_dict_offline["cut"].format(
-                        obj=obj, extraFormat=extraFormat
+                        obj=obj, **extraFormat
                     )
                     var_name_offline = f"{obj}_offlineCut_{leg_id+1}_{path}"
                     df = df.Define(var_name_offline, offline_cut)

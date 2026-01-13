@@ -708,6 +708,9 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         self.max_runtime = self.global_params["payload_producers"][
             self.producer_to_run
         ].get("max_runtime", 2.0)
+        self.output_file_extension = self.global_params["payload_producers"][
+            self.producer_to_run
+        ].get("save_as", "root")
 
     def workflow_requires(self):
         merge_organization_complete = AnaTupleFileListTask.req(
@@ -817,7 +820,9 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         dataset_name, process_group, nInputs = self.branch_data
         return_list = []
         for idx in range(nInputs):
-            outFileName = os.path.basename(self.input()["anaTuple"][idx].path)
+            inputFilePath = self.input()["anaTuple"][idx].path
+            basename, _ = os.path.splitext(inputFilePath)
+            outFileName = f'{basename}.{self.output_file_extension}'
             output_path = os.path.join(
                 "AnalysisCache",
                 self.version,
@@ -829,8 +834,6 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             return_list.append(
                 self.remote_target(output_path, fs=self.fs_anaCacheTuple)
             )
-        # return self.remote_target(output_path, fs=self.fs_AnalysisCache) # for some reason this line is not working even if I edit user_custom.yaml
-        # return self.remote_target(output_path, fs=self.fs_anaCacheTuple)
         return return_list
 
     def run(self):

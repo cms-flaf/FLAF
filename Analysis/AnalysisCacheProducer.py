@@ -7,6 +7,7 @@ import importlib
 import uproot
 import awkward as ak
 import numpy as np
+import sys
 
 ROOT.EnableThreadSafety()
 
@@ -45,6 +46,7 @@ def run_producer(
     uprootCompression,
     workingDir,
 ):
+    save_as = producer_config.get("save_as", "root")
     if "FullEventId" not in dfw.colToSave:
         dfw.colToSave.append("FullEventId")
     expected_columns = [
@@ -63,6 +65,7 @@ def run_producer(
         )
         n_orig = n_orig.GetValue()
         final_array = None
+        final_dict = None
         uproot_stepsize = producer_config.get("uproot_stepsize", "100MB")
         for array in uproot.iterate(
             f"{os.path.join(workingDir, 'tmp.root')}:tmp", step_size=uproot_stepsize
@@ -74,15 +77,29 @@ def run_producer(
                 )
             if np.any(new_array["FullEventId"] != array["FullEventId"]):
                 raise Exception("Mismatch in FullEventId between input and output")
-            if final_array is None:
-                final_array = new_array
+            
+            if save_as == "root":
+                if final_array is None:
+                    final_array = new_array
+                else:
+                    final_array = ak.concatenate([final_array, new_array])
+            elif save_as == "json":
+                if final_dict is None:
+                    final_dict = {key: new_array[key] for key in new_array.keys()}
+                else:
+                    for key in final_dict.keys():
+                        final_dict[key] += new_array[key]
             else:
-                final_array = ak.concatenate([final_array, new_array])
-        check_columns(expected_columns, final_array.fields, final_array.fields)
-        n_final = len(final_array["FullEventId"])
-        with uproot.recreate(outFileName, compression=uprootCompression) as outfile:
-            outfile[treeName] = final_array
-
+                raise RuntimeError(f"Illegal output format `{save_as}`.")
+        
+        if save_as == "root":       
+            check_columns(expected_columns, final_array.fields, final_array.fields)
+            n_final = len(final_array["FullEventId"])
+            with uproot.recreate(outFileName, compression=uprootCompression) as outfile:
+                outfile[treeName] = final_array
+        elif save_as == "json":
+            with open(outFileName, "w") as f:
+                json.dump(final_dict, f, indent=4)
     else:
         n_orig = dfw.df.Count()
         dfw = producer.run(dfw)
@@ -92,7 +109,8 @@ def run_producer(
         dfw.df.Snapshot(treeName, outFileName, varToSave, snapshotOptions)
         n_orig = n_orig.GetValue()
         n_final = n_final.GetValue()
-    if n_orig != n_final:
+    if save_as != "json" and n_orig != n_final:
+        "json doesn't save tree => cannot calculate n_final"
         raise Exception(
             f"Mismatch in number of events before and after producer {n_orig} != {n_final}"
         )
@@ -109,6 +127,7 @@ def createAnalysisCache(
     producer_to_run,
     uprootCompression,
     workingDir,
+    histTupleDef,
 ):
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
@@ -151,6 +170,9 @@ def createAnalysisCache(
         trigger_class=trigger_class,
     )
 
+    histTupleDef.Initialize()
+    histTupleDef.analysis_setup(setup)
+
     scale_uncertainties = set()
     if setup.global_params["compute_unc_variations"]:
         scale_uncertainties.update(unc_cfg_dict["shape"].keys())
@@ -189,7 +211,21 @@ def createAnalysisCache(
                 centralCaches = cacheTrees
             ROOT.RDF.Experimental.AddProgressBar(df_orig)
             dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
-            tmp_fileName = f"{fullTreeName}.root"
+
+            histTupleDef.DefineWeightForHistograms(
+                dfw=dfw,
+                isData=isData,
+                uncName=unc_source,
+                uncScale=unc_scale,
+                unc_cfg_dict=unc_cfg_dict,
+                hist_cfg_dict=setup.hists,
+                global_params=setup.global_params,
+                final_weight_name=f"weight_{unc_source}_{unc_scale}",
+                df_is_central=isCentral,
+            )
+
+            # tmp_fileName = f"{fullTreeName}.root"
+            tmp_fileName = fullTreeName
             run_producer(
                 producer,
                 dfw,
@@ -222,16 +258,27 @@ if __name__ == "__main__":
     parser.add_argument("--compressionAlgo", type=str, default="LZMA")
     parser.add_argument("--channels", type=str, default=None)
     parser.add_argument("--workingDir", required=True, type=str)
+    parser.add_argument("--saveAs", type=str, default="root")
+    parser.add_argument("--isData", action="store_true")
+    parser.add_argument("--histTupleDef", type=str)
     args = parser.parse_args()
 
     startTime = time.time()
 
     ana_path = os.environ["ANALYSIS_PATH"]
+    sys.path.append(ana_path)
     headers = ["FLAF/include/HistHelper.h", "FLAF/include/Utilities.h"]
     for header in headers:
         DeclareHeader(os.environ["ANALYSIS_PATH"] + "/" + header)
 
     setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period)
+    producer_config = setup.global_params["payload_producers"][args.producer]
+    # need it for BtagShapeProducer to implement different behavior in data
+    # (data does not have btag weight branches)
+    # this seems to be the only option without breaking everything/rewriting all existing producers to implement this different behavior
+    producer_config["isData"] = args.isData
+
+    histTupleDef = Utilities.load_module(args.histTupleDef)
 
     setup.global_params["channels_to_consider"] = (
         args.channels.split(",")
@@ -287,15 +334,19 @@ if __name__ == "__main__":
         producer_to_run=args.producer,
         uprootCompression=uprootCompression,
         workingDir=args.workingDir,
+        histTupleDef=histTupleDef,
     )
 
-    hadd_cmd = ["hadd", "-j", args.outFile]
-    hadd_cmd.extend(tmp_fileNames)
-    ps_call(hadd_cmd, verbose=1)
-    if os.path.exists(args.outFile) and len(tmp_fileNames) != 0:
-        for file_syst in tmp_fileNames:
-            if file_syst != args.outFile:
-                os.remove(file_syst)
+    if args.saveAs == "root":
+        hadd_cmd = ["hadd", "-j", args.outFile]
+        hadd_cmd.extend(tmp_fileNames)
+        ps_call(hadd_cmd, verbose=1)
+        if os.path.exists(args.outFile) and len(tmp_fileNames) != 0:
+            for file_syst in tmp_fileNames:
+                if file_syst != args.outFile:
+                    os.remove(file_syst)
+    elif args.saveAs == "json":
+        print("Saving json output")
 
     executionTime = time.time() - startTime
     print("Execution time in seconds: " + str(executionTime))

@@ -928,6 +928,13 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             ].get("cmssw_env", False)
                             else None
                         )
+                        isData = process_group == "data"
+                        if isData:
+                            analysisCacheProducer_cmd.append("--isData")
+
+                        histTupleDef = os.path.join(self.ana_path(), self.global_params["histTupleDef"])
+                        analysisCacheProducer_cmd.extend(["--histTupleDef", histTupleDef])
+
                         ps_call(analysisCacheProducer_cmd, env=prod_env, verbose=1)
                     print(
                         f"Finished producing payload for producer={self.producer_to_run} with name={dataset_name}, group={process_group}, file={input_file.path}"

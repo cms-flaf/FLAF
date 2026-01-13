@@ -887,7 +887,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         print(f"Output file {output_file} already exists, continue")
                         continue
                     customisation_dict = getCustomisationSplit(self.customisations)
-                    tmpFile = os.path.join(job_home, f"AnalysisCacheTask.root")
+                    tmpFile = os.path.join(job_home, f"AnalysisCacheTask.{self.output_file_extension}")
                     with input_file.localize("r") as local_input:
                         analysisCacheProducer_cmd = [
                             "python3",
@@ -906,6 +906,8 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             self.producer_to_run,
                             "--workingDir",
                             job_home,
+                            "--saveAs",
+                            self.output_file_extension
                         ]
                         if (
                             self.global_params["store_noncentral"]

@@ -231,17 +231,17 @@ def ApplyJetVetoMap(df, apply_filter=True, defineElectronCleaning=False, isV12=F
         "Jet_pt > 15 && ( Jet_passJetIdTightLepVeto ) && (Jet_chEmEF + Jet_neEmEF < 0.9) && Jet_isInsideVetoRegion",  # here goes the new Jet ID
     )  #  (Jet_puId > 0 || Jet_pt >50) &&  for CHS jets
 
-    df = df.Define(f"Muon_p4_pfCand", "Muon_p4[Muon_isPFcand]")
+    # df = df.Define(f"Muon_p4_pfCand", "Muon_p4[Muon_isPFcand]")
 
     df = df.Define(
         f"Jet_vetoMap",
-        " RemoveOverlaps(Jet_p4, Jet_vetoMapLooseRegion_presel, Muon_p4_pfCand, 0.2)",
+        " RemoveOverlaps(Jet_p4, Jet_vetoMapLooseRegion_presel, Muon_p4[Muon_isPFcand], 0.2)",
     )
     if defineElectronCleaning:
-        df = df.Define(f"Electron_p4_pfCand", "Electron_p4[Electron_isPFcand]")
+        # df = df.Define(f"Electron_p4_pfCand", "Electron_p4[Electron_isPFcand]")
         df = df.Define(
             f"Jet_vetoMapEle",
-            " RemoveOverlaps(Jet_p4, Jet_vetoMap, Electron_p4_pfCand, 0.2)",
+            " RemoveOverlaps(Jet_p4, Jet_vetoMap, Electron_p4[Electron_isPFcand], 0.2)",
         )
     if apply_filter:
         return df.Filter(f"Jet_p4[Jet_vetoMap].size()==0", "Jet Veto Map filter")

@@ -8,6 +8,7 @@ import uproot
 import awkward as ak
 import numpy as np
 import sys
+import json
 
 ROOT.EnableThreadSafety()
 
@@ -71,14 +72,16 @@ def run_producer(
             f"{os.path.join(workingDir, 'tmp.root')}:tmp", step_size=uproot_stepsize
         ):  # For DNN 50MB translates to ~300_000 events
             new_array = producer.run(array)
-            if len(new_array["FullEventId"]) != len(array["FullEventId"]):
-                raise Exception(
-                    f"Mismatch in number of events between input and output {len(new_array['FullEventId'])} != {len(array['FullEventId'])}"
-                )
-            if np.any(new_array["FullEventId"] != array["FullEventId"]):
-                raise Exception("Mismatch in FullEventId between input and output")
-            
             if save_as == "root":
+                if len(new_array["FullEventId"]) != len(array["FullEventId"]):
+                    raise Exception(
+                        f"Mismatch in number of events between input and output {len(new_array['FullEventId'])} != {len(array['FullEventId'])}"
+                    )
+                if np.any(new_array["FullEventId"] != array["FullEventId"]):
+                    print("orig FullEventId:", array["FullEventId"])
+                    print("new FullEventId:", new_array["FullEventId"])
+                    raise Exception("Mismatch in FullEventId between input and output")
+
                 if final_array is None:
                     final_array = new_array
                 else:
@@ -110,7 +113,7 @@ def run_producer(
         n_orig = n_orig.GetValue()
         n_final = n_final.GetValue()
     if save_as != "json" and n_orig != n_final:
-        "json doesn't save tree => cannot calculate n_final"
+        # json doesn't save tree => cannot calculate n_final
         raise Exception(
             f"Mismatch in number of events before and after producer {n_orig} != {n_final}"
         )
@@ -210,21 +213,33 @@ def createAnalysisCache(
                 centralTree = tree
                 centralCaches = cacheTrees
             ROOT.RDF.Experimental.AddProgressBar(df_orig)
-            dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
+            
+            if saveAs == "root":
+                dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
+                tmp_fileName = f"{fullTreeName}.root"
+            elif saveAs == "json":
+                if not isCentral:
+                    continue
 
-            histTupleDef.DefineWeightForHistograms(
-                dfw=dfw,
-                isData=isData,
-                uncName=unc_source,
-                uncScale=unc_scale,
-                unc_cfg_dict=unc_cfg_dict,
-                hist_cfg_dict=setup.hists,
-                global_params=setup.global_params,
-                final_weight_name=f"weight_{unc_source}_{unc_scale}",
-                df_is_central=isCentral,
-            )
+                dfw = histTupleDef.GetDfw(df, setup.global_params)
+                histTupleDef.DefineWeightForHistograms(
+                    dfw=dfw,
+                    isData=isData,
+                    uncName=unc_source,
+                    uncScale=unc_scale,
+                    unc_cfg_dict=unc_cfg_dict,
+                    hist_cfg_dict=setup.hists,
+                    global_params=setup.global_params,
+                    final_weight_name=f"weight_{unc_source}_{unc_scale}",
+                    df_is_central=isCentral,
+                )
 
-            # tmp_fileName = f"{fullTreeName}.root"
+                tmp_fileName = (
+                    f"{central}.json" if isCentral else f"{unc_source}_{unc_scale}.json"
+                )
+            else:
+                raise NotImplementedError(f"Unsupported output format `{saveAs}`.")
+
             tmp_fileName = fullTreeName
             run_producer(
                 producer,

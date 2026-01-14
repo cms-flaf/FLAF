@@ -73,7 +73,6 @@ EOF
     link_all $lcg_base/bin $env_base/bin pip pip3 pip3.12 python python3 python3.12 gosam2herwig gosam-config.py gosam.py git java
     link_all /cvmfs/sft.cern.ch/lcg/releases/gcc/15.2.0-35657/x86_64-el9/bin $env_base/bin go gofmt
     link_all $lcg_base/lib $env_base/lib/python3.12/site-packages python3.12
-    # link_all $lcg_base/lib/python3.12/site-packages $env_base/lib/python3.12/site-packages _distutils_hack distutils-precedence.pth pip pkg_resources setuptools graphviz py __pycache__ gosam-2.1.1_4b98559-py3.12.egg-info tenacity tenacity-9.0.0.dist-info servicex servicex-3.1.0.dist-info paramiko paramiko-2.9.2-py3.12.egg-info
     link_all $lcg_base/lib/python3.12/site-packages $env_base/lib/python3.12/site-packages _distutils_hack distutils-precedence.pth pip pkg_resources setuptools pathspec graphviz py __pycache__ gosam-2.1.1_4b98559-py3.12.egg-info tenacity tenacity-9.0.0.dist-info servicex servicex-3.1.0.dist-info paramiko paramiko-2.9.2-py3.12.egg-info
     link_all $lcg_base/lib64 $env_base/lib/python3.12/site-packages cairo cmake libonnx_proto.a libsvm.so.2 pkgconfig ThePEG libavh_olo.a libff.a libqcdloop.a python3.12
     link_all /cvmfs/sft.cern.ch/lcg/releases/gcc/15.2.0-35657/x86_64-el9/lib $env_base/lib

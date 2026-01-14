@@ -595,6 +595,21 @@ TBbarQ_t_channel_4FS:
   crossSec: '145.0'
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef
   unc: +1.7 -1.1 (scale) +2.3 -1.5(PDF+alphaS) +2.8 -1.9(Total) +1.3 -0.9(mass) +0.4 -0.3 (Ebeam) +/-0.1 (Integration)
+
+
+TbarBQtoLNu_t_channel_4FS: # FIXME should probably use prod xs from NNLO x BR of the channels
+  crossSec: '23.34'
+  reference: XSDB
+TbarBQto2Q_t_channel_4FS: # FIXME should probably use prod xs from NNLO x BR of the channels
+  crossSec: '46.73'
+  reference: XSDB
+TBbarQtoLNu_t_channel_4FS: # FIXME should probably use prod xs from NNLO x BR of the channels
+  crossSec: '38.6'
+  reference: XSDB
+TBbarQto2Q_t_channel_4FS: # FIXME should probably use prod xs from NNLO x BR of the channels
+  crossSec: '77.26'
+  reference: XSDB
+
 TbarWplusto2L2Nu:
   crossSec: 87.9 * (0.5005) * (1-0.6741) * (1-0.6741)
   reference: Value taken from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef, top/antitop % taken from XSDB, BRs taken from pdg, assume t->Wb 100%
@@ -734,8 +749,12 @@ WtoLNu_4J_madgraphMLM:
   crossSec: 416.5
   reference: XSDB WtoLNu-4Jets_4J_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 20:10:17
   unc: 1.28
+WtoLNu_NNLO_QCD_NLO_EW_one_flav:
+  crossSec: (9013.3 + 12128.4)
+  reference: https://twiki.cern.ch/twiki/bin/viewauth/CMS/MATRIXCrossSectionsat13p6TeV
+  unc: +1.2%% -1.1%% +-0.8%% (e-nu) +1.1%% -1.4%% +-0.7%% (e+nu)
 WtoLNu_NNLO_QCD+NLO_EW:
-  crossSec: 3*(9013.3 + 12128.4)
+  crossSec: 3 * WtoLNu_NNLO_QCD_NLO_EW_one_flav
   reference: https://twiki.cern.ch/twiki/bin/viewauth/CMS/MATRIXCrossSectionsat13p6TeV
   unc: +1.2%% -1.1%% +-0.8%% (e-nu) +1.1%% -1.4%% +-0.7%% (e+nu)
 WtoLNu_MLNu_0to120_HT_40To100_madgraph:

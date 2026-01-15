@@ -131,6 +131,7 @@ def createAnalysisCache(
     uprootCompression,
     workingDir,
     histTupleDef,
+    saveAs,
 ):
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
@@ -350,6 +351,7 @@ if __name__ == "__main__":
         uprootCompression=uprootCompression,
         workingDir=args.workingDir,
         histTupleDef=histTupleDef,
+        saveAs=args.saveAs,
     )
 
     if args.saveAs == "root":
@@ -361,7 +363,17 @@ if __name__ == "__main__":
                 if file_syst != args.outFile:
                     os.remove(file_syst)
     elif args.saveAs == "json":
-        print("Saving json output")
+        print(f"Saving json output to {args.outFile}")
+
+        data = {}
+        for file_name in tmp_fileNames:
+            unc_name = file_name.removesuffix(".json")
+            with open(file_name, "r") as json_file:
+                file_data = json.load(json_file)
+                data[unc_name] = file_data
+
+        with open(args.outFile, "w") as final_output_file:
+            json.dump(data, final_output_file, indent=4)
 
     executionTime = time.time() - startTime
     print("Execution time in seconds: " + str(executionTime))

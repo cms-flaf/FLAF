@@ -91,7 +91,7 @@ def findNewBins(hist_cfg_dict, var, **keys):
 
         if "other" in d:
             return d["other"]
-        return None
+        raise RuntimeError(f'Unable to find correct rebin for "{var}"')
 
     result = recursive_search(x_rebin, {k: v for k, v in keys.items() if v is not None})
 

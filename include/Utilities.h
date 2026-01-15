@@ -194,9 +194,8 @@ namespace analysis {
         return reducers[bits](x);
     }
 
-}  // namespace analysis
 
-namespace CB {
+
     struct CrystalBall{
         // static constexpr double pi = std::numbers::pi;
         // static constexpr double sqrtPiOver2 = sqrt(pi/2.0);
@@ -312,4 +311,4 @@ namespace CB {
         std::vector<uint32_t> m_seeds;
     };
 
-}
+ } // namespace analysis

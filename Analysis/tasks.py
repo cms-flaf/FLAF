@@ -185,13 +185,23 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ]
         datasets_to_consider.append("data")
 
+        flatten_vars = set()
+        for var in self.global_params["variables"]:
+            if isinstance(var, dict) and "vars" in var:
+                for v in var["vars"]:
+                    flatten_vars.add(v)
+            else:
+                flatten_vars.add(var)
+
         need_cache_list = [
             (var_name in var_produced_by, var_produced_by.get(var_name, None))
-            for var_name in self.global_params["variables"]
+            # for var_name in self.global_params["variables"]
+            for var_name in flatten_vars
         ]
         producer_list = []
         need_cache_global = any(item[0] for item in need_cache_list)
-        for var_name in self.global_params["variables"]:
+        # for var_name in self.global_params["variables"]:
+        for var_name in flatten_vars:
             need_cache = True if var_name in var_produced_by else False
             producer_to_run = (
                 var_produced_by[var_name] if var_name in var_produced_by else None
@@ -397,6 +407,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     @workflow_condition.output
     def output(self):
         var, prod_br, dataset_name = self.branch_data
+        if type(var) == dict: var = var['name']
         output_path = os.path.join(
             "hists", self.version, self.period, var, f"{dataset_name}.root"
         )
@@ -429,6 +440,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 stack.enter_context((inp).localize("r")).path for inp in self.input()[0]
             ]
 
+            var = var if type(var) != dict else var['name']
             tmpFile = os.path.join(job_home, f"HistFromNtuple_{var}.root")
 
             HistFromNtupleProducer_cmd = [
@@ -549,6 +561,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             prod_br_list,
             current_dataset,
         ) in HistFromNtupleProducerTask_branch_map.items():
+            var_name = var_name.get("name", var_name) if type(var_name) == dict else var_name
             if var_name not in all_datasets.keys():
                 all_datasets[var_name] = []
             all_datasets[var_name].append((br_idx, current_dataset))
@@ -1045,10 +1058,17 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         merge_map = HistMergerTask.req(
             self, branch=-1, branches=(), customisations=self.customisations
         ).create_branch_map()
+
+        branch_set = set()
+        for br_idx, (var) in self.branch_map.items():
+            for br, (v, _, _) in merge_map.items():
+                if v == var:
+                    branch_set.add(br)
+
         return {
             "merge": HistMergerTask.req(
                 self,
-                branches=tuple(merge_map.keys()),
+                branches=tuple(branch_set),
                 customisations=self.customisations,
             )
         }

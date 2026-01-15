@@ -25,42 +25,10 @@ def GetHistName(dataset_name, dataset_type, uncName, unc_scale, global_cfg_dict)
     return histName
 
 
-def RebinHisto(hist_initial, new_binning, dataset, wantOverflow=True, verbose=False):
-    new_binning_array = array.array("d", new_binning)
-    new_hist = hist_initial.Rebin(len(new_binning) - 1, dataset, new_binning_array)
-    if dataset == "data":
-        new_hist.SetBinErrorOption(ROOT.TH1.kPoisson)
-    if wantOverflow:
-        n_finalbin = new_hist.GetBinContent(new_hist.GetNbinsX())
-        n_overflow = new_hist.GetBinContent(new_hist.GetNbinsX() + 1)
-        new_hist.SetBinContent(new_hist.GetNbinsX(), n_finalbin + n_overflow)
-        err_finalbin = new_hist.GetBinError(new_hist.GetNbinsX())
-        err_overflow = new_hist.GetBinError(new_hist.GetNbinsX() + 1)
-        new_hist.SetBinError(
-            new_hist.GetNbinsX(),
-            math.sqrt(err_finalbin * err_finalbin + err_overflow * err_overflow),
-        )
-
-    if verbose:
-        for nbin in range(0, len(new_binning)):
-            print(
-                f"nbin = {nbin}, content = {new_hist.GetBinContent(nbin)}, error {new_hist.GetBinError(nbin)}"
-            )
-    fix_negative_contributions, debug_info, negative_bins_info = (
-        FixNegativeContributions(new_hist)
-    )
-    if not fix_negative_contributions:
-        print("negative contribution not fixed")
-        print(fix_negative_contributions, debug_info, negative_bins_info)
-        for nbin in range(0, new_hist.GetNbinsX() + 1):
-            content = new_hist.GetBinContent(nbin)
-            if content < 0:
-                print(f"for {dataset}, bin {nbin} content is < 0:  {content}")
-
-    return new_hist
-
-
 def findNewBins(hist_cfg_dict, var, channel, category):
+    if "2d" in hist_cfg_dict[var].keys():
+        return hist_cfg_dict[var]["2d"]
+
     if "x_rebin" not in hist_cfg_dict[var].keys():
         return hist_cfg_dict[var]["x_bins"]
 
@@ -84,22 +52,6 @@ def findNewBins(hist_cfg_dict, var, channel, category):
                 if type(new_dict[category][channel]) == list:
                     return new_dict[category][channel]
     return hist_cfg_dict[var]["x_rebin"]["other"]
-
-
-def getNewBins(bins):
-    if type(bins) == list:
-        final_bins = bins
-    else:
-        n_bins, bin_range = bins.split("|")
-        start, stop = bin_range.split(":")
-        bin_width = (float(stop) - float(start)) / int(n_bins)
-        final_bins = []
-        bin_center = float(start)
-        while bin_center >= float(start) and bin_center <= float(stop):
-            final_bins.append(bin_center)
-            bin_center = bin_center + bin_width
-    return final_bins
-
 
 if __name__ == "__main__":
     import argparse
@@ -249,7 +201,7 @@ if __name__ == "__main__":
             hist_cfg_dict[args.var]["use_log_x"] = True
 
         rebin_condition = args.rebin and "x_rebin" in hist_cfg_dict[args.var].keys()
-        bins_to_compute = hist_cfg_dict[args.var]["x_bins"]
+        bins_to_compute = hist_cfg_dict[args.var]["x_bins"] if not rebin_condition else None
 
         if rebin_condition:
             bins_to_compute = findNewBins(hist_cfg_dict, args.var, channel, category)

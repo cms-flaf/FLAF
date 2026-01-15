@@ -176,7 +176,17 @@ def createHistTuple(
                 df_is_central=True,
             )
             dfw_central.colToSave.append(final_weight_name)
+
+    # Return a flattened set of variables, the 2D happens later
+    flatten_vars = set()
     for var in variables:
+        if isinstance(var, dict) and "vars" in var:
+            for v in var["vars"]:
+                flatten_vars.add(v)
+        else:
+            flatten_vars.add(var)
+
+    for var in flatten_vars:
         DefineBinnedColumn(hist_cfg_dict, var)
         dfw_central.df = dfw_central.df.Define(f"{var}_bin", f"get_{var}_bin({var})")
         dfw_central.colToSave.append(f"{var}_bin")
@@ -231,7 +241,7 @@ def createHistTuple(
                         df_is_central=False,
                     )
                     dfw_shift.colToSave.append(final_weight_name)
-                    for var in variables:
+                    for var in flatten_vars:
                         dfw_shift.df = dfw_shift.df.Define(
                             f"{var}_bin", f"get_{var}_bin({var})"
                         )

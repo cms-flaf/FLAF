@@ -326,9 +326,6 @@ if __name__ == "__main__":
 
     all_trees = {}
     for tree_name, rdf in base_rdfs.items():
-        for var in vars_needed:
-            if var not in rdf.GetColumnNames():
-                print(f"attenzione, {var} not in column names")
         for further_cut_name, (vars_for_cut, cut_expr) in further_cuts.items():
             if further_cut_name not in rdf.GetColumnNames():
                 rdf = rdf.Define(further_cut_name, cut_expr)

@@ -9,8 +9,6 @@ if __name__ == "__main__":
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
 
-# from FLAF.Analysis.HistMerger import *
-
 
 def GetHistName(dataset_name, dataset_type, uncName, unc_scale, global_cfg_dict):
     hist_names = []
@@ -25,33 +23,48 @@ def GetHistName(dataset_name, dataset_type, uncName, unc_scale, global_cfg_dict)
     return histName
 
 
-def findNewBins(hist_cfg_dict, var, channel, category):
-    if "2d" in hist_cfg_dict[var].keys():
-        return hist_cfg_dict[var]["2d"]
+def findNewBins(hist_cfg_dict, var, **keys):
+    cfg = hist_cfg_dict.get(var, {})
 
-    if "x_rebin" not in hist_cfg_dict[var].keys():
-        return hist_cfg_dict[var]["x_bins"]
+    if "2d" in cfg:
+        return cfg["2d"]
 
-    if type(hist_cfg_dict[var]["x_rebin"]) == list:
-        return hist_cfg_dict[var]["x_rebin"]
+    if "x_rebin" not in cfg:
+        if "x_bins" not in cfg:
+            raise RuntimeError(f'bins definition not found for "{var}"')
+        return cfg["x_bins"]
 
-    new_dict = hist_cfg_dict[var]["x_rebin"]
-    if channel in new_dict.keys():
-        if type(new_dict[channel]) == list:
-            return new_dict[channel]
-        elif type(new_dict[channel]) == dict:
-            if category in new_dict[channel].keys():
-                if type(new_dict[channel][category]) == list:
-                    return new_dict[channel][category]
+    x_rebin = cfg["x_rebin"]
 
-    if category in new_dict.keys():
-        if type(new_dict[category]) == list:
-            return new_dict[category]
-        elif type(new_dict[category]) == dict:
-            if channel in new_dict[category].keys():
-                if type(new_dict[category][channel]) == list:
-                    return new_dict[category][channel]
-    return hist_cfg_dict[var]["x_rebin"]["other"]
+    if isinstance(x_rebin, list):
+        return x_rebin
+
+    def recursive_search(d, remaining_keys):
+        if isinstance(d, list):
+            return d
+        if not remaining_keys and isinstance(d, dict) and "other" in d:
+            return d["other"]
+        if not isinstance(d, dict):
+            return None
+
+        for k_name, k_value in remaining_keys.items():
+            if k_value in d:
+                found = recursive_search(
+                    d[k_value],
+                    {kk: vv for kk, vv in remaining_keys.items() if kk != k_name},
+                )
+                if found is not None:
+                    return found
+
+        if "other" in d:
+            return d["other"]
+        raise RuntimeError(f'Unable to find correct rebin for "{var}"')
+
+    result = recursive_search(x_rebin, {k: v for k, v in keys.items() if v is not None})
+
+    if result is None:
+        raise RuntimeError(f'Unable to find correct rebin for "{var}"')
+    return result
 
 
 if __name__ == "__main__":
@@ -178,7 +191,9 @@ if __name__ == "__main__":
             "datasim_text": "CMS " + page_cfg_dict["scope_text"]["text"],
             "scope_text": "",
         }
-        blind_check = hist_cfg_dict[args.var].get("blind", False)
+        var_entry = findBinEntry(hist_cfg_dict, args.var)
+
+        blind_check = hist_cfg_dict[var_entry].get("blind", False)
         args.wantData = args.wantData and (not blind_check)
         if args.wantData == False:
             custom1["datasim_text"] = "CMS simulation"
@@ -192,22 +207,28 @@ if __name__ == "__main__":
 
         hists_to_plot_unbinned = {}
         if args.wantLogScale == "y":
-            hist_cfg_dict[args.var]["use_log_y"] = True
-            hist_cfg_dict[args.var]["max_y_sf"] = 2000.2
+            hist_cfg_dict[var_entry]["use_log_y"] = True
+            hist_cfg_dict[var_entry]["max_y_sf"] = 2000.2
         if args.wantLogScale == "x":
-            hist_cfg_dict[args.var]["use_log_x"] = True
+            hist_cfg_dict[var_entry]["use_log_x"] = True
         if args.wantLogScale == "xy":
-            hist_cfg_dict[args.var]["use_log_y"] = True
-            hist_cfg_dict[args.var]["max_y_sf"] = 2000.2
-            hist_cfg_dict[args.var]["use_log_x"] = True
+            hist_cfg_dict[var_entry]["use_log_y"] = True
+            hist_cfg_dict[var_entry]["max_y_sf"] = 2000.2
+            hist_cfg_dict[var_entry]["use_log_x"] = True
 
-        rebin_condition = args.rebin and "x_rebin" in hist_cfg_dict[args.var].keys()
+        rebin_condition = args.rebin and "x_rebin" in hist_cfg_dict[var_entry].keys()
         bins_to_compute = (
-            hist_cfg_dict[args.var]["x_bins"] if not rebin_condition else None
+            hist_cfg_dict[var_entry]["x_bins"] if not rebin_condition else None
         )
 
         if rebin_condition:
-            bins_to_compute = findNewBins(hist_cfg_dict, args.var, channel, category)
+            bins_to_compute = findNewBins(
+                hist_cfg_dict,
+                var_entry,
+                channel=channel,
+                category=category,
+                region=custom_region,
+            )
         new_bins = getNewBins(bins_to_compute)
 
         for dataset_name, dataset_content in all_datasets_dict.items():
@@ -274,7 +295,7 @@ if __name__ == "__main__":
 
         scale = global_cfg_dict.get("signal_plot_scale", 1.0)
         plotter.plot(
-            args.var,
+            var_entry,
             hists_to_plot_binned,
             outFile,
             want_data=args.wantData,

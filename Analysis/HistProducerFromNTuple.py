@@ -36,7 +36,19 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     dir_ptr = Utilities.mkdir(outFile, dir_name)
 
     merged_hist = model.GetHistogram().Clone()
-    for i in range(0, unit_hist.GetNbinsX() + 2):
+    # Yes I know this is ugly
+    # Axis needs +2 for under/overflow, but only if the return is not 1!!!
+    # Was having issue with Z axis in 2D. We don't want to multiply by 3 if it's 2D
+    N_xbins = unit_hist.GetNbinsX() + 2
+    N_ybins = unit_hist.GetNbinsY() if hasattr(unit_hist, "GetNbinsY") else 1
+    N_ybins = N_ybins + 2 if N_ybins > 1 else N_ybins
+    N_zbins = unit_hist.GetNbinsZ() if hasattr(unit_hist, "GetNbinsZ") else 1
+    N_zbins = N_zbins + 2 if N_zbins > 1 else N_zbins
+    N_bins = N_xbins * N_ybins * N_zbins
+    # If we use the THnD then we have 'GetNbins' function instead
+    N_bins = unit_hist.GetNbins() if hasattr(unit_hist, "GetNbins") else N_bins
+    # This can be a loop over many bins, several times. Can be improved to be ran in c++ instead
+    for i in range(0, N_bins):
         bin_content = unit_hist.GetBinContent(i)
         bin_error = unit_hist.GetBinError(i)
         merged_hist.SetBinContent(i, bin_content)
@@ -46,7 +58,7 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     if len(hist_list) > 1:
         for model, unit_hist in hist_list[1:]:
             hist = model.GetHistogram()
-            for i in range(0, unit_hist.GetNbinsX() + 2):
+            for i in range(0, N_bins):
                 bin_content = unit_hist.GetBinContent(i)
                 bin_error = unit_hist.GetBinError(i)
                 hist.SetBinContent(i, bin_content)
@@ -61,10 +73,34 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
 
 
 def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
-    model, unit_bin_model = GetModel(hist_cfg_dict, var, return_unit_bin_model=True)
-    unit_hist = rdf.Filter(filter_to_apply).Histo1D(
-        unit_bin_model, f"{var}_bin", weight_name
+    dims = (
+        1
+        if not hist_cfg_dict[var].get("var_list", False)
+        else len(hist_cfg_dict[var]["var_list"])
     )
+
+    model, unit_bin_model = GetModel(
+        hist_cfg_dict, var, dims, return_unit_bin_model=True
+    )
+    var_bin_list = (
+        [f"{var}_bin" for var in hist_cfg_dict[var]["var_list"]]
+        if dims > 1
+        else [f"{var}_bin"]
+    )
+    if dims == 1:
+        unit_hist = rdf.Filter(filter_to_apply).Histo1D(
+            unit_bin_model, *var_bin_list, weight_name
+        )
+    elif dims == 2:
+        unit_hist = rdf.Filter(filter_to_apply).Histo2D(
+            unit_bin_model, *var_bin_list, weight_name
+        )
+    elif dims == 3:
+        unit_hist = rdf.Filter(filter_to_apply).Histo3D(
+            unit_bin_model, *var_bin_list, weight_name
+        )
+    else:
+        raise RuntimeError("Only 1D, 2D and 3D histograms are supported")
     return model, unit_hist
 
 
@@ -276,7 +312,13 @@ if __name__ == "__main__":
     )
 
     variables = setup.global_params["variables"]
-    vars_needed = set(variables)
+    vars_needed = set()
+    for var in variables:
+        if isinstance(var, dict) and "vars" in var:
+            for v in var["vars"]:
+                vars_needed.add(v)
+        else:
+            vars_needed.add(var)
     for further_cut_name, (vars_for_cut, _) in further_cuts.items():
         for var_for_cut in vars_for_cut:
             if var_for_cut:

@@ -11,6 +11,10 @@
 
 #include "EntryQueue.h"
 
+#include <vector>
+#include <map>
+#include <cmath>
+
 /*
 namespace kin_fit {
 struct FitResults {
@@ -159,5 +163,78 @@ namespace analysis {
             return df_node;
         }
     };
+    
+    TH1D* rebinHistogramDict(TH1* hist_initial, int N_bins, 
+                                const std::vector<std::pair<float, float>>& y_bin_ranges,
+                                const std::vector<std::vector<float>>& output_bin_edges) {
+        // Flatten output bin edges into a single sorted array
+        std::vector<float> all_output_edges;
+        float last_edge = 0.0;
+        for (const auto& edges : output_bin_edges) {
+            for (float edge : edges) {
+                all_output_edges.push_back(edge + last_edge);
+            }
+            last_edge = all_output_edges.back();
+        }
+        // Sort and remove duplicates
+        std::sort(all_output_edges.begin(), all_output_edges.end());
+        all_output_edges.erase(std::unique(all_output_edges.begin(), all_output_edges.end()), all_output_edges.end());
 
+        // Create output histogram with variable binning
+        TH1D* hist_output = new TH1D("rebinned", "rebinned", all_output_edges.size() - 1, all_output_edges.data());
+        hist_output->Sumw2();
+
+        // Helper function to find bin index from value and edges
+        auto findBinIndex = [](float value, const std::vector<float>& edges) -> int {
+            if (edges.size() < 2) return -1;
+            for (size_t i = 0; i < edges.size() - 1; ++i) {
+                if (value >= edges[i] && value < edges[i + 1]) {
+                    return i;
+                }
+            }
+            return -1;
+        };
+
+        // Iterate through all bins in the original histogram
+        for (int i = 0; i < N_bins; ++i) {
+            int binX, binY, binZ;
+            hist_initial->GetBinXYZ(i, binX, binY, binZ);
+
+            // Get bin centers (actual values)
+            float x_value = hist_initial->GetXaxis()->GetBinCenter(binX);
+            float y_value = hist_initial->GetYaxis()->GetBinCenter(binY);
+            float z_value = hist_initial->GetZaxis()->GetBinCenter(binZ);
+
+            // Get bin content and error
+            double bin_content = hist_initial->GetBinContent(i);
+            double bin_error = hist_initial->GetBinError(i);
+            double bin_error2 = bin_error * bin_error;
+
+            // Find which y_bin range this y_value falls into
+            int y_bin_idx = -1;
+            for (size_t j = 0; j < y_bin_ranges.size(); ++j) {
+                if (y_value >= y_bin_ranges[j].first && y_value < y_bin_ranges[j].second) {
+                    y_bin_idx = j;
+                    break;
+                }
+            }
+            if (y_bin_idx == -1) continue;  // Skip if y_value doesn't fall in any range
+            // Find output bin index within the output_bin_edges for this y_bin
+            int local_out_bin = findBinIndex(x_value, output_bin_edges[y_bin_idx]);
+            if (local_out_bin == -1) continue;  // Skip if x_value doesn't fall in any output bin
+            // Calculate section offset by counting bins in all previous y_bin sections
+            int section_offset = 0;
+            for (int prev_y = 0; prev_y < y_bin_idx; ++prev_y) {
+                section_offset += output_bin_edges[prev_y].size() - 1;  // size - 1 = number of bins
+            }
+            // Calculate global bin index: offset + local bin position within this section
+            int global_bin = section_offset + local_out_bin + 1;  // +1 for ROOT's 1-indexed bins
+            // Set bin content and error
+            if (global_bin >= 1 && global_bin <= (int)all_output_edges.size() - 1) {
+                hist_output->SetBinContent(global_bin, hist_output->GetBinContent(global_bin) + bin_content);
+                hist_output->SetBinError(global_bin, std::sqrt(std::pow(hist_output->GetBinError(global_bin), 2) + bin_error2));
+            }
+        }
+        return hist_output;
+    }
 }  // namespace analysis

@@ -261,7 +261,6 @@ def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
     THModel_Inputs = []
     unit_bin_Inputs = []
     if dims == 1:
-        print("1D histogram")
         x_bins = hist_cfg[var]["x_bins"]
         if type(hist_cfg[var]["x_bins"]) == list:
             x_bins_vec = Utilities.ListToVector(x_bins, "double")
@@ -279,7 +278,6 @@ def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
         unit_bin_model = ROOT.RDF.TH1DModel("", "", *unit_bin_Inputs)
 
     elif dims == 2:
-        print("2D histogram")
         list_var_bins_vec = []
         for var_2d in hist_cfg[var]["var_list"]:
             var_bin_name = f"{var_2d}_bins"
@@ -312,7 +310,6 @@ def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
         unit_bin_model = ROOT.RDF.TH2DModel("", "", *unit_bin_Inputs)
 
     elif dims == 3:
-        print("3D histogram")
         list_var_bins_vec = []
         for var_3d in hist_cfg[var]["var_list"]:
             var_bin_name = f"{var_3d}_bins"

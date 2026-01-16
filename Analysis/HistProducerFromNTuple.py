@@ -47,9 +47,6 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     N_bins = N_xbins * N_ybins * N_zbins
     # If we use the THnD then we have 'GetNbins' function instead
     N_bins = unit_hist.GetNbins() if hasattr(unit_hist, "GetNbins") else N_bins
-    print(
-        f"We have n bins {N_bins}, coming from unit hist with nxbins {N_xbins}, nybins {N_ybins}, nzbins {N_zbins}"
-    )
     # This can be a loop over many bins, several times. Can be improved to be ran in c++ instead
     for i in range(0, N_bins):
         bin_content = unit_hist.GetBinContent(i)
@@ -81,7 +78,6 @@ def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
         if not hist_cfg_dict[var].get("var_list", False)
         else len(hist_cfg_dict[var]["var_list"])
     )
-    print(f"Dimensions: {dims}")
 
     model, unit_bin_model = GetModel(
         hist_cfg_dict, var, dims, return_unit_bin_model=True
@@ -170,7 +166,7 @@ def SaveTmpFileUnc(
         for scale in scales:
             for key, filter_to_apply_base in key_filter_dict.items():
                 filter_to_apply_final = filter_to_apply_base
-                print("Saving Hist for unc/scale/key:", unc, scale, key)
+                # print("Saving Hist for unc/scale/key:", unc, scale, key)
                 if further_cuts:
                     for further_cut_name in further_cuts.keys():
                         filter_to_apply_final = (

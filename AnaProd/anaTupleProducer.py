@@ -187,6 +187,7 @@ def createAnatuple(
             applyTriggerFilter,
             setup.global_params,
             channels,
+            dataset_cfg,
         )
 
         if not isData:

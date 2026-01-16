@@ -127,6 +127,7 @@ def createHistTuple(
     print("Scale uncertainties to consider:", scale_uncertainties)
 
     print("Defining binnings for variables")
+    flatten_vars = set()
     for var in variables:
         if isinstance(var, dict) and "vars" in var:
             for v in var["vars"]:

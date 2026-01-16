@@ -47,7 +47,16 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             }
             req_dict["AnalysisCacheTask"] = []
             var_produced_by = self.setup.var_producer_map
-            for var_name in self.global_params["variables"]:
+
+            flatten_vars = set()
+            for var in self.global_params["variables"]:
+                if isinstance(var, dict) and "vars" in var:
+                    for v in var["vars"]:
+                        flatten_vars.add(v)
+                else:
+                    flatten_vars.add(var)
+
+            for var_name in flatten_vars:
                 producer_to_run = var_produced_by.get(var_name, None)
                 if producer_to_run is not None:
                     req_dict["AnalysisCacheTask"].append(

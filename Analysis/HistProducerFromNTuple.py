@@ -166,7 +166,6 @@ def SaveTmpFileUnc(
         for scale in scales:
             for key, filter_to_apply_base in key_filter_dict.items():
                 filter_to_apply_final = filter_to_apply_base
-                # print("Saving Hist for unc/scale/key:", unc, scale, key)
                 if further_cuts:
                     for further_cut_name in further_cuts.keys():
                         filter_to_apply_final = (

@@ -161,7 +161,6 @@ def getNewBins(bins):
 
 
 def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=False):
-    print("Rebinning histogram:", hist_initial.GetName())
     if isinstance(new_binning, dict):
         N_xbins = hist_initial.GetNbinsX() + 2
         N_ybins = hist_initial.GetNbinsY() if hasattr(hist_initial, "GetNbinsY") else 1
@@ -266,7 +265,7 @@ def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
         else:
             n_bins, bin_range = x_bins.split("|")
             start, stop = bin_range.split(":")
-            edges = np.linspace(float(start), float(stop), int(n_bins)).tolist()
+            edges = np.linspace(float(start), float(stop), int(n_bins) + 1).tolist()
             x_bins_vec = Utilities.ListToVector(edges, "double")
         THModel_Inputs.append(x_bins_vec.size() - 1)
         THModel_Inputs.append(x_bins_vec.data())
@@ -320,7 +319,6 @@ def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
                 start, stop = bin_range.split(":")
                 edges = np.linspace(float(start), float(stop), int(n_bins)).tolist()
                 var_bins_vec = Utilities.ListToVector(edges, "double")
-                print(var_bins_vec)
             list_var_bins_vec.append(var_bins_vec)
             THModel_Inputs.append(var_bins_vec.size() - 1)
             THModel_Inputs.append(var_bins_vec.data())

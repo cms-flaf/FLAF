@@ -85,57 +85,6 @@ def createVoidHist(outFileName, hist_cfg_dict):
     outFile.Close()
 
 
-# this function should be part of the analysis section
-def createInvMass(df):
-
-    df = df.Define("tautau_m_vis", "static_cast<float>((tau1_p4+tau2_p4).M())")
-    particleNet_mass = (
-        "particleNet_mass"
-        if "SelectedFatJet_particleNet_mass_boosted" in df.GetColumnNames()
-        else "particleNetLegacy_mass"
-    )
-    df = df.Define(
-        "bb_m_vis_pnet",
-        f"""
-                   return static_cast<float>(SelectedFatJet_{particleNet_mass}_boosted);
-                   """,
-    )
-    df = df.Define(
-        "bb_m_vis_softdrop",
-        f"""
-                   return static_cast<float>(SelectedFatJet_msoftdrop_boosted);
-                   """,
-    )
-    df = df.Define(
-        "bb_m_vis_fj",
-        f"""
-                   return static_cast<float>(SelectedFatJet_mass_boosted);
-                    """,
-    )
-
-    df = df.Define(
-        "bb_m_vis",
-        f""" if(b1_pt < 0. || b2_pt < 0.) return 0.f; return static_cast<float>((b1_p4+b2_p4).M());""",
-    )
-    df = df.Define(
-        "bbtautau_mass_boosted",
-        """return static_cast<float>((SelectedFatJet_p4_boosted+tau1_p4+tau2_p4).M());""",
-    )
-    df = df.Define(
-        "bbtautau_mass",
-        """if(b1_pt < 0. || b2_pt < 0.) return 0.f; return static_cast<float>((b1_p4+b2_p4+tau1_p4+tau2_p4).M());""",
-    )
-    df = df.Define("dR_tautau", "ROOT::Math::VectorUtil::DeltaR(tau1_p4, tau2_p4)")
-    df = df.Define("dR_bb", "ROOT::Math::VectorUtil::DeltaR(b1_p4, b2_p4)")
-    for tau_idx in [1, 2]:
-        for met_var in ["met", "metnomu", "met_nano"]:
-            df = df.Define(
-                f"tau{tau_idx}_{met_var}_mt",
-                f"static_cast<float>((tau{tau_idx}_p4+{met_var}_p4).Mt())",
-            )
-    return df
-
-
 def RenormalizeHistogram(histogram, norm, include_overflows=True):
     integral = (
         histogram.Integral(0, histogram.GetNbinsX() + 1)
@@ -399,43 +348,3 @@ def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
         # model = ROOT.RDF.THnDModel("", "", )
 
     return model, unit_bin_model
-
-
-def createCacheQuantities(dfWrapped_cache, cache_map_name, cache_entry_name):
-    df_cache = dfWrapped_cache.df
-    map_creator_cache = ROOT.analysis.CacheCreator(*dfWrapped_cache.colTypes)()
-    df_cache = map_creator_cache.processCache(
-        ROOT.RDF.AsRNode(df_cache),
-        Utilities.ListToVector(dfWrapped_cache.colNames),
-        cache_map_name,
-        cache_entry_name,
-    )
-    return df_cache
-
-
-def AddCacheColumnsInDf(
-    dfWrapped_central,
-    dfWrapped_cache,
-    cache_map_name="cache_map_placeholder",
-    cache_entry_name="_cache_entry",
-):
-    col_names_cache = dfWrapped_cache.colNames
-    col_types_cache = dfWrapped_cache.colTypes
-    # print(col_names_cache)
-    # if "kinFit_result" in col_names_cache:
-    #    col_names_cache.remove("kinFit_result")
-    dfWrapped_cache.df = createCacheQuantities(
-        dfWrapped_cache, cache_map_name, cache_entry_name
-    )
-    if dfWrapped_cache.df.Filter(f"{cache_map_name} > 0").Count().GetValue() <= 0:
-        raise RuntimeError("no events passed map placeolder")
-    dfWrapped_central.AddCacheColumns(col_names_cache, col_types_cache, cache_map_name)
-
-
-def createCentralQuantities(df_central, central_col_types, central_columns):
-    map_creator = ROOT.analysis.MapCreator(*central_col_types)()
-    df_central = map_creator.processCentral(
-        ROOT.RDF.AsRNode(df_central), Utilities.ListToVector(central_columns), 1
-    )
-    # df_central = map_creator.getEventIdxFromShifted(ROOT.RDF.AsRNode(df_central))
-    return df_central

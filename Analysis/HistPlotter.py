@@ -53,6 +53,7 @@ def findNewBins(hist_cfg_dict, var, channel, category):
                     return new_dict[category][channel]
     return hist_cfg_dict[var]["x_rebin"]["other"]
 
+
 if __name__ == "__main__":
     import argparse
     import FLAF.PlotKit.Plotter as Plotter
@@ -201,7 +202,9 @@ if __name__ == "__main__":
             hist_cfg_dict[args.var]["use_log_x"] = True
 
         rebin_condition = args.rebin and "x_rebin" in hist_cfg_dict[args.var].keys()
-        bins_to_compute = hist_cfg_dict[args.var]["x_bins"] if not rebin_condition else None
+        bins_to_compute = (
+            hist_cfg_dict[args.var]["x_bins"] if not rebin_condition else None
+        )
 
         if rebin_condition:
             bins_to_compute = findNewBins(hist_cfg_dict, args.var, channel, category)

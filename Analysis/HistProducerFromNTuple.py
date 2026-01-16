@@ -47,7 +47,9 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     N_bins = N_xbins * N_ybins * N_zbins
     # If we use the THnD then we have 'GetNbins' function instead
     N_bins = unit_hist.GetNbins() if hasattr(unit_hist, "GetNbins") else N_bins
-    print(f"We have n bins {N_bins}, coming from unit hist with nxbins {N_xbins}, nybins {N_ybins}, nzbins {N_zbins}")
+    print(
+        f"We have n bins {N_bins}, coming from unit hist with nxbins {N_xbins}, nybins {N_ybins}, nzbins {N_zbins}"
+    )
     for i in range(0, N_bins):
         bin_content = unit_hist.GetBinContent(i)
         bin_error = unit_hist.GetBinError(i)
@@ -73,13 +75,21 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
 
 
 def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
-    dims = 1 if not hist_cfg_dict[var].get("var_list", False) else len(
-        hist_cfg_dict[var]["var_list"]
+    dims = (
+        1
+        if not hist_cfg_dict[var].get("var_list", False)
+        else len(hist_cfg_dict[var]["var_list"])
     )
     print(f"Dimensions: {dims}")
 
-    model, unit_bin_model = GetModel(hist_cfg_dict, var, dims, return_unit_bin_model=True)
-    var_bin_list = [f"{var}_bin" for var in hist_cfg_dict[var]["var_list"]] if dims > 1 else [f"{var}_bin"]
+    model, unit_bin_model = GetModel(
+        hist_cfg_dict, var, dims, return_unit_bin_model=True
+    )
+    var_bin_list = (
+        [f"{var}_bin" for var in hist_cfg_dict[var]["var_list"]]
+        if dims > 1
+        else [f"{var}_bin"]
+    )
     if dims == 1:
         unit_hist = rdf.Filter(filter_to_apply).Histo1D(
             unit_bin_model, *var_bin_list, weight_name

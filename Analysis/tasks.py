@@ -372,7 +372,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     @workflow_condition.output
     def output(self):
         var, prod_br, dataset_name = self.branch_data
-        if type(var) == dict: var = var['name']
+        if type(var) == dict:
+            var = var["name"]
         output_path = os.path.join(
             "hists", self.version, self.period, var, f"{dataset_name}.root"
         )
@@ -404,7 +405,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 stack.enter_context((inp).localize("r")).path for inp in self.input()[0]
             ]
 
-            var = var if type(var) != dict else var['name']
+            var = var if type(var) != dict else var["name"]
             tmpFile = os.path.join(job_home, f"HistFromNtuple_{var}.root")
 
             HistFromNtupleProducer_cmd = [
@@ -525,7 +526,9 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             prod_br_list,
             current_dataset,
         ) in HistFromNtupleProducerTask_branch_map.items():
-            var_name = var_name.get("name", var_name) if type(var_name) == dict else var_name
+            var_name = (
+                var_name.get("name", var_name) if type(var_name) == dict else var_name
+            )
             if var_name not in all_datasets.keys():
                 all_datasets[var_name] = []
             all_datasets[var_name].append((br_idx, current_dataset))

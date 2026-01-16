@@ -1149,3 +1149,178 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 if plot_rebin:
                     cmd += ["--rebin", "true"]
                 ps_call(cmd, verbose=1)
+
+class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
+    max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
+    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
+
+    def __init__(self, *args, **kwargs):
+        # kwargs['workflow'] = 'local' # This might not be the best idea, has ~100 datasets to go over and localize, probably faster on condor
+        super(BtagShapeWeightCorrectionTask, self).__init__(*args, **kwargs)
+
+    def workflow_requires(self):
+        # this check is necessary bc AnalysisCacheTask would return empty branch map
+        # if the tasks below didn't run; therefore it would have caused law crash
+        merge_organization_complete = AnaTupleFileListTask.req(
+            self, branches=()
+        ).complete()
+        if not merge_organization_complete:
+            deps = {
+                "AnaTupleFileListTask": AnaTupleFileListTask.req(
+                    self,
+                    branches=(),
+                    max_runtime=AnaTupleFileListTask.max_runtime._default,
+                    n_cpus=AnaTupleFileListTask.n_cpus._default,
+                ),
+                "BtagShape": AnalysisCacheTask.req(
+                    self,
+                    branches=(),
+                    max_runtime=AnalysisCacheTask.max_runtime._default,
+                    n_cpus=AnalysisCacheTask.n_cpus._default,
+                    customisations=self.customisations,
+                    producer_to_run="BtagShape",
+                ),
+            }
+            return deps
+
+        btag_cache_map = AnalysisCacheTask.req(
+            self, branch=-1, branches=(), producer_to_run="BtagShape"
+        ).create_branch_map()
+        branches = [b for b in btag_cache_map.keys()]
+        deps = {
+            "BtagShape": AnalysisCacheTask.req(
+                self,
+                branches=tuple(branches),
+                max_runtime=AnalysisCacheTask.max_runtime._default,
+                n_cpus=AnalysisCacheTask.n_cpus._default,
+                customisations=self.customisations,
+                producer_to_run="BtagShape",
+            )
+        }
+        return deps
+
+    def requires(self):
+        sample_name, process_group, list_of_br_idxes = self.branch_data
+        reqs = [
+            AnalysisCacheTask.req(
+                self,
+                max_runtime=AnalysisCacheTask.max_runtime._default,
+                branch=prod_br,
+                branches=(prod_br,),
+                customisations=self.customisations,
+                producer_to_run="BtagShape",
+            )
+            for prod_br in list_of_br_idxes
+        ]
+        return reqs
+
+    def create_branch_map(self):
+        # this check is necessary bc AnalysisCacheTask would return empty branch map
+        # if the tasks below didn't run; therefore it would have caused law crash
+        merge_organization_complete = AnaTupleFileListTask.req(
+            self, branches=()
+        ).complete()
+        if not merge_organization_complete:
+            return {0: ()}
+
+        branches = {}
+        branch_number = 0
+        data_done = False
+        # obtain branch map for the previos task
+        # it is structured per file
+        btag_cache_map = AnalysisCacheTask.req(
+            self, branch=-1, branches=(), producer_to_run="BtagShape"
+        ).create_branch_map()
+
+        # restructure btag_cache_map so it maps each sample to list of branch indices from prev. task
+        # i.e. for signal it will be (XtoYHto2B2Wto2B2L2Nu_MX_300_MY_125, signals) -> [0]
+        # but e.g. for ttbar it will be (TTto2L2Nu, backgrounds) -> [1, 2, 3, 4, 5, ...]
+        # so branch_map of BtagShapeWeightCorrectionTask will contain:
+        # ---- name of sample,
+        # ---- process group
+        # ---- list of branch indices of the task it depends on (AnalysisCacheTask(producer_to_run="BtagShape"))
+        sample_branch_map = {}
+        for idx, (sample_name, process_group, num_out_files) in btag_cache_map.items():
+            if (sample_name, process_group) not in sample_branch_map:
+                sample_branch_map[(sample_name, process_group)] = []
+            sample_branch_map[(sample_name, process_group)].append(idx)
+
+        for (sample_name, process_group), list_of_br_idxes in sample_branch_map.items():
+            if process_group == "data":
+                if data_done:
+                    continue  # Will have multiple data samples, but only need one branch
+                sample_name = "data"
+                data_done = True
+                branches[branch_number] = (sample_name, process_group, list_of_br_idxes)
+            branches[branch_number] = (sample_name, process_group, list_of_br_idxes)
+            branch_number += 1
+        return branches
+
+    def output(self):
+        # this check is necessary bc AnalysisCacheTask would return empty branch map
+        # if the tasks below didn't run; therefore it would have caused law crash
+        if len(self.branch_data) == 0:
+            return self.local_target("dummy.txt")
+
+        sample_name, _, _ = self.branch_data
+        output_name = "BtagShapeWeightCorrection.json"
+        output_path = os.path.join(
+            "BtagShapeWeightCorrection", self.version, self.period, sample_name, output_name
+        )
+        # This is a problem for a --remove-output task, it crashes since the 'output' is only the local or something
+        # With this current state, you need to do the --remove-output command twice
+        # if self.local_target(output_path).exists():
+        #     return [self.local_target(output_path)]
+
+        return [
+            self.remote_target(output_path, fs=self.fs_anaTuple),
+        ]
+
+    def run(self):
+        sample_name, _, _ = self.branch_data
+        computeBtagShapeWeight = os.path.join(
+            self.ana_path(), "FLAF", "Analysis", "ComputeBtagShapeWeightCorrection.py"
+        )
+        with contextlib.ExitStack() as stack:
+            remote_output = self.output()[0]
+
+            local_inputs = []
+            if sample_name == "data":
+                local_inputs = [
+                    stack.enter_context(inp.localize("r")).path for inp in self.input()
+                ]
+            else:
+                local_inputs = [
+                    stack.enter_context(inp[0].localize("r")).path
+                    for inp in self.input()
+                ]
+
+            assert local_inputs, "`local_inputs` must be a non-empty list"
+
+            btag_shape_cfg = self.global_params["payload_producers"]["BtagShape"]
+            lepton_categories = btag_shape_cfg["lepton_categories"]
+            jet_multiplicities = btag_shape_cfg["jet_multiplicities"]
+
+            job_home, remove_job_home = self.law_job_home()
+            tmpFile = os.path.join(job_home, f"BtagShapeWeightCorrection_tmp.json")
+            computeBtagShapeWeight_cmd = [
+                "python3",
+                computeBtagShapeWeight,
+                "--outFile",
+                tmpFile,
+            ]
+
+            computeBtagShapeWeight_cmd.append("--inputFile")
+            computeBtagShapeWeight_cmd.extend(local_inputs)
+
+            computeBtagShapeWeight_cmd.append("--leptonCategories")
+            computeBtagShapeWeight_cmd.extend(lepton_categories)
+
+            computeBtagShapeWeight_cmd.append("--jetMultiplicities")
+            computeBtagShapeWeight_cmd.extend([str(m) for m in jet_multiplicities])
+
+            ps_call(computeBtagShapeWeight_cmd, verbose=1)
+
+            with remote_output.localize("w") as tmp_local_file:
+                out_local_path = tmp_local_file.path
+                shutil.move(tmpFile, out_local_path)

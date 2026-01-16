@@ -257,7 +257,6 @@ def GetBinVec(hist_cfg, var):
 
 
 def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
-    print(f"Model with var {var}")
     THModel_Inputs = []
     unit_bin_Inputs = []
     if dims == 1:

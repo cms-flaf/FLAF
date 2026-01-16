@@ -204,7 +204,7 @@ def createHistTuple(
                 dfw.colToSave.append(desc["weight"])
 
             print("Defining binned columns")
-            for var in variables:
+            for var in flatten_vars:
                 dfw.df = dfw.df.Define(f"{var}_bin", f"get_{var}_bin({var})")
                 dfw.colToSave.append(f"{var}_bin")
 

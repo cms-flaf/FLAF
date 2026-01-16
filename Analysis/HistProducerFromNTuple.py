@@ -50,6 +50,7 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     print(
         f"We have n bins {N_bins}, coming from unit hist with nxbins {N_xbins}, nybins {N_ybins}, nzbins {N_zbins}"
     )
+    # This can be a loop over many bins, several times. Can be improved to be ran in c++ instead
     for i in range(0, N_bins):
         bin_content = unit_hist.GetBinContent(i)
         bin_error = unit_hist.GetBinError(i)

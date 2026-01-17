@@ -1298,7 +1298,6 @@ class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             assert local_inputs, "`local_inputs` must be a non-empty list"
 
             btag_shape_cfg = self.global_params["payload_producers"]["BtagShape"]
-            lepton_categories = btag_shape_cfg["lepton_categories"]
             jet_multiplicities = btag_shape_cfg["jet_multiplicities"]
 
             job_home, remove_job_home = self.law_job_home()
@@ -1310,11 +1309,8 @@ class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 tmpFile,
             ]
 
-            computeBtagShapeWeight_cmd.append("--inputFile")
+            computeBtagShapeWeight_cmd.append("--inputFiles")
             computeBtagShapeWeight_cmd.extend(local_inputs)
-
-            computeBtagShapeWeight_cmd.append("--leptonCategories")
-            computeBtagShapeWeight_cmd.extend(lepton_categories)
 
             computeBtagShapeWeight_cmd.append("--jetMultiplicities")
             computeBtagShapeWeight_cmd.extend([str(m) for m in jet_multiplicities])

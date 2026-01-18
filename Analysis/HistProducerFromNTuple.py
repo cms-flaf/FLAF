@@ -84,7 +84,7 @@ def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
         hist_cfg_dict, var, dims, return_unit_bin_model=True
     )
     var_bin_list = (
-        [f"{var}_bin" for var in hist_cfg_dict[var]["var_list"]]
+        [f"{var}_bin" for var in hist_cfg_dict[var_entry]["var_list"]]
         if dims > 1
         else [f"{var}_bin"]
     )

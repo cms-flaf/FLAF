@@ -33,7 +33,7 @@ install() {
     run_cmd pip install fastcrc
     run_cmd pip install bayesian-optimization
     run_cmd pip install yamllint
-    run_cmd pip install black==26.1.0
+    run_cmd pip install black
 }
 
 join_by() {

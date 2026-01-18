@@ -8,7 +8,7 @@ import time
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
-from FLAF.Common.HistHelper import *
+import FLAF.Common.HistHelper as HistHelper
 import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
 from FLAF.RunKit.run_tools import ps_call
@@ -73,13 +73,14 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
 
 
 def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
+    var_entry = HistHelper.findBinEntry(hist_cfg_dict, args.var)
     dims = (
         1
-        if not hist_cfg_dict[var].get("var_list", False)
-        else len(hist_cfg_dict[var]["var_list"])
+        if not hist_cfg_dict[var_entry].get("var_list", False)
+        else len(hist_cfg_dict[var_entry]["var_list"])
     )
 
-    model, unit_bin_model = GetModel(
+    model, unit_bin_model = HistHelper.GetModel(
         hist_cfg_dict, var, dims, return_unit_bin_model=True
     )
     var_bin_list = (
@@ -210,7 +211,7 @@ def CreateFakeStructure(outFile, setup, var, key_filter_dict, further_cuts):
     for filter_key in key_filter_dict.keys():
         print(filter_key)
         for further_cut_name in [None] + list(further_cuts.keys()):
-            model, unit_bin_model = GetModel(
+            model, unit_bin_model = HistHelper.GetModel(
                 hist_cfg_dict, var, return_unit_bin_model=True
             )
             nbins = unit_bin_model.fNbinsX

@@ -67,6 +67,12 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             producer_to_run=producer_to_run,
                         )
                     )
+            if self.global_params["apply_btagShape_weights"]:
+                req_dict["btagShapeWeight"] = BtagShapeWeightCorrectionTask.req(
+                    self,
+                    branches=(),
+                    customisations=self.customisations,
+                )
             return req_dict
 
         branch_set = set()
@@ -106,6 +112,47 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         producer_to_run=producer_name,
                     )
                 )
+
+        if self.global_params["apply_btagShape_weights"]:
+            btag_shape_weight_branch_set = set()
+            btag_shape_task_branch_map = BtagShapeWeightCorrectionTask.req(
+                self, branch=-1
+            ).create_branch_map()
+            hist_tuple_branch_map = self.branch_map
+            # filter out branches of BtagShapeWeightCorrectionTask that correspond to each sample of HistTupleProducerTask
+            hist_tuple_sample_map = {}
+            for idx, (
+                hist_tuple_sample,
+                hist_tuple_br,
+                need_cache_global,
+                producer_list,
+                input_index,
+            ) in hist_tuple_branch_map.items():
+                # data doesn't have btag weights, only MC does
+                # so data tasks should not even depend on BtagShapeWeightCorrectionTask
+                btag_branches_for_hist_tuple_sample = [
+                    idx
+                    for idx, (btag_sample, process_group, _) in btag_shape_task_branch_map.items()
+                    if btag_sample == hist_tuple_sample and process_group != "data"
+                ]
+                # MC samples must have exactly one BtagShapeWeightCorrectionTask per sample
+                # Data samples must have exactly 0 bc they are skipped
+                assert (
+                    len(btag_branches_for_hist_tuple_sample) <= 1
+                ), "Must be at most one BtagShapeWeightCorrectionTask branch per sample"
+                if len(btag_branches_for_hist_tuple_sample) == 1:
+                    btag_weight_shape_branch = btag_branches_for_hist_tuple_sample[0]
+                    hist_tuple_sample_map[hist_tuple_sample] = btag_weight_shape_branch
+
+            for sample, btag_branch in hist_tuple_sample_map.items():
+                # for some reason, passing a tuple to branches argument of BtagShapeWeightCorrectionTask is not working
+                btag_shape_weight_branch_set.add(btag_branch)
+
+            if len(btag_shape_weight_branch_set) > 0:
+                reqs["btagShapeWeight"] = BtagShapeWeightCorrectionTask.req(
+                    self, branches=tuple(btag_shape_weight_branch_set)
+                )
+
         return reqs
 
     def requires(self):
@@ -135,11 +182,41 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     )
             if len(anaCaches) > 0:
                 deps["anaCaches"] = anaCaches
+
+        if self.global_params["apply_btagShape_weights"]:
+            btag_shape_task_branch_map = BtagShapeWeightCorrectionTask.req(
+                self, branch=-1
+            ).create_branch_map()
+            hist_tuple_producers_sample_name = (
+                dataset_name  # name of the sample which HistTupleProducer is running
+            )
+            # in btag_branches collect all branches of BtagShapeWeightCorrectionTask that HistTupleProducer needs to run this sample
+            # for some reason, passing a tuple to branches argument of BtagShapeWeightCorrectionTask is not working
+            btag_branches = []
+            for btag_branch_idx, (
+                btag_sample_name,
+                process_group,
+                _,
+            ) in btag_shape_task_branch_map.items():
+                if process_group != "data" and hist_tuple_producers_sample_name == btag_sample_name:
+                    btag_branches.append(btag_branch_idx)
+            assert (
+                len(btag_branches) <= 1
+            ), "Must be at most one BtagShapeWeightCorrectionTask branch per sample"
+            if len(btag_branches) == 1:
+                deps["btagShapeWeightCorr"] = BtagShapeWeightCorrectionTask.req(
+                    self,
+                    max_runtime=BtagShapeWeightCorrectionTask.max_runtime._default,
+                    branch=prod_br,
+                    # branches=(prod_br,),
+                    branches=tuple(btag_branches),
+                )
         return deps
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
-        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
+        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete() and BtagShapeWeightCorrectionTask.req(self, branch=-1, branches=()).complete()
+        # return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
@@ -282,6 +359,13 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     f"{producer}:{path}" for producer, path in local_anacaches.items()
                 )
                 HistTupleProducer_cmd.extend(["--cacheFile", local_anacaches_str])
+
+            isMC = dataset_name != "data"
+            if self.global_params["apply_btagShape_weights"] and isMC:
+                btag_corr_json = self.input()["btagShapeWeightCorr"][0]
+                local_btag_corr_json = stack.enter_context((btag_corr_json).localize("r"))
+                HistTupleProducer_cmd.extend([f"--btagCorrectionsJson", local_btag_corr_json.path])
+
             ps_call(HistTupleProducer_cmd, verbose=1)
 
             with self.output().localize("w") as local_output:

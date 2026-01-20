@@ -184,17 +184,6 @@ def getNewBins(bins):
 
 def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=False):
     if isinstance(new_binning, dict):
-        N_xbins = hist_initial.GetNbinsX() + 2
-        N_ybins = hist_initial.GetNbinsY() if hasattr(hist_initial, "GetNbinsY") else 1
-        N_ybins = N_ybins + 2 if N_ybins > 1 else N_ybins
-        N_zbins = hist_initial.GetNbinsZ() if hasattr(hist_initial, "GetNbinsZ") else 1
-        N_zbins = N_zbins + 2 if N_zbins > 1 else N_zbins
-        N_bins = N_xbins * N_ybins * N_zbins
-        # If we use the THnD then we have 'GetNbins' function instead
-        N_bins = (
-            hist_initial.GetNbins() if hasattr(hist_initial, "GetNbins") else N_bins
-        )
-
         # Prepare data structures for C++ function
         y_bin_ranges = ROOT.std.vector("std::pair<float,float>")()
         output_bin_edges_vec = ROOT.std.vector("std::vector<float>")()
@@ -223,7 +212,7 @@ def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=Fal
         # Create ROOT vectors
         # Call the C++ function which returns a new histogram
         new_hist = ROOT.analysis.rebinHistogramDict(
-            hist_initial, N_bins, y_bin_ranges, output_bin_edges_vec
+            hist_initial, y_bin_ranges, output_bin_edges_vec
         )
         new_hist.SetName(sample)
 
@@ -268,13 +257,11 @@ def GetBinVec(hist_cfg, var):
     var_entry = findBinEntry(hist_cfg, var)
     x_bins = hist_cfg[var_entry]["x_bins"]
     x_bins_vec = None
-    if type(hist_cfg[var_entry]["x_bins"]) == list:
-        x_bins_vec = Utilities.ListToVector(x_bins, "float")
-    else:
+    if type(hist_cfg[var_entry]["x_bins"]) != list:
         n_bins, bin_range = x_bins.split("|")
         start, stop = bin_range.split(":")
-        edges = np.linspace(float(start), float(stop), int(n_bins)).tolist()
-        x_bins_vec = Utilities.ListToVector(edges, "float")
+        x_bins = np.linspace(float(start), float(stop), int(n_bins)).tolist()
+    x_bins_vec = Utilities.ListToVector(x_bins, "float")
     return x_bins_vec
 
 
@@ -299,14 +286,14 @@ def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
         unit_bin_Inputs = [model.fNbinsX, -0.5, model.fNbinsX - 0.5]
         unit_bin_model = ROOT.RDF.TH1DModel("", "", *unit_bin_Inputs)
 
-    elif dims == 2:
+    elif (dims == 2) or (dims == 3):
         list_var_bins_vec = []
-        for var_2d in hist_cfg[var_entry]["var_list"]:
-            var_bin_name = f"{var_2d}_bins"
+        for var_nD in hist_cfg[var_entry]["var_list"]:
+            var_bin_name = f"{var_nD}_bins"
             var_bins = (
                 hist_cfg[var_entry][var_bin_name]
                 if var_bin_name in hist_cfg[var_entry]
-                else hist_cfg[var_2d]["x_bins"]
+                else hist_cfg[var_nD]["x_bins"]
             )
             if type(var_bins) == list:
                 var_bins_vec = Utilities.ListToVector(var_bins, "double")
@@ -318,52 +305,37 @@ def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
             list_var_bins_vec.append(var_bins_vec)
             THModel_Inputs.append(var_bins_vec.size() - 1)
             THModel_Inputs.append(var_bins_vec.data())
-        model = ROOT.RDF.TH2DModel("", "", *THModel_Inputs)
-        if not return_unit_bin_model:
-            return model
-        unit_bin_Inputs = [
-            model.fNbinsX,
-            -0.5,
-            model.fNbinsX - 0.5,
-            model.fNbinsY,
-            -0.5,
-            model.fNbinsY - 0.5,
-        ]
-        unit_bin_model = ROOT.RDF.TH2DModel("", "", *unit_bin_Inputs)
-
-    elif dims == 3:
-        list_var_bins_vec = []
-        for var_3d in hist_cfg[var_entry]["var_list"]:
-            var_bin_name = f"{var_3d}_bins"
-            var_bins = hist_cfg[var_entry][var_bin_name]
-            if type(var_bins) == list:
-                var_bins_vec = Utilities.ListToVector(var_bins, "double")
-            else:
-                n_bins, bin_range = var_bins.split("|")
-                start, stop = bin_range.split(":")
-                edges = np.linspace(float(start), float(stop), int(n_bins)).tolist()
-                var_bins_vec = Utilities.ListToVector(edges, "double")
-            list_var_bins_vec.append(var_bins_vec)
-            THModel_Inputs.append(var_bins_vec.size() - 1)
-            THModel_Inputs.append(var_bins_vec.data())
-        model = ROOT.RDF.TH3DModel("", "", *THModel_Inputs)
-        if not return_unit_bin_model:
-            return model
-        unit_bin_Inputs = [
-            model.fNbinsX,
-            -0.5,
-            model.fNbinsX - 0.5,
-            model.fNbinsY,
-            -0.5,
-            model.fNbinsY - 0.5,
-            model.fNbinsZ,
-            -0.5,
-            model.fNbinsZ - 0.5,
-        ]
-        unit_bin_model = ROOT.RDF.TH3DModel("", "", *unit_bin_Inputs)
-
+        if dims == 2:
+            model = ROOT.RDF.TH2DModel("", "", *THModel_Inputs)
+            if not return_unit_bin_model:
+                return model
+            unit_bin_Inputs = [
+                model.fNbinsX,
+                -0.5,
+                model.fNbinsX - 0.5,
+                model.fNbinsY,
+                -0.5,
+                model.fNbinsY - 0.5,
+            ]
+            unit_bin_model = ROOT.RDF.TH2DModel("", "", *unit_bin_Inputs)
+        if dims == 3:
+            model = ROOT.RDF.TH3DModel("", "", *THModel_Inputs)
+            if not return_unit_bin_model:
+                return model
+            unit_bin_Inputs = [
+                model.fNbinsX,
+                -0.5,
+                model.fNbinsX - 0.5,
+                model.fNbinsY,
+                -0.5,
+                model.fNbinsY - 0.5,
+                model.fNbinsZ,
+                -0.5,
+                model.fNbinsZ - 0.5,
+            ]
+            unit_bin_model = ROOT.RDF.TH3DModel("", "", *unit_bin_Inputs)
     else:
-        print("nD histogram not implemented yet")
+        raise RuntimeError("nD histogram not implemented yet")
         # model = ROOT.RDF.THnDModel("", "", )
 
     return model, unit_bin_model

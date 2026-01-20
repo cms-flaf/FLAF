@@ -36,17 +36,12 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     dir_ptr = Utilities.mkdir(outFile, dir_name)
 
     merged_hist = model.GetHistogram().Clone()
-    # Yes I know this is ugly
-    # Axis needs +2 for under/overflow, but only if the return is not 1!!!
-    # Was having issue with Z axis in 2D. We don't want to multiply by 3 if it's 2D
-    N_xbins = unit_hist.GetNbinsX() + 2
-    N_ybins = unit_hist.GetNbinsY() if hasattr(unit_hist, "GetNbinsY") else 1
-    N_ybins = N_ybins + 2 if N_ybins > 1 else N_ybins
-    N_zbins = unit_hist.GetNbinsZ() if hasattr(unit_hist, "GetNbinsZ") else 1
-    N_zbins = N_zbins + 2 if N_zbins > 1 else N_zbins
-    N_bins = N_xbins * N_ybins * N_zbins
-    # If we use the THnD then we have 'GetNbins' function instead
-    N_bins = unit_hist.GetNbins() if hasattr(unit_hist, "GetNbins") else N_bins
+    # If we use the THnD then we have 'GetNbins' function, else use 'GetNcells'
+    N_bins = (
+        unit_hist.GetNbins()
+        if hasattr(unit_hist, "GetNbins")
+        else unit_hist.GetNcells()
+    )
     # This can be a loop over many bins, several times. Can be improved to be ran in c++ instead
     for i in range(0, N_bins):
         bin_content = unit_hist.GetBinContent(i)
@@ -88,18 +83,10 @@ def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
         if dims > 1
         else [f"{var}_bin"]
     )
-    if dims == 1:
-        unit_hist = rdf.Filter(filter_to_apply).Histo1D(
-            unit_bin_model, *var_bin_list, weight_name
-        )
-    elif dims == 2:
-        unit_hist = rdf.Filter(filter_to_apply).Histo2D(
-            unit_bin_model, *var_bin_list, weight_name
-        )
-    elif dims == 3:
-        unit_hist = rdf.Filter(filter_to_apply).Histo3D(
-            unit_bin_model, *var_bin_list, weight_name
-        )
+    rdf_filtered = rdf.Filter(filter_to_apply)
+    if dims >= 1 and dims <= 3:
+        mkhist_fn = getattr(rdf_filtered, f"Histo{dims}D")
+        unit_hist = mkhist_fn(unit_bin_model, *var_bin_list, weight_name)
     else:
         raise RuntimeError("Only 1D, 2D and 3D histograms are supported")
     return model, unit_hist

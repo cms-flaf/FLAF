@@ -164,25 +164,23 @@ namespace analysis {
         }
     };
     
-    TH1D* rebinHistogramDict(TH1* hist_initial, int N_bins, 
+    TH1D rebinHistogramDict(const TH1& hist_initial, 
                                 const std::vector<std::pair<float, float>>& y_bin_ranges,
-                                const std::vector<std::vector<float>>& output_bin_edges) {
-        // Flatten output bin edges into a single sorted array
+                                const std::vector<std::vector<float>>& x_bin_edges) {
+        // Create output edges with bin number
         std::vector<float> all_output_edges;
         float last_edge = 0.0;
-        for (const auto& edges : output_bin_edges) {
+        for (const auto& edges : x_bin_edges) {
             for (float edge : edges) {
-                all_output_edges.push_back(edge + last_edge);
+                all_output_edges.push_back(last_edge);
+                last_edge++;
             }
             last_edge = all_output_edges.back();
         }
-        // Sort and remove duplicates
-        std::sort(all_output_edges.begin(), all_output_edges.end());
-        all_output_edges.erase(std::unique(all_output_edges.begin(), all_output_edges.end()), all_output_edges.end());
 
         // Create output histogram with variable binning
-        TH1D* hist_output = new TH1D("rebinned", "rebinned", all_output_edges.size() - 1, all_output_edges.data());
-        hist_output->Sumw2();
+        TH1D hist_output = TH1D("rebinned", "rebinned", all_output_edges.size() - 1, all_output_edges.data());
+        hist_output.Sumw2();
 
         // Helper function to find bin index from value and edges
         auto findBinIndex = [](float value, const std::vector<float>& edges) -> int {
@@ -196,18 +194,21 @@ namespace analysis {
         };
 
         // Iterate through all bins in the original histogram
+        int N_bins = hist_initial.GetNcells();
+        std::vector<float> all_bin_content(N_bins, 0.0);
+        std::vector<float> all_bin_error2(N_bins, 0.0);
         for (int i = 0; i < N_bins; ++i) {
             int binX, binY, binZ;
-            hist_initial->GetBinXYZ(i, binX, binY, binZ);
+            hist_initial.GetBinXYZ(i, binX, binY, binZ);
 
             // Get bin centers (actual values)
-            float x_value = hist_initial->GetXaxis()->GetBinCenter(binX);
-            float y_value = hist_initial->GetYaxis()->GetBinCenter(binY);
-            float z_value = hist_initial->GetZaxis()->GetBinCenter(binZ);
+            float x_value = hist_initial.GetXaxis()->GetBinCenter(binX);
+            float y_value = hist_initial.GetYaxis()->GetBinCenter(binY);
+            float z_value = hist_initial.GetZaxis()->GetBinCenter(binZ);
 
             // Get bin content and error
-            double bin_content = hist_initial->GetBinContent(i);
-            double bin_error = hist_initial->GetBinError(i);
+            double bin_content = hist_initial.GetBinContent(i);
+            double bin_error = hist_initial.GetBinError(i);
             double bin_error2 = bin_error * bin_error;
 
             // Find which y_bin range this y_value falls into
@@ -219,20 +220,26 @@ namespace analysis {
                 }
             }
             if (y_bin_idx == -1) continue;  // Skip if y_value doesn't fall in any range
-            // Find output bin index within the output_bin_edges for this y_bin
-            int local_out_bin = findBinIndex(x_value, output_bin_edges[y_bin_idx]);
+            // Find output bin index within the x_bin_edges for this y_bin
+            int local_out_bin = findBinIndex(x_value, x_bin_edges[y_bin_idx]);
             if (local_out_bin == -1) continue;  // Skip if x_value doesn't fall in any output bin
             // Calculate section offset by counting bins in all previous y_bin sections
             int section_offset = 0;
             for (int prev_y = 0; prev_y < y_bin_idx; ++prev_y) {
-                section_offset += output_bin_edges[prev_y].size() - 1;  // size - 1 = number of bins
+                section_offset += x_bin_edges[prev_y].size() - 1;  // size - 1 = number of bins
             }
             // Calculate global bin index: offset + local bin position within this section
             int global_bin = section_offset + local_out_bin + 1;  // +1 for ROOT's 1-indexed bins
+
+            // Store content and error2 at global bin index
+            all_bin_content[global_bin] = all_bin_content[global_bin] + bin_content;
+            all_bin_error2[global_bin] = all_bin_error2[global_bin] + bin_error2;
+        }
+        for (int global_bin = 0; global_bin < all_bin_content.size() - 1; ++global_bin){
             // Set bin content and error
             if (global_bin >= 1 && global_bin <= (int)all_output_edges.size() - 1) {
-                hist_output->SetBinContent(global_bin, hist_output->GetBinContent(global_bin) + bin_content);
-                hist_output->SetBinError(global_bin, std::sqrt(std::pow(hist_output->GetBinError(global_bin), 2) + bin_error2));
+                hist_output.SetBinContent(global_bin, all_bin_content[global_bin]);
+                hist_output.SetBinError(global_bin, std::sqrt(all_bin_error2[global_bin]));
             }
         }
         return hist_output;

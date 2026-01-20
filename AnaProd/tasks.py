@@ -1,38 +1,13 @@
-import copy
 import contextlib
-import json
 import law
 import luigi
 import os
 import shutil
-import threading
-import yaml
 import re
 
 from FLAF.RunKit.run_tools import ps_call, natural_sort
-from FLAF.RunKit.crabLaw import cond as kInit_cond, update_kinit_thread
 from FLAF.run_tools.law_customizations import Task, HTCondorWorkflow, copy_param
-from FLAF.Common.Utilities import SerializeObjectToString, getCustomisationSplit
-from FLAF.AnaProd.anaCacheProducer import (
-    combineAnaCaches,
-    createAnaCacheProcessorInstances,
-)
-
-
-def getCustomisationSplit(customisations):
-    customisation_dict = {}
-    if customisations is None or len(customisations) == 0:
-        return {}
-    if type(customisations) == str:
-        customisations = customisations.split(";")
-    if type(customisations) != list:
-        raise RuntimeError(f"Invalid type of customisations: {type(customisations)}")
-    for customisation in customisations:
-        substrings = customisation.split("=")
-        if len(substrings) != 2:
-            raise RuntimeError("len of substring is not 2!")
-        customisation_dict[substrings[0]] = substrings[1]
-    return customisation_dict
+from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 
 
 class InputFileTask(Task, law.LocalWorkflow):
@@ -98,100 +73,6 @@ class InputFileTask(Task, law.LocalWorkflow):
         return active_files
 
 
-class AnaCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
-    max_runtime = copy_param(HTCondorWorkflow.max_runtime, 10.0)
-
-    def create_branch_map(self):
-        branches = {}
-        for dataset_id, dataset_name in self.iter_datasets():
-            isData = self.datasets[dataset_name]["process_group"] == "data"
-            branches[dataset_id] = (dataset_name, isData)
-        return branches
-
-    def requires(self):
-        return [InputFileTask.req(self)]
-
-    def workflow_requires(self):
-        return {"inputFile": InputFileTask.req(self)}
-
-    def output(self):
-        dataset_name, isData = self.branch_data
-        return self.remote_target(
-            "anaCache", self.period, f"{dataset_name}.yaml", fs=self.fs_anaCache
-        )
-
-    def run(self):
-        dataset_name, isData = self.branch_data
-        if isData:
-            self.output().touch()
-            return
-        print(
-            f"Creating anaCache for dataset {dataset_name} into {self.output().uri()}"
-        )
-        producer = os.path.join(
-            self.ana_path(), "FLAF", "AnaProd", "anaCacheProducer.py"
-        )
-        dir_to_list = (
-            self.datasets[dataset_name]["dirName"]
-            if "dirName" in self.datasets[dataset_name]
-            else dataset_name
-        )
-        input_files = InputFileTask.load_input_files(
-            self.input()[0].path, dir_to_list, test=self.test > 0
-        )
-        ana_caches = []
-        global_params_str = SerializeObjectToString(self.global_params)
-        process_name = self.datasets[dataset_name]["process_name"]
-        processors_cfg = self.setup.get_processors(process_name, stage="AnaCache")
-        processors = createAnaCacheProcessorInstances(
-            self.global_params, processors_cfg
-        )
-        if len(processors_cfg) > 0:
-            processors_str = SerializeObjectToString(processors_cfg)
-        n_inputs = len(input_files)
-
-        fs_nanoAOD = self.fs_nanoAOD
-        if self.datasets[dataset_name].get("fs_nanoAOD", None) is not None:
-            fs_nanoAOD = self.setup.get_fs(
-                f"fs_nanoAOD_{dataset_name}", self.datasets[dataset_name]["fs_nanoAOD"]
-            )
-        if fs_nanoAOD is None:
-            raise RuntimeError(f"fs_nanoAOD is not defined for dataset {dataset_name}")
-
-        for input_idx, input_file in enumerate(input_files):
-            input_target = self.remote_target(input_file, fs=fs_nanoAOD)
-            print(f"[{input_idx+1}/{n_inputs}] {input_target.uri()}")
-            with input_target.localize("r") as input_local:
-                cmd = [
-                    "python3",
-                    producer,
-                    "--input-files",
-                    input_local.path,
-                    "--global-params",
-                    global_params_str,
-                    "--verbose",
-                    "1",
-                ]
-                if len(processors_cfg) > 0:
-                    cmd.extend(["--processors", processors_str])
-                returncode, output, err = ps_call(
-                    cmd,
-                    env=self.cmssw_env,
-                    catch_stdout=True,
-                )
-            ana_cache = json.loads(output)
-            print(json.dumps(ana_cache))
-            ana_caches.append(ana_cache)
-        total_ana_cache = combineAnaCaches(ana_caches, processors)
-        print(f"total anaCache: {json.dumps(total_ana_cache)}")
-        with self.output().localize("w") as output_local:
-            with open(output_local.path, "w") as file:
-                yaml.dump(total_ana_cache, file)
-        print(
-            f"anaCache for dataset {dataset_name} is created in {self.output().uri()}"
-        )
-
-
 class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 40.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
@@ -199,10 +80,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     def workflow_requires(self):
         input_file_task_complete = InputFileTask.req(self, branches=()).complete()
         if not input_file_task_complete:
-            return {
-                "anaCache": AnaCacheTask.req(self, branches=()),
-                "inputFile": InputFileTask.req(self, branches=()),
-            }
+            return { "inputFile": InputFileTask.req(self, branches=()), }
 
         branches_set = set()
         for branch_idx, (
@@ -214,27 +92,10 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             branches_set.add(dataset_id)
             branches_set.update(dataset_dependencies.values())
         branches = tuple(branches_set)
-        return {
-            "anaCache": AnaCacheTask.req(self, branches=branches),
-            "inputFile": InputFileTask.req(self, branches=branches),
-        }
+        return { "inputFile": InputFileTask.req(self, branches=branches), }
 
     def requires(self):
-        dataset_id, _, dataset_dependencies, _ = self.branch_data
-
-        def mk_req(ds_id):
-            return AnaCacheTask.req(
-                self,
-                branch=ds_id,
-                max_runtime=AnaCacheTask.max_runtime._default,
-                branches=(),
-            )
-
-        core_requirement = mk_req(dataset_id)
-        other_requirements = {
-            ds_name: mk_req(ds_id) for ds_name, ds_id in dataset_dependencies.items()
-        }
-        return [core_requirement, other_requirements]
+        return []
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
@@ -313,10 +174,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ]
 
     def run(self):
-        thread = threading.Thread(target=update_kinit_thread)
-        thread.start()
-
-        try:
+        with ServiceThread() as service_thread:
             dataset_id, dataset_name, dataset_dependencies, input_file = (
                 self.branch_data
             )
@@ -326,7 +184,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 self.ana_path(), "FLAF", "AnaProd", "anaTupleProducer.py"
             )
 
-            anaCache_remotes = self.input()
             customisation_dict = getCustomisationSplit(self.customisations)
             channels = (
                 customisation_dict["channels"]
@@ -345,13 +202,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 if "compute_unc_variations" in customisation_dict.keys()
                 else self.global_params.get("compute_unc_variations", False)
             )
-            deepTauVersion = ""
-            if self.global_params["analysis_config_area"] == "config/HH_bbtautau":
-                deepTauVersion = (
-                    customisation_dict["deepTauVersion"]
-                    if "deepTauVersion" in customisation_dict.keys()
-                    else self.global_params["deepTauVersion"]
-                )
 
             job_home, remove_job_home = self.law_job_home()
             print(f"dataset_id: {dataset_id}")
@@ -370,9 +220,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
             with contextlib.ExitStack() as stack:
                 local_input = stack.enter_context(input_file.localize("r")).path
-                anaCache_main = stack.enter_context(
-                    anaCache_remotes[0].localize("r")
-                ).path
                 inFileName = os.path.basename(input_file.path)
                 print(f"inFileName {inFileName}")
                 anatuple_cmd = [
@@ -389,8 +236,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     dataset_name,
                     "--anaTupleDef",
                     anaTupleDef,
-                    "--anaCache",
-                    anaCache_main,
                     "--channels",
                     channels,
                     "--inFileName",
@@ -398,25 +243,11 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     "--reportOutput",
                     rawReportPath,
                 ]
-                if len(anaCache_remotes[1]) > 0:
-                    anaCache_others = {}
-                    for other_name, other_remote in anaCache_remotes[1].items():
-                        other_local = stack.enter_context(
-                            other_remote.localize("r")
-                        ).path
-                        anaCache_others[other_name] = other_local
-                    anaCache_others_str = SerializeObjectToString(anaCache_others)
-                    anatuple_cmd.extend(["--anaCacheOthers", anaCache_others_str])
-                if deepTauVersion != "":
-                    anatuple_cmd.extend(
-                        ["--customisations", f"deepTauVersion={deepTauVersion}"]
-                    )
                 if compute_unc_variations:
                     anatuple_cmd.append("--compute-unc-variations")
                 if store_noncentral:
                     anatuple_cmd.append("--store-noncentral")
 
-                centralFileName = os.path.basename(local_input)
                 if self.test > 0:
                     anatuple_cmd.extend(["--nEvents", str(self.test)])
                 ps_call(anatuple_cmd, env=self.cmssw_env, verbose=1)
@@ -456,11 +287,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
             if remove_job_home:
                 shutil.rmtree(job_home)
-        finally:
-            kInit_cond.acquire()
-            kInit_cond.notify_all()
-            kInit_cond.release()
-            thread.join()
 
 
 class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
@@ -664,6 +490,24 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 n_cpus=AnaTupleFileListTask.n_cpus._default,
             )
         }
+
+    # def requires(self):
+    #     dataset_id, _, dataset_dependencies, _ = self.branch_data
+
+    #     def mk_req(ds_id):
+    #         return AnaCacheTask.req(
+    #             self,
+    #             branch=ds_id,
+    #             max_runtime=AnaCacheTask.max_runtime._default,
+    #             branches=(),
+    #         )
+
+    #     core_requirement = mk_req(dataset_id)
+    #     other_requirements = {
+    #         ds_name: mk_req(ds_id) for ds_name, ds_id in dataset_dependencies.items()
+    #     }
+    #     return [core_requirement, other_requirements]
+
 
     def requires(self):
         # Need both the AnaTupleFileTask for the input ROOT file, and the AnaTupleFileListTask for the json structure

@@ -8,7 +8,6 @@ import os
 import pickle
 import sys
 
-
 class WorkingPointsTauVSmu(Enum):
     VLoose = 1
     Loose = 2
@@ -393,3 +392,20 @@ def create_processor_instances(global_params, processor_entries, stage, verbose=
             processor = load_processor(p_entry, stage, global_params, verbose=verbose)
             processor_instances[p_name] = processor
     return processor_instances
+
+
+class ServiceThread:
+    def __init__(self):
+        import threading
+        from FLAF.RunKit.crabLaw import cond, update_kinit_thread
+        self.cond = cond
+        self.thread = threading.Thread(target=update_kinit_thread)
+
+    def __enter__(self):
+        self.thread.start()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.cond.acquire()
+        self.cond.notify_all()
+        self.cond.release()
+        self.thread.join()

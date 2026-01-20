@@ -149,7 +149,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 btag_shape_weight_branch_set.add(btag_branch)
 
             if len(btag_shape_weight_branch_set) > 0:
-                reqs["btagShapeWeight"] = BtagShapeWeightCorrectionTask.req(
+                reqs["btagShapeWeightCorr"] = BtagShapeWeightCorrectionTask.req(
                     self, branches=tuple(btag_shape_weight_branch_set)
                 )
 
@@ -207,8 +207,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 deps["btagShapeWeightCorr"] = BtagShapeWeightCorrectionTask.req(
                     self,
                     max_runtime=BtagShapeWeightCorrectionTask.max_runtime._default,
-                    branch=prod_br,
-                    # branches=(prod_br,),
+                    branch=-1,
                     branches=tuple(btag_branches),
                 )
         return deps
@@ -216,9 +215,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     @law.dynamic_workflow_condition
     def workflow_condition(self):
         return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete() and BtagShapeWeightCorrectionTask.req(self, branch=-1, branches=()).complete()
-        # return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
 
-    @workflow_condition.create_branch_map
     def create_branch_map(self):
         var_produced_by = self.setup.var_producer_map
 
@@ -362,7 +359,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
             isMC = dataset_name != "data"
             if self.global_params["apply_btagShape_weights"] and isMC:
-                btag_corr_json = self.input()["btagShapeWeightCorr"][0]
+                tc = self.input()["btagShapeWeightCorr"]["collection"]
+                btag_corr_json = tc._flat_target_list[0]
                 local_btag_corr_json = stack.enter_context((btag_corr_json).localize("r"))
                 HistTupleProducer_cmd.extend([f"--btagCorrectionsJson", local_btag_corr_json.path])
 

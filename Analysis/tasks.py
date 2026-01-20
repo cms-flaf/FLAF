@@ -20,6 +20,7 @@ from FLAF.AnaProd.tasks import (
     AnaTupleMergeTask,
 )
 from FLAF.Common.Utilities import getCustomisationSplit
+from FLAF.Common.HistHelper import findBinEntry
 
 
 class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
@@ -1011,7 +1012,8 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ).create_branch_map()
         for k, (_, (var, _, _)) in enumerate(merge_map.items()):
             # Check if we want to plot this var in the hist config dict
-            if hist_cfg_dict[var].get('plot_task', True):
+            var_entry = findBinEntry(hist_cfg_dict, var)
+            if hist_cfg_dict[var_entry].get("plot_task", True):
                 branches[k] = var
         return branches
 

@@ -40,6 +40,7 @@ namespace reco_tau {
                 K_star = 323,
                 p = 2212,
                 D = 411,
+                DStar = 413,
                 J_psi = 443,
                 D0 = 421,
                 D_s = 431,

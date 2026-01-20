@@ -29,6 +29,18 @@ ana_reco_object_collections = {
         "DeepMETResponseTune",
         "DeepMETResolutionTune",
     ],
+    "v15": [
+        "Electron",
+        "Muon",
+        "Tau",
+        "Jet",
+        "FatJet",
+        "SubJet",
+        "PFMET",
+        "PuppiMET",
+        "DeepMETResponseTune",
+        "DeepMETResolutionTune",
+    ],
 }
 deepTauVersions = {"2p1": "2017", "2p5": "2018"}
 

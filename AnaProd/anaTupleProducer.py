@@ -5,7 +5,6 @@ import ROOT
 import shutil
 import json
 
-
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
@@ -17,7 +16,6 @@ from FLAF.Common.Setup import Setup
 from Corrections.Corrections import Corrections
 from Corrections.lumi import LumiFilter
 from FLAF.AnaProd.anaCacheProducer import DefaultAnaCacheProcessor
-
 
 # ROOT.EnableImplicitMT(1)
 ROOT.EnableThreadSafety()

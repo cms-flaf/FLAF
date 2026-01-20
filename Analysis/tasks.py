@@ -1011,7 +1011,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ).create_branch_map()
         for k, (_, (var, _, _)) in enumerate(merge_map.items()):
             # Check if we want to plot this var in the hist config dict
-            if getattr(hist_cfg_dict, 'plot_task', True):
+            if hist_cfg_dict[var].get('plot_task', True):
                 branches[k] = var
         return branches
 

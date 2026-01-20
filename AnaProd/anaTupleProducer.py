@@ -322,8 +322,9 @@ if __name__ == "__main__":
     snapshotOptions.fLazy = True
     snapshotOptions.fMode = "RECREATE"
     snapshotOptions.fCompressionAlgorithm = getattr(
-        ROOT.ROOT, "k" + args.compressionAlgo
+        ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + args.compressionAlgo
     )
+
     snapshotOptions.fCompressionLevel = args.compressionLevel
     createAnatuple(
         inFile=args.inFile,

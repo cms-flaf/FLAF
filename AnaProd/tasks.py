@@ -419,7 +419,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 centralFileName = os.path.basename(local_input)
                 if self.test > 0:
                     anatuple_cmd.extend(["--nEvents", str(self.test)])
-                ps_call(anatuple_cmd, env=self.cmssw_env, verbose=1)
+                ps_call(anatuple_cmd, verbose=1)
 
             print("step 2: raw anaTuples -> fused anaTuples")
             producer_fuseTuples = os.path.join(

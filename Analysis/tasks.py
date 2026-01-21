@@ -214,8 +214,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
-        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete() and BtagShapeWeightCorrectionTask.req(self, branch=-1, branches=()).complete()
+        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
 
+    @workflow_condition.create_branch_map
     def create_branch_map(self):
         var_produced_by = self.setup.var_producer_map
 
@@ -1237,12 +1238,13 @@ class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
 
     def __init__(self, *args, **kwargs):
-        # kwargs['workflow'] = 'local' # This might not be the best idea, has ~100 datasets to go over and localize, probably faster on condor
         super(BtagShapeWeightCorrectionTask, self).__init__(*args, **kwargs)
 
+    @law.dynamic_workflow_condition
+    def workflow_condition(self):
+        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
+
     def workflow_requires(self):
-        # this check is necessary bc AnalysisCacheTask would return empty branch map
-        # if the tasks below didn't run; therefore it would have caused law crash
         merge_organization_complete = AnaTupleFileListTask.req(
             self, branches=()
         ).complete()
@@ -1296,15 +1298,8 @@ class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ]
         return reqs
 
+    @workflow_condition.create_branch_map
     def create_branch_map(self):
-        # this check is necessary bc AnalysisCacheTask would return empty branch map
-        # if the tasks below didn't run; therefore it would have caused law crash
-        merge_organization_complete = AnaTupleFileListTask.req(
-            self, branches=()
-        ).complete()
-        if not merge_organization_complete:
-            return {0: ()}
-
         branches = {}
         branch_number = 0
         data_done = False
@@ -1337,22 +1332,14 @@ class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             branches[branch_number] = (sample_name, process_group, list_of_br_idxes)
             branch_number += 1
         return branches
-
+    
+    @workflow_condition.output
     def output(self):
-        # this check is necessary bc AnalysisCacheTask would return empty branch map
-        # if the tasks below didn't run; therefore it would have caused law crash
-        if len(self.branch_data) == 0:
-            return self.local_target("dummy.txt")
-
         sample_name, _, _ = self.branch_data
         output_name = "BtagShapeWeightCorrection.json"
         output_path = os.path.join(
             "BtagShapeWeightCorrection", self.version, self.period, sample_name, output_name
         )
-        # This is a problem for a --remove-output task, it crashes since the 'output' is only the local or something
-        # With this current state, you need to do the --remove-output command twice
-        # if self.local_target(output_path).exists():
-        #     return [self.local_target(output_path)]
 
         return [
             self.remote_target(output_path, fs=self.fs_anaTuple),

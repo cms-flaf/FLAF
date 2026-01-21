@@ -244,6 +244,7 @@ class Setup:
         period,
         custom_process_selection=None,
         custom_dataset_selection=None,
+        custom_model_selection=None,
         customisations=None,
     ):
         self.ana_path = ana_path
@@ -266,6 +267,9 @@ class Setup:
             "phys_models", self.config_path_order, ["phys_models.yaml"]
         )
         phys_model_name = self.global_params["phys_model"]
+        if custom_model_selection is not None:
+            phys_model_name = custom_model_selection
+        print(phys_model_name)
         self.phys_model = PhysicsModel(phys_model_name, phys_models[phys_model_name])
 
         processes_config = Config(
@@ -546,6 +550,7 @@ class Setup:
         period,
         custom_process_selection=None,
         custom_dataset_selection=None,
+        custom_model_selection=None,
         customisations=None,
     ):
         key = (
@@ -553,6 +558,7 @@ class Setup:
             period,
             custom_process_selection,
             custom_dataset_selection,
+            custom_model_selection,
             customisations,
         )
         if key not in Setup._global_instances:
@@ -561,6 +567,7 @@ class Setup:
                 period,
                 custom_process_selection=custom_process_selection,
                 custom_dataset_selection=custom_dataset_selection,
+                custom_model_selection=custom_model_selection,
                 customisations=customisations,
             )
         return Setup._global_instances[key]

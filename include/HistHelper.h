@@ -175,7 +175,6 @@ namespace analysis {
                 all_output_edges.push_back(last_edge);
                 last_edge++;
             }
-            last_edge = all_output_edges.back();
         }
 
         // Create output histogram with variable binning

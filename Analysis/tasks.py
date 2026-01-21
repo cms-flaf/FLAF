@@ -1003,8 +1003,8 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self, branch=-1, branches=(), customisations=self.customisations
         ).create_branch_map()
         var_dict = {}
-        for var in self.global_params['variables']:
-            var_name = var if type(var) == str else var['name']
+        for var in self.global_params["variables"]:
+            var_name = var if type(var) == str else var["name"]
             var_dict[var_name] = var
         for k, (_, (var, _, _)) in enumerate(merge_map.items()):
             # Check if we want to plot this var in the global config

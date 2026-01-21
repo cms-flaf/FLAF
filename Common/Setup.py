@@ -245,6 +245,7 @@ class Setup:
         custom_process_selection=None,
         custom_dataset_selection=None,
         custom_model_selection=None,
+        custom_model_selection=None,
         customisations=None,
     ):
         self.ana_path = ana_path

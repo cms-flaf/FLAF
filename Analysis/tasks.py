@@ -998,22 +998,20 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
-        # Need to load hist config dict to check if var should be plotted
-        # Honestly, I think this should be done in Setup
-        hist_cfg = os.path.join(
-            os.environ["ANALYSIS_PATH"], "config", "plot/histograms.yaml"
-        )
-        with open(hist_cfg, "r") as f:
-            hist_cfg_dict = yaml.safe_load(f)
-
         branches = {}
         merge_map = HistMergerTask.req(
             self, branch=-1, branches=(), customisations=self.customisations
         ).create_branch_map()
+        var_dict = {}
+        for var in self.global_params['variables']:
+            var_name = var if type(var) == str else var['name']
+            var_dict[var_name] = var
         for k, (_, (var, _, _)) in enumerate(merge_map.items()):
-            # Check if we want to plot this var in the hist config dict
-            var_entry = findBinEntry(hist_cfg_dict, var)
-            if hist_cfg_dict[var_entry].get("plot_task", True):
+            # Check if we want to plot this var in the global config
+            if type(var_dict[var]) == dict:
+                if var_dict[var].get("plot_task", True):
+                    branches[k] = var
+            else:
                 branches[k] = var
         return branches
 

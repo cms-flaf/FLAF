@@ -253,14 +253,12 @@ def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=Fal
     return new_hist
 
 
-def GetBinVec(hist_cfg, var):
-    var_entry = findBinEntry(hist_cfg, var)
-    x_bins = hist_cfg[var_entry]["x_bins"]
+def GetBinVec(x_bins):
     x_bins_vec = None
-    if type(hist_cfg[var_entry]["x_bins"]) != list:
+    if type(x_bins) != list:
         n_bins, bin_range = x_bins.split("|")
         start, stop = bin_range.split(":")
-        x_bins = np.linspace(float(start), float(stop), int(n_bins)).tolist()
+        x_bins = np.linspace(float(start), float(stop), int(n_bins) + 1).tolist()
     x_bins_vec = Utilities.ListToVector(x_bins, "float")
     return x_bins_vec
 
@@ -270,14 +268,7 @@ def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
     unit_bin_Inputs = []
     var_entry = findBinEntry(hist_cfg, var)
     if dims == 1:
-        x_bins = hist_cfg[var_entry]["x_bins"]
-        if type(hist_cfg[var_entry]["x_bins"]) == list:
-            x_bins_vec = Utilities.ListToVector(x_bins, "double")
-        else:
-            n_bins, bin_range = x_bins.split("|")
-            start, stop = bin_range.split(":")
-            edges = np.linspace(float(start), float(stop), int(n_bins) + 1).tolist()
-            x_bins_vec = Utilities.ListToVector(edges, "double")
+        x_bins_vec = GetBinVec(hist_cfg[var_entry]["x_bins"])
         THModel_Inputs.append(x_bins_vec.size() - 1)
         THModel_Inputs.append(x_bins_vec.data())
         model = ROOT.RDF.TH1DModel("", "", *THModel_Inputs)
@@ -295,13 +286,7 @@ def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
                 if var_bin_name in hist_cfg[var_entry]
                 else hist_cfg[var_nD]["x_bins"]
             )
-            if type(var_bins) == list:
-                var_bins_vec = Utilities.ListToVector(var_bins, "double")
-            else:
-                n_bins, bin_range = var_bins.split("|")
-                start, stop = bin_range.split(":")
-                edges = np.linspace(float(start), float(stop), int(n_bins) + 1).tolist()
-                var_bins_vec = Utilities.ListToVector(edges, "double")
+            var_bins_vec = GetBinVec(var_bins)
             list_var_bins_vec.append(var_bins_vec)
             THModel_Inputs.append(var_bins_vec.size() - 1)
             THModel_Inputs.append(var_bins_vec.data())

@@ -7,7 +7,7 @@ import Analysis.hh_bbww as analysis
 
 
 class BtagShapeProducer:
-    def __init__(self, cfg, payload_name):
+    def __init__(self, cfg, payload_name, *args):
         assert "isData" in cfg, "BtagShapeProducer config must contain `isData` field."
         self.payload_name = payload_name
         self.cfg = cfg
@@ -22,7 +22,7 @@ class BtagShapeProducer:
             ]
             self.vars_to_save.extend(self.cfg["lepton_categories"])
 
-    def prepare_dfw(self, dfw):
+    def prepare_dfw(self, dfw, *args):
         # 1. what arguments do I pass to GetWeight?
         # it's a string representing a formula for the total weight
         # in terms of branches of the tree

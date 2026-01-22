@@ -60,6 +60,7 @@ def Initialize(loadTF=False):
             ROOT.gInterpreter.Declare(f"{generate_enum_class(wpcl)}")
         if loadTF:
             import FLAF.RunKit.includeCMSSWlibs as IncludeLibs
+
             IncludeLibs.includeLibTool("tensorflow", wantLib=False)
 
         initialized = True

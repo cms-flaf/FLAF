@@ -37,8 +37,7 @@ def DefineBinnedColumn(hist_cfg_dict, var):
         start, stop = bin_range.split(":")
         axis_definition = f"static const TAxis axis({n_bins}, {start}, {stop});"
 
-    ROOT.gInterpreter.Declare(
-        f"""
+    ROOT.gInterpreter.Declare(f"""
         #include "ROOT/RVec.hxx"
         #include "TAxis.h"
 
@@ -56,8 +55,7 @@ def DefineBinnedColumn(hist_cfg_dict, var):
             }}
             return out;
         }}
-        """
-    )
+        """)
 
 
 def createHistTuple(
@@ -75,7 +73,7 @@ def createHistTuple(
     unc_cfg_dict = setup.weights_config
     hist_cfg_dict = setup.hists
 
-    Baseline.Initialize(False, False)
+    Baseline.Initialize(False)
     if dataset_name == "data":
         dataset_cfg = {}
         process_name = "data"

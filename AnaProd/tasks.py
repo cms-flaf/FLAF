@@ -432,7 +432,8 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             outFileName = os.path.basename(input_file.path)
             outFilePath = os.path.join(outdir_fusedTuples, outFileName)
             finalReportPath = os.path.join(outdir_fusedTuples, reportFileName)
-            verbosity = "2" if self.test > 0 else "1"
+            # verbosity = "2" if self.test > 0 else "1"
+            verbosity = "0"
             fuseTuple_cmd = [
                 "python",
                 "-u",

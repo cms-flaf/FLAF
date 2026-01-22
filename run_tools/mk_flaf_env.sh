@@ -67,17 +67,23 @@ create() {
 export ROOTSYS=${root_dir}
 export ROOT_INCLUDE_PATH=${env_base}/include
 export LD_LIBRARY_PATH=${ld_lib_path}
-
+export CC=${env_base}/bin/gcc
+export CXX=${env_base}/bin/g++
+export C_INCLUDE_PATH=${env_base}/include
+export CPLUS_INCLUDE_PATH=${env_base}/include
+export CMAKE_PREFIX_PATH="${env_base}"
 EOF
 
+    run_cmd ln -s $lcg_base/cmake $env_base/cmake
     link_all $lcg_base/bin $env_base/bin pip pip3 pip3.12 python python3 python3.12 gosam2herwig gosam-config.py gosam.py git java
     link_all /cvmfs/sft.cern.ch/lcg/releases/gcc/15.2.0-35657/x86_64-el9/bin $env_base/bin go gofmt
     link_all $lcg_base/lib $env_base/lib/python3.12/site-packages python3.12
-    link_all $lcg_base/lib/python3.12/site-packages $env_base/lib/python3.12/site-packages _distutils_hack distutils-precedence.pth pip pkg_resources setuptools graphviz py __pycache__ gosam-2.1.1_4b98559-py3.12.egg-info tenacity tenacity-9.0.0.dist-info servicex servicex-3.1.0.dist-info paramiko paramiko-2.9.2-py3.12.egg-info
+    link_all $lcg_base/lib $env_base/lib python3.12
+    link_all $lcg_base/lib/python3.12/site-packages $env_base/lib/python3.12/site-packages _distutils_hack distutils-precedence.pth pip pkg_resources setuptools pathspec pathspec-0.11.1.dist-info graphviz py __pycache__ gosam-2.1.1_4b98559-py3.12.egg-info tenacity tenacity-9.0.0.dist-info servicex servicex-3.1.0.dist-info paramiko paramiko-2.9.2-py3.12.egg-info
     link_all $lcg_base/lib64 $env_base/lib/python3.12/site-packages cairo cmake libonnx_proto.a libsvm.so.2 pkgconfig ThePEG libavh_olo.a libff.a libqcdloop.a python3.12
     link_all /cvmfs/sft.cern.ch/lcg/releases/gcc/15.2.0-35657/x86_64-el9/lib $env_base/lib
     link_all /cvmfs/sft.cern.ch/lcg/releases/gcc/15.2.0-35657/x86_64-el9/lib64 $env_base/lib
-    link_all /cvmfs/sft.cern.ch/lcg/releases/binutils/2.40-acaab/x86_64-el9/lib $env_base/lib
+    link_all /cvmfs/sft.cern.ch/lcg/releases/binutils/2.40-acaab/x86_64-el9/lib $env_base/lib libbfd.a libbfd.la libctf-nobfd.a libctf-nobfd.la libctf.a libctf.la libopcodes.a libopcodes.la libsframe.a libsframe.la
     link_all $lcg_base/include $env_base/include python3.12 gosam-contrib
 }
 

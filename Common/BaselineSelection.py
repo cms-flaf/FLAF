@@ -33,7 +33,7 @@ ana_reco_object_collections = {
 deepTauVersions = {"2p1": "2017", "2p5": "2018"}
 
 
-def Initialize(loadTF=False, loadHHBtag=False):
+def Initialize(loadTF=False):
     global initialized
     if not initialized:
         headers_dir = os.path.dirname(os.path.abspath(__file__))
@@ -44,7 +44,6 @@ def Initialize(loadTF=False, loadHHBtag=False):
         header_path_GenLepton = "include/GenLepton.h"
         header_path_Gen = "include/BaselineGenSelection.h"
         header_path_Reco = "include/BaselineRecoSelection.h"
-        header_path_HHbTag = "include/HHbTagScores.h"
         header_path_AnalysisMath = "include/AnalysisMath.h"
         ROOT.gInterpreter.Declare(f'#include "{header_path_RootExt}"')
         ROOT.gInterpreter.Declare(f'#include "{header_path_GenLepton}"')
@@ -61,24 +60,7 @@ def Initialize(loadTF=False, loadHHBtag=False):
             ROOT.gInterpreter.Declare(f"{generate_enum_class(wpcl)}")
         if loadTF:
             import FLAF.RunKit.includeCMSSWlibs as IncludeLibs
-
-            IncludeLibs.includeLibTool("tensorflow")
-        if loadHHBtag:
-            lib_path = os.path.join(
-                os.environ["FLAF_CMSSW_BASE"],
-                "lib",
-                os.environ["FLAF_CMSSW_ARCH"],
-                "libHHToolsHHbtag.so",
-            )
-            load_result = ROOT.gSystem.Load(lib_path)
-            if load_result != 0:
-                raise RuntimeError(
-                    f"HHBtagWrapper failed to load with status {load_result}"
-                )
-            ROOT.gInterpreter.Declare(f'#include "{header_path_HHbTag}"')
-            ROOT.gROOT.ProcessLine(
-                f'HHBtagWrapper::Initialize("{os.environ["CMSSW_BASE"]}/src/HHTools/HHbtag/models/", 3)'
-            )
+            IncludeLibs.includeLibTool("tensorflow", wantLib=False)
 
         initialized = True
 

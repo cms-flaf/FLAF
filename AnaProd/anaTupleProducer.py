@@ -52,10 +52,11 @@ def createAnatuple(
     isData = dataset_cfg["process_group"] == "data"
     isSignal = dataset_cfg["process_group"] == "signals"
     loadTF = anaTupleDef.loadTF
-    loadHHBtag = anaTupleDef.loadHHBtag
     lepton_legs = anaTupleDef.lepton_legs
     offline_legs = anaTupleDef.offline_legs
-    Baseline.Initialize(loadTF, loadHHBtag)
+    Baseline.Initialize(loadTF)
+    if hasattr(anaTupleDef, "Initialize"):
+        anaTupleDef.Initialize(setup, dataset_name)
     triggerFile = setup.global_params.get("triggerFile")
     trigger_class = None
     if triggerFile is not None:

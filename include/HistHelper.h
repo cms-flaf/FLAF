@@ -170,7 +170,7 @@ namespace analysis {
         // Count nBins, we don't need real edges for the output hist
         int nBin_Counter = 0;
         for (const auto& edges : x_bin_edges) {
-            nBin_Counter = nBinCounter + edges.size();
+            nBin_Counter = nBin_Counter + edges.size();
         }
 
         // Create output histogram with variable binning
@@ -236,7 +236,7 @@ namespace analysis {
         }
         for (int global_bin = 0; global_bin <= all_bin_content.size() -1; ++global_bin){
             // Set bin content and error
-            if (global_bin >= 1 && global_bin <= (int)all_output_edges.size() - 1) {
+            if (global_bin >= 1 && global_bin <= nBin_Counter - 1) {
                 hist_output.SetBinContent(global_bin, all_bin_content[global_bin]);
                 hist_output.SetBinError(global_bin, std::sqrt(all_bin_error2[global_bin]));
             }

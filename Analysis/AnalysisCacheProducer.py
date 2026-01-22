@@ -117,7 +117,7 @@ def createAnalysisCache(
     #     ROOT.Detail.RDF.RDFLogChannel(), ROOT.ELogLevel.kLogInfo
     # )
 
-    Baseline.Initialize(False, False)
+    Baseline.Initialize(False)
     if dataset_name == "data":
         dataset_cfg = {}
         process_name = "data"

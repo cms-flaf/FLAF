@@ -20,7 +20,9 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--inputFiles", nargs="+", type=str)
     parser.add_argument("--outFile", required=True, type=str)
-    parser.add_argument("--jetMultiplicities", nargs="+", default=[2, 3, 4, 5, 6, 7, 8], type=int)
+    parser.add_argument(
+        "--jetMultiplicities", nargs="+", default=[2, 3, 4, 5, 6, 7, 8], type=int
+    )
 
     args = parser.parse_args()
 
@@ -76,7 +78,7 @@ if __name__ == "__main__":
                 weights_before,
                 weights_after,
                 out=integral_ratios,
-                where=~zero_division_mask
+                where=~zero_division_mask,
             )
             this_lep_cat_dict = {
                 f"ratio_ncentralJet_{m}": integral_ratios[idx]

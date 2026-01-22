@@ -132,7 +132,11 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 # so data tasks should not even depend on BtagShapeWeightCorrectionTask
                 btag_branches_for_hist_tuple_sample = [
                     idx
-                    for idx, (btag_sample, process_group, _) in btag_shape_task_branch_map.items()
+                    for idx, (
+                        btag_sample,
+                        process_group,
+                        _,
+                    ) in btag_shape_task_branch_map.items()
                     if btag_sample == hist_tuple_sample and process_group != "data"
                 ]
                 # MC samples must have exactly one BtagShapeWeightCorrectionTask per sample
@@ -145,7 +149,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     hist_tuple_sample_map[hist_tuple_sample] = btag_weight_shape_branch
 
             for sample, btag_branch in hist_tuple_sample_map.items():
-                # for some reason, passing a tuple to branches argument of BtagShapeWeightCorrectionTask is not working
+                if sample == "data":
+                    continue
                 btag_shape_weight_branch_set.add(btag_branch)
 
             if len(btag_shape_weight_branch_set) > 0:
@@ -183,7 +188,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if len(anaCaches) > 0:
                 deps["anaCaches"] = anaCaches
 
-        if self.global_params["apply_btagShape_weights"]:
+        isMC = dataset_name != "data"
+        if self.global_params["apply_btagShape_weights"] and isMC:
             btag_shape_task_branch_map = BtagShapeWeightCorrectionTask.req(
                 self, branch=-1
             ).create_branch_map()
@@ -198,7 +204,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 process_group,
                 _,
             ) in btag_shape_task_branch_map.items():
-                if process_group != "data" and hist_tuple_producers_sample_name == btag_sample_name:
+                if (
+                    process_group != "data"
+                    and hist_tuple_producers_sample_name == btag_sample_name
+                ):
                     btag_branches.append(btag_branch_idx)
             assert (
                 len(btag_branches) <= 1
@@ -362,8 +371,12 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if self.global_params["apply_btagShape_weights"] and isMC:
                 tc = self.input()["btagShapeWeightCorr"]["collection"]
                 btag_corr_json = tc._flat_target_list[0]
-                local_btag_corr_json = stack.enter_context((btag_corr_json).localize("r"))
-                HistTupleProducer_cmd.extend([f"--btagCorrectionsJson", local_btag_corr_json.path])
+                local_btag_corr_json = stack.enter_context(
+                    (btag_corr_json).localize("r")
+                )
+                HistTupleProducer_cmd.extend(
+                    [f"--btagCorrectionsJson", local_btag_corr_json.path]
+                )
 
             ps_call(HistTupleProducer_cmd, verbose=1)
 
@@ -905,7 +918,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         for idx in range(nInputs):
             inputFilePath = self.input()["anaTuple"][idx].path
             basename, _ = os.path.splitext(inputFilePath)
-            outFileName = f'{basename}.{self.output_file_extension}'
+            outFileName = f"{basename}.{self.output_file_extension}"
             output_path = os.path.join(
                 "AnalysisCache",
                 self.version,
@@ -970,7 +983,9 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         print(f"Output file {output_file} already exists, continue")
                         continue
                     customisation_dict = getCustomisationSplit(self.customisations)
-                    tmpFile = os.path.join(job_home, f"AnalysisCacheTask.{self.output_file_extension}")
+                    tmpFile = os.path.join(
+                        job_home, f"AnalysisCacheTask.{self.output_file_extension}"
+                    )
                     with input_file.localize("r") as local_input:
                         analysisCacheProducer_cmd = [
                             "python3",
@@ -990,7 +1005,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             "--workingDir",
                             job_home,
                             "--saveAs",
-                            self.output_file_extension
+                            self.output_file_extension,
                         ]
                         if (
                             self.global_params["store_noncentral"]
@@ -1015,8 +1030,12 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         if isData:
                             analysisCacheProducer_cmd.append("--isData")
 
-                        histTupleDef = os.path.join(self.ana_path(), self.global_params["histTupleDef"])
-                        analysisCacheProducer_cmd.extend(["--histTupleDef", histTupleDef])
+                        histTupleDef = os.path.join(
+                            self.ana_path(), self.global_params["histTupleDef"]
+                        )
+                        analysisCacheProducer_cmd.extend(
+                            ["--histTupleDef", histTupleDef]
+                        )
 
                         ps_call(analysisCacheProducer_cmd, env=prod_env, verbose=1)
                     print(
@@ -1233,6 +1252,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     cmd += ["--rebin", "true"]
                 ps_call(cmd, verbose=1)
 
+
 class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
@@ -1332,13 +1352,17 @@ class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             branches[branch_number] = (sample_name, process_group, list_of_br_idxes)
             branch_number += 1
         return branches
-    
+
     @workflow_condition.output
     def output(self):
         sample_name, _, _ = self.branch_data
         output_name = "BtagShapeWeightCorrection.json"
         output_path = os.path.join(
-            "BtagShapeWeightCorrection", self.version, self.period, sample_name, output_name
+            "BtagShapeWeightCorrection",
+            self.version,
+            self.period,
+            sample_name,
+            output_name,
         )
 
         return [

@@ -23,6 +23,7 @@ ROOT.EnableThreadSafety()
 
 cat_to_channelId = {"e": 1, "mu": 2, "eE": 11, "eMu": 12, "muMu": 22}
 
+
 class BtagShapeWeightCorrector:
     def __init__(self, btag_integral_ratios):
         self.exisiting_srcScale_combs = [key for key in btag_integral_ratios.keys()]
@@ -109,7 +110,8 @@ def DefineBinnedColumn(hist_cfg_dict, var):
         start, stop = bin_range.split(":")
         axis_definition = f"static const TAxis axis({n_bins}, {start}, {stop});"
 
-    ROOT.gInterpreter.Declare(f"""
+    ROOT.gInterpreter.Declare(
+        f"""
         #include "ROOT/RVec.hxx"
         #include "TAxis.h"
 
@@ -127,7 +129,8 @@ def DefineBinnedColumn(hist_cfg_dict, var):
             }}
             return out;
         }}
-        """)
+        """
+    )
 
 
 def createHistTuple(
@@ -284,7 +287,9 @@ def createHistTuple(
 
             # for now only evaluate central values
             if isCentral and isMC:
-                print(f'Calling weight_corrector.UpdateBtagWeight for unc_source={unc_source} unc_scale={unc_scale}')
+                print(
+                    f"Calling weight_corrector.UpdateBtagWeight for unc_source={unc_source} unc_scale={unc_scale}"
+                )
                 weight_corrector.UpdateBtagWeight(dfw, unc_src=unc_source)
 
             print("Defining binned columns")
@@ -356,7 +361,7 @@ if __name__ == "__main__":
         else "data"
     )
     setup.global_params["process_group"] = process_group
-    
+
     isData = process_group == "data"
 
     setup.global_params["compute_rel_weights"] = (

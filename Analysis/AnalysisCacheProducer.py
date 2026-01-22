@@ -94,8 +94,8 @@ def run_producer(
                         final_dict[key] += new_array[key]
             else:
                 raise RuntimeError(f"Illegal output format `{save_as}`.")
-        
-        if save_as == "root":       
+
+        if save_as == "root":
             check_columns(expected_columns, final_array.fields, final_array.fields)
             n_final = len(final_array["FullEventId"])
             with uproot.recreate(outFileName, compression=uprootCompression) as outfile:

@@ -12,7 +12,9 @@ class BtagShapeProducer:
         self.payload_name = payload_name
         self.cfg = cfg
         if len(self.cfg["jet_multiplicities"]) == 0:
-            raise RuntimeError(f"Illegal `jet_multiplicities` {self.cfg["jet_multiplicities"]}.")
+            raise RuntimeError(
+                f"Illegal `jet_multiplicities` {self.cfg["jet_multiplicities"]}."
+            )
         self.vars_to_save = []
         if not cfg["isData"]:
             self.vars_to_save = [

@@ -5,7 +5,6 @@ import ROOT
 import shutil
 import json
 
-
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
@@ -17,7 +16,6 @@ from FLAF.Common.Setup import Setup
 from Corrections.Corrections import Corrections
 from Corrections.lumi import LumiFilter
 from FLAF.AnaProd.anaCacheProducer import DefaultAnaCacheProcessor
-
 
 # ROOT.EnableImplicitMT(1)
 ROOT.EnableThreadSafety()
@@ -54,10 +52,11 @@ def createAnatuple(
     isData = dataset_cfg["process_group"] == "data"
     isSignal = dataset_cfg["process_group"] == "signals"
     loadTF = anaTupleDef.loadTF
-    loadHHBtag = anaTupleDef.loadHHBtag
     lepton_legs = anaTupleDef.lepton_legs
     offline_legs = anaTupleDef.offline_legs
-    Baseline.Initialize(loadTF, loadHHBtag)
+    Baseline.Initialize(loadTF)
+    if hasattr(anaTupleDef, "Initialize"):
+        anaTupleDef.Initialize(setup, dataset_name)
     triggerFile = setup.global_params.get("triggerFile")
     trigger_class = None
     if triggerFile is not None:
@@ -323,8 +322,9 @@ if __name__ == "__main__":
     snapshotOptions.fLazy = True
     snapshotOptions.fMode = "RECREATE"
     snapshotOptions.fCompressionAlgorithm = getattr(
-        ROOT.ROOT, "k" + args.compressionAlgo
+        ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + args.compressionAlgo
     )
+
     snapshotOptions.fCompressionLevel = args.compressionLevel
     createAnatuple(
         inFile=args.inFile,

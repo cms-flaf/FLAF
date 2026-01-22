@@ -4,6 +4,7 @@ import numpy as np
 import os
 import uproot
 import ROOT
+import shutil
 
 from FLAF.Common.TupleHelpers import defineColumnGrouping, copyFileContent
 from Corrections.CorrectionsCore import central
@@ -129,14 +130,19 @@ def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose
         out_name = f"aligned_{unc_source}_{unc_scale}.root"
         out_full_name = os.path.join(work_dir, out_name)
         input["aligned_file"] = out_full_name
-        n_events_valid = alignAnaTuple(
-            input_file=input["file_name"],
-            ref_ids=reference_ids,
-            input_valid=input["valid"],
-            tree_name=tree_name,
-            output_file=out_full_name,
-            id_column=full_event_id_column,
-        )
+        if n_unique_events > 0:
+            n_events_valid = alignAnaTuple(
+                input_file=input["file_name"],
+                ref_ids=reference_ids,
+                input_valid=input["valid"],
+                tree_name=tree_name,
+                output_file=out_full_name,
+                id_column=full_event_id_column,
+            )
+        else:
+            n_events_valid = 0
+            os.makedirs(os.path.dirname(out_full_name), exist_ok=True)
+            shutil.copy(input["file_name"], out_full_name)
         if verbose > 0:
             print(
                 f"{unc_source}/{unc_scale}: aligned {n_events_valid} selected events to the superset of {n_unique_events} events."

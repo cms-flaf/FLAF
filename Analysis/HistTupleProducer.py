@@ -75,7 +75,7 @@ def createHistTuple(
     unc_cfg_dict = setup.weights_config
     hist_cfg_dict = setup.hists
 
-    Baseline.Initialize(False, False)
+    Baseline.Initialize(False)
     if dataset_name == "data":
         dataset_cfg = {}
         process_name = "data"

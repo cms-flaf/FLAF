@@ -167,18 +167,14 @@ namespace analysis {
     TH1D rebinHistogramDict(const TH1& hist_initial, 
                                 const std::vector<std::pair<float, float>>& y_bin_ranges,
                                 const std::vector<std::vector<float>>& x_bin_edges) {
-        // Create output edges with bin number
-        std::vector<float> all_output_edges;
-        float last_edge = 0.0;
+        // Count nBins, we don't need real edges for the output hist
+        int nBin_Counter = 0;
         for (const auto& edges : x_bin_edges) {
-            for (float edge : edges) {
-                all_output_edges.push_back(last_edge);
-                last_edge++;
-            }
+            nBin_Counter = nBinCounter + edges.size();
         }
 
         // Create output histogram with variable binning
-        TH1D hist_output = TH1D("rebinned", "rebinned", all_output_edges.size() - 1, all_output_edges.data());
+        TH1D hist_output = TH1D("rebinned", "rebinned", nBin_Counter - 1, -0.5, nBin_Counter - 0.5);
         hist_output.Sumw2();
 
         // Helper function to find bin index from value and edges
@@ -194,11 +190,15 @@ namespace analysis {
 
         // Iterate through all bins in the original histogram
         int N_bins = hist_initial.GetNcells();
-        std::vector<float> all_bin_content(N_bins, 0.0);
-        std::vector<float> all_bin_error2(N_bins, 0.0);
+        int N_bins_output = hist_output.GetNcells();
+        std::vector<float> all_bin_content(N_bins_output, 0.0);
+        std::vector<float> all_bin_error2(N_bins_output, 0.0);
         for (int i = 0; i < N_bins; ++i) {
             int binX, binY, binZ;
             hist_initial.GetBinXYZ(i, binX, binY, binZ);
+
+            // If bin is overflow or underflow, ignore for linearizing
+            if (hist_initial.IsBinUnderflow(i) || hist_initial.IsBinOverflow(i)) continue;
 
             // Get bin centers (actual values)
             float x_value = hist_initial.GetXaxis()->GetBinCenter(binX);
@@ -234,7 +234,7 @@ namespace analysis {
             all_bin_content[global_bin] = all_bin_content[global_bin] + bin_content;
             all_bin_error2[global_bin] = all_bin_error2[global_bin] + bin_error2;
         }
-        for (int global_bin = 0; global_bin < all_bin_content.size() - 1; ++global_bin){
+        for (int global_bin = 0; global_bin <= all_bin_content.size() -1; ++global_bin){
             // Set bin content and error
             if (global_bin >= 1 && global_bin <= (int)all_output_edges.size() - 1) {
                 hist_output.SetBinContent(global_bin, all_bin_content[global_bin]);

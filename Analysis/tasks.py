@@ -20,7 +20,6 @@ from FLAF.AnaProd.tasks import (
     AnaTupleMergeTask,
 )
 from FLAF.Common.Utilities import getCustomisationSplit
-from FLAF.Common.HistHelper import findBinEntry
 
 
 class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
@@ -373,7 +372,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     @workflow_condition.output
     def output(self):
         var, prod_br, dataset_name = self.branch_data
-        if type(var) == dict:
+        if isinstance(var, dict):
             var = var["name"]
         output_path = os.path.join(
             "hists", self.version, self.period, var, f"{dataset_name}.root"
@@ -528,7 +527,9 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             current_dataset,
         ) in HistFromNtupleProducerTask_branch_map.items():
             var_name = (
-                var_name.get("name", var_name) if type(var_name) == dict else var_name
+                var_name.get("name", var_name)
+                if isinstance(var_name, dict)
+                else var_name
             )
             if var_name not in all_datasets.keys():
                 all_datasets[var_name] = []
@@ -1004,11 +1005,11 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ).create_branch_map()
         var_dict = {}
         for var in self.global_params["variables"]:
-            var_name = var if type(var) == str else var["name"]
+            var_name = var if isinstance(var, str) else var["name"]
             var_dict[var_name] = var
         for k, (_, (var, _, _)) in enumerate(merge_map.items()):
             # Check if we want to plot this var in the global config
-            if type(var_dict[var]) == dict:
+            if isinstance(var_dict[var], dict):
                 if var_dict[var].get("plot_task", True):
                     branches[k] = var
             else:

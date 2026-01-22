@@ -45,7 +45,6 @@ def get_all_items_recursive(root_dir, path=()):
         if obj.InheritsFrom("TDirectory"):
             items_dict.update(get_all_items_recursive(obj, path + (key.GetName(),)))
         elif obj.InheritsFrom("TH1"):
-            # obj.SetDirectory(0)
             local_items[key.GetName()] = obj
 
     if local_items:
@@ -96,7 +95,7 @@ def GetUncNameTypes(unc_cfg_dict):
 def createVoidHist(outFileName, hist_cfg_dict, var):
     var_entry = findBinEntry(hist_cfg_dict, var)
     x_bins = hist_cfg_dict[var_entry]["x_bins"]
-    if type(hist_cfg_dict["x_bins"]) == list:
+    if isinstance(hist_cfg_dict["x_bins"], list):
         x_bins_vec = Utilities.ListToVector(x_bins, "double")
         hvoid = ROOT.TH1F("", "", x_bins_vec.size() - 1, x_bins_vec.data())
     else:
@@ -255,7 +254,7 @@ def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=Fal
 
 def GetBinVec(x_bins):
     x_bins_vec = None
-    if type(x_bins) != list:
+    if not isinstance(x_bins, list):
         n_bins, bin_range = x_bins.split("|")
         start, stop = bin_range.split(":")
         x_bins = np.linspace(float(start), float(stop), int(n_bins) + 1).tolist()

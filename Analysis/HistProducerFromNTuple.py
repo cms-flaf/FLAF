@@ -198,8 +198,14 @@ def CreateFakeStructure(outFile, setup, var, key_filter_dict, further_cuts):
     for filter_key in key_filter_dict.keys():
         print(filter_key)
         for further_cut_name in [None] + list(further_cuts.keys()):
+            var_entry = HistHelper.findBinEntry(hist_cfg_dict, args.var)
+            dims = (
+                1
+                if not hist_cfg_dict[var_entry].get("var_list", False)
+                else len(hist_cfg_dict[var_entry]["var_list"])
+            )
             model, unit_bin_model = HistHelper.GetModel(
-                hist_cfg_dict, var, return_unit_bin_model=True
+                hist_cfg_dict, var, dims, return_unit_bin_model=True
             )
             nbins = unit_bin_model.fNbinsX
             xmin = -0.5

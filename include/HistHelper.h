@@ -167,19 +167,21 @@ namespace analysis {
     TH1D rebinHistogramDict(const TH1& hist_initial, 
                                 const std::vector<std::pair<float, float>>& y_bin_ranges,
                                 const std::vector<std::vector<float>>& x_bin_edges) {
-        // Count nBins, we don't need real edges for the output hist
+        // Count nBins, we don't need real edges for the output hist     
         int nBin_Counter = 0;
         for (const auto& edges : x_bin_edges) {
-            nBin_Counter = nBin_Counter + edges.size();
+            if (edges.size() <= 1){
+                throw std::runtime_error("Invalid x edges definition");
+            }
+            nBin_Counter = nBin_Counter + edges.size() - 1;
         }
 
         // Create output histogram with variable binning
-        TH1D hist_output = TH1D("rebinned", "rebinned", nBin_Counter - 1, -0.5, nBin_Counter - 0.5);
+        TH1D hist_output = TH1D("rebinned", "rebinned", nBin_Counter, -0.5, nBin_Counter - 0.5);
         hist_output.Sumw2();
 
         // Helper function to find bin index from value and edges
         auto findBinIndex = [](float value, const std::vector<float>& edges) -> int {
-            if (edges.size() < 2) return -1;
             for (size_t i = 0; i < edges.size() - 1; ++i) {
                 if (value >= edges[i] && value < edges[i + 1]) {
                     return i;
@@ -189,16 +191,32 @@ namespace analysis {
         };
 
         // Iterate through all bins in the original histogram
-        int N_bins = hist_initial.GetNcells();
-        int N_bins_output = hist_output.GetNcells();
-        std::vector<float> all_bin_content(N_bins_output, 0.0);
-        std::vector<float> all_bin_error2(N_bins_output, 0.0);
-        for (int i = 0; i < N_bins; ++i) {
+        std::vector<double> all_bin_content(nBin_Counter, 0.0);
+        std::vector<double> all_bin_error2(nBin_Counter, 0.0);
+        for (int i = 0; i < hist_initial.GetNcells(); ++i){
+            // If bin is overflow or underflow, ignore for linearizing
+            if (hist_initial.IsBinUnderflow(i) || hist_initial.IsBinOverflow(i)) continue;
+
             int binX, binY, binZ;
             hist_initial.GetBinXYZ(i, binX, binY, binZ);
 
-            // If bin is overflow or underflow, ignore for linearizing
-            if (hist_initial.IsBinUnderflow(i) || hist_initial.IsBinOverflow(i)) continue;
+            // // Given our old x/y/z bin, make sure the new bins will be compatible
+            // float old_x_low = hist_initial.GetXaxis()->GetBinLowEdge(binX);
+            // float old_x_up = hist_initial.GetXaxis()->GetBinUpEdge(binX);
+            // float old_y_low = hist_initial.GetYaxis()->GetBinLowEdge(binY);
+            // float old_y_up = hist_initial.GetYaxis()->GetBinUpEdge(binY);
+
+            // // Find which y_bin range these y_values fall into
+            // for (size_t j = 0; j < y_bin_ranges.size(); ++j) {
+            //     if ((old_y_low >= y_bin_ranges[j].first && old_y_low < y_bin_ranges[j].second) && (old_y_up >= y_bin_ranges[j].first && old_y_up < y_bin_ranges[j].second)) {
+            //         int new_x_low = findBinIndex(old_x_low, x_bin_edges[j]);
+            //         int new_x_up = findBinIndex(old_x_up, x_bin_edges[j]);
+            //         if (new_x_low != new_x_up){
+            //             std::cout << "Found the bad case" << std::endl;
+            //             break;
+            //         }
+            //     }
+            // }
 
             // Get bin centers (actual values)
             float x_value = hist_initial.GetXaxis()->GetBinCenter(binX);
@@ -206,11 +224,12 @@ namespace analysis {
             float z_value = hist_initial.GetZaxis()->GetBinCenter(binZ);
 
             // Get bin content and error
-            double bin_content = hist_initial.GetBinContent(i);
-            double bin_error = hist_initial.GetBinError(i);
-            double bin_error2 = bin_error * bin_error;
+            const double bin_content = hist_initial.GetBinContent(i);
+            const double bin_error = hist_initial.GetBinError(i);
+            const double bin_error2 = bin_error * bin_error;
 
             // Find which y_bin range this y_value falls into
+            std::cout << "Finding y bin range" << std::endl;
             int y_bin_idx = -1;
             for (size_t j = 0; j < y_bin_ranges.size(); ++j) {
                 if (y_value >= y_bin_ranges[j].first && y_value < y_bin_ranges[j].second) {
@@ -220,27 +239,31 @@ namespace analysis {
             }
             if (y_bin_idx == -1) continue;  // Skip if y_value doesn't fall in any range
             // Find output bin index within the x_bin_edges for this y_bin
+            std::cout << "Finding bin index" << std::endl;
             int local_out_bin = findBinIndex(x_value, x_bin_edges[y_bin_idx]);
             if (local_out_bin == -1) continue;  // Skip if x_value doesn't fall in any output bin
             // Calculate section offset by counting bins in all previous y_bin sections
             int section_offset = 0;
+            std::cout << "Finding offset" << std::endl;
             for (int prev_y = 0; prev_y < y_bin_idx; ++prev_y) {
                 section_offset += x_bin_edges[prev_y].size() - 1;  // size - 1 = number of bins
             }
             // Calculate global bin index: offset + local bin position within this section
-            int global_bin = section_offset + local_out_bin + 1;  // +1 for ROOT's 1-indexed bins
+            int global_bin = section_offset + local_out_bin;
 
             // Store content and error2 at global bin index
             all_bin_content[global_bin] = all_bin_content[global_bin] + bin_content;
             all_bin_error2[global_bin] = all_bin_error2[global_bin] + bin_error2;
         }
-        for (int global_bin = 0; global_bin <= all_bin_content.size() -1; ++global_bin){
-            // Set bin content and error
-            if (global_bin >= 1 && global_bin <= nBin_Counter - 1) {
-                hist_output.SetBinContent(global_bin, all_bin_content[global_bin]);
-                hist_output.SetBinError(global_bin, std::sqrt(all_bin_error2[global_bin]));
-            }
+        std::cout << "Filling" << std::endl;
+        std::cout << "content size " << all_bin_content.size() << std::endl;
+        std::cout << "And hist out has nBins: " << nBin_Counter << std::endl;
+        for (int global_bin = 0; global_bin <= all_bin_content.size(); ++global_bin){
+            std::cout << "Filling global bin " << global_bin << std::endl;
+            hist_output.SetBinContent(global_bin + 1, all_bin_content[global_bin]);
+            hist_output.SetBinError(global_bin + 1, std::sqrt(all_bin_error2[global_bin]));
         }
+        std::cout << "Finished filling" << std::endl;
         return hist_output;
     }
 }  // namespace analysis

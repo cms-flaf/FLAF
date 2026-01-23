@@ -45,6 +45,7 @@ class Task(law.Task):
     test = luigi.IntParameter(default=-1)
     dataset = luigi.Parameter(default="")
     process = luigi.Parameter(default="")
+    model = luigi.Parameter(default="")
 
     def __init__(self, *args, **kwargs):
         super(Task, self).__init__(*args, **kwargs)
@@ -53,6 +54,7 @@ class Task(law.Task):
             self.period,
             custom_process_selection=self.process if len(self.process) > 0 else None,
             custom_dataset_selection=self.dataset if len(self.dataset) > 0 else None,
+            custom_model_selection=self.model if len(self.model) > 0 else None,
             customisations=self.customisations,
         )
         self._dataset_id_name_list = None

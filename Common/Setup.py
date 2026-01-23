@@ -269,7 +269,7 @@ class Setup:
         phys_model_name = self.global_params["phys_model"]
         if custom_model_selection is not None:
             phys_model_name = custom_model_selection
-        print(phys_model_name)
+        print(f"Using physics model: {phys_model_name}")
         self.phys_model = PhysicsModel(phys_model_name, phys_models[phys_model_name])
 
         processes_config = Config(

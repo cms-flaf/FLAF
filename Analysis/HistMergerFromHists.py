@@ -267,9 +267,13 @@ if __name__ == "__main__":
     data_processes = setup.phys_model.processes(process_type="data")
     if len(data_processes) > 0:
         data_processes = data_processes[0]
+    if not data_processes:
+        data_processes = None
+
     if (
         analysis_import == "Analysis.hh_bbtautau"
         and estimateQCD
+        and data_processes != None
         and data_processes in all_hists_dict.keys()
     ):
         from Analysis.QCD_estimation import AddQCDInHistDict

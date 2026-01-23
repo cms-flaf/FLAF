@@ -269,7 +269,6 @@ if __name__ == "__main__":
         data_processes = data_processes[0]
     if not data_processes:
         data_processes = None
-
     if (
         analysis_import == "Analysis.hh_bbtautau"
         and estimateQCD

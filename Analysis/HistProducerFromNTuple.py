@@ -8,7 +8,7 @@ import time
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
-from FLAF.Common.HistHelper import *
+import FLAF.Common.HistHelper as HistHelper
 import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
 from FLAF.RunKit.run_tools import ps_call
@@ -36,7 +36,14 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     dir_ptr = Utilities.mkdir(outFile, dir_name)
 
     merged_hist = model.GetHistogram().Clone()
-    for i in range(0, unit_hist.GetNbinsX() + 2):
+    # If we use the THnD then we have 'GetNbins' function, else use 'GetNcells'
+    N_bins = (
+        unit_hist.GetNbins()
+        if hasattr(unit_hist, "GetNbins")
+        else unit_hist.GetNcells()
+    )
+    # This can be a loop over many bins, several times. Can be improved to be ran in c++ instead
+    for i in range(0, N_bins):
         bin_content = unit_hist.GetBinContent(i)
         bin_error = unit_hist.GetBinError(i)
         merged_hist.SetBinContent(i, bin_content)
@@ -46,7 +53,7 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     if len(hist_list) > 1:
         for model, unit_hist in hist_list[1:]:
             hist = model.GetHistogram()
-            for i in range(0, unit_hist.GetNbinsX() + 2):
+            for i in range(0, N_bins):
                 bin_content = unit_hist.GetBinContent(i)
                 bin_error = unit_hist.GetBinError(i)
                 hist.SetBinContent(i, bin_content)
@@ -61,10 +68,27 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
 
 
 def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
-    model, unit_bin_model = GetModel(hist_cfg_dict, var, return_unit_bin_model=True)
-    unit_hist = rdf.Filter(filter_to_apply).Histo1D(
-        unit_bin_model, f"{var}_bin", weight_name
+    var_entry = HistHelper.findBinEntry(hist_cfg_dict, args.var)
+    dims = (
+        1
+        if not hist_cfg_dict[var_entry].get("var_list", False)
+        else len(hist_cfg_dict[var_entry]["var_list"])
     )
+
+    model, unit_bin_model = HistHelper.GetModel(
+        hist_cfg_dict, var, dims, return_unit_bin_model=True
+    )
+    var_bin_list = (
+        [f"{var}_bin" for var in hist_cfg_dict[var_entry]["var_list"]]
+        if dims > 1
+        else [f"{var}_bin"]
+    )
+    rdf_filtered = rdf.Filter(filter_to_apply)
+    if dims >= 1 and dims <= 3:
+        mkhist_fn = getattr(rdf_filtered, f"Histo{dims}D")
+        unit_hist = mkhist_fn(unit_bin_model, *var_bin_list, weight_name)
+    else:
+        raise RuntimeError("Only 1D, 2D and 3D histograms are supported")
     return model, unit_hist
 
 
@@ -174,8 +198,14 @@ def CreateFakeStructure(outFile, setup, var, key_filter_dict, further_cuts):
     for filter_key in key_filter_dict.keys():
         print(filter_key)
         for further_cut_name in [None] + list(further_cuts.keys()):
-            model, unit_bin_model = GetModel(
-                hist_cfg_dict, var, return_unit_bin_model=True
+            var_entry = HistHelper.findBinEntry(hist_cfg_dict, args.var)
+            dims = (
+                1
+                if not hist_cfg_dict[var_entry].get("var_list", False)
+                else len(hist_cfg_dict[var_entry]["var_list"])
+            )
+            model, unit_bin_model = HistHelper.GetModel(
+                hist_cfg_dict, var, dims, return_unit_bin_model=True
             )
             nbins = unit_bin_model.fNbinsX
             xmin = -0.5
@@ -276,7 +306,13 @@ if __name__ == "__main__":
     )
 
     variables = setup.global_params["variables"]
-    vars_needed = set(variables)
+    vars_needed = set()
+    for var in variables:
+        if isinstance(var, dict) and "vars" in var:
+            for v in var["vars"]:
+                vars_needed.add(v)
+        else:
+            vars_needed.add(var)
     for further_cut_name, (vars_for_cut, _) in further_cuts.items():
         for var_for_cut in vars_for_cut:
             if var_for_cut:

@@ -11,6 +11,9 @@ if __name__ == "__main__":
 
 import FLAF.Common.Utilities as Utilities
 
+ROOT.gROOT.ProcessLine(f".include {os.environ['ANALYSIS_PATH']}")
+ROOT.gROOT.ProcessLine(f'#include "FLAF/include/HistHelper.h"')
+
 
 def findBinEntry(hist_cfg_dict, var_name):
     """
@@ -42,7 +45,6 @@ def get_all_items_recursive(root_dir, path=()):
         if obj.InheritsFrom("TDirectory"):
             items_dict.update(get_all_items_recursive(obj, path + (key.GetName(),)))
         elif obj.InheritsFrom("TH1"):
-            obj.SetDirectory(0)
             local_items[key.GetName()] = obj
 
     if local_items:
@@ -93,7 +95,7 @@ def GetUncNameTypes(unc_cfg_dict):
 def createVoidHist(outFileName, hist_cfg_dict, var):
     var_entry = findBinEntry(hist_cfg_dict, var)
     x_bins = hist_cfg_dict[var_entry]["x_bins"]
-    if type(hist_cfg_dict["x_bins"]) == list:
+    if isinstance(hist_cfg_dict["x_bins"], list):
         x_bins_vec = Utilities.ListToVector(x_bins, "double")
         hvoid = ROOT.TH1F("", "", x_bins_vec.size() - 1, x_bins_vec.data())
     else:
@@ -169,6 +171,9 @@ def getNewBins(bins):
     if isinstance(bins, list):
         return bins
 
+    if isinstance(bins, dict):
+        return bins
+
     n_bins, bin_range = bins.split("|")
     start, stop = map(float, bin_range.split(":"))
     step = (stop - start) / int(n_bins)
@@ -177,8 +182,42 @@ def getNewBins(bins):
 
 
 def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=False):
-    new_binning_array = array.array("d", new_binning)
-    new_hist = hist_initial.Rebin(len(new_binning) - 1, sample, new_binning_array)
+    if isinstance(new_binning, dict):
+        # Prepare data structures for C++ function
+        y_bin_ranges = ROOT.std.vector("std::pair<float,float>")()
+        output_bin_edges_vec = ROOT.std.vector("std::vector<float>")()
+
+        for combined_bin in new_binning["combined_bins"]:
+            # Parse y_bin range
+            y_min, y_max = combined_bin["y_bin"]
+            y_bin_ranges.push_back(ROOT.std.pair("float", "float")(y_min, y_max))
+
+            # Parse x_bins spec (can be string "nbins|min:max" or list of bin edges)
+            out_spec = combined_bin["x_bins"]
+            out_edges = ROOT.std.vector("float")()
+            if isinstance(out_spec, list):
+                for edge in out_spec:
+                    out_edges.push_back(float(edge))
+            else:
+                n_out_bins, out_range = out_spec.split("|")
+                out_min, out_max = map(float, out_range.split(":"))
+                n_out_bins = int(n_out_bins)
+                # Create uniform bins
+                step = (out_max - out_min) / n_out_bins
+                for i in range(n_out_bins + 1):
+                    out_edges.push_back(out_min + i * step)
+            output_bin_edges_vec.push_back(out_edges)
+
+        # Create ROOT vectors
+        # Call the C++ function which returns a new histogram
+        new_hist = ROOT.analysis.rebinHistogramDict(
+            hist_initial, y_bin_ranges, output_bin_edges_vec
+        )
+        new_hist.SetName(sample)
+
+    else:
+        new_binning_array = array.array("d", new_binning)
+        new_hist = hist_initial.Rebin(len(new_binning) - 1, sample, new_binning_array)
 
     if sample == "data":
         new_hist.SetBinErrorOption(ROOT.TH1.kPoisson)
@@ -213,34 +252,74 @@ def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=Fal
     return new_hist
 
 
-def GetBinVec(hist_cfg, var):
-    var_entry = findBinEntry(hist_cfg, var)
-    x_bins = hist_cfg[var_entry]["x_bins"]
+def GetBinVec(x_bins):
     x_bins_vec = None
-    if type(hist_cfg[var_entry]["x_bins"]) == list:
-        x_bins_vec = Utilities.ListToVector(x_bins, "float")
-    else:
+    if not isinstance(x_bins, list):
         n_bins, bin_range = x_bins.split("|")
         start, stop = bin_range.split(":")
-        edges = np.linspace(float(start), float(stop), int(n_bins)).tolist()
-        # print(len(edges))
-        x_bins_vec = Utilities.ListToVector(edges, "float")
+        x_bins = np.linspace(float(start), float(stop), int(n_bins) + 1).tolist()
+    x_bins_vec = Utilities.ListToVector(x_bins, "float")
     return x_bins_vec
 
 
-def GetModel(hist_cfg, var, return_unit_bin_model=False):
+def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
+    THModel_Inputs = []
+    unit_bin_Inputs = []
     var_entry = findBinEntry(hist_cfg, var)
-    x_bins = hist_cfg[var_entry]["x_bins"]
-    if type(hist_cfg[var_entry]["x_bins"]) == list:
-        x_bins_vec = Utilities.ListToVector(x_bins, "double")
-        model = ROOT.RDF.TH1DModel("", "", x_bins_vec.size() - 1, x_bins_vec.data())
+    if dims == 1:
+        x_bins_vec = GetBinVec(hist_cfg[var_entry]["x_bins"])
+        THModel_Inputs.append(x_bins_vec.size() - 1)
+        THModel_Inputs.append(x_bins_vec.data())
+        model = ROOT.RDF.TH1DModel("", "", *THModel_Inputs)
+        if not return_unit_bin_model:
+            return model
+        unit_bin_Inputs = [model.fNbinsX, -0.5, model.fNbinsX - 0.5]
+        unit_bin_model = ROOT.RDF.TH1DModel("", "", *unit_bin_Inputs)
+
+    elif (dims == 2) or (dims == 3):
+        list_var_bins_vec = []
+        for var_nD in hist_cfg[var_entry]["var_list"]:
+            var_bin_name = f"{var_nD}_bins"
+            var_bins = (
+                hist_cfg[var_entry][var_bin_name]
+                if var_bin_name in hist_cfg[var_entry]
+                else hist_cfg[var_nD]["x_bins"]
+            )
+            var_bins_vec = GetBinVec(var_bins)
+            list_var_bins_vec.append(var_bins_vec)
+            THModel_Inputs.append(var_bins_vec.size() - 1)
+            THModel_Inputs.append(var_bins_vec.data())
+        if dims == 2:
+            model = ROOT.RDF.TH2DModel("", "", *THModel_Inputs)
+            if not return_unit_bin_model:
+                return model
+            unit_bin_Inputs = [
+                model.fNbinsX,
+                -0.5,
+                model.fNbinsX - 0.5,
+                model.fNbinsY,
+                -0.5,
+                model.fNbinsY - 0.5,
+            ]
+            unit_bin_model = ROOT.RDF.TH2DModel("", "", *unit_bin_Inputs)
+        if dims == 3:
+            model = ROOT.RDF.TH3DModel("", "", *THModel_Inputs)
+            if not return_unit_bin_model:
+                return model
+            unit_bin_Inputs = [
+                model.fNbinsX,
+                -0.5,
+                model.fNbinsX - 0.5,
+                model.fNbinsY,
+                -0.5,
+                model.fNbinsY - 0.5,
+                model.fNbinsZ,
+                -0.5,
+                model.fNbinsZ - 0.5,
+            ]
+            unit_bin_model = ROOT.RDF.TH3DModel("", "", *unit_bin_Inputs)
     else:
-        n_bins, bin_range = x_bins.split("|")
-        start, stop = bin_range.split(":")
-        model = ROOT.RDF.TH1DModel("", "", int(n_bins), float(start), float(stop))
-    if not return_unit_bin_model:
-        return model
-    unit_bin_model = ROOT.RDF.TH1DModel(
-        "", "", model.fNbinsX, -0.5, model.fNbinsX - 0.5
-    )
+        raise RuntimeError("nD histogram not implemented yet")
+        # model = ROOT.RDF.THnDModel("", "", )
+
     return model, unit_bin_model

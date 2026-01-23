@@ -126,7 +126,15 @@ def createHistTuple(
     print("Scale uncertainties to consider:", scale_uncertainties)
 
     print("Defining binnings for variables")
+    flatten_vars = set()
     for var in variables:
+        if isinstance(var, dict) and "vars" in var:
+            for v in var["vars"]:
+                flatten_vars.add(v)
+        else:
+            flatten_vars.add(var)
+
+    for var in flatten_vars:
         DefineBinnedColumn(hist_cfg_dict, var)
 
     snaps = []
@@ -195,7 +203,7 @@ def createHistTuple(
                 dfw.colToSave.append(desc["weight"])
 
             print("Defining binned columns")
-            for var in variables:
+            for var in flatten_vars:
                 dfw.df = dfw.df.Define(f"{var}_bin", f"get_{var}_bin({var})")
                 dfw.colToSave.append(f"{var}_bin")
 

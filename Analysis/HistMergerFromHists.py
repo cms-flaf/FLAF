@@ -83,7 +83,7 @@ def GetBTagWeightDict(
     for dataset_type in all_hists_dict.keys():
         all_hists_dict_1D[dataset_type] = {}
         for key_name, histogram in all_hists_dict[dataset_type].items():
-            (key_1, key_2) = key_name
+            key_1, key_2 = key_name
 
             if var not in boosted_variables:
                 ch, reg, cat = key_1
@@ -296,7 +296,7 @@ if __name__ == "__main__":
     outFile = ROOT.TFile(args.outFile, "RECREATE")
     for dataset_type in all_hists_dict.keys():
         for key in all_hists_dict[dataset_type].keys():
-            (key_dir, (uncName, uncScale)) = key
+            key_dir, (uncName, uncScale) = key
             # here there can be some custom requirements - e.g. regions / categories to not merge, datasets to ignore
             dir_name = "/".join(key_dir)
             dir_ptr = Utilities.mkdir(outFile, dir_name)

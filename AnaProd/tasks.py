@@ -86,11 +86,9 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         for branch_idx, (
             dataset_id,
             _,
-            dataset_dependencies,
             _,
         ) in self.branch_map.items():
             branches_set.add(dataset_id)
-            branches_set.update(dataset_dependencies.values())
         branches = tuple(branches_set)
         return { "inputFile": InputFileTask.req(self, branches=branches), }
 
@@ -108,7 +106,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         for dataset_id, dataset_name in self.iter_datasets():
             fs_nanoAOD = self.fs_nanoAOD
             dataset = self.datasets[dataset_name]
-            dataset_dependencies = self.collect_extra_dependencies(dataset_name)
 
             if dataset.get("fs_nanoAOD", None) is not None:
                 fs_nanoAOD = self.setup.get_fs(
@@ -132,34 +129,14 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 branches[branch_idx] = (
                     dataset_id,
                     dataset_name,
-                    dataset_dependencies,
                     fileintot,
                 )
                 branch_idx += 1
         return branches
 
-    def collect_extra_dependencies(self, dataset_name):
-        other_datasets = {}
-        dataset = self.datasets[dataset_name]
-        processors = self.setup.get_processors(
-            dataset["process_name"], stage="AnaTuple"
-        )
-        require_whole_process = any(
-            p.get("dependency_level", {}).get("AnaTuple", "file") == "process"
-            for p in processors
-        )
-        if require_whole_process:
-            process = self.setup.base_processes[dataset["process_name"]]
-            for p_dataset_name in process.get("datasets", []):
-                if p_dataset_name == dataset_name:
-                    continue
-                p_dataset_id = self.get_dataset_id(p_dataset_name)
-                other_datasets[p_dataset_name] = p_dataset_id
-        return other_datasets
-
     @workflow_condition.output
     def output(self):
-        _, dataset_name, _, input_file = self.branch_data
+        _, dataset_name, input_file = self.branch_data
         output_name = os.path.basename(input_file.path)
         json_name = f"{output_name.split('.')[0]}.json"
         output_path = os.path.join(
@@ -175,9 +152,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     def run(self):
         with ServiceThread() as service_thread:
-            dataset_id, dataset_name, dataset_dependencies, input_file = (
-                self.branch_data
-            )
+            dataset_id, dataset_name, input_file = self.branch_data
             dataset = self.datasets[dataset_name]
             process_group = dataset["process_group"]
             producer_anatuples = os.path.join(
@@ -207,7 +182,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             print(f"dataset_id: {dataset_id}")
             print(f"dataset_name: {dataset_name}")
             print(f"process_group: {process_group}")
-            print(f"dataset_dependencies: {','.join(dataset_dependencies.keys())}")
             print(f"input_file = {input_file.uri()}")
 
             print("step 1: nanoAOD -> raw anaTuples")
@@ -264,7 +238,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             outFilePath = os.path.join(outdir_fusedTuples, outFileName)
             finalReportPath = os.path.join(outdir_fusedTuples, reportFileName)
             # verbosity = "2" if self.test > 0 else "1"
-            verbosity = "0"
+            verbosity = "1"
             fuseTuple_cmd = [
                 "python",
                 "-u",

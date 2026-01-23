@@ -15,7 +15,52 @@ import FLAF.Common.triggerSel as Triggers
 from FLAF.Common.Setup import Setup
 from Corrections.Corrections import Corrections
 from Corrections.lumi import LumiFilter
-from FLAF.AnaProd.anaCacheProducer import DefaultAnaCacheProcessor
+from Corrections.CorrectionsCore import central, getScales, getSystName
+from Corrections.pu import puWeightProducer
+
+class DefaultAnaCacheProcessor:
+    def onAnaCache_initializeDenomEntry(self):
+        return []
+
+    def onAnaCache_updateDenomEntry(
+        self, entry, df, output_branch_name, weights_to_apply
+    ):
+        weight_formula = (
+            "*".join(weights_to_apply) if len(weights_to_apply) > 0 else "1.0"
+        )
+        df = df.Define(output_branch_name, weight_formula)
+        entry.append(df.Sum(output_branch_name))
+        return entry
+
+    def onAnaCache_materializeDenomEntry(self, entry):
+        return [x.GetValue() if type(x) != float else x for x in entry]
+
+    def onAnaCache_finalizeDenomEntry(self, entry):
+        return sum(entry)
+
+    def onAnaCache_combineAnaCaches(self, entries):
+        return sum(entries)
+
+    def onAnaTuple_defineCrossSection(
+        self, df, crossSectionBranch, xs_db, dataset_name, dataset_entry
+    ):
+        xs_name = dataset_entry["crossSection"]
+        xs_value = xs_db.getValue(xs_name)
+        return df.Define(crossSectionBranch, f'float({xs_value})')
+
+    def onAnaTuple_defineDenominator(
+        self,
+        df,
+        denomBranch,
+        processor_name,
+        dataset_name,
+        source_name,
+        scale_name,
+        ana_caches,
+    ):
+        ana_cache = ana_caches[dataset_name]
+        denom_value = ana_cache["denominator"][source_name][scale_name][processor_name]
+        return df.Define(denomBranch, str(denom_value))
 
 # ROOT.EnableImplicitMT(1)
 ROOT.EnableThreadSafety()
@@ -26,10 +71,10 @@ def createAnatuple(
     inFile,
     inFileName,
     treeName,
+    treeNameNotSelected,
     outDir,
     setup,
     dataset_name,
-    anaCaches,
     snapshotOptions,
     range,
     evtIds,
@@ -39,6 +84,7 @@ def createAnatuple(
     anaTupleDef,
     channels,
     reportOutput=None,
+    use_genWeight_sign_only=True,
 ):
     start_time = datetime.datetime.now()
     compression_settings = (
@@ -82,7 +128,15 @@ def createAnatuple(
         trigger_class=trigger_class,
     )
     corrections = Corrections.getGlobal()
-    df = ROOT.RDataFrame(treeName, inFile)
+    root_file = ROOT.TFile.Open(inFile)
+    tree = root_file.Get(treeName)
+    df = ROOT.RDataFrame(tree)
+    if treeNameNotSelected in root_file.GetListOfKeys():
+        tree_not_selected = root_file.Get(treeNameNotSelected)
+        df_not_selected = ROOT.RDataFrame(tree_not_selected)
+    else:
+        tree_not_selected = None
+        df_not_selected = None
     report = {}
     nEventsInFile = (
         df.Count().GetValue()
@@ -97,6 +151,49 @@ def createAnatuple(
     report["n_original_events"] = nEventsInFile
     report["dataset_name"] = dataset_name
     report["output_files"] = []
+
+    shape_sources = [central]
+    if "pu" in corrections.to_apply:
+        shape_sources += puWeightProducer.uncSource
+
+    report["denominator"] = {}
+    for shape_unc_source in shape_sources:
+        report["denominator"][shape_unc_source] = {}
+        for shape_unc_scale in getScales(shape_unc_source):
+            report["denominator"][shape_unc_source][shape_unc_scale] = {}
+            for p_name, p_instance in processor_instances.items():
+                report["denominator"][shape_unc_source][shape_unc_scale][
+                    p_name
+                ] = p_instance.onAnaCache_initializeDenomEntry()
+
+    gen_weight_name = "weight_gen"
+    def updateDenomEntry(rdf):
+        for shape_unc_source in shape_sources:
+            for shape_unc_scale in getScales(shape_unc_source):
+                shape_unc_name = getSystName(shape_unc_source, shape_unc_scale)
+                weights_to_apply = [gen_weight_name]
+                if "pu" in corrections.to_apply:
+                    weights_to_apply.append(f"weight_pu_{shape_unc_scale}")
+                for p_name, p_instance in processor_instances.items():
+                    output_branch_name = f"weight_denom_{p_name}_{shape_unc_name}"
+                    report["denominator"][shape_unc_source][shape_unc_scale][p_name] = (
+                        p_instance.onAnaCache_updateDenomEntry(
+                            report["denominator"][shape_unc_source][shape_unc_scale][p_name],
+                            rdf,
+                            output_branch_name,
+                            weights_to_apply,
+                        )
+                    )
+    if tree_not_selected is not None and not isData:
+        genWeight_def = (
+            "std::copysign<float>(1.f, genWeight)"
+            if use_genWeight_sign_only
+            else "genWeight"
+        )
+        df_not_selected = df_not_selected.Define(gen_weight_name, genWeight_def)
+        if "pu" in corrections.to_apply:
+            df_not_selected = corrections.pu.getWeight(df_not_selected)
+        updateDenomEntry(df_not_selected)
     # if isData: json_dict_for_cache['RunLumi'] = unique_run_lumi
     ROOT.RDF.Experimental.AddProgressBar(df)
     if range is not None:
@@ -207,11 +304,14 @@ def createAnatuple(
                 trigger_names=triggers_to_use,
                 unc_source=unc_source,
                 unc_scale=unc_scale,
-                ana_caches=anaCaches,
+                ana_caches=None,
                 return_variations=is_central and compute_unc_variations,
-                use_genWeight_sign_only=True,
+                use_genWeight_sign_only=use_genWeight_sign_only,
             )
             dfw.colToSave.extend(weight_branches)
+
+            if is_central:
+                updateDenomEntry(dfw.df)
         # Analysis anaTupleDef should define a legType as a leg obj
         # But to save with RDF, it needs to be converted to an int
         for leg_name in lepton_legs:
@@ -235,6 +335,20 @@ def createAnatuple(
 
     if snapshotOptions.fLazy == True:
         ROOT.RDF.RunGraphs(snaps)
+    for shape_unc_source in shape_sources:
+        for shape_unc_scale in getScales(shape_unc_source):
+            for p_name, p_instance in processor_instances.items():
+                report["denominator"][shape_unc_source][shape_unc_scale][p_name] = (
+                    p_instance.onAnaCache_materializeDenomEntry(
+                        report["denominator"][shape_unc_source][shape_unc_scale][p_name]
+                    )
+                )
+                report["denominator"][shape_unc_source][shape_unc_scale][p_name] = (
+                    p_instance.onAnaCache_finalizeDenomEntry(
+                        report["denominator"][shape_unc_source][shape_unc_scale][p_name]
+                    )
+                )
+
     hist_time = ROOT.TH1D(f"time", f"time", 1, 0, 1)
     end_time = datetime.datetime.now()
     hist_time.SetBinContent(1, (end_time - start_time).total_seconds())
@@ -266,8 +380,6 @@ if __name__ == "__main__":
     parser.add_argument("--outDir", required=True, type=str)
     parser.add_argument("--inFileName", required=True, type=str)
     parser.add_argument("--dataset", required=True, type=str)
-    parser.add_argument("--anaCache", required=True, type=str)
-    parser.add_argument("--anaCacheOthers", required=False, default=None, type=str)
     parser.add_argument("--anaTupleDef", required=True, type=str)
     parser.add_argument(
         "--store-noncentral", action="store_true", help="Store ES variations."
@@ -276,6 +388,7 @@ if __name__ == "__main__":
     parser.add_argument("--uncertainties", type=str, default="all")
     parser.add_argument("--customisations", type=str, default=None)
     parser.add_argument("--treeName", required=False, type=str, default="Events")
+    parser.add_argument("--treeNameNotSelected", required=False, type=str, default="EventsNotSelected")
     parser.add_argument(
         "--particleFile",
         type=str,
@@ -289,7 +402,6 @@ if __name__ == "__main__":
     parser.add_argument("--reportOutput", type=str, default=None)
 
     args = parser.parse_args()
-    from FLAF.Common.Utilities import DeserializeObjectFromString
 
     ROOT.gROOT.ProcessLine(".include " + os.environ["FLAF_PATH"])
     ROOT.gROOT.ProcessLine('#include "include/GenTools.h"')
@@ -297,16 +409,6 @@ if __name__ == "__main__":
     setup = Setup.getGlobal(
         os.environ["ANALYSIS_PATH"], args.period, args.customisations
     )
-    with open(args.anaCache, "r") as f:
-        anaCache = yaml.safe_load(f)
-
-    anaCaches = {args.dataset: anaCache}
-
-    if args.anaCacheOthers:
-        anaCacheFiles = DeserializeObjectFromString(args.anaCacheOthers)
-        for ds_name, cache_file in anaCacheFiles.items():
-            with open(cache_file, "r") as f:
-                anaCaches[ds_name] = yaml.safe_load(f)
 
     channels = setup.global_params["channelSelection"]
     if args.channels:
@@ -330,10 +432,10 @@ if __name__ == "__main__":
         inFile=args.inFile,
         inFileName=args.inFileName,
         treeName=args.treeName,
+        treeNameNotSelected=args.treeNameNotSelected,
         outDir=args.outDir,
         setup=setup,
         dataset_name=args.dataset,
-        anaCaches=anaCaches,
         snapshotOptions=snapshotOptions,
         range=args.nEvents,
         evtIds=args.evtIds,

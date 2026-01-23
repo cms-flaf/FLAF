@@ -33,7 +33,7 @@ ana_reco_object_collections = {
 deepTauVersions = {"2p1": "2017", "2p5": "2018"}
 
 
-def Initialize(loadTF=False, loadHHBtag=False):
+def Initialize(loadTF=False):
     global initialized
     if not initialized:
         headers_dir = os.path.dirname(os.path.abspath(__file__))
@@ -44,7 +44,6 @@ def Initialize(loadTF=False, loadHHBtag=False):
         header_path_GenLepton = "include/GenLepton.h"
         header_path_Gen = "include/BaselineGenSelection.h"
         header_path_Reco = "include/BaselineRecoSelection.h"
-        header_path_HHbTag = "include/HHbTagScores.h"
         header_path_AnalysisMath = "include/AnalysisMath.h"
         ROOT.gInterpreter.Declare(f'#include "{header_path_RootExt}"')
         ROOT.gInterpreter.Declare(f'#include "{header_path_GenLepton}"')
@@ -62,23 +61,7 @@ def Initialize(loadTF=False, loadHHBtag=False):
         if loadTF:
             import FLAF.RunKit.includeCMSSWlibs as IncludeLibs
 
-            IncludeLibs.includeLibTool("tensorflow")
-        if loadHHBtag:
-            lib_path = os.path.join(
-                os.environ["FLAF_CMSSW_BASE"],
-                "lib",
-                os.environ["FLAF_CMSSW_ARCH"],
-                "libHHToolsHHbtag.so",
-            )
-            load_result = ROOT.gSystem.Load(lib_path)
-            if load_result != 0:
-                raise RuntimeError(
-                    f"HHBtagWrapper failed to load with status {load_result}"
-                )
-            ROOT.gInterpreter.Declare(f'#include "{header_path_HHbTag}"')
-            ROOT.gROOT.ProcessLine(
-                f'HHBtagWrapper::Initialize("{os.environ["CMSSW_BASE"]}/src/HHTools/HHbtag/models/", 3)'
-            )
+            IncludeLibs.includeLibTool("tensorflow", wantLib=False)
 
         initialized = True
 
@@ -168,6 +151,8 @@ def DefineGenObjects(
 
 def SelectRecoP4(df, syst_name="nano", nano_version="v12"):
     for obj in ana_reco_object_collections[nano_version]:
+        if f"{obj}_pt" not in df.GetColumnNames():
+            raise RuntimeError(f"{obj}_pt not in col names")
         df = df.Define(f"{obj}_p4", f"{obj}_p4_{syst_name}")
     return df
 
@@ -185,6 +170,8 @@ def CreateRecoP4(df, suffix="nano", nano_version="v12"):
         )
     for obj in ana_reco_object_collections[nano_version]:
         if "MET" in obj:
+            if f"{obj}_pt" not in df.GetColumnNames():
+                raise RuntimeError(f"{obj}_pt not in col names")
             df = df.Define(
                 f"{obj}_p4{suffix}", f"LorentzVectorM({obj}_pt, 0., {obj}_phi, 0.)"
             )
@@ -194,30 +181,51 @@ def CreateRecoP4(df, suffix="nano", nano_version="v12"):
                 f"{obj}_p4{suffix}",
                 f"GetP4({obj}_pt, {obj}_eta, {obj}_phi, {obj}_mass, {obj}_idx)",
             )
+            if obj == "Muon":
+                df = df.Define(
+                    f"{obj}_p4_bsConstrainedPt",
+                    f"GetP4({obj}_bsConstrainedPt, {obj}_eta, {obj}_phi, {obj}_mass, {obj}_idx)",
+                )
     return df
 
 
-# From JERC recommendation:
-# veto events if ANY jet with a loose selection lies in the veto regions. The nominal “loose selection” would be:
+# Updated JERC recommendation https://cms-jerc.web.cern.ch/Recommendations/#jet-veto-maps
 # jet pT > 15 GeV
-# tight jet ID
+# tightLepVeto jet ID (in v15 NanoAOD, the Jet_jetId branch is not available. To apply jet ID selections manually, please refer to the JetID page).
 # (jet charged EM fraction + jet neutral EM fraction) < 0.9
-# jets that don’t overlap with PF muon (dR < 0.2)
 
 # From json file:
 # Non-zero value for (eta, phi) indicates that the region is vetoed.
 
 
-def ApplyJetVetoMap(df, apply_filter=True):
+def ApplyJetVetoMap(df, apply_filter=True, defineElectronCleaning=False, isV12=False):
+    function_for_jetId = (
+        "RedefineJet_passJetIdTight_v12(Jet_p4, Jet_neHEF, Jet_neEmEF, Jet_jetId)"
+        if isV12
+        else "RedefineJet_passJetIdTight_v13(Jet_p4, Jet_neHEF, Jet_neEmEF, Jet_chHEF, Jet_chMultiplicity, Jet_neMultiplicity )"
+    )
+    df = df.Define(f"Jet_passJetIdTight", function_for_jetId)
+    df = df.Define(
+        f"Jet_passJetIdTightLepVeto",
+        "Redefine_Jet_passJetIdTightLepVeto(Jet_p4, Jet_passJetIdTight, Jet_muEF, Jet_chEmEF)",
+    )
     df = df.Define(
         f"Jet_vetoMapLooseRegion_presel",
-        "Jet_pt > 15 && ( Jet_jetId & 2 ) && Jet_chHEF + Jet_neHEF < 0.9 && Jet_isInsideVetoRegion",
+        "Jet_pt > 15 && ( Jet_passJetIdTightLepVeto ) && (Jet_chEmEF + Jet_neEmEF < 0.9) && Jet_isInsideVetoRegion",  # here goes the new Jet ID
     )  #  (Jet_puId > 0 || Jet_pt >50) &&  for CHS jets
-    df = df.Define(f"Muon_p4_pfCand", "Muon_p4[Muon_isPFcand]")
+
+    # df = df.Define(f"Muon_p4_pfCand", "Muon_p4[Muon_isPFcand]")
+
     df = df.Define(
         f"Jet_vetoMap",
-        " RemoveOverlaps(Jet_p4, Jet_vetoMapLooseRegion_presel, Muon_p4_pfCand, 0.2)",
+        " RemoveOverlaps(Jet_p4, Jet_vetoMapLooseRegion_presel, Muon_p4[Muon_isPFcand], 0.2)",
     )
+    if defineElectronCleaning:
+        # df = df.Define(f"Electron_p4_pfCand", "Electron_p4[Electron_isPFcand]")
+        df = df.Define(
+            f"Jet_vetoMapEle",
+            " RemoveOverlaps(Jet_p4, Jet_vetoMap, Electron_p4[Electron_isPFcand], 0.2)",
+        )
     if apply_filter:
         return df.Filter(f"Jet_p4[Jet_vetoMap].size()==0", "Jet Veto Map filter")
     return df

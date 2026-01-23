@@ -10,7 +10,7 @@ import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
 from FLAF.RunKit.run_tools import ps_call
 
-# from FLAF.Common.HistHelper import *
+from FLAF.Common.HistHelper import findBinEntry
 from Corrections.CorrectionsCore import getScales, central
 from Corrections.Corrections import Corrections
 
@@ -22,7 +22,8 @@ ROOT.EnableThreadSafety()
 
 
 def DefineBinnedColumn(hist_cfg_dict, var):
-    x_bins = hist_cfg_dict[var]["x_bins"]
+    var_entry = findBinEntry(hist_cfg_dict, var)
+    x_bins = hist_cfg_dict[var_entry]["x_bins"]
     func_name = f"get_{var}_bin"
     axis_definition = ""
 
@@ -36,8 +37,7 @@ def DefineBinnedColumn(hist_cfg_dict, var):
         start, stop = bin_range.split(":")
         axis_definition = f"static const TAxis axis({n_bins}, {start}, {stop});"
 
-    ROOT.gInterpreter.Declare(
-        f"""
+    ROOT.gInterpreter.Declare(f"""
         #include "ROOT/RVec.hxx"
         #include "TAxis.h"
 
@@ -55,8 +55,7 @@ def DefineBinnedColumn(hist_cfg_dict, var):
             }}
             return out;
         }}
-        """
-    )
+        """)
 
 
 def createHistTuple(
@@ -74,7 +73,7 @@ def createHistTuple(
     unc_cfg_dict = setup.weights_config
     hist_cfg_dict = setup.hists
 
-    Baseline.Initialize(False, False)
+    Baseline.Initialize(False)
     if dataset_name == "data":
         dataset_cfg = {}
         process_name = "data"

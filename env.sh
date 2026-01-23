@@ -49,7 +49,7 @@ do_install_cmssw() {
       run_cmd cd HiggsAnalysis/CombinedLimit
       run_cmd git checkout $cmb_version
       run_cmd cd ../..
-      run_cmd git clone https://github.com/cms-analysis/CombineHarvester.git CombineHarvester
+      run_cmd git clone https://github.com/cms-flaf/CombineHarvester.git CombineHarvester
     fi
     run_cmd scram b -j8
     run_cmd touch "$ANALYSIS_SOFT_PATH/$CMSSW_VER/.installed"
@@ -63,7 +63,14 @@ do_install_combine() {
   echo "Compiling standalone combine..."
   source "$FLAF_ENVIRONMENT_PATH/bin/activate"
   run_cmd cd "$cmb_path"
-  run_cmd make -j8 CC=g++ CXX=g++ LD=g++
+  if [ -d build ]; then
+    echo "Removing incomplete combine build..."
+    run_cmd rm -rf build
+  fi
+  run_cmd mkdir build
+  run_cmd cd build
+  run_cmd cmake ..
+  run_cmd cmake --build . -j8
   run_cmd touch "$cmb_path/build/.installed"
 }
 
@@ -184,15 +191,16 @@ load_flaf_env() {
   local os_prefix=$(get_os_prefix $os_version)
   local node_os=$os_prefix$os_version
 
-  local flaf_cmssw_ver=CMSSW_14_1_7
-  local target_os_version=9
-  local target_os_prefix=$(get_os_prefix $target_os_version)
-  local target_os_gt_prefix=$(get_os_prefix $target_os_version 1)
-  local target_os=$target_os_prefix$target_os_version
-  [ -z "$FLAF_COMBINE_VERSION" ] && export FLAF_COMBINE_VERSION="v10.2.0"
-  export FLAF_CMSSW_BASE="$ANALYSIS_SOFT_PATH/$flaf_cmssw_ver"
-  export FLAF_CMSSW_ARCH="${target_os_gt_prefix}${target_os_version}_amd64_gcc12"
-  install_cmssw "$env_file" $node_os $target_os $FLAF_CMSSW_ARCH $flaf_cmssw_ver $FLAF_COMBINE_VERSION
+  [ -z "$FLAF_CMSSW_VERSION" ] && export FLAF_CMSSW_VERSION="CMSSW_14_1_7"
+  [ -z "$FLAF_CMSSW_COMPILER" ] && export FLAF_CMSSW_COMPILER="gcc12"
+  [ -z "$FLAF_CMSSW_OS_VERSION" ] && export FLAF_CMSSW_OS_VERSION="9"
+  local target_os_prefix=$(get_os_prefix $FLAF_CMSSW_OS_VERSION)
+  local target_os_gt_prefix=$(get_os_prefix $FLAF_CMSSW_OS_VERSION 1)
+  local target_os=$target_os_prefix$FLAF_CMSSW_OS_VERSION
+  [ -z "$FLAF_COMBINE_VERSION" ] && export FLAF_COMBINE_VERSION="v10.4.2"
+  export FLAF_CMSSW_BASE="$ANALYSIS_SOFT_PATH/$FLAF_CMSSW_VERSION"
+  export FLAF_CMSSW_ARCH="${target_os_gt_prefix}${FLAF_CMSSW_OS_VERSION}_amd64_${FLAF_CMSSW_COMPILER}"
+  install_cmssw "$env_file" $node_os $target_os $FLAF_CMSSW_ARCH $FLAF_CMSSW_VERSION $FLAF_COMBINE_VERSION
 
   export PYTHONPATH="$ANALYSIS_PATH:$PYTHONPATH"
   if [ "$FLAF_COMBINE_VERSION" != "none" ]; then

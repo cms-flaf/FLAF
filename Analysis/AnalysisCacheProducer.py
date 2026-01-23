@@ -37,6 +37,7 @@ def check_columns(expected_columns, columns_to_save, available_columns):
 def run_producer(
     producer,
     dfw,
+    dataset,
     producer_config,
     outFileName,
     treeName,
@@ -52,7 +53,7 @@ def run_producer(
     if producer_config.get("awkward_based", False):
         vars_to_save = []
         if hasattr(producer, "prepare_dfw"):
-            dfw = producer.prepare_dfw(dfw)
+            dfw = producer.prepare_dfw(dfw, dataset)
         vars_to_save = list(producer.vars_to_save)
         if "FullEventId" not in vars_to_save:
             vars_to_save.append("FullEventId")
@@ -72,8 +73,6 @@ def run_producer(
                     f"Mismatch in number of events between input and output {len(new_array['FullEventId'])} != {len(array['FullEventId'])}"
                 )
             if np.any(new_array["FullEventId"] != array["FullEventId"]):
-                print("orig FullEventId:", array["FullEventId"])
-                print("new FullEventId:", new_array["FullEventId"])
                 raise Exception("Mismatch in FullEventId between input and output")
             if final_array is None:
                 final_array = new_array
@@ -104,6 +103,7 @@ def createAnalysisCache(
     setup,
     dataset_name,
     inFileName,
+    period,
     cacheFileNames,
     snapshotOptions,
     producer_to_run,
@@ -117,7 +117,7 @@ def createAnalysisCache(
     #     ROOT.Detail.RDF.RDFLogChannel(), ROOT.ELogLevel.kLogInfo
     # )
 
-    Baseline.Initialize(False, False)
+    Baseline.Initialize(False)
     if dataset_name == "data":
         dataset_cfg = {}
         process_name = "data"
@@ -161,7 +161,7 @@ def createAnalysisCache(
     producer_name = producer_config["producer_name"]
     producers_module = importlib.import_module(producers_module_name)
     producer_class = getattr(producers_module, producer_name)
-    producer = producer_class(producer_config, producer_to_run)
+    producer = producer_class(producer_config, producer_to_run, period)
 
     tmp_fileNames = []
     centralTree = None
@@ -188,12 +188,12 @@ def createAnalysisCache(
                 centralTree = tree
                 centralCaches = cacheTrees
             ROOT.RDF.Experimental.AddProgressBar(df_orig)
-
             dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
             tmp_fileName = f"{fullTreeName}.root"
             run_producer(
                 producer,
                 dfw,
+                dataset_name,
                 producer_config,
                 tmp_fileName,
                 fullTreeName,
@@ -281,6 +281,7 @@ if __name__ == "__main__":
         setup=setup,
         dataset_name=args.dataset,
         inFileName=args.inFile,
+        period=args.period,
         cacheFileNames=cacheFileNames,
         snapshotOptions=snapshotOptions,
         producer_to_run=args.producer,

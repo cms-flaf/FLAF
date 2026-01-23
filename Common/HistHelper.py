@@ -4,11 +4,32 @@ import ROOT
 import os
 import numpy as np
 import array
+import re
 
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
 import FLAF.Common.Utilities as Utilities
+
+
+def findBinEntry(hist_cfg_dict, var_name):
+    """
+    Match variable name against regex-based histogram config entries.
+    """
+
+    matches = []
+
+    for pattern in hist_cfg_dict.keys():
+        if re.fullmatch(pattern, var_name):
+            matches.append(pattern)
+
+    if not matches:
+        raise KeyError(f"No histogram config pattern matches variable '{var_name}'")
+
+    if len(matches) > 1:
+        raise RuntimeError(f"Ambiguous histogram config for '{var_name}': {matches}")
+
+    return matches[0]
 
 
 def get_all_items_recursive(root_dir, path=()):
@@ -69,8 +90,9 @@ def GetUncNameTypes(unc_cfg_dict):
     return uncNames
 
 
-def createVoidHist(outFileName, hist_cfg_dict):
-    x_bins = hist_cfg_dict["x_bins"]
+def createVoidHist(outFileName, hist_cfg_dict, var):
+    var_entry = findBinEntry(hist_cfg_dict, var)
+    x_bins = hist_cfg_dict[var_entry]["x_bins"]
     if type(hist_cfg_dict["x_bins"]) == list:
         x_bins_vec = Utilities.ListToVector(x_bins, "double")
         hvoid = ROOT.TH1F("", "", x_bins_vec.size() - 1, x_bins_vec.data())
@@ -192,9 +214,10 @@ def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=Fal
 
 
 def GetBinVec(hist_cfg, var):
-    x_bins = hist_cfg[var]["x_bins"]
+    var_entry = findBinEntry(hist_cfg, var)
+    x_bins = hist_cfg[var_entry]["x_bins"]
     x_bins_vec = None
-    if type(hist_cfg[var]["x_bins"]) == list:
+    if type(hist_cfg[var_entry]["x_bins"]) == list:
         x_bins_vec = Utilities.ListToVector(x_bins, "float")
     else:
         n_bins, bin_range = x_bins.split("|")
@@ -206,8 +229,9 @@ def GetBinVec(hist_cfg, var):
 
 
 def GetModel(hist_cfg, var, return_unit_bin_model=False):
-    x_bins = hist_cfg[var]["x_bins"]
-    if type(hist_cfg[var]["x_bins"]) == list:
+    var_entry = findBinEntry(hist_cfg, var)
+    x_bins = hist_cfg[var_entry]["x_bins"]
+    if type(hist_cfg[var_entry]["x_bins"]) == list:
         x_bins_vec = Utilities.ListToVector(x_bins, "double")
         model = ROOT.RDF.TH1DModel("", "", x_bins_vec.size() - 1, x_bins_vec.data())
     else:

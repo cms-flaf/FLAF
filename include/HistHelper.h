@@ -163,14 +163,14 @@ namespace analysis {
             return df_node;
         }
     };
-    
-    TH1D rebinHistogramDict(const TH1& hist_initial, 
-                                const std::vector<std::pair<float, float>>& y_bin_ranges,
-                                const std::vector<std::vector<float>>& x_bin_edges) {
-        // Count nBins, we don't need real edges for the output hist     
+
+    TH1D rebinHistogramDict(const TH1& hist_initial,
+                            const std::vector<std::pair<float, float>>& y_bin_ranges,
+                            const std::vector<std::vector<float>>& x_bin_edges) {
+        // Count nBins, we don't need real edges for the output hist
         int nBin_Counter = 0;
         for (const auto& edges : x_bin_edges) {
-            if (edges.size() <= 1){
+            if (edges.size() <= 1) {
                 throw std::runtime_error("Invalid x edges definition");
             }
             nBin_Counter = nBin_Counter + edges.size() - 1;
@@ -193,30 +193,42 @@ namespace analysis {
         // Iterate through all bins in the original histogram
         std::vector<double> all_bin_content(nBin_Counter, 0.0);
         std::vector<double> all_bin_error2(nBin_Counter, 0.0);
-        for (int i = 0; i < hist_initial.GetNcells(); ++i){
+        for (int i = 0; i < hist_initial.GetNcells(); ++i) {
             // If bin is overflow or underflow, ignore for linearizing
-            if (hist_initial.IsBinUnderflow(i) || hist_initial.IsBinOverflow(i)) continue;
+            if (hist_initial.IsBinUnderflow(i) || hist_initial.IsBinOverflow(i))
+                continue;
 
             int binX, binY, binZ;
             hist_initial.GetBinXYZ(i, binX, binY, binZ);
 
             // // Given our old x/y/z bin, make sure the new bins will be compatible
-            // float old_x_low = hist_initial.GetXaxis()->GetBinLowEdge(binX);
-            // float old_x_up = hist_initial.GetXaxis()->GetBinUpEdge(binX);
-            // float old_y_low = hist_initial.GetYaxis()->GetBinLowEdge(binY);
-            // float old_y_up = hist_initial.GetYaxis()->GetBinUpEdge(binY);
+            float old_x_low = hist_initial.GetXaxis()->GetBinLowEdge(binX);
+            float old_x_up = hist_initial.GetXaxis()->GetBinUpEdge(binX);
+            float old_y_low = hist_initial.GetYaxis()->GetBinLowEdge(binY);
+            float old_y_up = hist_initial.GetYaxis()->GetBinUpEdge(binY);
 
-            // // Find which y_bin range these y_values fall into
-            // for (size_t j = 0; j < y_bin_ranges.size(); ++j) {
-            //     if ((old_y_low >= y_bin_ranges[j].first && old_y_low < y_bin_ranges[j].second) && (old_y_up >= y_bin_ranges[j].first && old_y_up < y_bin_ranges[j].second)) {
-            //         int new_x_low = findBinIndex(old_x_low, x_bin_edges[j]);
-            //         int new_x_up = findBinIndex(old_x_up, x_bin_edges[j]);
-            //         if (new_x_low != new_x_up){
-            //             std::cout << "Found the bad case" << std::endl;
-            //             break;
-            //         }
-            //     }
-            // }
+            // Find which y_bin range these y_values fall into
+            for (size_t j = 0; j < y_bin_ranges.size(); ++j) {
+                if ((old_y_low >= y_bin_ranges[j].first && old_y_low < y_bin_ranges[j].second) &&
+                    (old_y_up > y_bin_ranges[j].first && old_y_up <= y_bin_ranges[j].second)) {
+                    int new_x_low = findBinIndex(old_x_low, x_bin_edges[j]);
+                    int new_x_up = findBinIndex(old_x_up, x_bin_edges[j]);
+                    // If the x_up is the exact bin edge, then reduce by one
+                    // Unless it is already the bottom edge (the 2D loop back)
+                    // In this case, you must add nBins
+                    if (std::find(x_bin_edges[j].begin(), x_bin_edges[j].end(), old_x_up) != x_bin_edges[j].end()) {
+                        if (new_x_up == -1) {
+                            new_x_up += x_bin_edges[j].size() - 1;
+                        } else {
+                            new_x_up -= 1;
+                        }
+                    }
+                    if (new_x_low == new_x_up) {
+                        continue;
+                    }
+                    throw std::runtime_error("Incompatible bin edges!!!");
+                }
+            }
 
             // Get bin centers (actual values)
             float x_value = hist_initial.GetXaxis()->GetBinCenter(binX);
@@ -229,7 +241,6 @@ namespace analysis {
             const double bin_error2 = bin_error * bin_error;
 
             // Find which y_bin range this y_value falls into
-            std::cout << "Finding y bin range" << std::endl;
             int y_bin_idx = -1;
             for (size_t j = 0; j < y_bin_ranges.size(); ++j) {
                 if (y_value >= y_bin_ranges[j].first && y_value < y_bin_ranges[j].second) {
@@ -237,14 +248,14 @@ namespace analysis {
                     break;
                 }
             }
-            if (y_bin_idx == -1) continue;  // Skip if y_value doesn't fall in any range
+            if (y_bin_idx == -1)
+                continue;  // Skip if y_value doesn't fall in any range
             // Find output bin index within the x_bin_edges for this y_bin
-            std::cout << "Finding bin index" << std::endl;
             int local_out_bin = findBinIndex(x_value, x_bin_edges[y_bin_idx]);
-            if (local_out_bin == -1) continue;  // Skip if x_value doesn't fall in any output bin
+            if (local_out_bin == -1)
+                continue;  // Skip if x_value doesn't fall in any output bin
             // Calculate section offset by counting bins in all previous y_bin sections
             int section_offset = 0;
-            std::cout << "Finding offset" << std::endl;
             for (int prev_y = 0; prev_y < y_bin_idx; ++prev_y) {
                 section_offset += x_bin_edges[prev_y].size() - 1;  // size - 1 = number of bins
             }
@@ -255,15 +266,10 @@ namespace analysis {
             all_bin_content[global_bin] = all_bin_content[global_bin] + bin_content;
             all_bin_error2[global_bin] = all_bin_error2[global_bin] + bin_error2;
         }
-        std::cout << "Filling" << std::endl;
-        std::cout << "content size " << all_bin_content.size() << std::endl;
-        std::cout << "And hist out has nBins: " << nBin_Counter << std::endl;
-        for (int global_bin = 0; global_bin <= all_bin_content.size(); ++global_bin){
-            std::cout << "Filling global bin " << global_bin << std::endl;
+        for (int global_bin = 0; global_bin < all_bin_content.size(); ++global_bin) {
             hist_output.SetBinContent(global_bin + 1, all_bin_content[global_bin]);
             hist_output.SetBinError(global_bin + 1, std::sqrt(all_bin_error2[global_bin]));
         }
-        std::cout << "Finished filling" << std::endl;
         return hist_output;
     }
 }  // namespace analysis

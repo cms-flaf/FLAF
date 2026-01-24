@@ -50,6 +50,57 @@ DYto2Tau_M_50_amcatnloFXFX:
   nanoAOD: /DYto2Tau-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v7/NANOAODSIM
   miniAOD: /DYto2Tau-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v7/MINIAODSIM
 
+############## DYto2L jet binned ##############
+DYto2E_M_50_0J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_0J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD: /DYto2E-2Jets_Bin-0J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+  miniAOD: /DYto2E-2Jets_Bin-0J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+DYto2E_M_50_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD: /DYto2E-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+  miniAOD: /DYto2E-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
+DYto2E_M_50_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD: /DYto2E-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+  miniAOD: /DYto2E-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+
+DYto2Mu_M_50_0J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_0J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD: /DYto2Mu-2Jets_Bin-0J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+  miniAOD: /DYto2Mu-2Jets_Bin-0J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
+DYto2Mu_M_50_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD: /DYto2Mu-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v1/NANOAODSIM
+  miniAOD: /DYto2Mu-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+DYto2Mu_M_50_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD: /DYto2Mu-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+  miniAOD: /DYto2Mu-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
+
+### using Tau_BugFix
+DYto2Tau_M_50_0J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_0J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD: /DYto2Tau-2Jets_Bin-0J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v4/NANOAODSIM
+  miniAOD: /DYto2Tau-2Jets_Bin-0J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v4/MINIAODSIM
+DYto2Tau_M_50_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD: /DYto2Tau-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+  miniAOD: /DYto2Tau-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+DYto2Tau_M_50_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD: /DYto2Tau-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+  miniAOD: /DYto2Tau-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24MiniAODv6-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+
+
 ############## GGH ##############
 ############## HtoMuMu ##############
 GluGluHto2Mu:

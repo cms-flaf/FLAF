@@ -144,7 +144,7 @@ Tau_Run2023D_v1:
 Tau_Run2023D_v2:
   nanoAOD:
     22Sep23: /Tau/Run2023D-22Sep2023_v2-v1/NANOAOD
-    v15: /Tau/Run2023D-NanoAODv15_v2-v1/NANOAOD 
+    v15: /Tau/Run2023D-NanoAODv15_v2-v1/NANOAOD
 ############## powheg ##############
 ############## DYto2E ##############
 DYto2E_MLL_10to50_powheg:

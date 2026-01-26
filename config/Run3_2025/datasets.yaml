@@ -480,32 +480,4 @@ Tau_Run2025G_v1:
   nanoAOD:
     PromptReco: /Tau/Run2025G-PromptReco-v1/NANOAOD
 
-# MC Samples: https://cms-pdmv-prod.web.cern.ch/grasp/samples?campaign=Run3Winter25*GS 
-############## amcatnloFXFX ##############
-############## DYto2L ##############
-DYto2E_M_50_amcatnloFXFX:
-  crossSection: DY_NNLO_QCD+NLO_EW
-  generator: amcatnlo
-  miniAOD:
-  nanoAOD:
-    Winter25: /DYTo2L-2Jets_Par-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Winter25NanoAOD-142X_mcRun3_2025_realistic_v7-v2/NANOAODSIM
-DYto2Mu_M_50_amcatnloFXFX:
-  crossSection: DY_NNLO_QCD+NLO_EW
-  generator: amcatnlo
-  miniAOD:
-  nanoAOD:
-    Winter25: /DYTo2L-2Jets_Par-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Winter25NanoAOD-142X_mcRun3_2025_realistic_v7-v2/NANOAODSIM
-DYto2Tau_M_50_amcatnloFXFX:
-  crossSection: DY_NNLO_QCD+NLO_EW
-  generator: amcatnlo
-  miniAOD:
-  nanoAOD:
-    Winter25: /DYTo2L-2Jets_Par-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Winter25NanoAOD-142X_mcRun3_2025_realistic_v7-v2/NANOAODSIM
-########## Jet Binned #######
-
-DYto2E_M_50_1J_MadgraphMLM:
-  crossSection: DYto2L_M_50_1J_amcatnloFXFX # should be changed..
-  generator: Madgraph
-  miniAOD:
-  nanoAOD:
-    Winter25: /DYTo2L-4Jets_Par-1J-MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Winter25NanoAOD-142X_mcRun3_2025_realistic_v7-v2/NANOAODSIM
+# MC Samples: https://cms-pdmv-prod.web.cern.ch/grasp/samples?campaign=Run3Winter25*GS

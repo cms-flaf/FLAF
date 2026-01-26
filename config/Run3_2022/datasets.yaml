@@ -65,7 +65,7 @@ JetMET_Run2022D:
     22Sep23: /JetMET/Run2022D-22Sep2023-v1/NANOAOD
     19Dec23: /JetMET/Run2022D-19Dec2023-v1/NANOAOD
     v15: /JetMET/Run2022D-NanoAODv15-v1/NANOAOD
-# MC samples: https://cms-pdmv-prod.web.cern.ch/grasp/samples?campaign=Run3Summer22*GS 
+# MC samples: https://cms-pdmv-prod.web.cern.ch/grasp/samples?campaign=Run3Summer22*GS
 ############## DY ##############
 ############## powheg ##############
 ############## DYto2E ##############

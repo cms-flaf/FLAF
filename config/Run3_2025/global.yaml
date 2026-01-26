@@ -11,4 +11,4 @@ MET_flags:  # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersR
   - Flag_hfNoisyHitsFilter
   - Flag_eeBadScFilter
   - Flag_ecalBadCalibFilter
-lumiFile: Corrections/data/golden_json/Cert_Collisions2025_391658_398903_Golden.json # copied from twiki instructions on where to find golden jsons https://twiki.cern.ch/twiki/bin/viewauth/CMS/PdmVRun3Analysis#2025_Era_definition 
+lumiFile: Corrections/data/golden_json/Cert_Collisions2025_391658_398903_Golden.json # copied from twiki instructions on where to find golden jsons https://twiki.cern.ch/twiki/bin/viewauth/CMS/PdmVRun3Analysis#2025_Era_definition

@@ -63,7 +63,7 @@ These run automatically on PRs to `main`:
 2. **repo-sanity-checks.yaml**: Checks for binary files (must use git LFS), calculates repo size delta
 3. **ds-consistency-check.yaml**: Validates `config/*/samples.yaml` files with:
    ```bash
-   python3 test/checkDatasetConfigConsistency.py --exception config/dataset_exceptions.yaml Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix
+   python3 test/checkDatasetConfigConsistency.py --exception config/dataset_exceptions.yaml Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024
    ```
 4. **trigger-flaf-integration.yaml**: Triggers GitLab integration pipeline via `@cms-flaf-bot test` comments
 

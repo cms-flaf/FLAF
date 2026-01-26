@@ -465,8 +465,8 @@ DYto2Mu_M_50_PTLL_600_1J_amcatnloFXFX:
 #   crossSection: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
 #   generator: amcatnlo
 #   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v1/MINIAODSIM
-  nanoAOD:
-    v12: /DYto2L-2Jets_MLL-50_PTLL-600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v1/NANOAODSIM
+  # nanoAOD:
+  #   v12: /DYto2L-2Jets_MLL-50_PTLL-600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v1/NANOAODSIM
 #   dirName: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
 #   fileNamePattern: ^nanoTauTau_\d+\.root$
 DYto2E_M_50_PTLL_600_2J_amcatnloFXFX:

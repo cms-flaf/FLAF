@@ -214,7 +214,7 @@ def createAnalysisCache(
                 centralTree = tree
                 centralCaches = cacheTrees
             ROOT.RDF.Experimental.AddProgressBar(df_orig)
-            
+
             if saveAs == "root":
                 dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
                 tmp_fileName = f"{fullTreeName}.root"
@@ -241,7 +241,6 @@ def createAnalysisCache(
             else:
                 raise NotImplementedError(f"Unsupported output format `{saveAs}`.")
 
-            tmp_fileName = fullTreeName
             run_producer(
                 producer,
                 dfw,

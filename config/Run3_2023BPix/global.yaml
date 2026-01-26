@@ -3,6 +3,9 @@ luminosity: 9693.0  # pb-1
 fs_nanoAOD:
   - 'T2_CH_CERN:/store/group/phys_higgs/HLepRare/skim_2025_v1/Run3_2023BPix'
 nano_version: v14
+nanoAODVersions:
+  data: 22Sep23
+  mc: v12
 crossSectionsFile: FLAF/config/crossSections13p6TeV.yaml
 use_stitching: false
 met_type: PFMET

@@ -1,4 +1,4 @@
-############## DY ##############
+############## data ##############
 EGamma0_Run2023D_v1:
   nanoAOD:
     22Sep23: /EGamma0/Run2023D-22Sep2023_v1-v1/NANOAOD
@@ -145,6 +145,7 @@ Tau_Run2023D_v2:
   nanoAOD:
     22Sep23: /Tau/Run2023D-22Sep2023_v2-v1/NANOAOD
     v15: /Tau/Run2023D-NanoAODv15_v2-v1/NANOAOD
+# MC samples: https://cms-pdmv-prod.web.cern.ch/grasp/samples?campaign=Run3Summer23*GS 
 ############## powheg ##############
 ############## DYto2E ##############
 DYto2E_MLL_10to50_powheg:

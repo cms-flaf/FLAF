@@ -207,6 +207,7 @@ Tau_Run2023C_v4:
   nanoAOD:
     22Sep23: /Tau/Run2023C-22Sep2023_v4-v1/NANOAOD
     v15: /Tau/Run2023C-NanoAODv15_v4-v1/NANOAOD
+# MC samples: https://cms-pdmv-prod.web.cern.ch/grasp/samples?campaign=Run3Summer23*GS 
 ############## DY ##############
 ############## powheg ##############
 ############## DYto2E ##############

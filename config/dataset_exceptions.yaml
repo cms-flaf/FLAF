@@ -82,7 +82,15 @@ TTZ_Zto2Q:
   - Run3_2023BPix
 TTWZ:
   - Run3_2022
-
+^TTZ(Z|H)_Z(Z|H)to4B:
+  - Run3_2022
+  - Run3_2022EE
+  - Run3_2023
+  - Run3_2023BPix
+TTZZ:
+  - Run3_2024
+TTZH:
+  - Run3_2024
 # VBF
 VBFHto2Tau_M125:
   - Run3_2022EE

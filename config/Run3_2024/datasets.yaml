@@ -1677,12 +1677,12 @@ TTWZ:
   generator: madgraph
   nanoAOD:
     v15: /TTWZ_TuneCP5_13p6TeV_madgraph-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-TTZH:
+TTZH_ZHto4B:
   crossSection: TTZH_ZHto4B
   generator: madgraph
   nanoAOD:
     v15: /TTZH-ZHto4B_TuneCP5_13p6TeV_madgraph-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-TTZZ:
+TTZZ_ZZto4B:
   crossSection: TTZZ_ZZto4B
   generator: madgraph
   nanoAOD:

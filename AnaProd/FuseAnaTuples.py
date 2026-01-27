@@ -153,7 +153,7 @@ def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose
             n_events_valid = 0
             os.makedirs(os.path.dirname(out_full_name), exist_ok=True)
             df = ROOT.RDataFrame(tree_name, input["file_name"])
-            df = df.Define('valid', 'true')
+            df = df.Define("valid", "true")
             df.Snapshot(tree_name, out_full_name)
         if verbose > 0:
             print(

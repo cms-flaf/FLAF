@@ -187,7 +187,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             dataset_type,
             input_file_list,
             output_file_list,
+            skip_future_tasks,
         ) in anaProd_branch_map.items():
+            if skip_future_tasks:
+                continue
             if dataset_name not in datasets_to_consider:
                 continue
 
@@ -808,7 +811,10 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             process_group,
             input_file_list,
             output_file_list,
+            skip_future_tasks,
         ) in anaProd_branch_map.items():
+            if skip_future_tasks:
+                continue
             branches[br_idx] = (dataset_name, process_group, len(output_file_list))
         return branches
 

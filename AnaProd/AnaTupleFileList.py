@@ -29,6 +29,7 @@ if __name__ == "__main__":
     input_file_list = []
     output_file_list = []
     # hadd_dict[f'anaTuple_{nFileCounter}.root'] = []
+    nDataEventsCounter = 0
     for this_json in all_files:
         with open(this_json, "r") as file:
             data = json.load(file)
@@ -42,12 +43,19 @@ if __name__ == "__main__":
             if nEventsCounter > args.nEventsPerFile and not args.isData:
                 output_file_list.append(f"anaTuple_{nFileCounter}.root")
                 hadd_dict["merge_strategy"].append(
-                    {"inputs": input_file_list, "outputs": output_file_list}
+                    {
+                        "inputs": input_file_list,
+                        "outputs": output_file_list,
+                        "n_events": nEventsCounter,
+                    }
                 )
                 nEventsCounter = 0
                 nFileCounter += 1
                 output_file_list = []
                 input_file_list = []
+
+            if args.isData:
+                nDataEventsCounter += nEvents
 
     # Append whatever is leftover
     if len(input_file_list) > 0 and not args.isData:
@@ -55,7 +63,11 @@ if __name__ == "__main__":
         output_file_list.append(f"anaTuple_{nFileCounter}.root")
         nFileCounter += 1
         hadd_dict["merge_strategy"].append(
-            {"inputs": input_file_list, "outputs": output_file_list}
+            {
+                "inputs": input_file_list,
+                "outputs": output_file_list,
+                "n_events": nEventsCounter,
+            }
         )
         input_file_list = []
         output_file_list = []
@@ -72,7 +84,11 @@ if __name__ == "__main__":
             for nFileCounter in range(nFiles):
                 output_file_list.append(f"anaTuple_{nFileCounter}.root")
             hadd_dict["merge_strategy"].append(
-                {"inputs": input_file_list, "outputs": output_file_list}
+                {
+                    "inputs": input_file_list,
+                    "outputs": output_file_list,
+                    "n_events": nDataEventsCounter,
+                }
             )
         else:
             raise ValueError(

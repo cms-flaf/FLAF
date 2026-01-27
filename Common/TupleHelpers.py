@@ -2,6 +2,7 @@ import uproot
 import awkward as ak
 import os
 import re
+import ROOT
 
 
 def parseColumnName(column_name):
@@ -153,6 +154,16 @@ def copyFileContent(
         else uproot.recreate
     )
     histograms = {}
+    to_store_with_rdf = []
+    snapshotOptions = ROOT.RDF.RSnapshotOptions()
+    snapshotOptions.fOverwriteIfExists = True
+    snapshotOptions.fLazy = False
+    snapshotOptions.fMode = "RECREATE"
+    snapshotOptions.fCompressionAlgorithm = (
+        ROOT.ROOT.RCompressionSetting.EAlgorithm.kZLIB
+    )
+    snapshotOptions.fCompressionLevel = 4
+
     with open_fn(outputFile, compression=compression) as output_file:
         for input in inputs:
             copyInputTrees = input["copyTrees"]
@@ -193,16 +204,26 @@ def copyFileContent(
                         else:
                             histograms[out_name] = (obj, False)
                     else:
-                        for arrays in obj.iterate(step_size=step_size):
-                            groupped_arrays = defineColumnGrouping(
-                                arrays, obj.keys(), verbose=min(0, verbose - 1)
+                        if obj.num_entries > 0:
+                            for arrays in obj.iterate(step_size=step_size):
+                                groupped_arrays = defineColumnGrouping(
+                                    arrays, obj.keys(), verbose=min(0, verbose - 1)
+                                )
+                                if out_name in output_file:
+                                    output_file[out_name].extend(groupped_arrays)
+                                else:
+                                    output_file[out_name] = groupped_arrays
+                        else:
+                            to_store_with_rdf.append(
+                                (input["file"], input_object_name, out_name)
                             )
-                            if out_name in output_file:
-                                output_file[out_name].extend(groupped_arrays)
-                            else:
-                                output_file[out_name] = groupped_arrays
         for hist_name, (hist, _) in histograms.items():
             output_file[hist_name] = hist
+
+    for input_file_name, input_name, out_name in to_store_with_rdf:
+        df = ROOT.RDataFrame(input_name, input_file_name)
+        # set snapshot options to update the file
+        df.Snapshot(out_name, outputFile)
 
 
 if __name__ == "__main__":

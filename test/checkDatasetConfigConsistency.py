@@ -77,24 +77,38 @@ def get_xs_value(xs_def):
     return xs_value
 
 
+must_have_properties = {
+    "MC": ["crossSection", "generator"],
+    "data": ["eraLetter"],
+}
+
+
+def getDatasetType(desc):
+    for key, values in must_have_properties.items():
+        for item in values:
+            if item in desc:
+                return key
+    return "UNKNOWN"
+
+
 def check_era_consistency(era, era_desc, xs_db):
     all_ok = True
     sources = {}
     for name, desc in era_desc["datasets"].items():
-        sampleType = desc.get("sampleType", "MC")
-        expected_properties = [
-            "sampleType",
+        datasetType = getDatasetType(desc)
+        expected_properties_common = [
             "miniAOD",
             "nanoAOD",
             "dirName",
             "fileNamePattern",
         ]
-        if sampleType == "MC":
-            expected_properties += ["crossSection", "generator", "miniAOD", "nanoAOD"]
-        elif sampleType != "data":
-            print(f"{era}/{name}: unknown sampleType '{sampleType}'.")
+        if datasetType not in must_have_properties:
+            print(f"{era}/{name}: unknown datasetType '{datasetType}'.")
             all_ok = False
             continue
+        expected_properties = (
+            expected_properties_common + must_have_properties[datasetType]
+        )
         for item in desc:
             if item not in expected_properties:
                 print(f"{era}/{name}: unexpected property '{item}'.")
@@ -105,14 +119,14 @@ def check_era_consistency(era, era_desc, xs_db):
         if source_key not in sources:
             sources[source_key] = []
         sources[source_key].append(name)
-        if sampleType == "MC":
-            must_have_properties = ["crossSection", "generator"]
-            for item in must_have_properties:
-                if item not in desc:
-                    print(
-                        f"{era}/{name}: missing required property '{item}' for MC sample."
-                    )
-                    all_ok = False
+
+        for item in must_have_properties[datasetType]:
+            if item not in desc:
+                print(
+                    f"{era}/{name}: missing required property '{item}' for {datasetType} dataset."
+                )
+                all_ok = False
+        if datasetType == "MC":
             if "crossSection" in desc:
                 xs_name = desc["crossSection"]
                 if xs_name not in xs_db:
@@ -127,19 +141,6 @@ def check_era_consistency(era, era_desc, xs_db):
                             f"{era}/{name}: crossSection '{xs_name}' entry missing 'crossSec' field."
                         )
                         all_ok = False
-                        continue
-                    xs_value_def = xs_entry["crossSec"]
-                    xs_value = get_xs_value(xs_value_def)
-                    if xs_value is None:
-                        print(
-                            f"{era}/{name}: crossSection '{xs_name}' has non-numeric value '{xs_value_def}'."
-                        )
-                        all_ok = False
-                    elif xs_value <= 0:
-                        print(
-                            f"{era}/{name}: crossSection '{xs_name}' has non-positive value '{xs_value}'."
-                        )
-                        all_ok = False
     for source_key, ds_names in sources.items():
         if len(ds_names) > 1:
             dirName, fileNamePattern = source_key
@@ -152,20 +153,20 @@ def check_era_consistency(era, era_desc, xs_db):
 
 
 def check_dataset_consistency(ds_name, ds_eras_dict, all_eras, exception_matcher):
-    sampleTypes = {}
+    datasetTypes = {}
     for era, ds_desc in ds_eras_dict.items():
-        sampleType = ds_desc.get("sampleType", "MC")
-        if sampleType not in sampleTypes:
-            sampleTypes[sampleType] = []
-        sampleTypes[sampleType].append(era)
-    if len(sampleTypes) > 1:
-        sampleType_str = ", ".join(
-            [f'{k} (in {", ".join(v)})' for k, v in sampleTypes.items()]
+        datasetType = getDatasetType(ds_desc)
+        if datasetType not in datasetTypes:
+            datasetTypes[datasetType] = []
+        datasetTypes[datasetType].append(era)
+    if len(datasetTypes) > 1:
+        datasetType_str = ", ".join(
+            [f'{k} (in {", ".join(v)})' for k, v in datasetTypes.items()]
         )
-        print(f"{ds_name}: inconsistent sampleTypes: {sampleType_str}")
+        print(f"{ds_name}: inconsistent datasetTypes: {datasetType_str}")
         return False
-    sampleType = list(sampleTypes.keys())[0]
-    is_data = sampleType == "data"
+    datasetType = list(datasetTypes.keys())[0]
+    is_data = datasetType == "data"
     if not is_data:
         crossSections = {}
         for era, ds_desc in ds_eras_dict.items():
@@ -238,13 +239,11 @@ def check_consistency(eras, exceptions_file):
             all_ok = False
             continue
         era_dict[era] = {}
-        era_dict[era]["file_name"] = f"config/{era}/samples.yaml"
+        era_dict[era]["file_name"] = f"config/{era}/datasets.yaml"
         with open(era_dict[era]["file_name"], "r") as f:
-            datasets = yaml.safe_load(f)
-        era_dict[era]["datasets"] = {
-            name: desc for name, desc in datasets.items() if name != "GLOBAL"
-        }
-        era_dict[era]["GLOBAL"] = datasets["GLOBAL"]
+            era_dict[era]["datasets"] = yaml.safe_load(f)
+        with open(f"config/{era}/global.yaml", "r") as f:
+            era_dict[era]["GLOBAL"] = yaml.safe_load(f)
         xs_file = era_dict[era]["GLOBAL"]["crossSectionsFile"]
         if xs_file.startswith("FLAF/"):
             xs_file = xs_file[5:]

@@ -1,241 +1,2111 @@
 ############## data ##############
+EGamma0_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /EGamma0/Run2024A-PromptReco-v1/NANOAOD
+EGamma0_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /EGamma0/Run2024B-PromptReco-v1/NANOAOD
+EGamma0_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /EGamma0/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /EGamma0/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /EGamma0/Run2024C-MINIv6NANOv15-v1/NANOAOD
+EGamma0_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /EGamma0/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /EGamma0/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /EGamma0/Run2024D-MINIv6NANOv15-v1/NANOAOD
+EGamma0_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /EGamma0/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /EGamma0/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /EGamma0/Run2024E-MINIv6NANOv15-v1/NANOAOD
+EGamma0_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /EGamma0/Run2024E-PromptReco-v2/NANOAOD
+EGamma0_Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /EGamma0/Run2024F-PromptReco-v1/NANOAOD
+    v15: /EGamma0/Run2024F-MINIv6NANOv15-v1/NANOAOD
+EGamma0_Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /EGamma0/Run2024G-PromptReco-v1/NANOAOD
+    v15: /EGamma0/Run2024G-MINIv6NANOv15-v2/NANOAOD
+EGamma0_Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /EGamma0/Run2024H-PromptReco-v1/NANOAOD
+    v15: /EGamma0/Run2024H-MINIv6NANOv15-v2/NANOAOD
+/EGamma0/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /EGamma0/Run2024I-PromptReco-v1/NANOAOD
+    v15: /EGamma0/Run2024I-MINIv6NANOv15-v1/NANOAOD
+/EGamma0/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /EGamma0/Run2024I-PromptReco-v2/NANOAOD
+    v15: /EGamma0/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
+EGamma0_Run2024J:
+  eraLetter: J
+  nanoAOD:
+    PromptReco: /EGamma0/Run2024J-PromptReco-v1/NANOAOD
+EGamma1_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /EGamma1/Run2024A-PromptReco-v1/NANOAOD
+EGamma1_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /EGamma1/Run2024B-PromptReco-v1/NANOAOD
+EGamma1_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /EGamma1/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /EGamma1/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /EGamma1/Run2024C-MINIv6NANOv15-v1/NANOAOD
+EGamma1_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /EGamma1/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /EGamma1/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /EGamma1/Run2024D-MINIv6NANOv15-v1/NANOAOD
+EGamma1_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /EGamma1/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /EGamma1/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /EGamma1/Run2024E-MINIv6NANOv15-v1/NANOAOD
+EGamma1_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /EGamma1/Run2024E-PromptReco-v2/NANOAOD
+EGamma1_Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /EGamma1/Run2024F-PromptReco-v1/NANOAOD
+    v15: /EGamma1/Run2024F-MINIv6NANOv15-v1/NANOAOD
+EGamma1_Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /EGamma1/Run2024G-PromptReco-v1/NANOAOD
+    v15: /EGamma1/Run2024G-MINIv6NANOv15-v2/NANOAOD
+EGamma1_Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /EGamma1/Run2024H-PromptReco-v1/NANOAOD
+    v15: /EGamma1/Run2024H-MINIv6NANOv15-v2/NANOAOD
+/EGamma1/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /EGamma1/Run2024I-PromptReco-v1/NANOAOD
+    v15: /EGamma1/Run2024I-MINIv6NANOv15-v1/NANOAOD
+/EGamma1/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /EGamma1/Run2024I-PromptReco-v2/NANOAOD
+    v15: /EGamma1/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
+EGamma1_Run2024J:
+  eraLetter: J
+  nanoAOD:
+    PromptReco: /EGamma1/Run2024J-PromptReco-v1/NANOAOD
+JetMET0_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /JetMET0/Run2024A-PromptReco-v1/NANOAOD
+JetMET0_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /JetMET0/Run2024B-PromptReco-v1/NANOAOD
+JetMET0_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /JetMET0/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /JetMET0/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /JetMET0/Run2024C-MINIv6NANOv15-v1/NANOAOD
+JetMET0_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /JetMET0/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /JetMET0/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /JetMET0/Run2024D-MINIv6NANOv15-v1/NANOAOD
+JetMET0_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /JetMET0/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /JetMET0/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /JetMET0/Run2024E-MINIv6NANOv15-v1/NANOAOD
+JetMET0_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /JetMET0/Run2024E-PromptReco-v2/NANOAOD
+JetMET0_Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /JetMET0/Run2024F-PromptReco-v1/NANOAOD
+    v15: /JetMET0/Run2024F-MINIv6NANOv15-v1/NANOAOD
+JetMET0_Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /JetMET0/Run2024G-PromptReco-v1/NANOAOD
+    v15: /JetMET0/Run2024G-MINIv6NANOv15-v2/NANOAOD
+JetMET0_Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /JetMET0/Run2024H-PromptReco-v1/NANOAOD
+    v15: /JetMET0/Run2024H-MINIv6NANOv15-v2/NANOAOD
+/JetMET0/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /JetMET0/Run2024I-PromptReco-v1/NANOAOD
+    v15: /JetMET0/Run2024I-MINIv6NANOv15-v1/NANOAOD
+/JetMET0/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /JetMET0/Run2024I-PromptReco-v2/NANOAOD
+    v15: /JetMET0/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
+JetMET0_Run2024J:
+  eraLetter: J
+  nanoAOD:
+    PromptReco: /JetMET0/Run2024J-PromptReco-v1/NANOAOD
+JetMET1_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /JetMET1/Run2024A-PromptReco-v1/NANOAOD
+JetMET1_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /JetMET1/Run2024B-PromptReco-v1/NANOAOD
+JetMET1_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /JetMET1/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /JetMET1/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /JetMET1/Run2024C-MINIv6NANOv15-v1/NANOAOD
+JetMET1_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /JetMET1/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /JetMET1/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /JetMET1/Run2024D-MINIv6NANOv15-v1/NANOAOD
+JetMET1_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /JetMET1/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /JetMET1/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /JetMET1/Run2024E-MINIv6NANOv15-v1/NANOAOD
+JetMET1_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /JetMET1/Run2024E-PromptReco-v2/NANOAOD
+JetMET1_Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /JetMET1/Run2024F-PromptReco-v1/NANOAOD
+    v15: /JetMET1/Run2024F-MINIv6NANOv15-v1/NANOAOD
+JetMET1_Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /JetMET1/Run2024G-PromptReco-v1/NANOAOD
+    v15: /JetMET1/Run2024G-MINIv6NANOv15-v2/NANOAOD
+JetMET1_Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /JetMET1/Run2024H-PromptReco-v1/NANOAOD
+    v15: /JetMET1/Run2024H-MINIv6NANOv15-v2/NANOAOD
+/JetMET1/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /JetMET1/Run2024I-PromptReco-v1/NANOAOD
+    v15: /JetMET1/Run2024I-MINIv6NANOv15-v1/NANOAOD
+/JetMET1/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /JetMET1/Run2024I-PromptReco-v2/NANOAOD
+    v15: /JetMET1/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
+JetMET1_Run2024J:
+  eraLetter: J
+  nanoAOD:
+    PromptReco: /JetMET1/Run2024J-PromptReco-v1/NANOAOD
+Muon0_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /Muon0/Run2024A-PromptReco-v1/NANOAOD
+Muon0_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /Muon0/Run2024B-PromptReco-v1/NANOAOD
 Muon0_Run2024C:
-  nanoAOD: /Muon0/Run2024C-MINIv6NANOv15-v1/NANOAOD
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /Muon0/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /Muon0/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /Muon0/Run2024C-MINIv6NANOv15-v1/NANOAOD
 Muon0_Run2024D:
-  nanoAOD: /Muon0/Run2024D-MINIv6NANOv15-v1/NANOAOD
-Muon0_Run2024E:
-  nanoAOD: /Muon0/Run2024E-MINIv6NANOv15-v1/NANOAOD
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /Muon0/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /Muon0/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /Muon0/Run2024D-MINIv6NANOv15-v1/NANOAOD
+Muon0_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /Muon0/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /Muon0/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /Muon0/Run2024E-MINIv6NANOv15-v1/NANOAOD
+Muon0_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /Muon0/Run2024E-PromptReco-v2/NANOAOD
 Muon0_Run2024F:
-  nanoAOD: /Muon0/Run2024F-MINIv6NANOv15-v1/NANOAOD
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /Muon0/Run2024F-PromptReco-v1/NANOAOD
+    v15: /Muon0/Run2024F-MINIv6NANOv15-v1/NANOAOD
 Muon0_Run2024G:
-  nanoAOD: /Muon0/Run2024G-MINIv6NANOv15-v1/NANOAOD
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /Muon0/Run2024G-PromptReco-v1/NANOAOD
+    v15: /Muon0/Run2024G-MINIv6NANOv15-v2/NANOAOD
 Muon0_Run2024H:
-  nanoAOD: /Muon0/Run2024H-MINIv6NANOv15-v1/NANOAOD
-Muon0_Run2024I_v1:
-  nanoAOD: /Muon0/Run2024I-MINIv6NANOv15-v1/NANOAOD
-Muon0_Run2024I_v2:
-  nanoAOD: /Muon0/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /Muon0/Run2024H-PromptReco-v1/NANOAOD
+    v15: /Muon0/Run2024H-MINIv6NANOv15-v2/NANOAOD
+/Muon0/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /Muon0/Run2024I-PromptReco-v1/NANOAOD
+    v15: /Muon0/Run2024I-MINIv6NANOv15-v1/NANOAOD
+/Muon0/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /Muon0/Run2024I-PromptReco-v2/NANOAOD
+    v15: /Muon0/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
+Muon0_Run2024J:
+  eraLetter: J
+  nanoAOD:
+    PromptReco: /Muon0/Run2024J-PromptReco-v1/NANOAOD
+Muon1_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /Muon1/Run2024A-PromptReco-v1/NANOAOD
+Muon1_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /Muon1/Run2024B-PromptReco-v1/NANOAOD
 Muon1_Run2024C:
-  nanoAOD: /Muon1/Run2024C-MINIv6NANOv15-v1/NANOAOD
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /Muon1/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /Muon1/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /Muon1/Run2024C-MINIv6NANOv15-v1/NANOAOD
 Muon1_Run2024D:
-  nanoAOD: /Muon1/Run2024D-MINIv6NANOv15-v1/NANOAOD
-Muon1_Run2024E:
-  nanoAOD: /Muon1/Run2024E-MINIv6NANOv15-v1/NANOAOD
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /Muon1/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /Muon1/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /Muon1/Run2024D-MINIv6NANOv15-v1/NANOAOD
+Muon1_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /Muon1/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /Muon1/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /Muon1/Run2024E-MINIv6NANOv15-v1/NANOAOD
+Muon1_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /Muon1/Run2024E-PromptReco-v2/NANOAOD
 Muon1_Run2024F:
-  nanoAOD: /Muon1/Run2024F-MINIv6NANOv15-v1/NANOAOD
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /Muon1/Run2024F-PromptReco-v1/NANOAOD
+    v15: /Muon1/Run2024F-MINIv6NANOv15-v1/NANOAOD
 Muon1_Run2024G:
-  nanoAOD: /Muon1/Run2024G-MINIv6NANOv15-v2/NANOAOD
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /Muon1/Run2024G-PromptReco-v1/NANOAOD
+    v15: /Muon1/Run2024G-MINIv6NANOv15-v2/NANOAOD
 Muon1_Run2024H:
-  nanoAOD: /Muon1/Run2024H-MINIv6NANOv15-v2/NANOAOD
-Muon1_Run2024I_v1:
-  nanoAOD: /Muon1/Run2024I-MINIv6NANOv15-v1/NANOAOD
-Muon1_Run2024I_v2:
-  nanoAOD: /Muon1/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /Muon1/Run2024H-PromptReco-v1/NANOAOD
+    v15: /Muon1/Run2024H-MINIv6NANOv15-v2/NANOAOD
+/Muon1/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /Muon1/Run2024I-PromptReco-v1/NANOAOD
+    v15: /Muon1/Run2024I-MINIv6NANOv15-v1/NANOAOD
+/Muon1/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /Muon1/Run2024I-PromptReco-v2/NANOAOD
+    v15: /Muon1/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
+Muon1_Run2024J:
+  eraLetter: J
+  nanoAOD:
+    PromptReco: /Muon1/Run2024J-PromptReco-v1/NANOAOD
+MuonEG_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /MuonEG/Run2024A-PromptReco-v1/NANOAOD
+MuonEG_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /MuonEG/Run2024B-PromptReco-v1/NANOAOD
+MuonEG_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /MuonEG/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /MuonEG/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /MuonEG/Run2024C-MINIv6NANOv15-v1/NANOAOD
+MuonEG_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /MuonEG/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /MuonEG/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /MuonEG/Run2024D-MINIv6NANOv15-v1/NANOAOD
+MuonEG_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /MuonEG/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /MuonEG/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /MuonEG/Run2024E-MINIv6NANOv15-v1/NANOAOD
+MuonEG_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /MuonEG/Run2024E-PromptReco-v2/NANOAOD
+MuonEG_Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /MuonEG/Run2024F-PromptReco-v1/NANOAOD
+    v15: /MuonEG/Run2024F-MINIv6NANOv15-v1/NANOAOD
+MuonEG_Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /MuonEG/Run2024G-PromptReco-v1/NANOAOD
+    v15: /MuonEG/Run2024G-MINIv6NANOv15-v2/NANOAOD
+MuonEG_Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /MuonEG/Run2024H-PromptReco-v1/NANOAOD
+    v15: /MuonEG/Run2024H-MINIv6NANOv15-v2/NANOAOD
+/MuonEG/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /MuonEG/Run2024I-PromptReco-v1/NANOAOD
+    v15: /MuonEG/Run2024I-MINIv6NANOv15-v1/NANOAOD
+/MuonEG/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /MuonEG/Run2024I-PromptReco-v2/NANOAOD
+    v15: /MuonEG/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
+MuonEG_Run2024J:
+  eraLetter: J
+  nanoAOD:
+    PromptReco: /MuonEG/Run2024J-PromptReco-v1/NANOAOD
+ParkingHH_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /ParkingHH/Run2024A-PromptReco-v1/NANOAOD
+ParkingHH_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /ParkingHH/Run2024B-PromptReco-v1/NANOAOD
+ParkingHH_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /ParkingHH/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingHH/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingHH/Run2024C-MINIv6NANOv15-v1/NANOAOD
+ParkingHH_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /ParkingHH/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingHH/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingHH/Run2024D-MINIv6NANOv15-v1/NANOAOD
+ParkingHH_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingHH/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingHH/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingHH/Run2024E-MINIv6NANOv15-v1/NANOAOD
+ParkingHH_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingHH/Run2024E-PromptReco-v2/NANOAOD
+ParkingHH_Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /ParkingHH/Run2024F-PromptReco-v1/NANOAOD
+    v15: /ParkingHH/Run2024F-MINIv6NANOv15-v4/NANOAOD
+ParkingHH_Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /ParkingHH/Run2024G-PromptReco-v1/NANOAOD
+    v15: /ParkingHH/Run2024G-MINIv6NANOv15-v3/NANOAOD
+ParkingHH_Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /ParkingHH/Run2024H-PromptReco-v1/NANOAOD
+    v15: /ParkingHH/Run2024H-MINIv6NANOv15-v3/NANOAOD
+/ParkingHH/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingHH/Run2024I-PromptReco-v1/NANOAOD
+    v15:  /ParkingHH/Run2024I-MINIv6NANOv15-v3/NANOAOD
+/ParkingHH/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingHH/Run2024I-PromptReco-v2/NANOAOD
+    v15: /ParkingHH/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
+ParkingVBF0_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /ParkingVBF0/Run2024A-PromptReco-v1/NANOAOD
+ParkingVBF0_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /ParkingVBF0/Run2024B-PromptReco-v1/NANOAOD
+ParkingVBF0_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /ParkingVBF0/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF0/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF0/Run2024C-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF0_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /ParkingVBF0/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF0/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF0/Run2024D-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF0/Run2024E:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF0/Run2024E-PromptReco-v2/NANOAOD
+    CDEReprocessing: /ParkingVBF0/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF0/Run2024E-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF0/Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /ParkingVBF0/Run2024F-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF0/Run2024F-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF0/Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /ParkingVBF0/Run2024G-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF0/Run2024G-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF0/Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /ParkingVBF0/Run2024H-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF0/Run2024H-MINIv6NANOv15-v2/NANOAOD
+ParkingVBF0/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF0/Run2024I-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF0/Run2024I-MINIv6NANOv15-v2/NANOAOD
+ParkingVBF0/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF0/Run2024I-PromptReco-v2/NANOAOD
+    v15: /ParkingVBF0/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
+ParkingVBF1_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /ParkingVBF1/Run2024A-PromptReco-v1/NANOAOD
+ParkingVBF1_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /ParkingVBF1/Run2024B-PromptReco-v1/NANOAOD
+ParkingVBF1_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /ParkingVBF1/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF1/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF1/Run2024C-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF1_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /ParkingVBF1/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF1/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF1/Run2024D-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF1_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF1/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF1/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF1/Run2024E-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF1_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF1/Run2024E-PromptReco-v2/NANOAOD
+ParkingVBF1_Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /ParkingVBF1/Run2024F-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF1/Run2024F-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF1_Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /ParkingVBF1/Run2024G-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF1/Run2024G-MINIv6NANOv15-v4/NANOAOD
+ParkingVBF1_Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /ParkingVBF1/Run2024H-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF1/Run2024H-MINIv6NANOv15-v3/NANOAOD
+/ParkingVBF1/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF1/Run2024I-PromptReco-v1/NANOAOD
+    v15:  /ParkingVBF1/Run2024I-MINIv6NANOv15-v3/NANOAOD
+/ParkingVBF1/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF1/Run2024I-PromptReco-v2/NANOAOD
+    v15: /ParkingVBF1/Run2024I-MINIv6NANOv15_v2-v3/NANOAOD
+ParkingVBF2_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /ParkingVBF2/Run2024A-PromptReco-v1/NANOAOD
+ParkingVBF2_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /ParkingVBF2/Run2024B-PromptReco-v1/NANOAOD
+ParkingVBF2_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /ParkingVBF2/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF2/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF2/Run2024C-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF2_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /ParkingVBF2/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF2/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF2/Run2024D-MINIv6NANOv15-v2/NANOAOD
+ParkingVBF2_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF2/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF2/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF2/Run2024E-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF2_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF2/Run2024E-PromptReco-v2/NANOAOD
+ParkingVBF2_Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /ParkingVBF2/Run2024F-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF2/Run2024F-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF2_Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /ParkingVBF2/Run2024G-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF2/Run2024G-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF2_Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /ParkingVBF2/Run2024H-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF2/Run2024H-MINIv6NANOv15-v3/NANOAOD
+/ParkingVBF2/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF2/Run2024I-PromptReco-v1/NANOAOD
+    v15:  /ParkingVBF2/Run2024I-MINIv6NANOv15-v3/NANOAOD
+/ParkingVBF2/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF2/Run2024I-PromptReco-v2/NANOAOD
+    v15: /ParkingVBF2/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
+ParkingVBF3_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /ParkingVBF3/Run2024A-PromptReco-v1/NANOAOD
+ParkingVBF3_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /ParkingVBF3/Run2024B-PromptReco-v1/NANOAOD
+ParkingVBF3_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /ParkingVBF3/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF3/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF3/Run2024C-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF3_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /ParkingVBF3/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF3/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF3/Run2024D-MINIv6NANOv15-v2/NANOAOD
+ParkingVBF3_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF3/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF3/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF3/Run2024E-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF3_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF3/Run2024E-PromptReco-v2/NANOAOD
+ParkingVBF3_Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /ParkingVBF3/Run2024F-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF3/Run2024F-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF3_Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /ParkingVBF3/Run2024G-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF3/Run2024G-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF3_Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /ParkingVBF3/Run2024H-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF3/Run2024H-MINIv6NANOv15-v3/NANOAOD
+/ParkingVBF3/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF3/Run2024I-PromptReco-v1/NANOAOD
+    v15:  /ParkingVBF3/Run2024I-MINIv6NANOv15-v3/NANOAOD
+/ParkingVBF3/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF3/Run2024I-PromptReco-v2/NANOAOD
+    v15: /ParkingVBF3/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
+ParkingVBF4_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /ParkingVBF4/Run2024A-PromptReco-v1/NANOAOD
+ParkingVBF4_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /ParkingVBF4/Run2024B-PromptReco-v1/NANOAOD
+ParkingVBF4_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /ParkingVBF4/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF4/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF4/Run2024C-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF4_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /ParkingVBF4/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF4/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF4/Run2024D-MINIv6NANOv15-v2/NANOAOD
+ParkingVBF4_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF4/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF4/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF4/Run2024E-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF4_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF4/Run2024E-PromptReco-v2/NANOAOD
+ParkingVBF4_Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /ParkingVBF4/Run2024F-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF4/Run2024F-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF4_Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /ParkingVBF4/Run2024G-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF4/Run2024G-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF4_Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /ParkingVBF4/Run2024H-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF4/Run2024H-MINIv6NANOv15-v3/NANOAOD
+/ParkingVBF4/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF4/Run2024I-PromptReco-v1/NANOAOD
+    v15:  /ParkingVBF4/Run2024I-MINIv6NANOv15-v3/NANOAOD
+/ParkingVBF4/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF4/Run2024I-PromptReco-v2/NANOAOD
+    v15: /ParkingVBF4/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
+ParkingVBF5_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /ParkingVBF5/Run2024A-PromptReco-v1/NANOAOD
+ParkingVBF5_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /ParkingVBF5/Run2024B-PromptReco-v1/NANOAOD
+ParkingVBF5_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /ParkingVBF5/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF5/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF5/Run2024C-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF5_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /ParkingVBF5/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF5/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF5/Run2024D-MINIv6NANOv15-v2/NANOAOD
+ParkingVBF5_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF5/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF5/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF5/Run2024E-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF5_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF5/Run2024E-PromptReco-v2/NANOAOD
+ParkingVBF5_Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /ParkingVBF5/Run2024F-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF5/Run2024F-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF5_Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /ParkingVBF5/Run2024G-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF5/Run2024G-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF5_Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /ParkingVBF5/Run2024H-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF5/Run2024H-MINIv6NANOv15-v3/NANOAOD
+/ParkingVBF5/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF5/Run2024I-PromptReco-v1/NANOAOD
+    v15:  /ParkingVBF5/Run2024I-MINIv6NANOv15-v3/NANOAOD
+/ParkingVBF5/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF5/Run2024I-PromptReco-v2/NANOAOD
+    v15: /ParkingVBF5/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
+ParkingVBF6_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /ParkingVBF6/Run2024A-PromptReco-v1/NANOAOD
+ParkingVBF6_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /ParkingVBF6/Run2024B-PromptReco-v1/NANOAOD
+ParkingVBF6_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /ParkingVBF6/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF6/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF6/Run2024C-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF6_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /ParkingVBF6/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF6/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF6/Run2024D-MINIv6NANOv15-v2/NANOAOD
+ParkingVBF6_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF6/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF6/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF6/Run2024E-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF6_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF6/Run2024E-PromptReco-v2/NANOAOD
+ParkingVBF6_Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /ParkingVBF6/Run2024F-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF6/Run2024F-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF6_Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /ParkingVBF6/Run2024G-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF6/Run2024G-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF6_Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /ParkingVBF6/Run2024H-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF6/Run2024H-MINIv6NANOv15-v3/NANOAOD
+/ParkingVBF6/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF6/Run2024I-PromptReco-v1/NANOAOD
+    v15:  /ParkingVBF6/Run2024I-MINIv6NANOv15-v3/NANOAOD
+/ParkingVBF6/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF6/Run2024I-PromptReco-v2/NANOAOD
+    v15: /ParkingVBF6/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
+ParkingVBF7_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /ParkingVBF7/Run2024A-PromptReco-v1/NANOAOD
+ParkingVBF7_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /ParkingVBF7/Run2024B-PromptReco-v1/NANOAOD
+ParkingVBF7_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /ParkingVBF7/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF7/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF7/Run2024C-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF7_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /ParkingVBF7/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF7/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF7/Run2024D-MINIv6NANOv15-v2/NANOAOD
+ParkingVBF7_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF7/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /ParkingVBF7/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /ParkingVBF7/Run2024E-MINIv6NANOv15-v1/NANOAOD
+ParkingVBF7_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /ParkingVBF7/Run2024E-PromptReco-v2/NANOAOD
+ParkingVBF7_Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /ParkingVBF7/Run2024F-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF7/Run2024F-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF7_Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /ParkingVBF7/Run2024G-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF7/Run2024G-MINIv6NANOv15-v3/NANOAOD
+ParkingVBF7_Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /ParkingVBF7/Run2024H-PromptReco-v1/NANOAOD
+    v15: /ParkingVBF7/Run2024H-MINIv6NANOv15-v3/NANOAOD
+/ParkingVBF7/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF7/Run2024I-PromptReco-v1/NANOAOD
+    v15:  /ParkingVBF7/Run2024I-MINIv6NANOv15-v3/NANOAOD
+/ParkingVBF7/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /ParkingVBF7/Run2024I-PromptReco-v2/NANOAOD
+    v15: /ParkingVBF7/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
+Tau_Run2024A:
+  eraLetter: A
+  nanoAOD:
+    PromptReco: /Tau/Run2024A-PromptReco-v1/NANOAOD
+Tau_Run2024B:
+  eraLetter: B
+  nanoAOD:
+    PromptReco: /Tau/Run2024B-PromptReco-v1/NANOAOD
+Tau_Run2024C:
+  eraLetter: C
+  nanoAOD:
+    PromptReco: /Tau/Run2024C-PromptReco-v1/NANOAOD
+    CDEReprocessing: /Tau/Run2024C-2024CDEReprocessing-v1/NANOAOD
+    v15: /Tau/Run2024C-MINIv6NANOv15-v1/NANOAOD
+Tau_Run2024D:
+  eraLetter: D
+  nanoAOD:
+    PromptReco: /Tau/Run2024D-PromptReco-v1/NANOAOD
+    CDEReprocessing: /Tau/Run2024D-2024CDEReprocessing-v1/NANOAOD
+    v15: /Tau/Run2024D-MINIv6NANOv15-v1/NANOAOD
+Tau_Run2024E_v1:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /Tau/Run2024E-PromptReco-v1/NANOAOD
+    CDEReprocessing: /Tau/Run2024E-2024CDEReprocessing-v1/NANOAOD
+    v15: /Tau/Run2024E-MINIv6NANOv15-v1/NANOAOD
+Tau_Run2024E_v2:
+  eraLetter: E
+  nanoAOD:
+    PromptReco: /Tau/Run2024E-PromptReco-v2/NANOAOD
+Tau_Run2024F:
+  eraLetter: F
+  nanoAOD:
+    PromptReco: /Tau/Run2024F-PromptReco-v1/NANOAOD
+    v15: /Tau/Run2024F-MINIv6NANOv15-v1/NANOAOD
+Tau_Run2024G:
+  eraLetter: G
+  nanoAOD:
+    PromptReco: /Tau/Run2024G-PromptReco-v1/NANOAOD
+    v15: /Tau/Run2024G-MINIv6NANOv15-v2/NANOAOD
+Tau_Run2024H:
+  eraLetter: H
+  nanoAOD:
+    PromptReco: /Tau/Run2024H-PromptReco-v1/NANOAOD
+    v15: /Tau/Run2024H-MINIv6NANOv15-v2/NANOAOD
+/Tau/Run2024I_v1:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /Tau/Run2024I-PromptReco-v1/NANOAOD
+    v15: /Tau/Run2024I-MINIv6NANOv15-v1/NANOAOD
+/Tau/Run2024I_v2:
+  eraLetter: I
+  nanoAOD:
+    PromptReco: /Tau/Run2024I-PromptReco-v2/NANOAOD
+    v15: /Tau/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
+Tau_Run2024J:
+  eraLetter: J
+  nanoAOD:
+    PromptReco: /Tau/Run2024J-PromptReco-v1/NANOAOD
+
 
 ############## amcatnloFXFX ##############
 ############## DYto2L ##############
+# DYto2E_M_50_amcatnloFXFX:
+#   crossSection: DYto2L_M_50_amcatnloFXFX
+#   generator: amcatnlo
+#   nanoAOD: /DYto2E-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v4/NANOAODSIM
+# DYto2Mu_M_50_amcatnloFXFX:
+#   crossSection: DYto2L_M_50_amcatnloFXFX
+#   generator: amcatnlo
+#   nanoAOD: /DYto2Mu-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v6/NANOAODSIM
+# DYto2Tau_M_50_amcatnloFXFX:
+#   crossSection: DYto2L_M_50_amcatnloFXFX
+#   generator: amcatnlo
+#   nanoAOD: /DYto2Tau-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v7/NANOAODSIM
+## DY et:
+# DY 4E
+DYto2E_M_50_0J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_0J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2E-2Jets_Bin-0J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_M_50_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2E-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/
+DYto2E_M_50_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2E-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+# DY 2Mu
+DYto2Mu_M_50_0J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_0J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2Mu-2Jets_Bin-0J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+# # FIXME still missing
+DYto2Mu_M_50_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2Mu-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_M_50_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2Mu-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+DYto2Tau_M_50_0J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_0J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2Tau-2Jets_Bin-0J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v4/NANOAODSIM
+
+DYto2Tau_M_50_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2Tau-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/  RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Tau_M_50_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2Tau-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+
+
+#### old ones ####
+# DYto2E012J_M_50_1J_amcatnloFXFX:
+#   crossSection: DYto2L_M_50_1J_amcatnloFXFX
+#   generator: amcatnlo
+#   nanoAOD:
+#     v15: /DYto2E-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+# DYto2E012J_M_50_2J_amcatnloFXFX:
+#   crossSection: DYto2L_M_50_2J_amcatnloFXFX
+#   generator: amcatnlo
+#   nanoAOD:
+#     v15: /DYto2E-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_M_10to50_amcatnloFXFX:
+  crossSection: DYto2L_M_10to50_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2E-2Jets_Bin-MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 DYto2E_M_50_amcatnloFXFX:
-  crossSection: DY_NNLO_QCD+NLO_EW
+  crossSection: DYto2L_M_50_amcatnloFXFX
   generator: amcatnlo
-  nanoAOD: /DYto2E-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v4/NANOAODSIM
-  miniAOD: /DYto2E-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v4/MINIAODSIM
+  nanoAOD:
+    v15: /DYto2E-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v4/NANOAODSIM
+
+# DYto2Mu012J_M_50_1J_amcatnloFXFX:
+#   crossSection: DYto2L_M_50_1J_amcatnloFXFX
+#   generator: amcatnlo
+#   nanoAOD:
+#     v15: /DYto2Mu-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v1/NANOAODSIM
+# DYto2Mu012J_M_50_2J_amcatnloFXFX:
+#   crossSection: DYto2L_M_50_2J_amcatnloFXFX
+#   generator: amcatnlo
+#   nanoAOD:
+#     v15: /DYto2Mu-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+DYto2Mu_M_10to50_amcatnloFXFX:
+  crossSection: DYto2L_M_10to50_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2Mu-2Jets_Bin-MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 DYto2Mu_M_50_amcatnloFXFX:
-  crossSection: DY_NNLO_QCD+NLO_EW
+  crossSection: DYto2L_M_50_amcatnloFXFX
   generator: amcatnlo
-  nanoAOD: /DYto2Mu-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v6/NANOAODSIM
-  miniAOD: /DYto2Mu-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v6/MINIAODSIM
-DYto2Tau_M_50_amcatnloFXFX:
-  crossSection: DY_NNLO_QCD+NLO_EW
+  nanoAOD:
+    v15: /DYto2Mu-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v6/NANOAODSIM
+
+
+# DYto2Tau012J_M_50_1J_amcatnloFXFX:
+#   crossSection: DYto2L_M_50_1J_amcatnloFXFX
+#   generator: amcatnlo
+#   nanoAOD:
+#     v15: /DYto2Tau-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v1/NANOAODSIM
+# DYto2Tau012J_M_50_2J_amcatnloFXFX:
+#   crossSection: DYto2L_M_50_2J_amcatnloFXFX
+#   generator: amcatnlo
+#   nanoAOD:
+#     v15: /DYto2Tau-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Tau_M_10to50_amcatnloFXFX:
+  crossSection: DYto2L_M_10to50_amcatnloFXFX
   generator: amcatnlo
-  nanoAOD: /DYto2Tau-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v7/NANOAODSIM
-  miniAOD: /DYto2Tau-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v7/MINIAODSIM
+  nanoAOD:
+    v15: /DYto2Tau-2Jets_Bin-MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+# DYto2Tau_M_50_amcatnloFXFX:
+#   crossSection: DYto2L_M_50_amcatnloFXFX
+#   generator: amcatnlo
+#   nanoAOD:
+#     v15: /DYto2Tau-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v7/NANOAODSIM
+
+### other samples with 1 pT value and amcatnlo fxfx ?? #
+# DYto2E_M_50_PTLL_100_amcatnloFXFX:
+#   crossSection: N/A
+#   generator: amcatnloFXFX
+#   nanoAOD:
+#     v15: /DYto2L-2Jets_Bin-MLL-50-PTLL-100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+# DYto2E_M_50_PTLL_200_amcatnloFXFX:
+#   crossSection:
+#   generator: amcatnloFXFX
+#   nanoAOD:
+#     v15: /DYto2L-2Jets_Bin-MLL-50-PTLL-200_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v1/NANOAODSIM
+# DYto2E_M_50_PTLL_400_amcatnloFXFX:
+#   crossSection:
+#   generator: amcatnloFXFX
+#   nanoAOD:
+#     v15: /DYto2L-2Jets_Bin-MLL-50-PTLL-400_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+# DYto2E_M_50_PTLL_600_amcatnloFXFX:
+#   crossSection:
+#   generator: amcatnloFXFX
+#   nanoAOD:
+#     v15: /DYto2L-2Jets_Bin-MLL-50-PTLL-600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+# DYto2Mu_M_50_PTLL_100_amcatnloFXFX:
+#   crossSection: N/A
+#   generator: amcatnloFXFX
+#   nanoAOD:
+#     v15: /DYto2L-2Jets_Bin-MLL-50-PTLL-100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+# DYto2Mu_M_50_PTLL_200_amcatnloFXFX:
+#   crossSection:
+#   generator: amcatnloFXFX
+#   nanoAOD:
+#     v15: /DYto2L-2Jets_Bin-MLL-50-PTLL-200_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v1/NANOAODSIM
+# DYto2Mu_M_50_PTLL_400_amcatnloFXFX:
+#   crossSection:
+#   generator: amcatnloFXFX
+#   nanoAOD:
+#     v15: /DYto2L-2Jets_Bin-MLL-50-PTLL-400_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+# DYto2Mu_M_50_PTLL_600_amcatnloFXFX:
+#   crossSection:
+#   generator: amcatnloFXFX
+#   nanoAOD:
+#     v15: /DYto2L-2Jets_Bin-MLL-50-PTLL-600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+### Madgrapgh MLM ####
+# DYto2E_MLL_10to50_madgraphMLM:
+#   crossSection: DYto2E_MLL_10to50_powheg # to be changed with madgraph
+#   generator: madgraph
+#   nanoAOD:
+#     v15: /DYto2E-4Jets_Bin-MLL-10to50_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+# DYto2E012J_M_50_madgraphMLM:
+#   crossSection:
+#   generator:
+#   nanoAOD:
+#     v15: /DYto2E-4Jets_Bin-MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+# DYto2E-4Jets_Bin-MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/:
+#   crossSection:
+#   generator:
+#   nanoAOD:
+#     v15: /DYto2E-4Jets_Bin-MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-BTVNanoV15_150X_mcRun3_2024_realistic_v2-v1/NANOAODSIM
+# DYto2E-4Jets_Bin-MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/:
+#   crossSection:
+#   generator:
+#   nanoAOD:
+#     v15: /DYto2E-4Jets_Bin-MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-EGMNanoV15_150X_mcRun3_2024_realistic_v1-v1/NANOAODSIM
+
+# DYto2Mu-4Jets_Bin-MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/:
+#   crossSection:
+#   generator:
+#   nanoAOD:
+#     v15: /DYto2Mu-4Jets_Bin-MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+# DYto2Mu-4Jets_Bin-MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/:
+#   crossSection:
+#   generator:
+#   nanoAOD:
+#     v15: /DYto2Mu-4Jets_Bin-MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-BTVNanoV15_150X_mcRun3_2024_realistic_v2-v1/NANOAODSIM
+
+# DYto2Mu-4Jets_Bin-MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/:
+#   crossSection:
+#   generator:
+#   nanoAOD:
+#     v15: /DYto2Mu-4Jets_Bin-MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-MUOPOGNano_150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+# DYto2Tau-4Jets_Bin-MLL-10to50_TuneCP5_13p6TeV_madgraphMLM-pythia8:
+#   crossSection:
+#   generator:
+#   nanoAOD:
+#     v15: /DYto2Tau-4Jets_Bin-MLL-10to50_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+# DYto2Tau-4Jets_Bin-MLL-50_Fil-MuTauh_TuneCP5_13p6TeV_madgraphMLM-pythia8:
+#   crossSection:
+#   generator:
+#   nanoAOD:
+#     v15: /DYto2Tau-4Jets_Bin-MLL-50_Fil-MuTauh_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+# DYto2Tau-4Jets_Bin-MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/:
+#   crossSection:
+#   generator:
+#   nanoAOD:
+#     v15: /DYto2Tau-4Jets_Bin-MLL-50_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v5/NANOAODSIM
+
+### MLL binned powheg ####
+DYto2E_MLL_10to50_powheg:
+  crossSection: DYto2E_MLL_10to50_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2E_Bin-MLL-10to50_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_MLL_120to200_powheg:
+  crossSection: DYto2E_MLL_120to200_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2E_Bin-MLL-120to200_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_MLL_1500to2500_powheg:
+  crossSection: DYto2E_MLL_1500to2500_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2E_Bin-MLL-1500to2500_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_MLL_200to400_powheg:
+  crossSection: DYto2E_MLL_200to400_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2E_Bin-MLL-200to400_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_MLL_2500to4000_powheg:
+  crossSection: DYto2E_MLL_2500to4000_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2E_Bin-MLL-2500to4000_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_MLL_4000to6000_powheg:
+  crossSection: DYto2E_MLL_4000to6000_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2E_Bin-MLL-4000to6000_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_MLL_400to800_powheg:
+  crossSection: DYto2E_MLL_400to800_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2E_Bin-MLL-400to800_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_MLL_50to120_powheg:
+  crossSection: DYto2E_MLL_50to120_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2E_Bin-MLL-50to120_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_MLL_6000_powheg:
+  crossSection: DYto2E_MLL_6000_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2E_Bin-MLL-6000_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_MLL_800to1500_powheg:
+  crossSection: DYto2E_MLL_800to1500_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2E_Bin-MLL-800to1500_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_MLL_10to50_powheg:
+  crossSection: DYto2Mu_MLL_10to50_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Mu_Bin-MLL-10to50_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_MLL_120to200_powheg:
+  crossSection: DYto2Mu_MLL_120to200_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Mu_Bin-MLL-120to200_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_MLL_1500to2500_powheg:
+  crossSection: DYto2Mu_MLL_1500to2500_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Mu_Bin-MLL-1500to2500_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_MLL_200to400_powheg:
+  crossSection: DYto2Mu_MLL_200to400_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Mu_Bin-MLL-200to400_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_MLL_2500to4000_powheg:
+  crossSection: DYto2Mu_MLL_2500to4000_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Mu_Bin-MLL-2500to4000_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_MLL_4000to6000_powheg:
+  crossSection: DYto2Mu_MLL_4000to6000_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Mu_Bin-MLL-4000to6000_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_MLL_400to800_powheg:
+  crossSection: DYto2Mu_MLL_400to800_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Mu_Bin-MLL-400to800_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_MLL_50to120_powheg:
+  crossSection: DYto2Mu_MLL_50to120_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Mu_Bin-MLL-50to120_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_MLL_6000_powheg:
+  crossSection: DYto2Mu_MLL_6000_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Mu_Bin-MLL-6000_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_MLL_800to1500_powheg:
+  crossSection: DYto2Mu_MLL_800to1500_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Mu_Bin-MLL-800to1500_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Tau_MLL_10to50_powheg:
+  crossSection: DYto2Tau_MLL_10to50_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Tau_Bin-MLL-10to50_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Tau_MLL_120to200_powheg:
+  crossSection: DYto2Tau_MLL_120to200_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Tau_Bin-MLL-120to200_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Tau_MLL_1500to2500_powheg:
+  crossSection: DYto2Tau_MLL_1500to2500_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Tau_Bin-MLL-1500to2500_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Tau_MLL_200to400_powheg:
+  crossSection: DYto2Tau_MLL_200to400_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Tau_Bin-MLL-200to400_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Tau_MLL_2500to4000_powheg:
+  crossSection: DYto2Tau_MLL_2500to4000_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Tau_Bin-MLL-2500to4000_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Tau_MLL_4000to6000_powheg:
+  crossSection: DYto2Tau_MLL_4000to6000_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Tau_Bin-MLL-4000to6000_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Tau_MLL_400to800_powheg:
+  crossSection: DYto2Tau_MLL_400to800_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Tau_Bin-MLL-400to800_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Tau_MLL_50to120_powheg:
+  crossSection: DYto2Tau_MLL_50to120_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Tau_Bin-MLL-50to120_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Tau_MLL_6000_powheg:
+  crossSection: DYto2Tau_MLL_6000_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Tau_Bin-MLL-6000_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Tau_MLL_800to1500_powheg:
+  crossSection: DYto2Tau_MLL_800to1500_powheg
+  generator: powheg
+  nanoAOD:
+    v15: /DYto2Tau_Bin-MLL-800to1500_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+#### ptll + Jets binned amcatnlofxfx ####
+DYto2E_M_50_PTLL_100to200_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-1J-MLL-50-PTLL-100to200_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_M_50_PTLL_200to400_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-1J-MLL-50-PTLL-200to400_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_M_50_PTLL_400to600_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-1J-MLL-50-PTLL-400to600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_M_50_PTLL_40to100_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-1J-MLL-50-PTLL-40to100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+DYto2E_M_50_PTLL_600_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-1J-MLL-50-PTLL-600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_M_50_PTLL_100to200_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-2J-MLL-50-PTLL-100to200_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_M_50_PTLL_200to400_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-2J-MLL-50-PTLL-200to400_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_M_50_PTLL_400to600_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-2J-MLL-50-PTLL-400to600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2E_M_50_PTLL_40to100_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-2J-MLL-50-PTLL-40to100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+DYto2E_M_50_PTLL_600_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-2J-MLL-50-PTLL-600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_M_50_PTLL_100to200_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-1J-MLL-50-PTLL-100to200_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_M_50_PTLL_200to400_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-1J-MLL-50-PTLL-200to400_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_M_50_PTLL_400to600_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-1J-MLL-50-PTLL-400to600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_M_50_PTLL_40to100_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-1J-MLL-50-PTLL-40to100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+DYto2Mu_M_50_PTLL_600_1J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-1J-MLL-50-PTLL-600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_M_50_PTLL_100to200_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-2J-MLL-50-PTLL-100to200_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_M_50_PTLL_200to400_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-2J-MLL-50-PTLL-200to400_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_M_50_PTLL_400to600_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-2J-MLL-50-PTLL-400to600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+DYto2Mu_M_50_PTLL_40to100_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-2J-MLL-50-PTLL-40to100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+DYto2Mu_M_50_PTLL_600_2J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /DYto2L-2Jets_Bin-2J-MLL-50-PTLL-600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 
 ############## GGH ##############
 ############## HtoMuMu ##############
+ggZH_Hto2B_Zto2Q:
+  crossSection: ZH_Hbb_Zqq
+  generator: powheg
+  nanoAOD:
+    v15: /GluGluZH-Zto2Q-Hto2B_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+ggZH_Hto2B_Zto2L:
+  crossSection: ZH_Hbb_Zll
+  generator: powheg
+  nanoAOD:
+    v15: /GluGluZH-Zto2L-Hto2B_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+GluGluHto2B_M125:
+  crossSection: GluGluHToBB_M125
+  generator: powheg
+  nanoAOD:
+    v15: /GluGluH-Hto2B_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+GluGluHto2B_M125_ext1:
+  crossSection: GluGluHToBB_M125
+  generator: powheg
+  nanoAOD:
+    v15: /GluGluH-Hto2B_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2_ext1-v2/NANOAODSIM
 GluGluHto2Mu:
   crossSection: GluGluHto2Mu
   generator: powheg
-  nanoAOD: /GluGluH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /GluGluH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /GluGluH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+GluGluHto2Tau_M125:
+  crossSection: GluGluHToTauTau_M125
+  generator: powheg
+  nanoAOD:
+    v15: /GluGluHto2Tau_Par-M-125_TuneCP5_13p6TeV_powhegMINNLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+GluGluHto2Tau_UncorrelatedDecay_Filtered:
+  crossSection: GluGluHToTauTau_M125_Filtered
+  generator: powheg
+  nanoAOD:
+    v15: /GluGluH-Hto2TauUncorrelatedDecay_Fil-TauFilter_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+GluGluHto2Tau_UncorrelatedDecay_UnFiltered:
+  crossSection: GluGluHToTauTau_M125
+  generator: powheg
+  nanoAOD:
+    v15: /GluGluH-Hto2TauUncorrelatedDecay_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+GluGluHto2Wto2L2Nu_M125:
+  crossSection: GluGluHToWWTo2L2Nu_M125
+  generator: powheg
+  nanoAOD:
+    v15: /GluGluHto2Wto2L2Nu_Par-M-125_TuneCP5_13p6TeV_powheg-jhugen-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+
+
+
+## QCD ###
+
+QCD_HT1000to1200_MLM:
+  crossSection: QCD_HT1000to1200_MLM
+  generator: madgraph
+  nanoAOD:
+   v15 /QCD-4Jets_Bin-HT-1000to1200_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+
+QCD_HT100to200_MLM:
+  crossSection: QCD_HT100to200_MLM
+  generator: madgraph
+  nanoAOD:
+   v15 /QCD-4Jets_Bin-HT-100to200_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+QCD_HT1200to1500_MLM:
+  crossSection: QCD_HT1200to1500_MLM
+  generator: madgraph
+  nanoAOD:
+   v15 /QCD-4Jets_Bin-HT-1200to1500_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+
+QCD_HT1500to2000_MLM:
+  crossSection: QCD_HT1500to2000_MLM
+  generator: madgraph
+  nanoAOD:
+   v15 /QCD-4Jets_Bin-HT-1500to2000_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+
+QCD_HT2000toInf_MLM:
+  crossSection: QCD_HT2000toInf_MLM
+  generator: madgraph
+  nanoAOD:
+   v15 /QCD-4Jets_Bin-HT-2000_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+QCD_HT200to400_MLM:
+  crossSection: QCD_HT200to400_MLM
+  generator: madgraph
+  nanoAOD:
+   v15 /QCD-4Jets_Bin-HT-200to400_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+QCD_HT400to600_MLM:
+  crossSection: QCD_HT400to600_MLM
+  generator: madgraph
+  nanoAOD:
+   v15 /QCD-4Jets_Bin-HT-400to600_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+QCD_HT40to70_MLM:
+  crossSection: QCD_HT40to70_MLM
+  generator: madgraph
+  nanoAOD:
+   v15 /QCD-4Jets_Bin-HT-40to70_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+QCD_HT600to800_MLM:
+  crossSection: QCD_HT600to800_MLM
+  generator: madgraph
+  nanoAOD:
+   v15 /QCD-4Jets_Bin-HT-600to800_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+QCD_HT70to100_MLM:
+  crossSection: QCD_HT70to100_MLM
+  generator: madgraph
+  nanoAOD:
+   v15 /QCD-4Jets_Bin-HT-70to100_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+QCD_HT800to1000_MLM:
+  crossSection: QCD_HT800to1000_MLM
+  generator: madgraph
+  nanoAOD:
+   v15 /QCD-4Jets_Bin-HT-800to1000_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+
 
 ############## ST ##############
 TbarBtoLminusNuB_s_channel_4FS:
   crossSection: TbarBtoLminusNuB_s_channel_4FS
   generator: amcatnlo
-  nanoAOD: /TbarBtoLminusNuB-s-channel-4FS_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TbarBtoLminusNuB-s-channel-4FS_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /TbarBtoLminusNuB-s-channel-4FS_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 TBbartoLplusNuBbar_s_channel_4FS:
   crossSection: TBbartoLplusNuBbar_s_channel_4FS
   generator: amcatnlo
-  nanoAOD: /TBbartoLplusNuBbar-s-channel-4FS_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TBbartoLplusNuBbar-s-channel-4FS_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /TBbartoLplusNuBbar-s-channel-4FS_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 TbarBQtoLNu_t_channel_4FS:
   crossSection: TbarBQtoLNu_t_channel_4FS
   generator: powheg
-  nanoAOD: /TbarBQtoLNu-t-channel-4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TbarBQtoLNu-t-channel-4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /TbarBQtoLNu-t-channel-4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 TbarBQto2Q_t_channel_4FS:
   crossSection: TbarBQto2Q_t_channel_4FS
   generator: powheg
-  nanoAOD: /TbarBQto2Q-t-channel-4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TbarBQto2Q-t-channel-4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /TbarBQto2Q-t-channel-4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 TBbarQtoLNu_t_channel_4FS:
   crossSection: TBbarQtoLNu_t_channel_4FS
   generator: powheg
-  nanoAOD: /TBbarQtoLNu-t-channel-4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TBbarQtoLNu-t-channel-4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /TBbarQtoLNu-t-channel-4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 TBbarQto2Q_t_channel_4FS:
   crossSection: TBbarQto2Q_t_channel_4FS
   generator: powheg
-  nanoAOD: /TBbarQto2Q-t-channel-4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TBbarQto2Q-t-channel-4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /TBbarQto2Q-t-channel-4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 
 TbarWplusto2L2Nu:
   crossSection: TbarWplusto2L2Nu
   generator: powheg
-  nanoAOD: /TbarWplusto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TbarWplusto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /TbarWplusto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 TbarWplusto4Q:
   crossSection: TbarWplusto4Q
   generator: powheg
-  nanoAOD: /TbarWplusto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TbarWplusto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /TbarWplusto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 TbarWplustoLNu2Q:
   crossSection: TbarWplustoLNu2Q
   generator: powheg
-  nanoAOD: /TbarWplustoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TbarWplustoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /TbarWplustoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 TWminusto2L2Nu:
   crossSection: TWminusto2L2Nu
   generator: powheg
-  nanoAOD: /TWminusto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TWminusto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /TWminusto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 TWminusto4Q:
   crossSection: TWminusto4Q
   generator: powheg
-  nanoAOD: /TWminusto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TWminusto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /TWminusto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 TWminustoLNu2Q:
   crossSection: TWminustoLNu2Q
   generator: powheg
-  nanoAOD: /TWminustoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TWminustoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /TWminustoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 
 ############## TT ##############
 TTH_Hto2Mu:
   crossSection: TTH_Hto2Mu
   generator: powheg
-  nanoAOD: /TTH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TTH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
-
+  nanoAOD:
+    v15: /TTH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+TTHto2B_M125:
+  crossSection: TTHto2B_M125
+  generator: powheg
+  nanoAOD:
+    v15: /TTH-Hto2B_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+TTHtoNon2B_M125:
+  crossSection: TTHtoNon2B_M125
+  generator: powheg
+  nanoAOD:
+    v15: /TTH-HtoNon2B_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 TTto2L2Nu:
   crossSection: TTto2L2Nu
   generator: powheg
-  nanoAOD: /TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
-  miniAOD: /TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
+  nanoAOD:
+    v15: /TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 TTto4Q:
   crossSection: TTto4Q
   generator: powheg
-  nanoAOD: /TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 TTtoLNu2Q:
   crossSection: TTtoLNu2Q
   generator: powheg
-  nanoAOD: /TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+
+TTto4Q:
+  crossSection: TTto4Q
+  generator: powheg
+  nanoAOD:
+    v12: /TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v3/NANOAODSIM
+    v15: /TTto4Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv15-150X_mcRun3_2023_realistic_postBPix_v1-v2/NANOAODSIM
+TTtoLNu2Q:
+  crossSection: TTtoLNu2Q
+  generator: powheg
+  nanoAOD:
+    v12: /TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v3/NANOAODSIM
+    v15: /TTtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv15-150X_mcRun3_2023_realistic_postBPix_v1-v2/NANOAODSIM
+TTWH:
+  crossSection: TTWH
+  generator: madgraph
+  nanoAOD:
+    v15: /TTWH_TuneCP5_13p6TeV_madgraph-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+TTWW:
+  crossSection: TTWW
+  generator: madgraph
+  nanoAOD:
+    v15: /TTWW_TuneCP5_13p6TeV_madgraph-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+TTWZ:
+  crossSection: TTWZ
+  generator: madgraph
+  nanoAOD:
+    v15: /TTWZ_TuneCP5_13p6TeV_madgraph-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+TTZH:
+  crossSection: TTZH_ZHto4B
+  generator: madgraph
+  nanoAOD:
+    v15: /TTZH-ZHto4B_TuneCP5_13p6TeV_madgraph-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+TTZZ:
+  crossSection: TTZZ_ZZto4B
+  generator: madgraph
+  nanoAOD:
+    v15: /TTZZ-ZZto4B_TuneCP5_13p6TeV_madgraph-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM/
+TTZ_Zto2Q:
+  crossSection: TTZ_Zto2Q
+  generator: amcatnlo
+  nanoAOD:
+    v15: /TTZ-ZtoQQ-1Jets_TuneCP5_13p6TeV_amcatnloFXFXold-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+# /TTW-WtoQQ-1Jets_TuneCP5_13p6TeV_amcatnloFXFXold-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+# VBF #
+VBFHto2B_M125:
+  crossSection: VBFHToBB_M125
+  generator: powheg
+  nanoAOD:
+    v15: /VBFH-Hto2B_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+VBFHto2B_M125_ext1:
+  crossSection: VBFHToBB_M125
+  generator: powheg
+  nanoAOD:
+    v15: /VBFH-Hto2B_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2_ext1-v2/NANOAODSIM
+VBFHto2Tau_M125:
+  crossSection: VBFHToTauTau_M125
+  generator: powheg
+  nanoAOD:
+    v15: /VBFH-HTo2Tau_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 VBFHto2Mu:
   crossSection: VBFHto2Mu
   generator: powheg
-  nanoAOD: /VBFH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /VBFH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /VBFH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+VBFHto2Tau_UncorrelatedDecay_UnFiltered:
+  crossSection: VBFHto2Tau
+  generator: powheg
+  nanoAOD:
+    v15: /VBFH-Hto2TauUncorrelatedDecay_Fil-TauFilter_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+VBFHto2Tau_UncorrelatedDecay_Filtered:
+  crossSection: VBFHto2Tau_Filtered
+  generator: powheg
+  nanoAOD:
+    v15: /VBFH-Hto2TauUncorrelatedDecay_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+VBFHto2Wto2L2Nu_M125:
+  crossSection: VBFHToWWTo2L2Nu_M125
+  generator: powheg
+  nanoAOD:
+    v15: /VBFHto2Wto2L2Nu_Par-M-125_TuneCP5_13p6TeV_powheg-jhugen-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+# VH #
+WminusH_Hto2B_WtoLNu:
+  crossSection: WminusH_Hbb_Wlnu
+  generator: powheg
+  nanoAOD:
+    v15: /WminusH-WtoLNu-Hto2B_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WminusH_Hto2B_Wto2Q:
+  crossSection: WminusH_Hbb_Wqq
+  generator: powheg
+  nanoAOD:
+    v15: /WminusH_Hto2B_Wto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v2/NANOAODSIM
 WminusH_Hto2Mu_WtoAll:
   crossSection: WminusH_Hto2Mu_WtoAll
   generator: powheg
-  nanoAOD: /WminusH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
-  miniAOD: /WminusH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
+  nanoAOD:
+    v15: /WminusH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+WplusH_Hto2B_WtoLNu:
+  crossSection: WplusH_Hbb_Wlnu
+  generator: powheg
+  nanoAOD:
+    v15: /WplusH-WtoLNu-Hto2B_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WplusH_Hto2B_Wto2Q:
+  crossSection: WplusH_Hbb_Wqq
+  generator: powheg
+  nanoAOD:
+    v15: /WplusH_Hto2B_Wto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v2/NANOAODSIM
 WplusH_Hto2Mu_WtoAll:
   crossSection: WplusH_Hto2Mu_WtoAll
   generator: powheg
-  nanoAOD: /WplusH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
-  miniAOD: /WplusH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
+  nanoAOD:
+    v15: /WplusH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+WminusHto2Tau_UncorrelatedDecay_Filtered:
+  crossSection: WminusHto2Tau_Filtered
+  generator: powheg
+  nanoAOD:
+    v15: /WminusH-Hto2TauUncorrelatedDecay_Fil-TauFilter_Par-M-125_TuneCP5_13p6TeV_powhegMINNLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WminusHto2Tau_UncorrelatedDecay_UnFiltered:
+  crossSection: WminusHto2Tau
+  generator: powheg
+  nanoAOD:
+    v15: /WminusH-Hto2TauUncorrelatedDecay_Par-M-125_TuneCP5_13p6TeV_powhegMINNLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WplusHto2Tau_UncorrelatedDecay_Filtered:
+  crossSection: WplusHto2Tau_Filtered
+  generator: powheg
+  nanoAOD:
+    v15: /WplusH-Hto2TauUncorrelatedDecay_Fil-TauFilter_Par-M-125_TuneCP5_13p6TeV_powhegMINNLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WplusHto2Tau_UncorrelatedDecay_UnFiltered:
+  crossSection: WplusHto2Tau
+  generator: powheg
+  nanoAOD:
+    v15: /WplusH-Hto2TauUncorrelatedDecay_Par-M-125_TuneCP5_13p6TeV_powhegMINNLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+ZHto2Tau_UncorrelatedDecay_Filtered:
+  crossSection: ZHto2Tau_Filtered
+  generator: powheg
+  nanoAOD:
+    v15: /ZH-Hto2TauUncorrelatedDecay_Fil-TauFilter_Par-M-125_TuneCP5_13p6TeV_powhegMINNLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v6/NANOAODSIM
+# ZHto2Tau_UncorrelatedDecay_UnFiltered:
+#   crossSection: ZHto2Tau
+#   generator: powheg
+#   nanoAOD:
+#     v15: N/A
+ZH_Hto2B_Zto2L:
+  crossSection: ZH_Hbb_Zll
+  generator: powheg
+  nanoAOD:
+    v15: /ZH-Zto2L-Hto2B_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+ZH_Hto2B_Zto2Q:
+  crossSection: ZH_Hbb_Zqq
+  generator: powheg
+  nanoAOD:
+    v15: /ZH-Zto2Q-Hto2B_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+# W #
+# WtoLNu_0J_amcatnloFXFX:
+#   crossSection: WtoLNu_0J_amcatnloFXFX
+#   generator: amcatnlo
+#   nanoAOD:
+#     v15:
+# WtoLNu_1J_amcatnloFXFX:
+#   crossSection: WtoLNu_1J_amcatnloFXFX
+#   generator: amcatnlo
+#   nanoAOD:
+#     v15:
+WtoLNu_1J_madgraphMLM:
+  crossSection: WtoLNu_1J_madgraphMLM
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /WtoLNu-4Jets_Bin-1J_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WtoLNu_2J_amcatnloFXFX:
+  crossSection: WtoLNu_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15:
+WtoLNu_2J_madgraphMLM:
+  crossSection: WtoLNu_2J_madgraphMLM
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /WtoLNu-4Jets_Bin-2J_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WtoLNu_3J_madgraphMLM:
+  crossSection: WtoLNu_3J_madgraphMLM
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /WtoLNu-4Jets_Bin-3J_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WtoLNu_4J_madgraphMLM:
+  crossSection: WtoLNu_4J_madgraphMLM
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /WtoLNu-4Jets_Bin-4J_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+# WtoLNu_amcatnloFXFX:
+#   crossSection: WtoLNu_NNLO_QCD+NLO_EW
+#   generator: amcatnlo
+#   nanoAOD:
+#     v15:
+# WtoLNu_madgraphMLM:
+#   crossSection: WtoLNu_NNLO_QCD+NLO_EW
+#   generator: madgraphMLM
+#   nanoAOD:
+#     v15:
+
+# WtoLNu_MLNu_0to120_HT_40To100_madgraph:
+#   crossSection: WtoLNu_MLNu_0to120_HT_40To100_madgraph
+#   generator: madgraphMLM
+#
+  # nanoAOD:
+  #   v15:
+# WtoLNu_MLNu_0to120_HT_100To400_madgraph:
+#   crossSection: WtoLNu_MLNu_0to120_HT_100To400_madgraph
+#   generator: madgraphMLM
+#
+  # nanoAOD:
+  #   v15:
+# WtoLNu_MLNu_0to120_HT_400To800_madgraph:
+#   crossSection: WtoLNu_MLNu_0to120_HT_400To800_madgraph
+#   generator: madgraphMLM
+#
+  # nanoAOD:
+  #   v15:
+# WtoLNu_MLNu_0to120_HT_800To1500_madgraph:
+#   crossSection: WtoLNu_MLNu_0to120_HT_800To1500_madgraph
+#   generator: madgraphMLM
+#
+  # nanoAOD:
+  #   v15:
+# WtoLNu_MLNu_0to120_HT_1500To2500_madgraph:
+#   crossSection: WtoLNu_MLNu_0to120_HT_1500To2500_madgraph
+#   generator: madgraphMLM
+#
+  # nanoAOD:
+  #   v15:
+
+
+WtoLNu_PTLNu_40to100_1J_amcatnloFXFX:
+  crossSection: WtoLNu_PTLNu_40to100_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /WtoLNu-2Jets_Bin-1J-PTLNu-40to100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+WtoLNu_PTLNu_40to100_2J_amcatnloFXFX:
+  crossSection: WtoLNu_PTLNu_40to100_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /WtoLNu-2Jets_Bin-2J-PTLNu-40to100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+WtoLNu_PTLNu_100to200_1J_amcatnloFXFX:
+  crossSection: WtoLNu_PTLNu_100to200_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /WtoLNu-2Jets_Bin-1J-PTLNu-100to200_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+WtoLNu_PTLNu_100to200_2J_amcatnloFXFX:
+  crossSection: WtoLNu_PTLNu_100to200_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /WtoLNu-2Jets_Bin-2J-PTLNu-100to200_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+WtoLNu_PTLNu_200to400_1J_amcatnloFXFX:
+  crossSection: WtoLNu_PTLNu_200to400_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /WtoLNu-2Jets_Bin-1J-PTLNu-200to400_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WtoLNu_PTLNu_200to400_2J_amcatnloFXFX:
+  crossSection: WtoLNu_PTLNu_200to400_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /WtoLNu-2Jets_Bin-2J-PTLNu-200to400_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WtoLNu_PTLNu_400to600_1J_amcatnloFXFX:
+  crossSection: WtoLNu_PTLNu_400to600_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /WtoLNu-2Jets_Bin-1J-PTLNu-400to600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WtoLNu_PTLNu_400to600_2J_amcatnloFXFX:
+  crossSection: WtoLNu_PTLNu_400to600_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /WtoLNu-2Jets_Bin-2J-PTLNu-400to600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WtoLNu_PTLNu_600_1J_amcatnloFXFX:
+  crossSection: WtoLNu_PTLNu_600_1J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /WtoLNu-2Jets_Bin-1J-PTLNu-600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WtoLNu_PTLNu_600_2J_amcatnloFXFX:
+  crossSection: WtoLNu_PTLNu_600_2J_amcatnloFXFX
+  generator: amcatnlo
+  nanoAOD:
+    v15: /WtoLNu-2Jets_Bin-2J-PTLNu-600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+
 WtoENu_amcatnloFXFX:
   crossSection: WtoLNu_NNLO_QCD_NLO_EW_one_flav
   generator: amcatnlo
-  nanoAOD: /WtoENu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
-  miniAOD: /WtoENu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
+  nanoAOD:
+    v15: /WtoENu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 WtoMuNu_amcatnloFXFX:
   crossSection: WtoLNu_NNLO_QCD_NLO_EW_one_flav
   generator: amcatnlo
-  nanoAOD: /WtoMuNu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
-  miniAOD: /WtoMuNu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
+  nanoAOD:
+    v15: /WtoMuNu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 WtoTauNu_amcatnloFXFX:
   crossSection: WtoLNu_NNLO_QCD_NLO_EW_one_flav
   generator: amcatnlo
-  nanoAOD: /WtoTauNu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
-  miniAOD: /WtoTauNu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
+  nanoAOD:
+    v15: /WtoTauNu-2Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 
 ############## VV ##############
+
+WW:
+  crossSection: WW
+  generator: pythia8
+  nanoAOD:
+    v15: /WW_TuneCP5_13p6TeV_pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WZ:
+  crossSection: WZ
+  generator: pythia8
+  nanoAOD: /WZ_TuneCP5_13p6TeV_pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+ZZ:
+  crossSection: ZZ
+  generator: pythia8
+  nanoAOD: /ZZ_TuneCP5_13p6TeV_pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+## VV non inclusive ##
 WWto2L2Nu_powheg:
   crossSection: WWto2L2Nu
   generator: powheg
-  nanoAOD: /WWto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /WWto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /WWto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 WWto4Q_powheg:
   crossSection: WWto4Q
   generator: powheg
-  nanoAOD: /WWto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /WWto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /WWto4Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 WWtoLNu2Q_powheg:
   crossSection: WWtoLNu2Q
   generator: powheg
-  nanoAOD: /WWtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /WWtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /WWtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 
 WZto2L2Q_powheg:
   crossSection: WZto2L2Q_powheg
   generator: powheg
-  nanoAOD: /WZto2L2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /WZto2L2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /WZto2L2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 WZto3LNu_powheg:
   crossSection: WZto3LNu_powheg
   generator: powheg
-  nanoAOD: /WZto3LNu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /WZto3LNu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /WZto3LNu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 WZtoLNu2Q_powheg:
   crossSection: WZtoLNu2Q_powheg
   generator: powheg
-  nanoAOD: /WZtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /WZtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /WZtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 
 ZH_Hto2Mu_ZtoAll:
   crossSection: ZH_Hto2Mu_ZtoAll
   generator: powheg
-  nanoAOD: /ZH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
-  miniAOD: /ZH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/MINIAODSIM
+  nanoAOD:
+    v15: /ZH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 
 ZZto2L2Nu_powheg:
   crossSection: ZZto2L2Nu_powheg
   generator: powheg
-  nanoAOD: /ZZto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /ZZto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /ZZto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 ZZto2L2Q_powheg:
   crossSection: ZZto2L2Q_powheg
   generator: powheg
-  nanoAOD: /ZZto2L2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /ZZto2L2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /ZZto2L2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 ZZto2Nu2Q_powheg:
   crossSection: ZZto2Nu2Q_powheg
   generator: powheg
-  nanoAOD: /ZZto2Nu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /ZZto2Nu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /ZZto2Nu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 ZZto4L_powheg:
   crossSection: ZZto4L_powheg
   generator: powheg
-  nanoAOD: /ZZto4L_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /ZZto4L_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /ZZto4L_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 
 EWK_2L2J_madgraph_herwig:
   crossSection: EWK_2L2J_madgraph_herwig
   generator: madgraph
-  nanoAOD: /EWK-2L2J_Bin-MLL-50-MJJ-120_TuneCH3_13p6TeV_madgraph-herwig7/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-  miniAOD: /EWK-2L2J_Bin-MLL-50-MJJ-120_TuneCH3_13p6TeV_madgraph-herwig7/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/MINIAODSIM
+  nanoAOD:
+    v15: /EWK-2L2J_Bin-MLL-50-MJJ-120_TuneCH3_13p6TeV_madgraph-herwig7/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+
+### VVV ###
+
+
+WWW_4F:
+  crossSection: WWW
+  generator: amcatnlo
+  nanoAOD:
+    v15: /WWW-4F_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WWZ_4F:
+  crossSection: WWZ
+  generator: amcatnlo
+  nanoAOD:
+    v15: /WWZ-4F_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+WZZ:
+  crossSection: WZZ
+  generator: amcatnlo
+  nanoAOD:
+    v15: /WZZ-5F_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+ZZZ:
+  crossSection: ZZZ
+  generator: amcatnlo
+  nanoAOD:
+    v15: /ZZZ-5F_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+
+# Z samples #
+# Z samples #
+Zto2Nu_HT_100to200:
+  crossSection: Zto2Nu_HT_100To200
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /Zto2Nu-4Jets_Bin-HT-100to200_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+Zto2Nu_HT_200to400:
+  crossSection: Zto2Nu_HT_200To400
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /Zto2Nu-4Jets_Bin-HT-200to400_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
+Zto2Nu_HT_400to800:
+  crossSection: Zto2Nu_HT_400To800
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /Zto2Nu-4Jets_Bin-HT-400to800_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+Zto2Nu_HT_800to1500:
+  crossSection: Zto2Nu_HT_800To1500
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /Zto2Nu-4Jets_Bin-HT-800to1500_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+Zto2Nu_HT_1500to2500:
+  crossSection: Zto2Nu_HT_1500To2500
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /Zto2Nu-4Jets_Bin-HT-1500to2500_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+Zto2Nu_HT_2500toInf:
+  crossSection: Zto2Nu_HT_2500ToInf
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /Zto2Nu-4Jets_Bin-HT-2500_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+
+Zto2Q_HT_100to400:
+  crossSection: Zto2Q_HT_100to400
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /Zto2Q-4Jets_Bin-HT-100to400_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+Zto2Q_HT_400to800:
+  crossSection: Zto2Q_HT_400to800
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /Zto2Q-4Jets_Bin-HT-400to800_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+Zto2Q_HT_800to1500:
+  crossSection: Zto2Q_HT_800to1500
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /Zto2Q-4Jets_Bin-HT-800to1500_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+Zto2Q_HT_1500to2500:
+  crossSection: Zto2Q_HT_1500to2500
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /Zto2Q-4Jets_Bin-HT-1500to2500_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+Zto2Q_HT_2500toInf:
+  crossSection: Zto2Q_HT_2500toInf
+  generator: madgraphMLM
+  nanoAOD:
+    v15: /Zto2Q-4Jets_Bin-HT-2500_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM

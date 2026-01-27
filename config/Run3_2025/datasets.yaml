@@ -1,482 +1,642 @@
 ############## data ############## From : https://docs.google.com/presentation/d/1H_WuzeAGkW3xZvo3oN4qGZWfw2eBuUzMhPLeShYAQoU/edit?slide=id.g36971dee1d1_0_0#slide=id.g36971dee1d1_0_0
 EGamma0_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /EGamma0/Run2025B-PromptReco-v1/NANOAOD
 EGamma0_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /EGamma0/Run2025C-PromptReco-v1/NANOAOD
 EGamma0_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /EGamma0/Run2025C-PromptReco-v2/NANOAOD
 EGamma0_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /EGamma0/Run2025D-PromptReco-v1/NANOAOD
 EGamma0_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /EGamma0/Run2025E-PromptReco-v1/NANOAOD
 EGamma0_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /EGamma0/Run2025F-PromptReco-v1/NANOAOD
 EGamma0_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /EGamma0/Run2025F-PromptReco-v2/NANOAOD
 EGamma0_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /EGamma0/Run2025G-PromptReco-v1/NANOAOD
 EGamma1_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /EGamma1/Run2025B-PromptReco-v1/NANOAOD
 EGamma1_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /EGamma1/Run2025C-PromptReco-v1/NANOAOD
 EGamma1_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /EGamma1/Run2025C-PromptReco-v2/NANOAOD
 EGamma1_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /EGamma1/Run2025D-PromptReco-v1/NANOAOD
 EGamma1_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /EGamma1/Run2025E-PromptReco-v1/NANOAOD
 EGamma1_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /EGamma1/Run2025F-PromptReco-v1/NANOAOD
 EGamma1_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /EGamma1/Run2025F-PromptReco-v2/NANOAOD
 EGamma1_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /EGamma1/Run2025G-PromptReco-v1/NANOAOD
 EGamma2_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /EGamma2/Run2025B-PromptReco-v1/NANOAOD
 EGamma2_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /EGamma2/Run2025C-PromptReco-v1/NANOAOD
 EGamma2_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /EGamma2/Run2025C-PromptReco-v2/NANOAOD
 EGamma2_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /EGamma2/Run2025D-PromptReco-v1/NANOAOD
 EGamma2_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /EGamma2/Run2025E-PromptReco-v1/NANOAOD
 EGamma2_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /EGamma2/Run2025F-PromptReco-v1/NANOAOD
 EGamma2_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /EGamma2/Run2025F-PromptReco-v2/NANOAOD
 EGamma2_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /EGamma2/Run2025G-PromptReco-v1/NANOAOD
 EGamma3_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /EGamma3/Run2025B-PromptReco-v1/NANOAOD
 EGamma3_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /EGamma3/Run2025C-PromptReco-v1/NANOAOD
 EGamma3_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /EGamma3/Run2025C-PromptReco-v2/NANOAOD
 EGamma3_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /EGamma3/Run2025D-PromptReco-v1/NANOAOD
 EGamma3_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /EGamma3/Run2025E-PromptReco-v1/NANOAOD
 EGamma3_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /EGamma3/Run2025F-PromptReco-v1/NANOAOD
 EGamma3_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /EGamma3/Run2025F-PromptReco-v2/NANOAOD
 EGamma3_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /EGamma3/Run2025G-PromptReco-v1/NANOAOD
 JetMET0_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /JetMET0/Run2025B-PromptReco-v1/NANOAOD
 JetMET0_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /JetMET0/Run2025C-PromptReco-v1/NANOAOD
 JetMET0_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /JetMET0/Run2025C-PromptReco-v2/NANOAOD
 JetMET0_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /JetMET0/Run2025D-PromptReco-v1/NANOAOD
 JetMET0_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /JetMET0/Run2025E-PromptReco-v1/NANOAOD
 JetMET0_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /JetMET0/Run2025F-PromptReco-v1/NANOAOD
 JetMET0_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /JetMET0/Run2025F-PromptReco-v2/NANOAOD
 JetMET0_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /JetMET0/Run2025G-PromptReco-v1/NANOAOD
 JetMET1_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /JetMET1/Run2025B-PromptReco-v1/NANOAOD
 JetMET1_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /JetMET1/Run2025C-PromptReco-v1/NANOAOD
 JetMET1_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /JetMET1/Run2025C-PromptReco-v2/NANOAOD
 JetMET1_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /JetMET1/Run2025D-PromptReco-v1/NANOAOD
 JetMET1_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /JetMET1/Run2025E-PromptReco-v1/NANOAOD
 JetMET1_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /JetMET1/Run2025F-PromptReco-v1/NANOAOD
 JetMET1_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /JetMET1/Run2025F-PromptReco-v2/NANOAOD
 JetMET1_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /JetMET1/Run2025G-PromptReco-v1/NANOAOD
 Muon0_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /Muon0/Run2025B-PromptReco-v1/NANOAOD
 Muon0_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /Muon0/Run2025C-PromptReco-v1/NANOAOD
 Muon0_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /Muon0/Run2025C-PromptReco-v2/NANOAOD
 Muon0_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /Muon0/Run2025D-PromptReco-v1/NANOAOD
 Muon0_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /Muon0/Run2025E-PromptReco-v1/NANOAOD
 Muon0_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /Muon0/Run2025F-PromptReco-v1/NANOAOD
 Muon0_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /Muon0/Run2025F-PromptReco-v2/NANOAOD
 Muon0_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /Muon0/Run2025G-PromptReco-v1/NANOAOD
 Muon1_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /Muon1/Run2025B-PromptReco-v1/NANOAOD
 Muon1_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /Muon1/Run2025C-PromptReco-v1/NANOAOD
 Muon1_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /Muon1/Run2025C-PromptReco-v2/NANOAOD
 Muon1_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /Muon1/Run2025D-PromptReco-v1/NANOAOD
 Muon1_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /Muon1/Run2025E-PromptReco-v1/NANOAOD
 Muon1_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /Muon1/Run2025F-PromptReco-v1/NANOAOD
 Muon1_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /Muon1/Run2025F-PromptReco-v2/NANOAOD
 Muon1_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /Muon1/Run2025G-PromptReco-v1/NANOAOD
 MuonEG_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /MuonEG/Run2025B-PromptReco-v1/NANOAOD
 MuonEG_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /MuonEG/Run2025C-PromptReco-v1/NANOAOD
 MuonEG_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /MuonEG/Run2025C-PromptReco-v2/NANOAOD
 MuonEG_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /MuonEG/Run2025D-PromptReco-v1/NANOAOD
 MuonEG_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /MuonEG/Run2025E-PromptReco-v1/NANOAOD
 MuonEG_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /MuonEG/Run2025F-PromptReco-v1/NANOAOD
 MuonEG_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /MuonEG/Run2025F-PromptReco-v2/NANOAOD
 MuonEG_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /MuonEG/Run2025G-PromptReco-v1/NANOAOD
 ParkingHH0_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /ParkingHH0/Run2025B-PromptReco-v1/NANOAOD
 ParkingHH0_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingHH0/Run2025C-PromptReco-v1/NANOAOD
 ParkingHH0_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingHH0/Run2025C-PromptReco-v2/NANOAOD
 ParkingHH0_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /ParkingHH0/Run2025D-PromptReco-v1/NANOAOD
 ParkingHH0_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /ParkingHH0/Run2025E-PromptReco-v1/NANOAOD
 ParkingHH0_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingHH0/Run2025F-PromptReco-v1/NANOAOD
 ParkingHH0_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingHH0/Run2025F-PromptReco-v2/NANOAOD
 ParkingHH0_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /ParkingHH0/Run2025G-PromptReco-v1/NANOAOD
 ParkingHH1_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /ParkingHH1/Run2025B-PromptReco-v1/NANOAOD
 ParkingHH1_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingHH1/Run2025C-PromptReco-v1/NANOAOD
 ParkingHH1_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingHH1/Run2025C-PromptReco-v2/NANOAOD
 ParkingHH1_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /ParkingHH1/Run2025D-PromptReco-v1/NANOAOD
 ParkingHH1_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /ParkingHH1/Run2025E-PromptReco-v1/NANOAOD
 ParkingHH1_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingHH1/Run2025F-PromptReco-v1/NANOAOD
 ParkingHH1_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingHH1/Run2025F-PromptReco-v2/NANOAOD
 ParkingHH1_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /ParkingHH1/Run2025G-PromptReco-v1/NANOAOD
 ParkingVBF0_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /ParkingVBF0/Run2025B-PromptReco-v1/NANOAOD
 ParkingVBF0_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF0/Run2025C-PromptReco-v1/NANOAOD
 ParkingVBF0_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF0/Run2025C-PromptReco-v2/NANOAOD
 ParkingVBF0_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /ParkingVBF0/Run2025D-PromptReco-v1/NANOAOD
 ParkingVBF0_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /ParkingVBF0/Run2025E-PromptReco-v1/NANOAOD
 ParkingVBF0_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF0/Run2025F-PromptReco-v1/NANOAOD
 ParkingVBF0_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF0/Run2025F-PromptReco-v2/NANOAOD
 ParkingVBF0_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /ParkingVBF0/Run2025G-PromptReco-v1/NANOAOD
 ParkingVBF1_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /ParkingVBF1/Run2025B-PromptReco-v1/NANOAOD
 ParkingVBF1_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF1/Run2025C-PromptReco-v1/NANOAOD
 ParkingVBF1_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF1/Run2025C-PromptReco-v2/NANOAOD
 ParkingVBF1_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /ParkingVBF1/Run2025D-PromptReco-v1/NANOAOD
 ParkingVBF1_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /ParkingVBF1/Run2025E-PromptReco-v1/NANOAOD
 ParkingVBF1_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF1/Run2025F-PromptReco-v1/NANOAOD
 ParkingVBF1_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF1/Run2025F-PromptReco-v2/NANOAOD
 ParkingVBF1_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /ParkingVBF1/Run2025G-PromptReco-v1/NANOAOD
 ParkingVBF2_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /ParkingVBF2/Run2025B-PromptReco-v1/NANOAOD
 ParkingVBF2_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF2/Run2025C-PromptReco-v1/NANOAOD
 ParkingVBF2_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF2/Run2025C-PromptReco-v2/NANOAOD
 ParkingVBF2_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /ParkingVBF2/Run2025D-PromptReco-v1/NANOAOD
 ParkingVBF2_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /ParkingVBF2/Run2025E-PromptReco-v1/NANOAOD
 ParkingVBF2_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF2/Run2025F-PromptReco-v1/NANOAOD
 ParkingVBF2_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF2/Run2025F-PromptReco-v2/NANOAOD
 ParkingVBF2_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /ParkingVBF2/Run2025G-PromptReco-v1/NANOAOD
 ParkingVBF3_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /ParkingVBF3/Run2025B-PromptReco-v1/NANOAOD
 ParkingVBF3_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF3/Run2025C-PromptReco-v1/NANOAOD
 ParkingVBF3_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF3/Run2025C-PromptReco-v2/NANOAOD
 ParkingVBF3_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /ParkingVBF3/Run2025D-PromptReco-v1/NANOAOD
 ParkingVBF3_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /ParkingVBF3/Run2025E-PromptReco-v1/NANOAOD
 ParkingVBF3_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF3/Run2025F-PromptReco-v1/NANOAOD
 ParkingVBF3_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF3/Run2025F-PromptReco-v2/NANOAOD
 ParkingVBF3_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /ParkingVBF3/Run2025G-PromptReco-v1/NANOAOD
 ParkingVBF4_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /ParkingVBF4/Run2025B-PromptReco-v1/NANOAOD
 ParkingVBF4_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF4/Run2025C-PromptReco-v1/NANOAOD
 ParkingVBF4_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF4/Run2025C-PromptReco-v2/NANOAOD
 ParkingVBF4_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /ParkingVBF4/Run2025D-PromptReco-v1/NANOAOD
 ParkingVBF4_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /ParkingVBF4/Run2025E-PromptReco-v1/NANOAOD
 ParkingVBF4_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF4/Run2025F-PromptReco-v1/NANOAOD
 ParkingVBF4_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF4/Run2025F-PromptReco-v2/NANOAOD
 ParkingVBF4_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /ParkingVBF4/Run2025G-PromptReco-v1/NANOAOD
 ParkingVBF5_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /ParkingVBF5/Run2025B-PromptReco-v1/NANOAOD
 ParkingVBF5_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF5/Run2025C-PromptReco-v1/NANOAOD
 ParkingVBF5_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF5/Run2025C-PromptReco-v2/NANOAOD
 ParkingVBF5_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /ParkingVBF5/Run2025D-PromptReco-v1/NANOAOD
 ParkingVBF5_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /ParkingVBF5/Run2025E-PromptReco-v1/NANOAOD
 ParkingVBF5_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF5/Run2025F-PromptReco-v1/NANOAOD
 ParkingVBF5_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF5/Run2025F-PromptReco-v2/NANOAOD
 ParkingVBF5_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /ParkingVBF5/Run2025G-PromptReco-v1/NANOAOD
 ParkingVBF6_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /ParkingVBF6/Run2025B-PromptReco-v1/NANOAOD
 ParkingVBF6_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF6/Run2025C-PromptReco-v1/NANOAOD
 ParkingVBF6_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF6/Run2025C-PromptReco-v2/NANOAOD
 ParkingVBF6_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /ParkingVBF6/Run2025D-PromptReco-v1/NANOAOD
 ParkingVBF6_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /ParkingVBF6/Run2025E-PromptReco-v1/NANOAOD
 ParkingVBF6_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF6/Run2025F-PromptReco-v1/NANOAOD
 ParkingVBF6_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF6/Run2025F-PromptReco-v2/NANOAOD
 ParkingVBF6_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /ParkingVBF6/Run2025G-PromptReco-v1/NANOAOD
 ParkingVBF7_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /ParkingVBF7/Run2025B-PromptReco-v1/NANOAOD
 ParkingVBF7_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF7/Run2025C-PromptReco-v1/NANOAOD
 ParkingVBF7_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /ParkingVBF7/Run2025C-PromptReco-v2/NANOAOD
 ParkingVBF7_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /ParkingVBF7/Run2025D-PromptReco-v1/NANOAOD
 ParkingVBF7_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /ParkingVBF7/Run2025E-PromptReco-v1/NANOAOD
 ParkingVBF7_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF7/Run2025F-PromptReco-v1/NANOAOD
 ParkingVBF7_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /ParkingVBF7/Run2025F-PromptReco-v2/NANOAOD
 ParkingVBF7_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /ParkingVBF7/Run2025G-PromptReco-v1/NANOAOD
 Tau_Run2025B_v1:
+  eraLetter: B
   nanoAOD:
     PromptReco: /Tau/Run2025B-PromptReco-v1/NANOAOD
 Tau_Run2025C_v1:
+  eraLetter: C
   nanoAOD:
     PromptReco: /Tau/Run2025C-PromptReco-v1/NANOAOD
 Tau_Run2025C_v2:
+  eraLetter: C
   nanoAOD:
     PromptReco: /Tau/Run2025C-PromptReco-v2/NANOAOD
 Tau_Run2025D_v1:
+  eraLetter: D
   nanoAOD:
     PromptReco: /Tau/Run2025D-PromptReco-v1/NANOAOD
 Tau_Run2025E_v1:
+  eraLetter: E
   nanoAOD:
     PromptReco: /Tau/Run2025E-PromptReco-v1/NANOAOD
 Tau_Run2025F_v1:
+  eraLetter: F
   nanoAOD:
     PromptReco: /Tau/Run2025F-PromptReco-v1/NANOAOD
 Tau_Run2025F_v2:
+  eraLetter: F
   nanoAOD:
     PromptReco: /Tau/Run2025F-PromptReco-v2/NANOAOD
 Tau_Run2025G_v1:
+  eraLetter: G
   nanoAOD:
     PromptReco: /Tau/Run2025G-PromptReco-v1/NANOAOD
 

@@ -1,73 +1,88 @@
 ############## Data ##############
 EGamma_Run2022E:
+  eraLetter: E
   nanoAOD:
     22Sep23: /EGamma/Run2022E-22Sep2023-v1/NANOAOD
     16Dec23: /EGamma/Run2022E-16Dec2023-v1/NANOAOD
     v15: /EGamma/Run2022E-NanoAODv15-v1/NANOAOD
 EGamma_Run2022F:
+  eraLetter: F
   nanoAOD:
     22Sep23: /EGamma/Run2022F-22Sep2023-v1/NANOAOD
     16Dec23: /EGamma/Run2022F-16Dec2023-v1/NANOAOD
     19Dec23: /EGamma/Run2022F-19Dec2023-v1/NANOAOD
     v15: /EGamma/Run2022F-NanoAODv15-v1/NANOAOD
 EGamma_Run2022G:
+  eraLetter: G
   nanoAOD:
     22Sep23: /EGamma/Run2022G-22Sep2023-v1/NANOAOD
     16Dec23: /EGamma/Run2022G-16Dec2023-v1/NANOAOD
     19Dec23: /EGamma/Run2022G-19Dec2023-v1/NANOAOD
     v15: /EGamma/Run2022G-NanoAODv15-v1/NANOAOD
 Muon_Run2022E:
+  eraLetter: E
   nanoAOD:
-    16Dec23: /Muon/Run2022E-16Dec2023-v1/NANOAOD
     22Sep23: /Muon/Run2022E-22Sep2023-v1/NANOAOD
+    16Dec23: /Muon/Run2022E-16Dec2023-v1/NANOAOD
     v15: /Muon/Run2022E-NanoAODv15-v1/NANOAOD
 Muon_Run2022F:
+  eraLetter: F
   nanoAOD:
+    22Sep23: /Muon/Run2022F-22Sep2023-v2/NANOAOD
     19Dec23: /Muon/Run2022F-19Dec2023-v1/NANOAOD
     16Dec23: /Muon/Run2022F-16Dec2023-v1/NANOAOD
-    22Sep23: /Muon/Run2022F-22Sep2023-v2/NANOAOD
     v15: /Muon/Run2022F-NanoAODv15-v1/NANOAOD
 Muon_Run2022G:
+  eraLetter: G
   nanoAOD:
+    22Sep23: /Muon/Run2022G-22Sep2023-v1/NANOAOD
     19Dec23: /Muon/Run2022G-19Dec2023-v2/NANOAOD
     16Dec23: /Muon/Run2022G-16Dec2023-v1/NANOAOD
-    22Sep23: /Muon/Run2022G-22Sep2023-v1/NANOAOD
     v15: /Muon/Run2022G-NanoAODv15-v1/NANOAOD
 MuonEG_Run2022E:
+  eraLetter: E
   nanoAOD:
     22Sep23: /MuonEG/Run2022E-22Sep2023-v1/NANOAOD
     v15: /MuonEG/Run2022E-NanoAODv15-v1/NANOAOD
 MuonEG_Run2022F:
+  eraLetter: F
   nanoAOD:
     22Sep23: /MuonEG/Run2022F-22Sep2023-v1/NANOAOD
     v15: /MuonEG/Run2022F-NanoAODv15-v1/NANOAOD
 MuonEG_Run2022G:
+  eraLetter: G
   nanoAOD:
     22Sep23: /MuonEG/Run2022G-22Sep2023-v1/NANOAOD
     v15: /MuonEG/Run2022G-NanoAODv15-v1/NANOAOD
 Tau_Run2022E:
+  eraLetter: E
   nanoAOD:
     22Sep23: /Tau/Run2022E-22Sep2023-v1/NANOAOD
     v15: /Tau/Run2022E-NanoAODv15-v1/NANOAOD
 Tau_Run2022F:
+  eraLetter: F
   nanoAOD:
     22Sep23: /Tau/Run2022F-22Sep2023-v1/NANOAOD
     v15: /Tau/Run2022F-NanoAODv15-v1/NANOAOD
 Tau_Run2022G:
+  eraLetter: G
   nanoAOD:
     22Sep23: /Tau/Run2022G-22Sep2023-v1/NANOAOD
     v15: /Tau/Run2022G-NanoAODv15-v1/NANOAOD
 JetMET_Run2022E:
+  eraLetter: E
   nanoAOD:
     22Sep23: /JetMET/Run2022E-22Sep2023-v1/NANOAOD
     19Dec23: /JetMET/Run2022E-19Dec2023-v1/NANOAOD
     v15: /JetMET/Run2022E-NanoAODv15-v1/NANOAOD
 JetMET_Run2022F:
+  eraLetter: F
   nanoAOD:
     22Sep23: /JetMET/Run2022F-22Sep2023-v1/NANOAOD
     19Dec23: /JetMET/Run2022F-19Dec2023-v1/NANOAOD
     v15: /JetMET/Run2022F-NanoAODv15-v1/NANOAOD
 JetMET_Run2022G:
+  eraLetter: G
   nanoAOD:
     22Sep23: /JetMET/Run2022G-22Sep2023-v1/NANOAOD
     19Dec23: /JetMET/Run2022G-19Dec2023-v1/NANOAOD
@@ -227,7 +242,7 @@ DYto2Mu_M_50_0J_amcatnloFXFX:
   dirName: DYto2L_M_50_0J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 DYto2Tau_M_50_0J_amcatnloFXFX:
-  crossSection: DYto2Tau_M_50_0J_amcatnloFXFX
+  crossSection: DYto2L_M_50_0J_amcatnloFXFX
   generator: amcatnlo
   miniAOD: /DYto2Tau-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
   nanoAOD:
@@ -262,7 +277,7 @@ DYto2Mu_M_50_1J_amcatnloFXFX:
   dirName: DYto2L_M_50_1J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 DYto2Tau_M_50_1J_amcatnloFXFX:
-  crossSection: DYto2Tau_M_50_1J_amcatnloFXFX
+  crossSection: DYto2L_M_50_1J_amcatnloFXFX
   generator: amcatnlo
   miniAOD: /DYto2Tau-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
   nanoAOD:
@@ -296,7 +311,7 @@ DYto2Mu_M_50_2J_amcatnloFXFX:
   dirName: DYto2L_M_50_2J_amcatnloFXFX
   fileNamePattern: ^nanoMuMu_\d+\.root$
 DYto2Tau_M_50_2J_amcatnloFXFX:
-  crossSection: DYto2Tau_M_50_2J_amcatnloFXFX
+  crossSection: DYto2L_M_50_2J_amcatnloFXFX
   generator: amcatnlo
   miniAOD: /DYto2Tau-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
   nanoAOD:

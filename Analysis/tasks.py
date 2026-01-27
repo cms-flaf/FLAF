@@ -917,8 +917,8 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return_list = []
         for idx in range(nInputs):
             inputFilePath = self.input()["anaTuple"][idx].path
-            basename, _ = os.path.splitext(inputFilePath)
-            outFileName = f"{basename}.{self.output_file_extension}"
+            outFileNameWithoutExtension = os.path.basename(inputFilePath).split('.')[0]
+            outFileName = f"{outFileNameWithoutExtension}.{self.output_file_extension}"
             output_path = os.path.join(
                 "AnalysisCache",
                 self.version,

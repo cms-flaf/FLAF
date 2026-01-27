@@ -952,7 +952,7 @@ Zto2Nu_HT_2500ToInf:
   reference: XSDB Zto2Nu-4Jets_HT-2500_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 20:13:06
   unc: 2.019e-05
 
-Zto2Q_HT_100to400 :
+Zto2Q_HT_100to400:
   crossSec: 6328
   ref: XSDB Zto2Q-4Jets_Bin-HT-100to400_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2025-09-22 09:08:33
   unc: 17.95

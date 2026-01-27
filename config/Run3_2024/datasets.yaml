@@ -1785,12 +1785,12 @@ ZH_Hto2B_Zto2Q:
 #   crossSection: WtoLNu_0J_amcatnloFXFX
 #   generator: amcatnlo
 #   nanoAOD:
-    v15:
+    # v15:
 # WtoLNu_1J_amcatnloFXFX:
 #   crossSection: WtoLNu_1J_amcatnloFXFX
 #   generator: amcatnlo
 #   nanoAOD:
-    v15:
+    # v15:
 WtoLNu_1J_madgraphMLM:
   crossSection: WtoLNu_1J_madgraphMLM
   generator: madgraphMLM
@@ -1820,43 +1820,43 @@ WtoLNu_4J_madgraphMLM:
 #   crossSection: WtoLNu_NNLO_QCD+NLO_EW
 #   generator: amcatnlo
 #   nanoAOD:
-    v15:
+    # v15:
 # WtoLNu_madgraphMLM:
 #   crossSection: WtoLNu_NNLO_QCD+NLO_EW
 #   generator: madgraphMLM
 #   nanoAOD:
-    v15:
+    # v15:
 
 # WtoLNu_MLNu_0to120_HT_40To100_madgraph:
 #   crossSection: WtoLNu_MLNu_0to120_HT_40To100_madgraph
 #   generator: madgraphMLM
 #
   # nanoAOD:
-    v15:
+    # v15:
 # WtoLNu_MLNu_0to120_HT_100To400_madgraph:
 #   crossSection: WtoLNu_MLNu_0to120_HT_100To400_madgraph
 #   generator: madgraphMLM
 #
   # nanoAOD:
-    v15:
+    # v15:
 # WtoLNu_MLNu_0to120_HT_400To800_madgraph:
 #   crossSection: WtoLNu_MLNu_0to120_HT_400To800_madgraph
 #   generator: madgraphMLM
 #
   # nanoAOD:
-    v15:
+    # v15:
 # WtoLNu_MLNu_0to120_HT_800To1500_madgraph:
 #   crossSection: WtoLNu_MLNu_0to120_HT_800To1500_madgraph
 #   generator: madgraphMLM
 #
   # nanoAOD:
-    v15:
+    # v15:
 # WtoLNu_MLNu_0to120_HT_1500To2500_madgraph:
 #   crossSection: WtoLNu_MLNu_0to120_HT_1500To2500_madgraph
 #   generator: madgraphMLM
 #
   # nanoAOD:
-    v15:
+    # v15:
 
 
 WtoLNu_PTLNu_40to100_1J_amcatnloFXFX:

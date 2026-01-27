@@ -1490,14 +1490,12 @@ GluGluHto2Wto2L2Nu_M125:
   generator: powheg
   nanoAOD:
     v15: /GluGluHto2Wto2L2Nu_Par-M-125_TuneCP5_13p6TeV_powheg-jhugen-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-
 ## QCD ###
 QCD_HT1000to1200_MLM:
   crossSection: QCD_HT1000to1200_MLM
   generator: madgraph
   nanoAOD:
     v15: /QCD-4Jets_Bin-HT-1000to1200_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-
 QCD_HT100to200_MLM:
   crossSection: QCD_HT100to200_MLM
   generator: madgraph
@@ -1508,13 +1506,11 @@ QCD_HT1200to1500_MLM:
   generator: madgraph
   nanoAOD:
     v15: /QCD-4Jets_Bin-HT-1200to1500_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-
 QCD_HT1500to2000_MLM:
   crossSection: QCD_HT1500to2000_MLM
   generator: madgraph
   nanoAOD:
     v15: /QCD-4Jets_Bin-HT-1500to2000_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-
 QCD_HT2000toInf_MLM:
   crossSection: QCD_HT2000toInf_MLM
   generator: madgraph
@@ -1639,7 +1635,7 @@ TTto2L2Nu:
 TTto4Q:
   crossSection: TTto4Q
   generator: powheg
-  nanoAOD:TTto4Q
+  nanoAOD:
     v15: /_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 TTtoLNu2Q:
   crossSection: TTtoLNu2Q

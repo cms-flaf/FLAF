@@ -760,7 +760,13 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 max_runtime=AnaTupleMergeTask.max_runtime._default,
                 n_cpus=AnaTupleMergeTask.n_cpus._default,
             )
-            for br_idx, (dataset_name, prod_br, need_cache_global, producer_list, input_index) in self.branch_map.items()
+            for br_idx, (
+                dataset_name,
+                prod_br,
+                need_cache_global,
+                producer_list,
+                input_index,
+            ) in self.branch_map.items()
         }
         producer_dependencies = self.global_params["payload_producers"][
             self.producer_to_run
@@ -780,14 +786,18 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return workflow_dict
 
     def requires(self):
-        dataset_name, prod_br, need_cache_global, producer_list, input_index = self.branch_data
+        dataset_name, prod_br, need_cache_global, producer_list, input_index = (
+            self.branch_data
+        )
         producer_dependencies = self.global_params["payload_producers"][
             self.producer_to_run
         ]["dependencies"]
         requirements = {
             "anaTuple": AnaTupleMergeTask.req(
-                self, branch=prod_br, max_runtime=AnaTupleMergeTask.max_runtime._default,
-                branches=()
+                self,
+                branch=prod_br,
+                max_runtime=AnaTupleMergeTask.max_runtime._default,
+                branches=(),
             )
         }
         anaCaches = {}
@@ -806,12 +816,16 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
-        branches = HistTupleProducerTask.req(self, branch=-1, branches=()).create_branch_map()
+        branches = HistTupleProducerTask.req(
+            self, branch=-1, branches=()
+        ).create_branch_map()
         return branches
 
     @workflow_condition.output
     def output(self):
-        dataset_name, prod_br, need_cache_global, producer_list, input_index = self.branch_data
+        dataset_name, prod_br, need_cache_global, producer_list, input_index = (
+            self.branch_data
+        )
         outFileName = os.path.basename(self.input()["anaTuple"][input_index].path)
         output_path = os.path.join(
             "AnalysisCache",
@@ -824,7 +838,9 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return self.remote_target(output_path, fs=self.fs_anaCacheTuple)
 
     def run(self):
-        dataset_name, prod_br, need_cache_global, producer_list, input_index = self.branch_data
+        dataset_name, prod_br, need_cache_global, producer_list, input_index = (
+            self.branch_data
+        )
         unc_config = os.path.join(
             self.ana_path(), "config", self.period, f"weights.yaml"
         )
@@ -847,15 +863,12 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             job_home, remove_job_home = self.law_job_home()
             print(f"At job_home {job_home}")
 
-
             with contextlib.ExitStack() as stack:
                 # Enter a stack to maybe load the analysis cache files
                 input_file = self.input()["anaTuple"][input_index]
                 if len(self.input()["anaCaches"]) > 0:
                     local_anacaches = {}
-                    for producer_name, cache_files in self.input()[
-                        "anaCaches"
-                    ].items():
+                    for producer_name, cache_files in self.input()["anaCaches"].items():
                         local_anacaches[producer_name] = stack.enter_context(
                             cache_files[input_index].localize("r")
                         ).path
@@ -868,9 +881,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     local_anacaches_str = ""
 
                 output_file = self.output()
-                print(
-                    f"considering dataset {dataset_name}, and file {input_file.path}"
-                )
+                print(f"considering dataset {dataset_name}, and file {input_file.path}")
                 customisation_dict = getCustomisationSplit(self.customisations)
                 tmpFile = os.path.join(job_home, f"AnalysisCacheTask.root")
                 with input_file.localize("r") as local_input:

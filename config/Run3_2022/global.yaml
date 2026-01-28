@@ -1,8 +1,5 @@
 era: Run3_2022
 luminosity: 7980.4  # pb-1
-nanoAODVersions:
-  data: 22Sep23
-  mc: v12
 fs_nanoAOD:
   - 'T2_CH_CERN:/store/group/phys_higgs/HLepRare/skim_2025_v1/Run3_2022'
 nano_version: v14

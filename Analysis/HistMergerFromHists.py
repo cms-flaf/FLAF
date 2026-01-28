@@ -4,7 +4,6 @@ import os
 import time
 import importlib
 
-
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 

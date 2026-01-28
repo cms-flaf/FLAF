@@ -67,7 +67,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             producer_to_run=producer_to_run,
                         )
                     )
-            if self.global_params["apply_btagShape_weights"]:
+
+            correct_btagShape_weights = self.global_params.get("correct_btagShape_weights", False)  
+            if correct_btagShape_weights:
                 req_dict["btagShapeWeight"] = BtagShapeWeightCorrectionTask.req(
                     self,
                     branches=(),
@@ -113,7 +115,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     )
                 )
 
-        if self.global_params["apply_btagShape_weights"]:
+        correct_btagShape_weights = self.global_params.get("correct_btagShape_weights", False)
+        if correct_btagShape_weights:
             btag_shape_weight_branch_set = set()
             btag_shape_task_branch_map = BtagShapeWeightCorrectionTask.req(
                 self, branch=-1
@@ -189,7 +192,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 deps["anaCaches"] = anaCaches
 
         isMC = dataset_name != "data"
-        if self.global_params["apply_btagShape_weights"] and isMC:
+        correct_btagShape_weights = self.global_params.get("correct_btagShape_weights", False)
+        if correct_btagShape_weights and isMC:
             btag_shape_task_branch_map = BtagShapeWeightCorrectionTask.req(
                 self, branch=-1
             ).create_branch_map()
@@ -368,7 +372,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 HistTupleProducer_cmd.extend(["--cacheFile", local_anacaches_str])
 
             isMC = dataset_name != "data"
-            if self.global_params["apply_btagShape_weights"] and isMC:
+            correct_bragShape_weights = self.global_params.get("correct_btagShape_weights", False)
+            if correct_bragShape_weights and isMC:
                 tc = self.input()["btagShapeWeightCorr"]["collection"]
                 btag_corr_json = tc._flat_target_list[0]
                 local_btag_corr_json = stack.enter_context(

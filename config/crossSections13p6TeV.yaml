@@ -599,7 +599,7 @@ TBbarQ_t_channel_4FS:
 TbarBQtoLNu_t_channel_4FS:
   crossSec: 23.34
   reference: XSDB TbarBQtoLNu-t-channel-4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8 modifiedOn 2025-09-22 09:07:43
-  unc: 0.05875 
+  unc: 0.05875
 TbarBQto2Q_t_channel_4FS: # FIXME should probably use prod xs from NNLO x BR of the channels
   crossSec: 46.73
   reference: XSDB

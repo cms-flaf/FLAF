@@ -27,6 +27,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
 
     def workflow_requires(self):
+        correct_btagShape_weights = self.global_params.get("correct_btagShape_weights", False)
         merge_organization_complete = AnaTupleFileListTask.req(
             self, branches=()
         ).complete()
@@ -68,7 +69,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         )
                     )
 
-            correct_btagShape_weights = self.global_params.get("correct_btagShape_weights", False)  
             if correct_btagShape_weights:
                 req_dict["btagShapeWeight"] = BtagShapeWeightCorrectionTask.req(
                     self,
@@ -115,7 +115,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     )
                 )
 
-        correct_btagShape_weights = self.global_params.get("correct_btagShape_weights", False)
         if correct_btagShape_weights:
             btag_shape_weight_branch_set = set()
             btag_shape_task_branch_map = BtagShapeWeightCorrectionTask.req(

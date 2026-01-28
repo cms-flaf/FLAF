@@ -107,8 +107,7 @@ def copyFileContent(
     snapshotOptions.fOverwriteIfExists = False
     snapshotOptions.fLazy = False
     snapshotOptions.fMode = "UPDATE"
-    snapshotOptions.fCompressionAlgorithm = getattr(
-        ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + compression_algorithm
+    snapshotOptions.fCompressionAlgorithm = getattr(ROOT.ROOT.RCompressionSetting.EAlgorithm, "k"+compression_algorithm
     )
     snapshotOptions.fCompressionLevel = compression_level
     if verbose > 0:
@@ -217,10 +216,7 @@ def copyFileContent(
                                     output_file[out_name] = groupped_arrays
                             stored_with_uproot.add(out_name)
                         else:
-                            to_store_with_rdf[out_name] = (
-                                input["file"],
-                                input_object_name,
-                            )
+                            to_store_with_rdf[out_name] = (input["file"], input_object_name)
 
         for hist_name, (hist, _) in histograms.items():
             output_file[hist_name] = hist

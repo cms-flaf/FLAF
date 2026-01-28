@@ -28,7 +28,6 @@ if __name__ == "__main__":
     input_file_list = []
     output_file_list = []
     # hadd_dict[f'anaTuple_{nFileCounter}.root'] = []
-    nDataEventsCounter = 0
     for this_json in all_files:
         with open(this_json, "r") as file:
             data = json.load(file)
@@ -52,9 +51,6 @@ if __name__ == "__main__":
                 nFileCounter += 1
                 output_file_list = []
                 input_file_list = []
-
-            if args.isData:
-                nDataEventsCounter += nEvents
 
     # Append whatever is leftover
     if len(input_file_list) > 0 and not args.isData:
@@ -86,7 +82,7 @@ if __name__ == "__main__":
                 {
                     "inputs": input_file_list,
                     "outputs": output_file_list,
-                    "n_events": nDataEventsCounter,
+                    "n_events": nEventsCounter,
                 }
             )
         else:

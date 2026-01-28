@@ -12,6 +12,7 @@ import FLAF.Common.Utilities as Utilities
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
 
+
 def checkFile(inFileRoot, channels, qcdRegions, categories):
     keys_channels = [str(key.GetName()) for key in inFileRoot.GetListOfKeys()]
     for channel in channels:

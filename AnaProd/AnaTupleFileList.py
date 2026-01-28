@@ -1,7 +1,6 @@
 import os
 import json
 
-
 if __name__ == "__main__":
     import argparse
 
@@ -42,7 +41,11 @@ if __name__ == "__main__":
             if nEventsCounter > args.nEventsPerFile and not args.isData:
                 output_file_list.append(f"anaTuple_{nFileCounter}.root")
                 hadd_dict["merge_strategy"].append(
-                    {"inputs": input_file_list, "outputs": output_file_list}
+                    {
+                        "inputs": input_file_list,
+                        "outputs": output_file_list,
+                        "n_events": nEventsCounter,
+                    }
                 )
                 nEventsCounter = 0
                 nFileCounter += 1
@@ -55,7 +58,11 @@ if __name__ == "__main__":
         output_file_list.append(f"anaTuple_{nFileCounter}.root")
         nFileCounter += 1
         hadd_dict["merge_strategy"].append(
-            {"inputs": input_file_list, "outputs": output_file_list}
+            {
+                "inputs": input_file_list,
+                "outputs": output_file_list,
+                "n_events": nEventsCounter,
+            }
         )
         input_file_list = []
         output_file_list = []
@@ -72,7 +79,11 @@ if __name__ == "__main__":
             for nFileCounter in range(nFiles):
                 output_file_list.append(f"anaTuple_{nFileCounter}.root")
             hadd_dict["merge_strategy"].append(
-                {"inputs": input_file_list, "outputs": output_file_list}
+                {
+                    "inputs": input_file_list,
+                    "outputs": output_file_list,
+                    "n_events": nEventsCounter,
+                }
             )
         else:
             raise ValueError(

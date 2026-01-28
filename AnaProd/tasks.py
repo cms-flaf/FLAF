@@ -671,9 +671,13 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     def requires(self):
         # Need both the AnaTupleFileTask for the input ROOT file, and the AnaTupleFileListTask for the json structure
-        dataset_name, process_group, input_file_list, output_file_list = (
-            self.branch_data
-        )
+        (
+            dataset_name,
+            process_group,
+            input_file_list,
+            output_file_list,
+            skip_future_tasks,
+        ) = self.branch_data
         anaTuple_branch_map = AnaTupleFileTask.req(
             self, branch=-1, branches=()
         ).create_branch_map()
@@ -744,20 +748,26 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             for this_dict in this_dataset_dict["merge_strategy"]:
                 input_file_list = this_dict["inputs"]
                 output_file_list = this_dict["outputs"]
+                skip_future_tasks = this_dict["n_events"] == 0
                 branches[nBranch] = (
                     dataset_name,
                     process_group,
                     input_file_list,
                     output_file_list,
+                    skip_future_tasks,
                 )
                 nBranch += 1
         return branches
 
     @workflow_condition.output
     def output(self):
-        dataset_name, process_group, input_file_list, output_file_list = (
-            self.branch_data
-        )
+        (
+            dataset_name,
+            process_group,
+            input_file_list,
+            output_file_list,
+            skip_future_tasks,
+        ) = self.branch_data
         output_path_string = os.path.join(
             "anaTuples", self.version, self.period, dataset_name, "{}"
         )
@@ -770,9 +780,13 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         producer_Merge = os.path.join(
             self.ana_path(), "FLAF", "AnaProd", "MergeNtuples.py"
         )
-        dataset_name, process_group, input_file_list, output_file_list = (
-            self.branch_data
-        )
+        (
+            dataset_name,
+            process_group,
+            input_file_list,
+            output_file_list,
+            skip_future_tasks,
+        ) = self.branch_data
         isData = (
             "1" if process_group == "data" else "0"
         )  # ps_call needs to only pass strings????

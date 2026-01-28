@@ -81,7 +81,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ) in self.branch_map.items():
             branch_set.add(br)
             if need_cache_global:
-                branch_set_cache.add(br)
+                branch_set_cache.add(idx)
                 for producer_name in (p for p in producer_list if p is not None):
                     producer_set.add(producer_name)
         reqs = {}
@@ -128,8 +128,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     anaCaches[producer_name] = AnalysisCacheTask.req(
                         self,
                         max_runtime=AnalysisCacheTask.max_runtime._default,
-                        branch=prod_br,
-                        branches=(prod_br,),
+                        branch=self.branch,
+                        branches=(self.branch,),
                         customisations=self.customisations,
                         producer_to_run=producer_name,
                     )
@@ -187,7 +187,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             dataset_type,
             input_file_list,
             output_file_list,
+            skip_future_tasks,
         ) in anaProd_branch_map.items():
+            if skip_future_tasks:
+                continue
             if dataset_name not in datasets_to_consider:
                 continue
 
@@ -276,7 +279,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 local_anacaches = {}
                 for producer_name, cache_file in self.input()["anaCaches"].items():
                     local_anacaches[producer_name] = stack.enter_context(
-                        cache_file[input_index].localize("r")
+                        cache_file.localize("r")
                     ).path
                 local_anacaches_str = ",".join(
                     f"{producer}:{path}" for producer, path in local_anacaches.items()
@@ -752,11 +755,18 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         workflow_dict["anaTuple"] = {
             br_idx: AnaTupleMergeTask.req(
                 self,
-                branch=br_idx,
+                branch=prod_br,
+                branches=(),
                 max_runtime=AnaTupleMergeTask.max_runtime._default,
                 n_cpus=AnaTupleMergeTask.n_cpus._default,
             )
-            for br_idx, _ in self.branch_map.items()
+            for br_idx, (
+                dataset_name,
+                prod_br,
+                need_cache_global,
+                producer_list,
+                input_index,
+            ) in self.branch_map.items()
         }
         producer_dependencies = self.global_params["payload_producers"][
             self.producer_to_run
@@ -767,6 +777,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     br_idx: AnalysisCacheTask.req(
                         self,
                         branch=br_idx,
+                        branches=(),
                         customisations=self.customisations,
                         producer_to_run=dependency,
                     )
@@ -775,12 +786,18 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return workflow_dict
 
     def requires(self):
+        dataset_name, prod_br, need_cache_global, producer_list, input_index = (
+            self.branch_data
+        )
         producer_dependencies = self.global_params["payload_producers"][
             self.producer_to_run
         ]["dependencies"]
         requirements = {
             "anaTuple": AnaTupleMergeTask.req(
-                self, max_runtime=AnaTupleMergeTask.max_runtime._default
+                self,
+                branch=prod_br,
+                max_runtime=AnaTupleMergeTask.max_runtime._default,
+                branches=(),
             )
         }
         anaCaches = {}
@@ -799,42 +816,31 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
-        branches = {}
-        anaProd_branch_map = AnaTupleMergeTask.req(
+        branches = HistTupleProducerTask.req(
             self, branch=-1, branches=()
-        ).branch_map
-        for br_idx, (
-            dataset_name,
-            process_group,
-            input_file_list,
-            output_file_list,
-        ) in anaProd_branch_map.items():
-            branches[br_idx] = (dataset_name, process_group, len(output_file_list))
+        ).create_branch_map()
         return branches
 
     @workflow_condition.output
     def output(self):
-        dataset_name, process_group, nInputs = self.branch_data
-        return_list = []
-        for idx in range(nInputs):
-            outFileName = os.path.basename(self.input()["anaTuple"][idx].path)
-            output_path = os.path.join(
-                "AnalysisCache",
-                self.version,
-                self.period,
-                dataset_name,
-                self.producer_to_run,
-                outFileName,
-            )
-            return_list.append(
-                self.remote_target(output_path, fs=self.fs_anaCacheTuple)
-            )
-        # return self.remote_target(output_path, fs=self.fs_AnalysisCache) # for some reason this line is not working even if I edit user_custom.yaml
-        # return self.remote_target(output_path, fs=self.fs_anaCacheTuple)
-        return return_list
+        dataset_name, prod_br, need_cache_global, producer_list, input_index = (
+            self.branch_data
+        )
+        outFileName = os.path.basename(self.input()["anaTuple"][input_index].path)
+        output_path = os.path.join(
+            "AnalysisCache",
+            self.version,
+            self.period,
+            dataset_name,
+            self.producer_to_run,
+            outFileName,
+        )
+        return self.remote_target(output_path, fs=self.fs_anaCacheTuple)
 
     def run(self):
-        dataset_name, process_group, nInputs = self.branch_data
+        dataset_name, prod_br, need_cache_global, producer_list, input_index = (
+            self.branch_data
+        )
         unc_config = os.path.join(
             self.ana_path(), "config", self.period, f"weights.yaml"
         )
@@ -856,80 +862,73 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         try:
             job_home, remove_job_home = self.law_job_home()
             print(f"At job_home {job_home}")
-            for idx in range(nInputs):
-                with contextlib.ExitStack() as stack:
-                    # Enter a stack to maybe load the analysis cache files
-                    input_file = self.input()["anaTuple"][idx]
-                    if len(self.input()["anaCaches"]) > 0:
-                        local_anacaches = {}
-                        for producer_name, cache_files in self.input()[
-                            "anaCaches"
-                        ].items():
-                            local_anacaches[producer_name] = stack.enter_context(
-                                cache_files[idx].localize("r")
-                            ).path
-                        local_anacaches_str = ",".join(
-                            f"{producer}:{path}"
-                            for producer, path in local_anacaches.items()
-                        )
-                        print(f"Task has cache input files {local_anacaches_str}")
-                    else:
-                        local_anacaches_str = ""
 
-                    output_file = self.output()[idx]
-                    print(
-                        f"considering dataset {dataset_name}, {process_group} and file {input_file.path}"
+            with contextlib.ExitStack() as stack:
+                # Enter a stack to maybe load the analysis cache files
+                input_file = self.input()["anaTuple"][input_index]
+                if len(self.input()["anaCaches"]) > 0:
+                    local_anacaches = {}
+                    for producer_name, cache_files in self.input()["anaCaches"].items():
+                        local_anacaches[producer_name] = stack.enter_context(
+                            cache_files[input_index].localize("r")
+                        ).path
+                    local_anacaches_str = ",".join(
+                        f"{producer}:{path}"
+                        for producer, path in local_anacaches.items()
                     )
-                    if output_file.exists():
-                        print(f"Output file {output_file} already exists, continue")
-                        continue
-                    customisation_dict = getCustomisationSplit(self.customisations)
-                    tmpFile = os.path.join(job_home, f"AnalysisCacheTask.root")
-                    with input_file.localize("r") as local_input:
-                        analysisCacheProducer_cmd = [
-                            "python3",
-                            analysis_cache_producer,
-                            "--period",
-                            self.period,
-                            "--inFile",
-                            local_input.path,
-                            "--outFile",
-                            tmpFile,
-                            "--dataset",
-                            dataset_name,
-                            "--channels",
-                            channels,
-                            "--producer",
-                            self.producer_to_run,
-                            "--workingDir",
-                            job_home,
-                        ]
-                        if (
-                            self.global_params["store_noncentral"]
-                            and process_group != "data"
-                        ):
-                            analysisCacheProducer_cmd.extend(
-                                ["--compute_unc_variations", "True"]
-                            )
-                        if len(local_anacaches_str) > 0:
-                            analysisCacheProducer_cmd.extend(
-                                ["--cacheFiles", local_anacaches_str]
-                            )
-                        # Check if cmssw env is required
-                        prod_env = (
-                            self.cmssw_env
-                            if self.global_params["payload_producers"][
-                                self.producer_to_run
-                            ].get("cmssw_env", False)
-                            else None
+                    print(f"Task has cache input files {local_anacaches_str}")
+                else:
+                    local_anacaches_str = ""
+
+                output_file = self.output()
+                print(f"considering dataset {dataset_name}, and file {input_file.path}")
+                customisation_dict = getCustomisationSplit(self.customisations)
+                tmpFile = os.path.join(job_home, f"AnalysisCacheTask.root")
+                with input_file.localize("r") as local_input:
+                    analysisCacheProducer_cmd = [
+                        "python3",
+                        analysis_cache_producer,
+                        "--period",
+                        self.period,
+                        "--inFile",
+                        local_input.path,
+                        "--outFile",
+                        tmpFile,
+                        "--dataset",
+                        dataset_name,
+                        "--channels",
+                        channels,
+                        "--producer",
+                        self.producer_to_run,
+                        "--workingDir",
+                        job_home,
+                    ]
+                    if (
+                        self.global_params["store_noncentral"]
+                        and dataset_name != "data"
+                    ):
+                        analysisCacheProducer_cmd.extend(
+                            ["--compute_unc_variations", "True"]
                         )
-                        ps_call(analysisCacheProducer_cmd, env=prod_env, verbose=1)
-                    print(
-                        f"Finished producing payload for producer={self.producer_to_run} with name={dataset_name}, group={process_group}, file={input_file.path}"
+                    if len(local_anacaches_str) > 0:
+                        analysisCacheProducer_cmd.extend(
+                            ["--cacheFiles", local_anacaches_str]
+                        )
+                    # Check if cmssw env is required
+                    prod_env = (
+                        self.cmssw_env
+                        if self.global_params["payload_producers"][
+                            self.producer_to_run
+                        ].get("cmssw_env", False)
+                        else None
                     )
-                    with output_file.localize("w") as tmp_local_file:
-                        out_local_path = tmp_local_file.path
-                        shutil.move(tmpFile, out_local_path)
+                    ps_call(analysisCacheProducer_cmd, env=prod_env, verbose=1)
+                print(
+                    f"Finished producing payload for producer={self.producer_to_run} with name={dataset_name}, file={input_file.path}"
+                )
+                with output_file.localize("w") as tmp_local_file:
+                    out_local_path = tmp_local_file.path
+                    shutil.move(tmpFile, out_local_path)
             if remove_job_home:
                 shutil.rmtree(job_home)
 

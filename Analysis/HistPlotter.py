@@ -229,7 +229,7 @@ if __name__ == "__main__":
                 category=category,
                 region=custom_region,
             )
-        new_bins = getNewBins(bins_to_compute)
+        new_bins = GetBinVec(bins_to_compute)
 
         for dataset_name, dataset_content in all_datasets_dict.items():
             dataset_process_name = dataset_content["process_name"]

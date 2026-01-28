@@ -48,7 +48,7 @@ QCD_PT_300_EMEnriched:
   - Run3_2023
   - Run3_2023BPix
   - Run3_2022
-^QCD_PT*.:
+^^QCD_PT_.*:
   - Run3_2024
 # ST
 ^T(bar|)W.*_ext1:

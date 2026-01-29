@@ -7,7 +7,7 @@ import re
 
 from FLAF.RunKit.run_tools import ps_call, natural_sort
 from FLAF.run_tools.law_customizations import Task, HTCondorWorkflow, copy_param
-from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
+from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread, SerializeObjectToString
 
 
 class InputFileTask(Task, law.LocalWorkflow):
@@ -287,7 +287,6 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             for br_idx, (
                 anaTuple_dataset_id,
                 anaTuple_dataset_name,
-                anaTuple_dataset_dependencies,
                 anaTuple_fileintot,
             ) in AnaTuple_map.items():
                 match = dataset_name == anaTuple_dataset_name
@@ -318,7 +317,6 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         for br_idx, (
             anaTuple_dataset_id,
             anaTuple_dataset_name,
-            anaTuple_dataset_dependencies,
             anaTuple_fileintot,
         ) in AnaTuple_map.items():
             match = dataset_name == anaTuple_dataset_name
@@ -477,11 +475,10 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         anaTuple_branch_map = AnaTupleFileTask.req(
             self, branch=-1, branches=()
         ).create_branch_map()
-        required_branches = { "list": [], "root": [], "json": [] }
+        required_branches = { "root": {}, "json": {} }
         for prod_br, (
             anaTuple_dataset_id,
             anaTuple_dataset_name,
-            anaTuple_dataset_dependencies,
             anaTuple_fileintot,
         ) in anaTuple_branch_map.items():
             match = dataset_name == anaTuple_dataset_name
@@ -502,22 +499,20 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             elif anaTuple_dataset_name in dataset_dependencies.keys():
                 dependency_type = "json"
             if dependency_type:
-                required_branches[dependency_type].append(
-                    AnaTupleFileTask.req(
-                        self,
-                        max_runtime=AnaTupleFileTask.max_runtime._default,
-                        branch=prod_br,
-                        branches=(prod_br,),
-                    )
-                )
-        required_branches["list"].append(
-            AnaTupleFileListTask.req(
-                self,
-                max_runtime=AnaTupleFileListTask.max_runtime._default,
-                n_cpus=AnaTupleFileListTask.n_cpus._default,
-                branch=ds_branch,
-                branches=(ds_branch,),
-            )
+                if anaTuple_dataset_name not in required_branches[dependency_type]:
+                    required_branches[dependency_type][anaTuple_dataset_name] = []
+                required_branches[dependency_type][anaTuple_dataset_name].append(AnaTupleFileTask.req(
+                    self,
+                    max_runtime=AnaTupleFileTask.max_runtime._default,
+                    branch=prod_br,
+                    branches=(prod_br,),
+                ))
+        required_branches["list"] = AnaTupleFileListTask.req(
+            self,
+            max_runtime=AnaTupleFileListTask.max_runtime._default,
+            n_cpus=AnaTupleFileListTask.n_cpus._default,
+            branch=ds_branch,
+            branches=(ds_branch,),
         )
 
         return required_branches
@@ -579,7 +574,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.output
     def output(self):
-        dataset_name, process_group, ds_branch, dataset_dependencies, input_file_list, output_file_list = (
+        dataset_name, _, _, _, _, output_file_list = (
             self.branch_data
         )
         output_path_string = os.path.join(
@@ -592,37 +587,62 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     def run(self):
         producer_Merge = os.path.join(
-            self.ana_path(), "FLAF", "AnaProd", "MergeNtuples.py"
+            self.ana_path(), "FLAF", "AnaProd", "MergeAnaTuples.py"
         )
-        dataset_name, process_group, ds_branch, dataset_dependencies, input_file_list, output_file_list = (
-            self.branch_data
-        )
+        dataset_name, _, _, _, _, _ = self.branch_data
 
-        isData = "1" if process_group == "data" else "0"
-        input_list_remote_target = [inp[0] for inp in self.input()[:-1]]
         job_home, remove_job_home = self.law_job_home()
         tmpFiles = [
             os.path.join(job_home, f"AnaTupleMergeTask_tmp{i}.root")
             for i in range(len(self.output()))
         ]
         with contextlib.ExitStack() as stack:
-            print(f"Starting localize of {len(input_list_remote_target)} inputs")
-            local_inputs = [
-                stack.enter_context(inp.localize("r")).path
-                for inp in input_list_remote_target
-            ]
-            Merge_cmd = [
+            remote_inputs = {
+                "root": {
+                    "index": 0,
+                    "sources": [ self.input()["root"] ],
+                },
+                "json": {
+                    "index": 1,
+                    "sources": [ self.input()["root"], self.input()["json"] ],
+                }
+            }
+            local_inputs = {}
+            for key, entry in remote_inputs.items():
+                print(f"Localizing {key} inputs")
+                n_total = 0
+                local_inputs[key] = {}
+                index = entry["index"]
+                for source in entry["sources"]:
+                    for ds_name, files in source.items():
+                        if ds_name not in local_inputs[key]:
+                            local_inputs[key][ds_name] = []
+                        for file_list in files:
+                            local_input = stack.enter_context(file_list[index].localize("r")).path
+                            local_inputs[key][ds_name].append(local_input)
+                        n_total += len(files)
+                print(f"Localized {n_total} {key} inputs")
+
+            local_json_files_str = SerializeObjectToString(local_inputs["json"])
+
+            cmd = [
                 "python3",
+                "-u",
                 producer_Merge,
-                "--apply-filter",
-                isData,
-                "--outFiles",
+                "--period",
+                self.period,
+                "--work-dir",
+                job_home,
+                "--dataset",
+                dataset_name,
+                "--root-outputs",
                 *tmpFiles,
-                "--outFile",
-                "tmp_data.root",
+                "--input-reports",
+                local_json_files_str,
+                "--input-roots",
+                *local_inputs["root"][dataset_name]
             ]
-            Merge_cmd.extend(local_inputs)
-            ps_call(Merge_cmd, verbose=1)
+            ps_call(cmd, verbose=1)
 
         for outFile, tmpFile in zip(self.output(), tmpFiles):
             with outFile.localize("w") as tmp_local_file:
@@ -631,10 +651,13 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         if self.delete_inputs_after_merge:
             print(f"Finished merging, lets delete remote targets")
-            for remote_target in input_list_remote_target:
-                remote_target.remove()
-                with remote_target.localize("w") as tmp_local_file:
-                    tmp_local_file.touch()  # Create a dummy to avoid dependency crashes
+            idx = remote_inputs["root"]["index"]
+            for source in remote_inputs["root"]["sources"]:
+                for ds_name, files in source.items():
+                    for remote_targets in files:
+                        remote_targets[idx].remove()
+                        with remote_targets[idx].localize("w") as tmp_local_file:
+                            tmp_local_file.touch()  # Create a dummy to avoid dependency crashes
 
         if remove_job_home:
             shutil.rmtree(job_home)

@@ -147,13 +147,14 @@ def copyFileContent(
                 return obj_type
         return None
 
-    open_fn = (
-        uproot.update
-        if appendIfExists and os.path.exists(outputFile)
-        else uproot.recreate
-    )
+    if appendIfExists and os.path.exists(outputFile):
+        open_fn = uproot.update
+        open_args = {}
+    else:
+        open_fn = uproot.recreate
+        open_args = {"compression": compression}
     histograms = {}
-    with open_fn(outputFile, compression=compression) as output_file:
+    with open_fn(outputFile, **open_args) as output_file:
         for input in inputs:
             copyInputTrees = input["copyTrees"]
             copyInputHistograms = input["copyHistograms"]

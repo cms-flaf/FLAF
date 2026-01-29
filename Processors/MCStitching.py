@@ -18,7 +18,7 @@ class MCStitcher:
         self.xs_expression_printed = False
         self.bins = []
 
-        if stage not in ["AnaCache", "AnaTuple"]:
+        if stage not in ["AnaTuple", "AnaTupleMerge"]:
             raise RuntimeError(f"Unsupported stage: {stage}")
 
         config_path = os.path.join(
@@ -76,12 +76,25 @@ class MCStitcher:
                 )
         self.totalCrossSection = totalCrossSectionFromBins
 
+        self.variables = []
+        for var_entry in cfg.get("variables", []):
+            for key in ["name", "expression"]:
+                if key not in var_entry:
+                    raise RuntimeError(f"MCStitcher: missing '{key}' for variable entry '{var_entry}'.")
+            self.variables.append(var_entry["name"], var_entry["expression"])
+
     def defineVariables(self, df):
         """Define any additional variables needed for stitching."""
+
+        for name, expression in self.variables:
+            df = df.Define(name, expression)
         return df
 
     def onAnaCache_initializeDenomEntry(self):
         return {bin["name"]: [] for bin in self.bins}
+
+    def onAnaCache_prepareDataFrame(self, df):
+        return self.defineVariables(df)
 
     def onAnaCache_updateDenomEntry(
         self, entry, df, output_branch_name, weights_to_apply
@@ -117,6 +130,9 @@ class MCStitcher:
                 bin_name = bin["name"]
                 cmb_entry[bin_name] += entry[bin_name]
         return cmb_entry
+
+    def onAnaTuple_prepareDataFrame(self, df):
+        return self.defineVariables(df)
 
     def onAnaTuple_defineCrossSection(
         self, df, crossSectionBranch, xs_db, dataset_name, dataset_entry

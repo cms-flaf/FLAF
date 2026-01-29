@@ -243,6 +243,11 @@ def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose
             if key not in ["output_files", "reference_file"]:
                 report[key] = value
         report["n_events"] = n_unique_events
+        report["trees"] = []
+        for unc_source, unc_scale in inputs.keys():
+            report["trees"].append(
+                {"unc_source": unc_source, "unc_scale": unc_scale, "tree_name": f"{tree_name}__{unc_source}__{unc_scale}" if unc_source != central else tree_name}
+            )
         report_output_path = os.path.join(work_dir, report_output)
         with open(report_output_path, "w") as f:
             json.dump(report, f, indent=4)

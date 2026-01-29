@@ -22,6 +22,9 @@ class DefaultAnaCacheProcessor:
     def onAnaCache_initializeDenomEntry(self):
         return []
 
+    def onAnaCache_prepareDataFrame(self, df):
+        return df
+
     def onAnaCache_updateDenomEntry(
         self, entry, df, output_branch_name, weights_to_apply
     ):
@@ -40,6 +43,9 @@ class DefaultAnaCacheProcessor:
 
     def onAnaCache_combineAnaCaches(self, entries):
         return sum(entries)
+
+    def onAnaTuple_prepareDataFrame(self, df):
+        return df
 
     def onAnaTuple_defineCrossSection(
         self, df, crossSectionBranch, xs_db, dataset_name, dataset_entry
@@ -168,6 +174,9 @@ def createAnatuple(
 
     gen_weight_name = "weight_gen"
     def updateDenomEntry(rdf):
+        for p_instance in processor_instances.values():
+            rdf = p_instance.onAnaCache_prepareDataFrame(rdf)
+
         for shape_unc_source in shape_sources:
             for shape_unc_scale in getScales(shape_unc_source):
                 shape_unc_name = getSystName(shape_unc_source, shape_unc_scale)
@@ -193,7 +202,7 @@ def createAnatuple(
         df_not_selected = df_not_selected.Define(gen_weight_name, genWeight_def)
         if "pu" in corrections.to_apply:
             df_not_selected = corrections.pu.getWeight(df_not_selected)
-        updateDenomEntry(df_not_selected)
+        df_not_selected = updateDenomEntry(df_not_selected)
     # if isData: json_dict_for_cache['RunLumi'] = unique_run_lumi
     ROOT.RDF.Experimental.AddProgressBar(df)
     if range is not None:
@@ -311,7 +320,7 @@ def createAnatuple(
             dfw.colToSave.extend(weight_branches)
 
             if is_central:
-                updateDenomEntry(dfw.df)
+                dfw.df = updateDenomEntry(dfw.df)
         # Analysis anaTupleDef should define a legType as a leg obj
         # But to save with RDF, it needs to be converted to an int
         for leg_name in lepton_legs:

@@ -596,18 +596,18 @@ TBbarQ_t_channel_4FS:
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef
   unc: +1.7 -1.1 (scale) +2.3 -1.5(PDF+alphaS) +2.8 -1.9(Total) +1.3 -0.9(mass) +0.4 -0.3 (Ebeam) +/-0.1 (Integration)
 
-
-TbarBQtoLNu_t_channel_4FS: # FIXME should probably use prod xs from NNLO x BR of the channels
-  crossSec: '23.34'
-  reference: XSDB
+TbarBQtoLNu_t_channel_4FS:
+  crossSec: 23.34
+  reference: XSDB TbarBQtoLNu-t-channel-4FS_TuneCP5_13p6TeV_powheg-madspin-pythia8 modifiedOn 2025-09-22 09:07:43
+  unc: 0.05875
 TbarBQto2Q_t_channel_4FS: # FIXME should probably use prod xs from NNLO x BR of the channels
-  crossSec: '46.73'
+  crossSec: 46.73
   reference: XSDB
 TBbarQtoLNu_t_channel_4FS: # FIXME should probably use prod xs from NNLO x BR of the channels
-  crossSec: '38.6'
+  crossSec: 38.6
   reference: XSDB
 TBbarQto2Q_t_channel_4FS: # FIXME should probably use prod xs from NNLO x BR of the channels
-  crossSec: '77.26'
+  crossSec: 77.26
   reference: XSDB
 
 TbarWplusto2L2Nu:
@@ -677,11 +677,19 @@ TTZH:
   crossSec: 0.001288
   reference: XSDB TTZH_TuneCP5_13p6TeV_madgraph-pythia8 modifiedOn 2024-04-03 19:49:34
   unc: 4.101e-07
+TTZH_ZHto4B:
+  crossSec: 0.0001961
+  reference: XSDB TTZH-ZHto4B_TuneCP5_13p6TeV_madgraph-pythia8 modifiedOn 2025-09-22 09:07:41
+  unc: 4.663e-8
 
 TTZZ:
   crossSec: 0.001579
   reference: XSDB TTZZ_TuneCP5_13p6TeV_madgraph-madspin-pythia8 modifiedOn 2023-05-26 21:19:17
   unc: 3.248e-06
+TTZZ_ZZto4B:
+  crossSec: 0.00003623
+  reference: XSDB TTZZ-ZZto4B_TuneCP5_13p6TeV_madgraph-pythia8 modifiedOn 2025-09-22 09:07:41
+  unc: 1.217e-8
 
 TTHto2B_M125:
   crossSec: 0.57 * (0.5824)
@@ -943,6 +951,27 @@ Zto2Nu_HT_2500ToInf:
   crossSec: 0.006699
   reference: XSDB Zto2Nu-4Jets_HT-2500_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 20:13:06
   unc: 2.019e-05
+
+Zto2Q_HT_100to400:
+  crossSec: 6328
+  ref: XSDB Zto2Q-4Jets_Bin-HT-100to400_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2025-09-22 09:08:33
+  unc: 17.95
+Zto2Q_HT_400to800:
+  crossSec: 145.1
+  ref: XSDB Zto2Q-4Jets_Bin-HT-400to800_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2025-09-22 09:08:33
+  unc: 0.4362
+Zto2Q_HT_800to1500:
+  crossSec: 12.9
+  ref: XSDB Zto2Q-4Jets_Bin-HT-800to1500_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2026-01-25 20:47:07
+  unc: 0.01236
+Zto2Q_HT_1500to2500:
+  crossSec: 0.8541
+  ref: XSDB Zto2Q-4Jets_Bin-HT-1500to2500_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2026-01-25 20:47:08
+  unc: 0.00005449
+Zto2Q_HT_2500toInf:
+  crossSec: 0.05684
+  ref: XSDB Zto2Q-4Jets_Bin-HT-2500_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2026-01-25 20:47:08
+  unc: 0.0008198
 Zto2Q_HT_200to400:
   crossSec: 1082.0
   reference: XSDB Zto2Q-4Jets_HT-200to400_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2023-05-26 21:19:45
@@ -994,3 +1023,8 @@ EWK_2L2J_madgraph_herwig:
   crossSec: 1.418 # 1.422e+00
   reference: genereting datacards/tarballs https://cms-pdmv-prod.web.cern.ch/mcm/requests?prepid=HIG-Run3Summer22wmLHEGS-01369&page=0&shown=1310847 # genXsec analyzer
   unc: 2.142e-03 # 0.003502
+
+EWK_2Mu2J_madgraph_herwig:
+  crossSec: 1.418 * (0.3*0.3) # 1.422e+00
+  reference: genereting datacards/tarballs https://cms-pdmv-prod.web.cern.ch/mcm/public/restapi/requests/get_fragment/HIG-Run3Summer22EEwmLHEGS-02216/0 # genXsec analyzer
+  unc: 2.142e-03  * (0.3*0.3) # 0.003502

@@ -50,7 +50,7 @@ def fill_hists(
         for var, var_hist in hist_map.items():
             scales = ["Up", "Down"] if unc_source != "Central" else ["Central"]
             for scale in scales:
-                if unc_source != "Central" and dataset_type!=data_type:
+                if unc_source != "Central" and dataset_type != data_type:
                     var_check = f"{var_input}_{unc_source}_{scale}"
                 if var != var_check:
                     continue
@@ -63,6 +63,7 @@ def fill_hists(
                     all_hist_dict[dataset_type][final_key] = var_hist
                 else:
                     all_hist_dict[dataset_type][final_key].Add(var_hist)
+
 
 def GetBTagWeightDict(
     var, all_hists_dict, categories, boosted_categories, boosted_variables

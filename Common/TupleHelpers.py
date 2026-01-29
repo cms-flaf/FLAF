@@ -2,6 +2,7 @@ import uproot
 import awkward as ak
 import os
 import re
+import ROOT
 
 
 def parseColumnName(column_name):
@@ -96,10 +97,20 @@ def copyFileContent(
     copyTrees=True,
     copyHistograms=True,
     appendIfExists=False,
-    compression=uproot.LZMA(9),
     verbose=1,
     step_size="100MB",
+    compression_algorithm="LZMA",
+    compression_level=9,
 ):
+    compression = getattr(uproot, compression_algorithm)(compression_level)
+    snapshotOptions = ROOT.RDF.RSnapshotOptions()
+    snapshotOptions.fOverwriteIfExists = False
+    snapshotOptions.fLazy = False
+    snapshotOptions.fMode = "UPDATE"
+    snapshotOptions.fCompressionAlgorithm = getattr(
+        ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + compression_algorithm
+    )
+    snapshotOptions.fCompressionLevel = compression_level
     if verbose > 0:
         print(f"copyFileContent: {inputs} -> {outputFile}")
         print(
@@ -154,6 +165,8 @@ def copyFileContent(
         open_fn = uproot.recreate
         open_args = {"compression": compression}
     histograms = {}
+    to_store_with_rdf = {}
+    stored_with_uproot = set()
     with open_fn(outputFile, **open_args) as output_file:
         for input in inputs:
             copyInputTrees = input["copyTrees"]
@@ -194,16 +207,34 @@ def copyFileContent(
                         else:
                             histograms[out_name] = (obj, False)
                     else:
-                        for arrays in obj.iterate(step_size=step_size):
-                            groupped_arrays = defineColumnGrouping(
-                                arrays, obj.keys(), verbose=min(0, verbose - 1)
+                        if obj.num_entries > 0:
+                            for arrays in obj.iterate(step_size=step_size):
+                                groupped_arrays = defineColumnGrouping(
+                                    arrays, obj.keys(), verbose=min(0, verbose - 1)
+                                )
+                                if out_name in output_file:
+                                    output_file[out_name].extend(groupped_arrays)
+                                else:
+                                    output_file[out_name] = groupped_arrays
+                            stored_with_uproot.add(out_name)
+                        else:
+                            to_store_with_rdf[out_name] = (
+                                input["file"],
+                                input_object_name,
                             )
-                            if out_name in output_file:
-                                output_file[out_name].extend(groupped_arrays)
-                            else:
-                                output_file[out_name] = groupped_arrays
+
         for hist_name, (hist, _) in histograms.items():
             output_file[hist_name] = hist
+
+    # If the file doesn't exist yet, change snapshot to RECREATE
+    if not os.path.exists(outputFile):
+        snapshotOptions.fMode = "RECREATE"
+    for out_name, (input_file_name, input_name) in to_store_with_rdf.items():
+        if out_name in stored_with_uproot:
+            # Check if the empty tree was already handled by another file
+            continue
+        df = ROOT.RDataFrame(input_name, input_file_name)
+        df.Snapshot(out_name, outputFile, ".*", snapshotOptions)
 
 
 if __name__ == "__main__":
@@ -242,15 +273,14 @@ if __name__ == "__main__":
     parser.add_argument("inFile", nargs="+", type=str, help="Input ROOT files")
     args = parser.parse_args()
 
-    compression = getattr(uproot, args.compression_algorithm)(args.compression_level)
-
     copyFileContent(
         args.inFile,
         args.outputFile,
         copyTrees=not args.no_copyTrees,
         copyHistograms=not args.no_copyHistograms,
         appendIfExists=args.appendIfExists,
-        compression=compression,
         verbose=args.verbose,
         step_size=args.step_size,
+        compression_algorithm=args.compression_algorithm,
+        compression_level=args.compression_level,
     )

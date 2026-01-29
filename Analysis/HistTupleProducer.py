@@ -172,8 +172,7 @@ def createHistTuple(
                     f"static const std::set<ULong64_t> evts = {{ {evtIds} }}; return evts.count(event) > 0;"
                 )
 
-            print("Defining DF wrapper")
-            dfw = histTupleDef.GetDfw(df, setup.global_params)
+            dfw = histTupleDef.GetDfw(df, setup, dataset_name)
             iter_descs = [
                 {"source": unc_source, "scale": unc_scale, "weight": "weight_Central"}
             ]

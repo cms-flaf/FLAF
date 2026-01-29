@@ -27,7 +27,7 @@ jobs:
             });
             console.log(`Total files changed: ${files.length}`);
             const allChangedFiles = files.map(file => file.filename);
-            const changedFiles = allChangedFiles.filter(file => file.startsWith('config/') && file.endsWith('samples.yaml'));
+            const changedFiles = allChangedFiles.filter(file => file.startsWith('config/') && file.endsWith('datasets.yaml'));
             core.setOutput('files', btoa(changedFiles.join('\n')));
             const has_ds_configs = changedFiles.length > 0 ? 'true' : 'false';
             console.log(`Has dataset config changes: ${has_ds_configs}`);

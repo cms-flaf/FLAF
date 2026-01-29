@@ -54,7 +54,7 @@ def run_producer(
     if producer_config.get("awkward_based", False):
         vars_to_save = []
         if hasattr(producer, "prepare_dfw"):
-            dfw = producer.prepare_dfw(dfw,setup, dataset)
+            dfw = producer.prepare_dfw(dfw, dataset)
         vars_to_save = list(producer.vars_to_save)
         if "FullEventId" not in vars_to_save:
             vars_to_save.append("FullEventId")

@@ -75,7 +75,7 @@ def createHistTuple(
     Utilities.InitializeCorrections(setup, dataset_name, stage="HistTuple")
     histTupleDef.Initialize()
     histTupleDef.analysis_setup(setup)
-    isData= dataset_name == "data"
+    isData = dataset_name == "data"
 
     if type(setup.global_params["variables"]) == list:
         variables = setup.global_params["variables"]

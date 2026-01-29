@@ -394,9 +394,11 @@ def create_processor_instances(global_params, processor_entries, stage, verbose=
             processor_instances[p_name] = processor
     return processor_instances
 
+
 def InitializeCorrections(setup, dataset_name, stage):
     from Corrections.Corrections import Corrections
     import FLAF.Common.triggerSel as Triggers
+
     headers_dir = os.path.dirname(os.path.abspath(__file__))
     for include_path in ["ANALYSIS_PATH", "FLAF_PATH"]:
         if include_path in os.environ:
@@ -419,13 +421,14 @@ def InitializeCorrections(setup, dataset_name, stage):
         WorkingPointsMuonID,
     ]:
         ROOT.gInterpreter.Declare(f"{generate_enum_class(wpcl)}")
-    isData = dataset_name == "data" 
+    isData = dataset_name == "data"
     dataset_cfg = {} if isData else setup.datasets[dataset_name]
     process_name = "data" if isData else dataset_cfg["process_name"]
     process = {} if isData else setup.base_processes[process_name]
-    processors_cfg, processor_instances = {}, {} if isData else setup.get_processors(
-            process_name, stage=stage, create_instances=True
-        )
+    processors_cfg, processor_instances = (
+        {}, {} if isData
+        else setup.get_processors(process_name, stage=stage, create_instances=True)
+    )
 
     triggerFile = setup.global_params.get("triggerFile")
     trigger_class = None

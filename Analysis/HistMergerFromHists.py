@@ -240,8 +240,13 @@ if __name__ == "__main__":
                 raise RuntimeError(f"{dataset_name} has void file")
             all_items = get_all_items_recursive(inFile)
             fill_hists(
-                all_items, all_hists_dict, dataset_type, args.var, args.uncSource, data_process_name
-            )  # to add: , unc_source="Central", scale="Central"
+                all_items,
+                all_hists_dict,
+                dataset_type,
+                args.var,
+                args.uncSource,
+                data_process_name,
+             )  # to add: , unc_source="Central", scale="Central"
 
     # here there should be the custom applications - e.g. GetBTagWeightDict, AddQCDInHistDict, etc.
     # analysis.ApplyMergeCustomisations() # --> here go the QCD and bTag functions

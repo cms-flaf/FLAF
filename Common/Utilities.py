@@ -393,3 +393,55 @@ def create_processor_instances(global_params, processor_entries, stage, verbose=
             processor = load_processor(p_entry, stage, global_params, verbose=verbose)
             processor_instances[p_name] = processor
     return processor_instances
+
+def InitializeCorrections(setup, dataset_name, stage):
+    from Corrections.Corrections import Corrections
+    import FLAF.Common.triggerSel as Triggers
+    headers_dir = os.path.dirname(os.path.abspath(__file__))
+    for include_path in ["ANALYSIS_PATH", "FLAF_PATH"]:
+        if include_path in os.environ:
+            ROOT.gROOT.ProcessLine(".include " + os.environ[include_path])
+    header_path_RootExt = "include/RootExt.h"
+    header_path_GenLepton = "include/GenLepton.h"
+    header_path_Gen = "include/BaselineGenSelection.h"
+    header_path_Reco = "include/BaselineRecoSelection.h"
+    header_path_AnalysisMath = "include/AnalysisMath.h"
+    ROOT.gInterpreter.Declare(f'#include "{header_path_RootExt}"')
+    ROOT.gInterpreter.Declare(f'#include "{header_path_GenLepton}"')
+    ROOT.gInterpreter.Declare(f'#include "{header_path_Gen}"')
+    ROOT.gInterpreter.Declare(f'#include "{header_path_Reco}"')
+    ROOT.gInterpreter.Declare(f'#include "{header_path_AnalysisMath}"')
+    for wpcl in [
+        WorkingPointsTauVSe,
+        WorkingPointsTauVSmu,
+        WorkingPointsTauVSjet,
+        WorkingPointsbTag,
+        WorkingPointsMuonID,
+    ]:
+        ROOT.gInterpreter.Declare(f"{generate_enum_class(wpcl)}")
+    isData = dataset_name == "data" 
+    dataset_cfg = {} if isData else setup.datasets[dataset_name]
+    process_name = "data" if isData else dataset_cfg["process_name"]
+    process = {} if isData else setup.base_processes[process_name]
+    processors_cfg, processor_instances = {}, {} if isData else setup.get_processors(
+            process_name, stage=stage, create_instances=True
+        )
+
+    triggerFile = setup.global_params.get("triggerFile")
+    trigger_class = None
+    if triggerFile is not None:
+        triggerFile = os.path.join(os.environ["ANALYSIS_PATH"], triggerFile)
+        trigger_class = Triggers.Triggers(triggerFile)
+    if Corrections._global_instance is None:
+        Corrections.initializeGlobal(
+            global_params=setup.global_params,
+            stage=stage,
+            dataset_name=dataset_name,
+            dataset_cfg=dataset_cfg,
+            process_name=process_name,
+            process_cfg=process,
+            processors=processor_instances,
+            isData=isData,
+            load_corr_lib=True,
+            trigger_class=trigger_class,
+        )

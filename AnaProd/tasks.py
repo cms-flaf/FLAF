@@ -453,7 +453,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             }
 
         branch_set = set()
-        for _, (_, _, ds_branch, dataset_dependencies, _, _) in self.branch_map.items():
+        for _, (_, _, ds_branch, dataset_dependencies, _, _, _) in self.branch_map.items():
             branch_set.add(ds_branch)
             branch_set.update(dataset_dependencies.values())
 
@@ -540,7 +540,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             ds_branches[dataset_name] = ds_branch
 
         for ds_branch, (dataset_name, process_group) in ds_branch_map.items():
-            dataset_dependencies = self.collect_extra_dependencies(dataset_name, ds_branches)
+            dataset_dependencies = self.collect_extra_dependencies(dataset_name, ds_branches, process_group)
             this_dataset_dict = self.setup.getAnaTupleFileList(
                 dataset_name,
                 AnaTupleFileListTask.req(self, branch=ds_branch, branches=()).output(),
@@ -561,21 +561,22 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 nBranch += 1
         return branches
 
-    def collect_extra_dependencies(self, dataset_name, ds_branches):
+    def collect_extra_dependencies(self, dataset_name, ds_branches, process_group):
         other_datasets = {}
-        dataset = self.datasets[dataset_name]
-        processors = self.setup.get_processors(
-            dataset["process_name"], stage="AnaTupleMerge"
-        )
-        require_whole_process = any(
-            p.get("dependency_level", {}).get("AnaTupleMerge", "file") == "process"
-            for p in processors
-        )
-        if require_whole_process:
-            process = self.setup.base_processes[dataset["process_name"]]
-            for p_dataset_name in process.get("datasets", []):
-                if p_dataset_name != dataset_name:
-                    other_datasets[p_dataset_name] = ds_branches[p_dataset_name]
+        if process_group != "data":
+            dataset = self.datasets[dataset_name]
+            processors = self.setup.get_processors(
+                dataset["process_name"], stage="AnaTupleMerge"
+            )
+            require_whole_process = any(
+                p.get("dependency_level", {}).get("AnaTupleMerge", "file") == "process"
+                for p in processors
+            )
+            if require_whole_process:
+                process = self.setup.base_processes[dataset["process_name"]]
+                for p_dataset_name in process.get("datasets", []):
+                    if p_dataset_name != dataset_name:
+                        other_datasets[p_dataset_name] = ds_branches[p_dataset_name]
         return other_datasets
 
     @workflow_condition.output
@@ -583,6 +584,8 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         (
             dataset_name,
             process_group,
+            ds_branch,
+            dataset_dependencies,
             input_file_list,
             output_file_list,
             skip_future_tasks,
@@ -602,14 +605,13 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         (
             dataset_name,
             process_group,
+            ds_branch,
+            dataset_dependencies,
             input_file_list,
             output_file_list,
             skip_future_tasks,
         ) = self.branch_data
-        isData = (
-            "1" if process_group == "data" else "0"
-        )  # ps_call needs to only pass strings????
-        input_list_remote_target = [inp[0] for inp in self.input()[:-1]]
+        is_data = process_group == "data"
         job_home, remove_job_home = self.law_job_home()
         tmpFiles = [
             os.path.join(job_home, f"AnaTupleMergeTask_tmp{i}.root")
@@ -643,7 +645,9 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 print(f"Localized {n_total} {key} inputs")
 
             local_json_files_str = SerializeObjectToString(local_inputs["json"])
-
+            local_root_inputs = []
+            for ds_name, files in local_inputs["root"].items():
+                local_root_inputs.extend(files)
             cmd = [
                 "python3",
                 "-u",
@@ -659,8 +663,10 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 "--input-reports",
                 local_json_files_str,
                 "--input-roots",
-                *local_inputs["root"][dataset_name]
+                *local_root_inputs
             ]
+            if is_data:
+                cmd.append("--is-data")
             ps_call(cmd, verbose=1)
 
         for outFile, tmpFile in zip(self.output(), tmpFiles):

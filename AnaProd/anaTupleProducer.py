@@ -193,6 +193,8 @@ def createAnatuple(
                             weights_to_apply,
                         )
                     )
+        return rdf
+
     if tree_not_selected is not None and not isData:
         genWeight_def = (
             "std::copysign<float>(1.f, genWeight)"

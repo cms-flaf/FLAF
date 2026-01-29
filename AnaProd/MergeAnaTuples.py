@@ -20,9 +20,16 @@ from FLAF.Common.Utilities import DeserializeObjectFromString
 
 ROOT.gInterpreter.Declare(
     """
-    using LumiEventMapType = std::map<unsigned int, std::set<unsigned long long>>;
-    using EventMapType = std::map<unsigned int, lumiEventMapType>;
     struct EventDuplicateFilter {
+        using LumiEventMapType = std::map<unsigned int, std::set<unsigned long long>>;
+        using EventMapType = std::map<unsigned int, LumiEventMapType>;
+
+        EventDuplicateFilter() :
+            eventMap(std::make_shared<EventMapType>()),
+            eventMap_mutex(std::make_shared<std::mutex>())
+        {
+        }
+
         ROOT::RDF::RNode apply(ROOT::RDF::RNode df, const std::vector<std::string>& columns, const std::string& filter_name) {
             auto df_node = df.Filter([this](unsigned int run, unsigned int lumi, unsigned long long event){
                 return saveEvent(run, lumi, event);
@@ -31,8 +38,8 @@ ROOT.gInterpreter.Declare(
         }
 
         bool saveEvent(unsigned int run, unsigned int lumi, unsigned long long event) {
-            const std::lock_guard<std::mutex> lock(eventMap_mutex);
-            auto& events = eventMap[run][lumi];
+            const std::lock_guard<std::mutex> lock(*eventMap_mutex);
+            auto& events = (*eventMap)[run][lumi];
             if(events.find(event) != events.end())
                 return false;
             events.insert(event);
@@ -40,12 +47,12 @@ ROOT.gInterpreter.Declare(
         }
 
         void clear() {
-            const std::lock_guard<std::mutex> lock(eventMap_mutex);
-            eventMap.clear();
+            const std::lock_guard<std::mutex> lock(*eventMap_mutex);
+            eventMap->clear();
         }
 
-        EventMapType eventMap;
-        std::mutex eventMap_mutex;
+        std::shared_ptr<EventMapType> eventMap;
+        std::shared_ptr<std::mutex> eventMap_mutex;
     };
     """
 )
@@ -115,11 +122,18 @@ def getTreeListFromReport(report):
         tree_list.append((unc_source, unc_scale, tree_name))
     return sorted(tree_list)
 
-def mergeAnaTuples(*, setup, dataset_name, work_dir, input_reports, input_roots, root_outputs, snapshot_options):
-    dataset_cfg = setup.datasets[dataset_name]
-    isData = dataset_cfg["process_group"] == "data"
+def getColumns(df):
+    all_columns = [ str(c) for c in df.GetColumnNames() ]
+    simple_types = [ 'Int_t', 'UInt_t', 'Long64_t', 'ULong64_t', 'int', 'long' ]
+    column_types = { c : str(df.GetColumnType(c)) for c in all_columns }
+    all_columns = sorted(all_columns, key=lambda c: (column_types[c] not in simple_types, c))
+    return all_columns, column_types
 
-    if not isData:
+
+def mergeAnaTuples(*, setup, dataset_name, is_data, work_dir, input_reports, input_roots, root_outputs, snapshot_options):
+
+    if not is_data:
+        dataset_cfg = setup.datasets[dataset_name]
         process_name = dataset_cfg["process_name"]
         process = setup.base_processes[process_name]
         processors_cfg, processor_instances = setup.get_processors(
@@ -135,7 +149,7 @@ def mergeAnaTuples(*, setup, dataset_name, work_dir, input_reports, input_roots,
             process_name=process_name,
             process_cfg=process,
             processors=processor_instances,
-            isData=isData,
+            isData=is_data,
             load_corr_lib=True,
             trigger_class=None,
         )
@@ -166,9 +180,9 @@ def mergeAnaTuples(*, setup, dataset_name, work_dir, input_reports, input_roots,
         print(f"Merging {syst_name}")
         event_filter = None
         df = ROOT.RDataFrame(tree_name, input_roots)
-        columns = [ str(col) for col in df.GetColumnNames() ]
+        columns, _ = getColumns(df)
         if unc_source == central:
-            if isData:
+            if is_data:
                 event_filter = ROOT.EventDuplicateFilter()
                 df = event_filter.apply(ROOT.RDF.AsRNode(df), ["run", "luminosityBlock", "event"], "EventDuplicateFilter")
             else:
@@ -223,6 +237,7 @@ if __name__ == "__main__":
     parser.add_argument("--root-outputs", required=False, nargs="+", type=str)
     parser.add_argument("--compression-level", type=int, default=9)
     parser.add_argument("--compression-algo", type=str, default="LZMA")
+    parser.add_argument("--is-data", action="store_true")
     args = parser.parse_args()
 
     setup = Setup.getGlobal(
@@ -247,6 +262,6 @@ if __name__ == "__main__":
                 reports[ds_name].append(yaml.safe_load(f))
 
 
-    mergeAnaTuples(setup=setup, dataset_name=args.dataset, work_dir=args.work_dir,
+    mergeAnaTuples(setup=setup, dataset_name=args.dataset, is_data=args.is_data, work_dir=args.work_dir,
                    input_reports=reports, input_roots=args.input_roots, root_outputs=args.root_outputs,
                    snapshot_options=snapshotOptions)

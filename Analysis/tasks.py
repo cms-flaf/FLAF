@@ -180,7 +180,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         for prod_br, (
             dataset_name,
-            dataset_type,
+            process_group,
+            ds_branch,
+            dataset_dependencies,
             input_file_list,
             output_file_list,
             skip_future_tasks,
@@ -838,7 +840,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             dataset_name, prod_br, need_cache_global, producer_list, input_index = (
             self.branch_data
             )
-        unc_config = os.path.join(
+            unc_config = os.path.join(
                 self.ana_path(), "config", self.period, f"weights.yaml"
             )
             analysis_cache_producer = os.path.join(

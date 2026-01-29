@@ -15,6 +15,7 @@ default_values = {
     "int32_t": np.int32(0),
     "bool": False,
     "float": np.float32(0.0),
+    "double": np.float64(0.0),
     "uint8_t": np.uint8(0),
     "int16_t": np.int16(0),
 }
@@ -109,6 +110,15 @@ def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose
             )
         inputs[key] = {"file_name": file_name}
 
+    snapshotOptions = ROOT.RDF.RSnapshotOptions()
+    snapshotOptions.fOverwriteIfExists = True
+    snapshotOptions.fLazy = False
+    snapshotOptions.fMode = "RECREATE"
+    snapshotOptions.fCompressionAlgorithm = (
+        ROOT.ROOT.RCompressionSetting.EAlgorithm.kZLIB
+    )
+    snapshotOptions.fCompressionLevel = 4
+
     central_key = (central, central)
     if central_key not in inputs:
         raise RuntimeError("Central input file is required.")
@@ -142,7 +152,9 @@ def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose
         else:
             n_events_valid = 0
             os.makedirs(os.path.dirname(out_full_name), exist_ok=True)
-            shutil.copy(input["file_name"], out_full_name)
+            df = ROOT.RDataFrame(tree_name, input["file_name"])
+            df = df.Define("valid", "true")
+            df.Snapshot(tree_name, out_full_name)
         if verbose > 0:
             print(
                 f"{unc_source}/{unc_scale}: aligned {n_events_valid} selected events to the superset of {n_unique_events} events."

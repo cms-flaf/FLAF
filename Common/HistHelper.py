@@ -167,20 +167,6 @@ def FixNegativeContributions(histogram):
     return True, ss_debug, ss_negative
 
 
-def getNewBins(bins):
-    if isinstance(bins, list):
-        return bins
-
-    if isinstance(bins, dict):
-        return bins
-
-    n_bins, bin_range = bins.split("|")
-    start, stop = map(float, bin_range.split(":"))
-    step = (stop - start) / int(n_bins)
-
-    return [start + i * step for i in range(int(n_bins) + 1)]
-
-
 def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=False):
     if isinstance(new_binning, dict):
         # Prepare data structures for C++ function
@@ -253,6 +239,9 @@ def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=Fal
 
 
 def GetBinVec(x_bins):
+    if isinstance(x_bins, dict):
+        return x_bins
+
     x_bins_vec = None
     if not isinstance(x_bins, list):
         n_bins, bin_range = x_bins.split("|")

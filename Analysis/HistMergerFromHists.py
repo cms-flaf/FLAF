@@ -43,16 +43,18 @@ def fill_hists(
     dataset_type,
     var_input,
     unc_source="Central",
+    data_type="data",
 ):
     var_check = f"{var_input}"
     for key_tuple, hist_map in items_dict.items():
         for var, var_hist in hist_map.items():
             scales = ["Up", "Down"] if unc_source != "Central" else ["Central"]
             for scale in scales:
-                if unc_source != "Central":
+                if unc_source != "Central" and dataset_type != data_type:
                     var_check = f"{var_input}_{unc_source}_{scale}"
                 if var != var_check:
                     continue
+
                 final_key = (key_tuple, (unc_source, scale))
                 if dataset_type not in all_hist_dict.keys():
                     all_hist_dict[dataset_type] = {}
@@ -61,23 +63,6 @@ def fill_hists(
                     all_hist_dict[dataset_type][final_key] = var_hist
                 else:
                     all_hist_dict[dataset_type][final_key].Add(var_hist)
-
-
-def MergeHistogramsPerType(all_hists_dict):
-    old_hist_dict = all_hists_dict.copy()
-    all_hists_dict.clear()
-    for dataset_type in old_hist_dict.keys():
-        if dataset_type == "data":
-            print(f"DURING MERGE HISTOGRAMS, dataset_type is data")
-        if dataset_type not in all_hists_dict.keys():
-            all_hists_dict[dataset_type] = {}
-        for key_name, histlist in old_hist_dict[dataset_type].items():
-            final_hist = histlist[0]
-            objsToMerge = ROOT.TList()
-            for hist in histlist[1:]:
-                objsToMerge.Add(hist)
-            final_hist.Merge(objsToMerge)
-            all_hists_dict[dataset_type][key_name] = final_hist
 
 
 def GetBTagWeightDict(
@@ -227,6 +212,7 @@ if __name__ == "__main__":
         "process_name": data_process_name
     }  # Data isn't actually in config dict, but just add it here to keep working format
     # print(dataset_cfg_dict)
+
     all_hists_dict = {}
     all_datasets = args.dataset_names.split(",")
     for dataset_name, inFile_path in zip(all_datasets, args.inFiles):
@@ -242,6 +228,7 @@ if __name__ == "__main__":
 
         base_process_name = dataset_cfg_dict[dataset_name]["process_name"]
         dataset_type = setup.base_processes[base_process_name]["parent_process"]
+        print(dataset_type)
         if dataset_type not in all_hists_dict.keys():
             all_hists_dict[dataset_type] = {}
 
@@ -253,7 +240,12 @@ if __name__ == "__main__":
                 raise RuntimeError(f"{dataset_name} has void file")
             all_items = get_all_items_recursive(inFile)
             fill_hists(
-                all_items, all_hists_dict, dataset_type, args.var, args.uncSource
+                all_items,
+                all_hists_dict,
+                dataset_type,
+                args.var,
+                args.uncSource,
+                data_process_name,
             )  # to add: , unc_source="Central", scale="Central"
 
     # here there should be the custom applications - e.g. GetBTagWeightDict, AddQCDInHistDict, etc.
@@ -266,8 +258,6 @@ if __name__ == "__main__":
     else:
         all_hists_dict_1D = all_hists_dict
     """
-
-    data_processes = setup.phys_model.processes(process_type="data")
     if len(data_processes) > 0:
         data_processes = data_processes[0]
     if not data_processes:

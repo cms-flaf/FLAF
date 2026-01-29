@@ -37,12 +37,12 @@ def checkFile(inFileRoot, channels, qcdRegions, categories):
     return True
 
 
-def fill_all_hists_dict(
+def fill_hists(
     items_dict,
-    all_hist_dict_per_var_and_datasettype,
+    all_hist_dict,
+    dataset_type,
     var_input,
     unc_source="Central",
-    isData=False,
 ):
     var_check = f"{var_input}"
     for key_tuple, hist_map in items_dict.items():
@@ -54,27 +54,13 @@ def fill_all_hists_dict(
                 if var != var_check:
                     continue
                 final_key = (key_tuple, (unc_source, scale))
-                if final_key not in all_hist_dict_per_var_and_datasettype:
-                    all_hist_dict_per_var_and_datasettype[final_key] = []
-                all_hist_dict_per_var_and_datasettype[final_key].append(var_hist)
-
-
-def MergeHistogramsPerType(all_hists_dict):
-    old_hist_dict = all_hists_dict.copy()
-    all_hists_dict.clear()
-    for dataset_type in old_hist_dict.keys():
-        if dataset_type == "data":
-            print(f"DURING MERGE HISTOGRAMS, dataset_type is data")
-        if dataset_type not in all_hists_dict.keys():
-            all_hists_dict[dataset_type] = {}
-        for key_name, histlist in old_hist_dict[dataset_type].items():
-            final_hist = histlist[0]
-            objsToMerge = ROOT.TList()
-            for hist in histlist[1:]:
-                objsToMerge.Add(hist)
-            final_hist.Merge(objsToMerge)
-            all_hists_dict[dataset_type][key_name] = final_hist
-
+                if dataset_type not in all_hist_dict.keys():
+                    all_hist_dict[dataset_type] = {}
+                if final_key not in all_hist_dict[dataset_type]:
+                    var_hist.SetDirectory(0)
+                    all_hist_dict[dataset_type][final_key] = var_hist
+                else:
+                    all_hist_dict[dataset_type][final_key].Add(var_hist)
 
 def GetBTagWeightDict(
     var, all_hists_dict, categories, boosted_categories, boosted_variables
@@ -235,29 +221,22 @@ if __name__ == "__main__":
                 f"input file for dataset {dataset_name} (with path= {inFile_path}) does not exist, skipping"
             )
             continue
-        with ROOT.TFile.Open(inFile_path, "READ") as inFile:
-            # check that the file is ok
-            if inFile.IsZombie():
-                raise RuntimeError(f"{inFile_path} is zombie")
-            if not checkFile(inFile, channels, regions, all_categories):
-                raise RuntimeError(f"{dataset_name} has void file")
 
         base_process_name = dataset_cfg_dict[dataset_name]["process_name"]
         dataset_type = setup.base_processes[base_process_name]["parent_process"]
         if dataset_type not in all_hists_dict.keys():
             all_hists_dict[dataset_type] = {}
 
-        all_items = load_all_items(inFile_path)
-
-        fill_all_hists_dict(
-            all_items,
-            all_hists_dict[dataset_type],
-            args.var,
-            args.uncSource,
-            dataset_type == "data"
-            or dataset_type in setup.phys_model.processes(process_type="data"),
-        )  # to add: , unc_source="Central", scale="Central"
-    MergeHistogramsPerType(all_hists_dict)
+        with ROOT.TFile.Open(inFile_path, "READ") as inFile:
+            # check that the file is ok
+            if inFile.IsZombie():
+                raise RuntimeError(f"{inFile_path} is zombie")
+            if not checkFile(inFile, channels, regions, all_categories):
+                raise RuntimeError(f"{dataset_name} has void file")
+            all_items = get_all_items_recursive(inFile)
+            fill_hists(
+                all_items, all_hists_dict, dataset_type, args.var, args.uncSource
+            )  # to add: , unc_source="Central", scale="Central"
 
     # here there should be the custom applications - e.g. GetBTagWeightDict, AddQCDInHistDict, etc.
     # analysis.ApplyMergeCustomisations() # --> here go the QCD and bTag functions
@@ -273,9 +252,12 @@ if __name__ == "__main__":
     data_processes = setup.phys_model.processes(process_type="data")
     if len(data_processes) > 0:
         data_processes = data_processes[0]
+    if not data_processes:
+        data_processes = None
     if (
         analysis_import == "Analysis.hh_bbtautau"
         and estimateQCD
+        and data_processes != None
         and data_processes in all_hists_dict.keys()
     ):
         from Analysis.QCD_estimation import AddQCDInHistDict

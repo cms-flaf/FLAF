@@ -8,6 +8,7 @@ import os
 import pickle
 import sys
 
+
 class WorkingPointsTauVSmu(Enum):
     VLoose = 1
     Loose = 2
@@ -398,6 +399,7 @@ class ServiceThread:
     def __init__(self):
         import threading
         from FLAF.RunKit.crabLaw import cond, update_kinit_thread
+
         self.cond = cond
         self.thread = threading.Thread(target=update_kinit_thread)
 

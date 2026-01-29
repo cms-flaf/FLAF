@@ -162,8 +162,6 @@ def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose
 
     special_columns = ["valid", full_event_id_column]
 
-
-
     if verbose > 1:
         verbosity_keeper = ROOT.RLogScopedVerbosity(
             ROOT.Detail.RDF.RDFLogChannel(), 100
@@ -246,7 +244,15 @@ def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose
         report["trees"] = []
         for unc_source, unc_scale in inputs.keys():
             report["trees"].append(
-                {"unc_source": unc_source, "unc_scale": unc_scale, "tree_name": f"{tree_name}__{unc_source}__{unc_scale}" if unc_source != central else tree_name}
+                {
+                    "unc_source": unc_source,
+                    "unc_scale": unc_scale,
+                    "tree_name": (
+                        f"{tree_name}__{unc_source}__{unc_scale}"
+                        if unc_source != central
+                        else tree_name
+                    ),
+                }
             )
         report_output_path = os.path.join(work_dir, report_output)
         with open(report_output_path, "w") as f:

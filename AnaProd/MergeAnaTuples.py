@@ -17,9 +17,7 @@ from Corrections.CorrectionsCore import central, getSystName, getScales
 from FLAF.AnaProd.anaTupleProducer import DefaultAnaCacheProcessor
 from FLAF.Common.Utilities import DeserializeObjectFromString
 
-
-ROOT.gInterpreter.Declare(
-    """
+ROOT.gInterpreter.Declare("""
     struct EventDuplicateFilter {
         using LumiEventMapType = std::map<unsigned int, std::set<unsigned long long>>;
         using EventMapType = std::map<unsigned int, LumiEventMapType>;
@@ -54,8 +52,8 @@ ROOT.gInterpreter.Declare(
         std::shared_ptr<EventMapType> eventMap;
         std::shared_ptr<std::mutex> eventMap_mutex;
     };
-    """
-)
+    """)
+
 
 def combineAnaCaches(anaCaches, processors):
     """
@@ -104,6 +102,7 @@ def combineAnaCaches(anaCaches, processors):
     }
     return anaCacheSum
 
+
 def getTreeListFromReport(report):
     tree_list = []
     keys = set()
@@ -122,15 +121,28 @@ def getTreeListFromReport(report):
         tree_list.append((unc_source, unc_scale, tree_name))
     return sorted(tree_list)
 
+
 def getColumns(df):
-    all_columns = [ str(c) for c in df.GetColumnNames() ]
-    simple_types = [ 'Int_t', 'UInt_t', 'Long64_t', 'ULong64_t', 'int', 'long' ]
-    column_types = { c : str(df.GetColumnType(c)) for c in all_columns }
-    all_columns = sorted(all_columns, key=lambda c: (column_types[c] not in simple_types, c))
+    all_columns = [str(c) for c in df.GetColumnNames()]
+    simple_types = ["Int_t", "UInt_t", "Long64_t", "ULong64_t", "int", "long"]
+    column_types = {c: str(df.GetColumnType(c)) for c in all_columns}
+    all_columns = sorted(
+        all_columns, key=lambda c: (column_types[c] not in simple_types, c)
+    )
     return all_columns, column_types
 
 
-def mergeAnaTuples(*, setup, dataset_name, is_data, work_dir, input_reports, input_roots, root_outputs, snapshot_options):
+def mergeAnaTuples(
+    *,
+    setup,
+    dataset_name,
+    is_data,
+    work_dir,
+    input_reports,
+    input_roots,
+    root_outputs,
+    snapshot_options,
+):
 
     if not is_data:
         dataset_cfg = setup.datasets[dataset_name]
@@ -159,7 +171,6 @@ def mergeAnaTuples(*, setup, dataset_name, is_data, work_dir, input_reports, inp
         for ds_name, reports in input_reports.items():
             ana_caches[ds_name] = combineAnaCaches(reports, processor_instances)
 
-
     tree_list = None
     for ds_name, reports in input_reports.items():
         for report in reports:
@@ -172,7 +183,9 @@ def mergeAnaTuples(*, setup, dataset_name, is_data, work_dir, input_reports, inp
                 )
 
     if len(root_outputs) > 1 and len(tree_list) > 1:
-        raise NotImplementedError("Cannot write multiple output files when there are multiple uncertainties.")
+        raise NotImplementedError(
+            "Cannot write multiple output files when there are multiple uncertainties."
+        )
     tmp_central_file = os.path.join(work_dir, f"{dataset_name}_central_tmp.root")
 
     for unc_source, unc_scale, tree_name in tree_list:
@@ -184,12 +197,17 @@ def mergeAnaTuples(*, setup, dataset_name, is_data, work_dir, input_reports, inp
         if unc_source == central:
             if is_data:
                 event_filter = ROOT.EventDuplicateFilter()
-                df = event_filter.apply(ROOT.RDF.AsRNode(df), ["run", "luminosityBlock", "event"], "EventDuplicateFilter")
+                df = event_filter.apply(
+                    ROOT.RDF.AsRNode(df),
+                    ["run", "luminosityBlock", "event"],
+                    "EventDuplicateFilter",
+                )
             else:
                 for p_instance in processor_instances.values():
                     df = p_instance.onAnaCache_prepareDataFrame(df)
 
-                df, weight_branches = corrections.getNormalisationCorrections(df,
+                df, weight_branches = corrections.getNormalisationCorrections(
+                    df,
                     lepton_legs=None,
                     offline_legs=None,
                     trigger_names=None,
@@ -200,7 +218,11 @@ def mergeAnaTuples(*, setup, dataset_name, is_data, work_dir, input_reports, inp
                     use_genWeight_sign_only=True,
                 )
                 columns += weight_branches
-        output_file = tmp_central_file if len(root_outputs) > 1 and unc_source == central else root_outputs[0]
+        output_file = (
+            tmp_central_file
+            if len(root_outputs) > 1 and unc_source == central
+            else root_outputs[0]
+        )
         df.Snapshot(tree_name, output_file, columns, snapshot_options)
         if event_filter is not None:
             event_filter.clear()
@@ -222,7 +244,14 @@ def mergeAnaTuples(*, setup, dataset_name, is_data, work_dir, input_reports, inp
             df_split.Snapshot(tree_name, output, ".*", snapshot_options)
             range_start += n_events_per_file
 
-    copyFileContent(input_roots, root_outputs[0], copyTrees=False, copyHistograms=True, appendIfExists=True)
+    copyFileContent(
+        input_roots,
+        root_outputs[0],
+        copyTrees=False,
+        copyHistograms=True,
+        appendIfExists=True,
+    )
+
 
 if __name__ == "__main__":
     import argparse
@@ -261,7 +290,13 @@ if __name__ == "__main__":
             with open(report_file, "r") as f:
                 reports[ds_name].append(yaml.safe_load(f))
 
-
-    mergeAnaTuples(setup=setup, dataset_name=args.dataset, is_data=args.is_data, work_dir=args.work_dir,
-                   input_reports=reports, input_roots=args.input_roots, root_outputs=args.root_outputs,
-                   snapshot_options=snapshotOptions)
+    mergeAnaTuples(
+        setup=setup,
+        dataset_name=args.dataset,
+        is_data=args.is_data,
+        work_dir=args.work_dir,
+        input_reports=reports,
+        input_roots=args.input_roots,
+        root_outputs=args.root_outputs,
+        snapshot_options=snapshotOptions,
+    )

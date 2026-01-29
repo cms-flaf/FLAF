@@ -838,7 +838,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     def run(self):
         with ServiceThread() as service_thread:
             dataset_name, prod_br, need_cache_global, producer_list, input_index = (
-            self.branch_data
+                self.branch_data
             )
             unc_config = os.path.join(
                 self.ana_path(), "config", self.period, f"weights.yaml"

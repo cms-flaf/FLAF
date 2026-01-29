@@ -18,6 +18,7 @@ from Corrections.lumi import LumiFilter
 from Corrections.CorrectionsCore import central, getScales, getSystName
 from Corrections.pu import puWeightProducer
 
+
 class DefaultAnaCacheProcessor:
     def onAnaCache_initializeDenomEntry(self):
         return []
@@ -52,7 +53,7 @@ class DefaultAnaCacheProcessor:
     ):
         xs_name = dataset_entry["crossSection"]
         xs_value = xs_db.getValue(xs_name)
-        return df.Define(crossSectionBranch, f'float({xs_value})')
+        return df.Define(crossSectionBranch, f"float({xs_value})")
 
     def onAnaTuple_defineDenominator(
         self,
@@ -67,6 +68,7 @@ class DefaultAnaCacheProcessor:
         ana_cache = ana_caches[dataset_name]
         denom_value = ana_cache["denominator"][source_name][scale_name][processor_name]
         return df.Define(denomBranch, str(denom_value))
+
 
 # ROOT.EnableImplicitMT(1)
 ROOT.EnableThreadSafety()
@@ -173,6 +175,7 @@ def createAnatuple(
                 ] = p_instance.onAnaCache_initializeDenomEntry()
 
     gen_weight_name = "weight_gen"
+
     def updateDenomEntry(rdf):
         for p_instance in processor_instances.values():
             rdf = p_instance.onAnaCache_prepareDataFrame(rdf)
@@ -187,7 +190,9 @@ def createAnatuple(
                     output_branch_name = f"weight_denom_{p_name}_{shape_unc_name}"
                     report["denominator"][shape_unc_source][shape_unc_scale][p_name] = (
                         p_instance.onAnaCache_updateDenomEntry(
-                            report["denominator"][shape_unc_source][shape_unc_scale][p_name],
+                            report["denominator"][shape_unc_source][shape_unc_scale][
+                                p_name
+                            ],
                             rdf,
                             output_branch_name,
                             weights_to_apply,
@@ -399,7 +404,9 @@ if __name__ == "__main__":
     parser.add_argument("--uncertainties", type=str, default="all")
     parser.add_argument("--customisations", type=str, default=None)
     parser.add_argument("--treeName", required=False, type=str, default="Events")
-    parser.add_argument("--treeNameNotSelected", required=False, type=str, default="EventsNotSelected")
+    parser.add_argument(
+        "--treeNameNotSelected", required=False, type=str, default="EventsNotSelected"
+    )
     parser.add_argument(
         "--particleFile",
         type=str,

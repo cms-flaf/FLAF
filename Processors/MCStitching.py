@@ -80,7 +80,9 @@ class MCStitcher:
         for var_entry in cfg.get("variables", []):
             for key in ["name", "expression"]:
                 if key not in var_entry:
-                    raise RuntimeError(f"MCStitcher: missing '{key}' for variable entry '{var_entry}'.")
+                    raise RuntimeError(
+                        f"MCStitcher: missing '{key}' for variable entry '{var_entry}'."
+                    )
             self.variables.append(var_entry["name"], var_entry["expression"])
 
     def defineVariables(self, df):
@@ -150,7 +152,7 @@ class MCStitcher:
             self.xs_expression_printed = True
         tmp_branch = crossSectionBranch + "__tmp"
         df = df.Define(tmp_branch, xs_expression)
-        return df.Define(crossSectionBranch, f'float({tmp_branch})')
+        return df.Define(crossSectionBranch, f"float({tmp_branch})")
 
     def onAnaTuple_defineDenominator(
         self,

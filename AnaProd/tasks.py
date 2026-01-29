@@ -7,7 +7,11 @@ import re
 
 from FLAF.RunKit.run_tools import ps_call, natural_sort
 from FLAF.run_tools.law_customizations import Task, HTCondorWorkflow, copy_param
-from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread, SerializeObjectToString
+from FLAF.Common.Utilities import (
+    getCustomisationSplit,
+    ServiceThread,
+    SerializeObjectToString,
+)
 
 
 class InputFileTask(Task, law.LocalWorkflow):
@@ -80,7 +84,9 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     def workflow_requires(self):
         input_file_task_complete = InputFileTask.req(self, branches=()).complete()
         if not input_file_task_complete:
-            return { "inputFile": InputFileTask.req(self, branches=()), }
+            return {
+                "inputFile": InputFileTask.req(self, branches=()),
+            }
 
         branches_set = set()
         for branch_idx, (
@@ -90,7 +96,9 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ) in self.branch_map.items():
             branches_set.add(dataset_id)
         branches = tuple(branches_set)
-        return { "inputFile": InputFileTask.req(self, branches=branches), }
+        return {
+            "inputFile": InputFileTask.req(self, branches=branches),
+        }
 
     def requires(self):
         return []
@@ -453,7 +461,15 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             }
 
         branch_set = set()
-        for _, (_, _, ds_branch, dataset_dependencies, _, _, _) in self.branch_map.items():
+        for _, (
+            _,
+            _,
+            ds_branch,
+            dataset_dependencies,
+            _,
+            _,
+            _,
+        ) in self.branch_map.items():
             branch_set.add(ds_branch)
             branch_set.update(dataset_dependencies.values())
 
@@ -466,12 +482,13 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
         }
 
-
     def requires(self):
         # Need both the AnaTupleFileTask for the input ROOT file, and the AnaTupleFileListTask for the json structure
         (
             dataset_name,
-            process_group, ds_branch, dataset_dependencies,
+            process_group,
+            ds_branch,
+            dataset_dependencies,
             input_file_list,
             _,
             skip_future_tasks,
@@ -479,7 +496,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         anaTuple_branch_map = AnaTupleFileTask.req(
             self, branch=-1, branches=()
         ).create_branch_map()
-        required_branches = { "root": {}, "json": {} }
+        required_branches = {"root": {}, "json": {}}
         for prod_br, (
             anaTuple_dataset_id,
             anaTuple_dataset_name,
@@ -505,12 +522,14 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if dependency_type:
                 if anaTuple_dataset_name not in required_branches[dependency_type]:
                     required_branches[dependency_type][anaTuple_dataset_name] = []
-                required_branches[dependency_type][anaTuple_dataset_name].append(AnaTupleFileTask.req(
-                    self,
-                    max_runtime=AnaTupleFileTask.max_runtime._default,
-                    branch=prod_br,
-                    branches=(prod_br,),
-                ))
+                required_branches[dependency_type][anaTuple_dataset_name].append(
+                    AnaTupleFileTask.req(
+                        self,
+                        max_runtime=AnaTupleFileTask.max_runtime._default,
+                        branch=prod_br,
+                        branches=(prod_br,),
+                    )
+                )
         required_branches["list"] = AnaTupleFileListTask.req(
             self,
             max_runtime=AnaTupleFileListTask.max_runtime._default,
@@ -536,11 +555,15 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ds_branches = {}
         for ds_branch, (dataset_name, process_group) in ds_branch_map.items():
             if dataset_name in ds_branches:
-                raise RuntimeError(f"Dataset {dataset_name} appears multiple times in AnaTupleFileListTask branch map!")
+                raise RuntimeError(
+                    f"Dataset {dataset_name} appears multiple times in AnaTupleFileListTask branch map!"
+                )
             ds_branches[dataset_name] = ds_branch
 
         for ds_branch, (dataset_name, process_group) in ds_branch_map.items():
-            dataset_dependencies = self.collect_extra_dependencies(dataset_name, ds_branches, process_group)
+            dataset_dependencies = self.collect_extra_dependencies(
+                dataset_name, ds_branches, process_group
+            )
             this_dataset_dict = self.setup.getAnaTupleFileList(
                 dataset_name,
                 AnaTupleFileListTask.req(self, branch=ds_branch, branches=()).output(),
@@ -621,12 +644,12 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             remote_inputs = {
                 "root": {
                     "index": 0,
-                    "sources": [ self.input()["root"] ],
+                    "sources": [self.input()["root"]],
                 },
                 "json": {
                     "index": 1,
-                    "sources": [ self.input()["root"], self.input()["json"] ],
-                }
+                    "sources": [self.input()["root"], self.input()["json"]],
+                },
             }
             local_inputs = {}
             for key, entry in remote_inputs.items():
@@ -639,7 +662,9 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         if ds_name not in local_inputs[key]:
                             local_inputs[key][ds_name] = []
                         for file_list in files:
-                            local_input = stack.enter_context(file_list[index].localize("r")).path
+                            local_input = stack.enter_context(
+                                file_list[index].localize("r")
+                            ).path
                             local_inputs[key][ds_name].append(local_input)
                         n_total += len(files)
                 print(f"Localized {n_total} {key} inputs")
@@ -663,7 +688,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 "--input-reports",
                 local_json_files_str,
                 "--input-roots",
-                *local_root_inputs
+                *local_root_inputs,
             ]
             if is_data:
                 cmd.append("--is-data")

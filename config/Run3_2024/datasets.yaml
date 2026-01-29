@@ -21,12 +21,14 @@ EGamma0_Run2024D:
     v15: /EGamma0/Run2024D-MINIv6NANOv15-v1/NANOAOD
 EGamma0_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /EGamma0/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /EGamma0/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /EGamma0/Run2024E-MINIv6NANOv15-v1/NANOAOD
 EGamma0_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /EGamma0/Run2024E-PromptReco-v2/NANOAOD
 EGamma0_Run2024F:
@@ -46,11 +48,13 @@ EGamma0_Run2024H:
     v15: /EGamma0/Run2024H-MINIv6NANOv15-v2/NANOAOD
 /EGamma0/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /EGamma0/Run2024I-PromptReco-v1/NANOAOD
     v15: /EGamma0/Run2024I-MINIv6NANOv15-v1/NANOAOD
 /EGamma0/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /EGamma0/Run2024I-PromptReco-v2/NANOAOD
     v15: /EGamma0/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
@@ -80,12 +84,14 @@ EGamma1_Run2024D:
     v15: /EGamma1/Run2024D-MINIv6NANOv15-v1/NANOAOD
 EGamma1_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /EGamma1/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /EGamma1/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /EGamma1/Run2024E-MINIv6NANOv15-v1/NANOAOD
 EGamma1_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /EGamma1/Run2024E-PromptReco-v2/NANOAOD
 EGamma1_Run2024F:
@@ -105,11 +111,13 @@ EGamma1_Run2024H:
     v15: /EGamma1/Run2024H-MINIv6NANOv15-v2/NANOAOD
 /EGamma1/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /EGamma1/Run2024I-PromptReco-v1/NANOAOD
     v15: /EGamma1/Run2024I-MINIv6NANOv15-v1/NANOAOD
 /EGamma1/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /EGamma1/Run2024I-PromptReco-v2/NANOAOD
     v15: /EGamma1/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
@@ -139,12 +147,14 @@ JetMET0_Run2024D:
     v15: /JetMET0/Run2024D-MINIv6NANOv15-v1/NANOAOD
 JetMET0_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /JetMET0/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /JetMET0/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /JetMET0/Run2024E-MINIv6NANOv15-v1/NANOAOD
 JetMET0_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /JetMET0/Run2024E-PromptReco-v2/NANOAOD
 JetMET0_Run2024F:
@@ -164,11 +174,13 @@ JetMET0_Run2024H:
     v15: /JetMET0/Run2024H-MINIv6NANOv15-v2/NANOAOD
 /JetMET0/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /JetMET0/Run2024I-PromptReco-v1/NANOAOD
     v15: /JetMET0/Run2024I-MINIv6NANOv15-v1/NANOAOD
 /JetMET0/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /JetMET0/Run2024I-PromptReco-v2/NANOAOD
     v15: /JetMET0/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
@@ -198,12 +210,14 @@ JetMET1_Run2024D:
     v15: /JetMET1/Run2024D-MINIv6NANOv15-v1/NANOAOD
 JetMET1_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /JetMET1/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /JetMET1/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /JetMET1/Run2024E-MINIv6NANOv15-v1/NANOAOD
 JetMET1_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /JetMET1/Run2024E-PromptReco-v2/NANOAOD
 JetMET1_Run2024F:
@@ -223,11 +237,13 @@ JetMET1_Run2024H:
     v15: /JetMET1/Run2024H-MINIv6NANOv15-v2/NANOAOD
 /JetMET1/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /JetMET1/Run2024I-PromptReco-v1/NANOAOD
     v15: /JetMET1/Run2024I-MINIv6NANOv15-v1/NANOAOD
 /JetMET1/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /JetMET1/Run2024I-PromptReco-v2/NANOAOD
     v15: /JetMET1/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
@@ -257,12 +273,14 @@ Muon0_Run2024D:
     v15: /Muon0/Run2024D-MINIv6NANOv15-v1/NANOAOD
 Muon0_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /Muon0/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /Muon0/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /Muon0/Run2024E-MINIv6NANOv15-v1/NANOAOD
 Muon0_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /Muon0/Run2024E-PromptReco-v2/NANOAOD
 Muon0_Run2024F:
@@ -282,11 +300,13 @@ Muon0_Run2024H:
     v15: /Muon0/Run2024H-MINIv6NANOv15-v2/NANOAOD
 /Muon0/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /Muon0/Run2024I-PromptReco-v1/NANOAOD
     v15: /Muon0/Run2024I-MINIv6NANOv15-v1/NANOAOD
 /Muon0/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /Muon0/Run2024I-PromptReco-v2/NANOAOD
     v15: /Muon0/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
@@ -316,12 +336,14 @@ Muon1_Run2024D:
     v15: /Muon1/Run2024D-MINIv6NANOv15-v1/NANOAOD
 Muon1_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /Muon1/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /Muon1/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /Muon1/Run2024E-MINIv6NANOv15-v1/NANOAOD
 Muon1_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /Muon1/Run2024E-PromptReco-v2/NANOAOD
 Muon1_Run2024F:
@@ -341,11 +363,13 @@ Muon1_Run2024H:
     v15: /Muon1/Run2024H-MINIv6NANOv15-v2/NANOAOD
 /Muon1/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /Muon1/Run2024I-PromptReco-v1/NANOAOD
     v15: /Muon1/Run2024I-MINIv6NANOv15-v1/NANOAOD
 /Muon1/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /Muon1/Run2024I-PromptReco-v2/NANOAOD
     v15: /Muon1/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
@@ -375,12 +399,14 @@ MuonEG_Run2024D:
     v15: /MuonEG/Run2024D-MINIv6NANOv15-v1/NANOAOD
 MuonEG_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /MuonEG/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /MuonEG/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /MuonEG/Run2024E-MINIv6NANOv15-v1/NANOAOD
 MuonEG_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /MuonEG/Run2024E-PromptReco-v2/NANOAOD
 MuonEG_Run2024F:
@@ -400,11 +426,13 @@ MuonEG_Run2024H:
     v15: /MuonEG/Run2024H-MINIv6NANOv15-v2/NANOAOD
 /MuonEG/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /MuonEG/Run2024I-PromptReco-v1/NANOAOD
     v15: /MuonEG/Run2024I-MINIv6NANOv15-v1/NANOAOD
 /MuonEG/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /MuonEG/Run2024I-PromptReco-v2/NANOAOD
     v15: /MuonEG/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
@@ -434,12 +462,14 @@ ParkingHH_Run2024D:
     v15: /ParkingHH/Run2024D-MINIv6NANOv15-v1/NANOAOD
 ParkingHH_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingHH/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /ParkingHH/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /ParkingHH/Run2024E-MINIv6NANOv15-v1/NANOAOD
 ParkingHH_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingHH/Run2024E-PromptReco-v2/NANOAOD
 ParkingHH_Run2024F:
@@ -459,11 +489,13 @@ ParkingHH_Run2024H:
     v15: /ParkingHH/Run2024H-MINIv6NANOv15-v3/NANOAOD
 /ParkingHH/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingHH/Run2024I-PromptReco-v1/NANOAOD
     v15: /ParkingHH/Run2024I-MINIv6NANOv15-v3/NANOAOD
 /ParkingHH/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingHH/Run2024I-PromptReco-v2/NANOAOD
     v15: /ParkingHH/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
@@ -510,11 +542,13 @@ ParkingVBF0/Run2024H:
     v15: /ParkingVBF0/Run2024H-MINIv6NANOv15-v2/NANOAOD
 ParkingVBF0/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF0/Run2024I-PromptReco-v1/NANOAOD
     v15: /ParkingVBF0/Run2024I-MINIv6NANOv15-v2/NANOAOD
 ParkingVBF0/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF0/Run2024I-PromptReco-v2/NANOAOD
     v15: /ParkingVBF0/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
@@ -540,12 +574,14 @@ ParkingVBF1_Run2024D:
     v15: /ParkingVBF1/Run2024D-MINIv6NANOv15-v1/NANOAOD
 ParkingVBF1_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF1/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /ParkingVBF1/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /ParkingVBF1/Run2024E-MINIv6NANOv15-v1/NANOAOD
 ParkingVBF1_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF1/Run2024E-PromptReco-v2/NANOAOD
 ParkingVBF1_Run2024F:
@@ -565,11 +601,13 @@ ParkingVBF1_Run2024H:
     v15: /ParkingVBF1/Run2024H-MINIv6NANOv15-v3/NANOAOD
 /ParkingVBF1/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF1/Run2024I-PromptReco-v1/NANOAOD
     v15: /ParkingVBF1/Run2024I-MINIv6NANOv15-v3/NANOAOD
 /ParkingVBF1/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF1/Run2024I-PromptReco-v2/NANOAOD
     v15: /ParkingVBF1/Run2024I-MINIv6NANOv15_v2-v3/NANOAOD
@@ -595,12 +633,14 @@ ParkingVBF2_Run2024D:
     v15: /ParkingVBF2/Run2024D-MINIv6NANOv15-v2/NANOAOD
 ParkingVBF2_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF2/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /ParkingVBF2/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /ParkingVBF2/Run2024E-MINIv6NANOv15-v1/NANOAOD
 ParkingVBF2_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF2/Run2024E-PromptReco-v2/NANOAOD
 ParkingVBF2_Run2024F:
@@ -620,11 +660,13 @@ ParkingVBF2_Run2024H:
     v15: /ParkingVBF2/Run2024H-MINIv6NANOv15-v3/NANOAOD
 /ParkingVBF2/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF2/Run2024I-PromptReco-v1/NANOAOD
     v15: /ParkingVBF2/Run2024I-MINIv6NANOv15-v3/NANOAOD
 /ParkingVBF2/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF2/Run2024I-PromptReco-v2/NANOAOD
     v15: /ParkingVBF2/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
@@ -650,12 +692,14 @@ ParkingVBF3_Run2024D:
     v15: /ParkingVBF3/Run2024D-MINIv6NANOv15-v2/NANOAOD
 ParkingVBF3_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF3/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /ParkingVBF3/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /ParkingVBF3/Run2024E-MINIv6NANOv15-v1/NANOAOD
 ParkingVBF3_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF3/Run2024E-PromptReco-v2/NANOAOD
 ParkingVBF3_Run2024F:
@@ -675,11 +719,13 @@ ParkingVBF3_Run2024H:
     v15: /ParkingVBF3/Run2024H-MINIv6NANOv15-v3/NANOAOD
 /ParkingVBF3/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF3/Run2024I-PromptReco-v1/NANOAOD
     v15: /ParkingVBF3/Run2024I-MINIv6NANOv15-v3/NANOAOD
 /ParkingVBF3/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF3/Run2024I-PromptReco-v2/NANOAOD
     v15: /ParkingVBF3/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
@@ -705,12 +751,14 @@ ParkingVBF4_Run2024D:
     v15: /ParkingVBF4/Run2024D-MINIv6NANOv15-v2/NANOAOD
 ParkingVBF4_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF4/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /ParkingVBF4/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /ParkingVBF4/Run2024E-MINIv6NANOv15-v1/NANOAOD
 ParkingVBF4_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF4/Run2024E-PromptReco-v2/NANOAOD
 ParkingVBF4_Run2024F:
@@ -730,11 +778,13 @@ ParkingVBF4_Run2024H:
     v15: /ParkingVBF4/Run2024H-MINIv6NANOv15-v3/NANOAOD
 /ParkingVBF4/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF4/Run2024I-PromptReco-v1/NANOAOD
     v15: /ParkingVBF4/Run2024I-MINIv6NANOv15-v3/NANOAOD
 /ParkingVBF4/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF4/Run2024I-PromptReco-v2/NANOAOD
     v15: /ParkingVBF4/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
@@ -760,12 +810,14 @@ ParkingVBF5_Run2024D:
     v15: /ParkingVBF5/Run2024D-MINIv6NANOv15-v2/NANOAOD
 ParkingVBF5_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF5/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /ParkingVBF5/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /ParkingVBF5/Run2024E-MINIv6NANOv15-v1/NANOAOD
 ParkingVBF5_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF5/Run2024E-PromptReco-v2/NANOAOD
 ParkingVBF5_Run2024F:
@@ -785,11 +837,13 @@ ParkingVBF5_Run2024H:
     v15: /ParkingVBF5/Run2024H-MINIv6NANOv15-v3/NANOAOD
 /ParkingVBF5/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF5/Run2024I-PromptReco-v1/NANOAOD
     v15: /ParkingVBF5/Run2024I-MINIv6NANOv15-v3/NANOAOD
 /ParkingVBF5/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF5/Run2024I-PromptReco-v2/NANOAOD
     v15: /ParkingVBF5/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
@@ -815,12 +869,14 @@ ParkingVBF6_Run2024D:
     v15: /ParkingVBF6/Run2024D-MINIv6NANOv15-v2/NANOAOD
 ParkingVBF6_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF6/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /ParkingVBF6/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /ParkingVBF6/Run2024E-MINIv6NANOv15-v1/NANOAOD
 ParkingVBF6_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF6/Run2024E-PromptReco-v2/NANOAOD
 ParkingVBF6_Run2024F:
@@ -840,11 +896,13 @@ ParkingVBF6_Run2024H:
     v15: /ParkingVBF6/Run2024H-MINIv6NANOv15-v3/NANOAOD
 /ParkingVBF6/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF6/Run2024I-PromptReco-v1/NANOAOD
     v15: /ParkingVBF6/Run2024I-MINIv6NANOv15-v3/NANOAOD
 /ParkingVBF6/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF6/Run2024I-PromptReco-v2/NANOAOD
     v15: /ParkingVBF6/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
@@ -870,12 +928,14 @@ ParkingVBF7_Run2024D:
     v15: /ParkingVBF7/Run2024D-MINIv6NANOv15-v2/NANOAOD
 ParkingVBF7_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF7/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /ParkingVBF7/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /ParkingVBF7/Run2024E-MINIv6NANOv15-v1/NANOAOD
 ParkingVBF7_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF7/Run2024E-PromptReco-v2/NANOAOD
 ParkingVBF7_Run2024F:
@@ -895,11 +955,13 @@ ParkingVBF7_Run2024H:
     v15: /ParkingVBF7/Run2024H-MINIv6NANOv15-v3/NANOAOD
 /ParkingVBF7/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /ParkingVBF7/Run2024I-PromptReco-v1/NANOAOD
     v15: /ParkingVBF7/Run2024I-MINIv6NANOv15-v3/NANOAOD
 /ParkingVBF7/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /ParkingVBF7/Run2024I-PromptReco-v2/NANOAOD
     v15: /ParkingVBF7/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
@@ -925,12 +987,14 @@ Tau_Run2024D:
     v15: /Tau/Run2024D-MINIv6NANOv15-v1/NANOAOD
 Tau_Run2024E_v1:
   eraLetter: E
+  eraVersion: v1
   nanoAOD:
     PromptReco: /Tau/Run2024E-PromptReco-v1/NANOAOD
     CDEReprocessing: /Tau/Run2024E-2024CDEReprocessing-v1/NANOAOD
     v15: /Tau/Run2024E-MINIv6NANOv15-v1/NANOAOD
 Tau_Run2024E_v2:
   eraLetter: E
+  eraVersion: v2
   nanoAOD:
     PromptReco: /Tau/Run2024E-PromptReco-v2/NANOAOD
 Tau_Run2024F:
@@ -950,11 +1014,13 @@ Tau_Run2024H:
     v15: /Tau/Run2024H-MINIv6NANOv15-v2/NANOAOD
 /Tau/Run2024I_v1:
   eraLetter: I
+  eraVersion: v1
   nanoAOD:
     PromptReco: /Tau/Run2024I-PromptReco-v1/NANOAOD
     v15: /Tau/Run2024I-MINIv6NANOv15-v1/NANOAOD
 /Tau/Run2024I_v2:
   eraLetter: I
+  eraVersion: v2
   nanoAOD:
     PromptReco: /Tau/Run2024I-PromptReco-v2/NANOAOD
     v15: /Tau/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD

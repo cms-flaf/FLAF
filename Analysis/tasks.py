@@ -1,15 +1,11 @@
 import law
 import os
-import yaml
 import contextlib
 import luigi
-import threading
-import copy
 import shutil
 
 
 from FLAF.RunKit.run_tools import ps_call
-from FLAF.RunKit.crabLaw import cond as kInit_cond, update_kinit_thread
 from FLAF.run_tools.law_customizations import (
     Task,
     HTCondorWorkflow,
@@ -19,7 +15,7 @@ from FLAF.AnaProd.tasks import (
     AnaTupleFileListTask,
     AnaTupleMergeTask,
 )
-from FLAF.Common.Utilities import getCustomisationSplit
+from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 
 
 class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
@@ -184,7 +180,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         for prod_br, (
             dataset_name,
-            dataset_type,
+            process_group,
+            ds_branch,
+            dataset_dependencies,
             input_file_list,
             output_file_list,
             skip_future_tasks,
@@ -838,28 +836,22 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return self.remote_target(output_path, fs=self.fs_anaCacheTuple)
 
     def run(self):
-        dataset_name, prod_br, need_cache_global, producer_list, input_index = (
-            self.branch_data
-        )
-        unc_config = os.path.join(
-            self.ana_path(), "config", self.period, f"weights.yaml"
-        )
-        analysis_cache_producer = os.path.join(
-            self.ana_path(), "FLAF", "Analysis", "AnalysisCacheProducer.py"
-        )
-        global_config = os.path.join(self.ana_path(), "config", "global.yaml")
-        thread = threading.Thread(target=update_kinit_thread)
-        customisation_dict = getCustomisationSplit(self.customisations)
-        channels = (
-            customisation_dict["channels"]
-            if "channels" in customisation_dict.keys()
-            else self.global_params["channelSelection"]
-        )
-        # Channels from the yaml are a list, but the format we need for the ps_call later is 'ch1,ch2,ch3', basically join into a string separated by comma
-        if type(channels) == list:
-            channels = ",".join(channels)
-        thread.start()
-        try:
+        with ServiceThread() as service_thread:
+            dataset_name, prod_br, need_cache_global, producer_list, input_index = (
+                self.branch_data
+            )
+            analysis_cache_producer = os.path.join(
+                self.ana_path(), "FLAF", "Analysis", "AnalysisCacheProducer.py"
+            )
+            customisation_dict = getCustomisationSplit(self.customisations)
+            channels = (
+                customisation_dict["channels"]
+                if "channels" in customisation_dict.keys()
+                else self.global_params["channelSelection"]
+            )
+            # Channels from the yaml are a list, but the format we need for the ps_call later is 'ch1,ch2,ch3', basically join into a string separated by comma
+            if type(channels) == list:
+                channels = ",".join(channels)
             job_home, remove_job_home = self.law_job_home()
             print(f"At job_home {job_home}")
 
@@ -931,12 +923,6 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     shutil.move(tmpFile, out_local_path)
             if remove_job_home:
                 shutil.rmtree(job_home)
-
-        finally:
-            kInit_cond.acquire()
-            kInit_cond.notify_all()
-            kInit_cond.release()
-            thread.join()
 
 
 class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):

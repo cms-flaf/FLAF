@@ -175,6 +175,42 @@ class Task(law.Task):
             raise KeyError(f"dataset name '{dataset_name}' not found")
         return self._dataset_name_id_dict[dataset_name]
 
+    def get_fs_nanoAOD(self, dataset_name):
+        if dataset_name not in self.datasets:
+            raise KeyError(f"dataset name '{dataset_name}' not found")
+        dataset = self.datasets[dataset_name]
+
+        folder_name = dataset.get("dirName", dataset_name)
+
+        if "fs_nanoAOD" in dataset:
+            return (
+                self.setup.get_fs(f"fs_nanoAOD_{dataset_name}", dataset["fs_nanoAOD"]),
+                folder_name,
+                True,
+            )
+
+        isData = dataset["process_group"] == "data"
+        version_label = "data" if isData else "mc"
+        nano_version = self.global_params.get("nanoAODVersions", {}).get(
+            version_label, "HLepRare"
+        )
+        if nano_version == "HLepRare":
+            return self.fs_nanoAOD, folder_name, True
+        das_cfg = dataset.get("nanoAOD", {})
+        das_ds_name = None
+        if isinstance(das_cfg, dict):
+            if nano_version in das_cfg:
+                das_ds_name = das_cfg[nano_version]
+        elif isinstance(das_cfg, str):
+            das_ds_name = das_cfg
+
+        if das_ds_name is not None:
+            return self.setup.fs_das, das_ds_name, False
+
+        raise RuntimeError(
+            f"Unable to identify the file source for dataset {dataset_name}"
+        )
+
 
 class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     """

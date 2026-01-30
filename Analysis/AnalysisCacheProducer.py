@@ -39,6 +39,7 @@ def check_columns(expected_columns, columns_to_save, available_columns):
 def run_producer(
     producer,
     dfw,
+    setup,
     dataset,
     producer_config,
     outFileName,
@@ -140,43 +141,7 @@ def createAnalysisCache(
     #     ROOT.Detail.RDF.RDFLogChannel(), ROOT.ELogLevel.kLogInfo
     # )
 
-    Baseline.Initialize(False)
-    if dataset_name == "data":
-        dataset_cfg = {}
-        process_name = "data"
-        process = {}
-        isData = True
-        processor_instances = {}
-    else:
-        dataset_cfg = setup.datasets[dataset_name]
-        process_name = dataset_cfg["process_name"]
-        process = setup.base_processes[process_name]
-        isData = dataset_cfg["process_group"] == "data"
-        _, processor_instances = setup.get_processors(
-            process_name, stage="HistTuple", create_instances=True
-        )
-    triggerFile = setup.global_params.get("triggerFile")
-    trigger_class = None
-    if triggerFile is not None:
-        triggerFile = os.path.join(os.environ["ANALYSIS_PATH"], triggerFile)
-        trigger_class = Triggers.Triggers(triggerFile)
-
-    Corrections.initializeGlobal(
-        global_params=setup.global_params,
-        stage="HistTuple",
-        dataset_name=dataset_name,
-        dataset_cfg=dataset_cfg,
-        process_name=process_name,
-        process_cfg=process,
-        processors=processor_instances,
-        isData=isData,
-        load_corr_lib=True,
-        trigger_class=trigger_class,
-    )
-
-    histTupleDef.Initialize()
-    histTupleDef.analysis_setup(setup)
-
+    Utilities.InitializeCorrections(setup, dataset_name, stage="HistTuple")
     scale_uncertainties = set()
     if setup.global_params["compute_unc_variations"]:
         scale_uncertainties.update(unc_cfg_dict["shape"].keys())
@@ -244,6 +209,7 @@ def createAnalysisCache(
             run_producer(
                 producer,
                 dfw,
+                setup,
                 dataset_name,
                 producer_config,
                 tmp_fileName,

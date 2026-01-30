@@ -106,17 +106,12 @@ def SaveSingleHistSet(
 ):
     hist_list = []
     if is_shift_unc:
-        tree_prefix = f"Events_{unc}{scale}"
-        shifts = ["noDiff", "Valid", "nonValid"]
-        for shift in shifts:
-            tree_name_full = f"{tree_prefix}_{shift}"
-            if tree_name_full not in all_trees:
-                continue
-            rdf_shift = all_trees[tree_name_full]
-            model, unit_hist = GetUnitBinHist(
-                rdf_shift, var, filter_expr, "weight_Central", unc, scale
-            )
-            hist_list.append((model, unit_hist, rdf_shift))
+        tree_prefix = f"Events__{unc}__{scale}"
+        rdf_shift = all_trees[tree_prefix]
+        model, unit_hist = GetUnitBinHist(
+            rdf_shift, var, filter_expr, "weight_Central", unc, scale
+        )
+        hist_list.append((model, unit_hist, rdf_shift))
     else:
         weight_name = f"weight_{unc}_{scale}" if unc != "Central" else "weight_Central"
         rdf_central = all_trees[treeName]
@@ -342,6 +337,7 @@ if __name__ == "__main__":
                     for key in unc_cfg_dict["shape"].keys()
                 }
             )
+    print(uncs_to_compute)
 
     tmp_files = []
     if all_trees:

@@ -147,44 +147,10 @@ def createHistTuple(
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
     hist_cfg_dict = setup.hists
-
-    Baseline.Initialize(False)
-    if dataset_name == "data":
-        dataset_cfg = {}
-        process_name = "data"
-        process = {}
-        isData = True
-        processors_cfg = {}
-        processor_instances = {}
-    else:
-        dataset_cfg = setup.datasets[dataset_name]
-        process_name = dataset_cfg["process_name"]
-        process = setup.base_processes[process_name]
-        isData = dataset_cfg["process_group"] == "data"
-        processors_cfg, processor_instances = setup.get_processors(
-            process_name, stage="HistTuple", create_instances=True
-        )
-    triggerFile = setup.global_params.get("triggerFile")
-    trigger_class = None
-    if triggerFile is not None:
-        triggerFile = os.path.join(os.environ["ANALYSIS_PATH"], triggerFile)
-        trigger_class = Triggers.Triggers(triggerFile)
-
-    Corrections.initializeGlobal(
-        global_params=setup.global_params,
-        stage="HistTuple",
-        dataset_name=dataset_name,
-        dataset_cfg=dataset_cfg,
-        process_name=process_name,
-        process_cfg=process,
-        processors=processor_instances,
-        isData=isData,
-        load_corr_lib=True,
-        trigger_class=trigger_class,
-    )
-
+    Utilities.InitializeCorrections(setup, dataset_name, stage="HistTuple")
     histTupleDef.Initialize()
     histTupleDef.analysis_setup(setup)
+    isData = dataset_name == "data"
 
     # here correction to btag weights is applied to ensure that application of btag shape weights
     # does not modify the integral

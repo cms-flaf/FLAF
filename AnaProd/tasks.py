@@ -33,13 +33,14 @@ class InputFileTask(Task, law.LocalWorkflow):
     def run(self):
         dataset_name = self.branch_data
         print(f"{dataset_name}: creating input file list into {self.output().path}")
-        fs_nanoAOD, folder_name = self.get_fs_nanoAOD(dataset_name)
+        fs_nanoAOD, folder_name, include_folder_name = self.get_fs_nanoAOD(dataset_name)
         pattern = self.datasets[dataset_name].get("fileNamePattern", r".*\.root$")
 
         input_files = []
         for file in fs_nanoAOD.listdir(folder_name):
             if re.match(pattern, file):
-                input_files.append(file)
+                file_path = os.path.join(folder_name, file) if include_folder_name else file
+                input_files.append(file_path)
 
         if len(input_files) == 0:
             raise RuntimeError(f"No input files found for {dataset_name}")
@@ -104,7 +105,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             input_files = InputFileTask.load_input_files(
                 input_file_list, test=self.test > 0
             )
-            fs_nanoAOD, _ = self.get_fs_nanoAOD(dataset_name)
+            fs_nanoAOD, _, _ = self.get_fs_nanoAOD(dataset_name)
             for input_file in input_files:
                 fileintot = self.remote_target(input_file, fs=fs_nanoAOD)
                 branches[branch_idx] = (

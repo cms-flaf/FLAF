@@ -186,6 +186,7 @@ class Task(law.Task):
             return (
                 self.setup.get_fs(f"fs_nanoAOD_{dataset_name}", dataset["fs_nanoAOD"]),
                 folder_name,
+                True
             )
 
         isData = dataset["process_group"] == "data"
@@ -194,7 +195,7 @@ class Task(law.Task):
             version_label, "HLepRare"
         )
         if nano_version == "HLepRare":
-            return self.fs_nanoAOD, folder_name
+            return self.fs_nanoAOD, folder_name, True
         das_cfg = dataset.get("nanoAOD", {})
         das_ds_name = None
         if isinstance(das_cfg, dict):
@@ -204,7 +205,7 @@ class Task(law.Task):
             das_ds_name = das_cfg
 
         if das_ds_name is not None:
-            return self.setup.fs_das, das_ds_name
+            return self.setup.fs_das, das_ds_name, False
 
         raise RuntimeError(
             f"Unable to identify the file source for dataset {dataset_name}"

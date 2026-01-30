@@ -189,10 +189,11 @@ def createAnalysisCache(
                 if not isCentral:
                     continue
 
-                # in AnalysisCacheTask btag shape weight correction is being produced,
-                # so when defining weights for histograms weight for btags must not be applied to events
-                # otherwise it will be counted twice
                 dfw = histTupleDef.GetDfw(df, setup, dataset_name)
+                # must be called with btag_integral_ratios=None
+                # to avoid applying btag shape weights
+                # corresponding producer will take care of it
+                # purpose of histTupleDef - define raw btag shape weight
                 histTupleDef.DefineWeightForHistograms(
                     dfw=dfw,
                     isData=isData,
@@ -203,7 +204,7 @@ def createAnalysisCache(
                     global_params=setup.global_params,
                     final_weight_name=f"weight_{unc_source}_{unc_scale}",
                     df_is_central=isCentral,
-                    btag_shape_was_corrected=False,
+                    btag_integral_ratios=None,
                 )
 
                 tmp_fileName = (

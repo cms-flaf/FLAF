@@ -21,78 +21,6 @@ import FLAF.Common.BaselineSelection as Baseline
 # ROOT.EnableImplicitMT(1)
 ROOT.EnableThreadSafety()
 
-cat_to_channelId = {"e": 1, "mu": 2, "eE": 11, "eMu": 12, "muMu": 22}
-
-
-class BtagShapeWeightCorrector:
-    def __init__(self, btag_integral_ratios):
-        self.exisiting_srcScale_combs = [key for key in btag_integral_ratios.keys()]
-        # if the btag_integral_ratios dictionary is not empty, do stuff
-        if self.exisiting_srcScale_combs:
-            ROOT.gInterpreter.Declare("#include <map>")
-
-            for key in btag_integral_ratios.keys():
-                # key in btag_integral_ratios has form f"{source}_{scale}", so function expects that
-                # and creates a map and function to rescale btag weights for each f"{source}_{scale}" value
-                self._declare_cpp_map_and_resc_func(btag_integral_ratios, key)
-
-    def _declare_cpp_map_and_resc_func(self, btag_integral_ratios, unc_src_scale):
-        correction_factors = btag_integral_ratios[unc_src_scale]
-
-        # init c++ map
-        cpp_map_entries = []
-        for cat, multipl_dict in correction_factors.items():
-            channelId = cat_to_channelId[cat]
-            for key, ratio in multipl_dict.items():
-                # key has structure f"ratio_ncetnralJet_{number}""
-                num_jet = int(key.split("_")[-1])
-                cpp_map_entries.append(f"{{{{{channelId}, {num_jet}}}, {ratio}}}")
-        cpp_init = ", ".join(cpp_map_entries)
-
-        ROOT.gInterpreter.Declare(
-            f"""
-            static const std::map<std::pair<int, int>, float> ratios_{unc_src_scale} = {{
-                {cpp_init}
-            }};
-
-            float integral_correction_ratio_{unc_src_scale}(int ncentralJet, int channelId) {{
-                std::pair<int, int> key{{channelId, ncentralJet}};
-                try 
-                {{
-                    float ratio = ratios_{unc_src_scale}.at(key);
-                    return ratio;
-                }}
-                catch (...)
-                {{
-                    return 1.0f;
-                }}
-            }}"""
-        )
-
-    def UpdateBtagWeight(self, dfw, unc_src="Central", unc_scale=None):
-        # return original dfw if empty dict was passed to constructor
-        if not self.exisiting_srcScale_combs:
-            return dfw
-
-        if unc_scale is None:
-            unc_src_scale = unc_src
-        else:
-            unc_src_scale = f"{unc_src}_{unc_scale}"
-
-        if unc_src_scale not in self.exisiting_srcScale_combs:
-            raise RuntimeError(
-                f"`BtagShapeWeightCorrection.json` does not contain key `{unc_src_scale}`."
-            )
-
-        dfw.df = dfw.df.Redefine(
-            "weight_bTagShape_Central",
-            f"""if (ncentralJet >= 2 && ncentralJet <= 8) 
-                    return integral_correction_ratio_{unc_src_scale}(ncentralJet, channelId)*weight_bTagShape_Central;
-                return weight_bTagShape_Central;""",
-        )
-
-        return dfw
-
 
 def DefineBinnedColumn(hist_cfg_dict, var):
     var_entry = findBinEntry(hist_cfg_dict, var)
@@ -151,12 +79,6 @@ def createHistTuple(
     histTupleDef.Initialize()
     histTupleDef.analysis_setup(setup)
     isData = dataset_name == "data"
-
-    # here correction to btag weights is applied to ensure that application of btag shape weights
-    # does not modify the integral
-    # if empty btagIntegralRatios passed, UpdateBtagWeight will do nothing
-    weight_corrector = BtagShapeWeightCorrector(btagIntegralRatios)
-    isMC = not isData
 
     if type(setup.global_params["variables"]) == list:
         variables = setup.global_params["variables"]
@@ -236,8 +158,6 @@ def createHistTuple(
                         )
             for desc in iter_descs:
                 print(f"Defining the final weight for {desc['source']} {desc['scale']}")
-                # before writing btag shape weight into the total weight expression,
-                # it must be corrected by the integral ratio
                 histTupleDef.DefineWeightForHistograms(
                     dfw=dfw,
                     isData=isData,
@@ -248,21 +168,9 @@ def createHistTuple(
                     global_params=setup.global_params,
                     final_weight_name=desc["weight"],
                     df_is_central=isCentral,
-                    btag_shape_was_corrected=btag_shape_was_corrected
+                    btag_integral_ratios=btagIntegralRatios
                 )
                 dfw.colToSave.append(desc["weight"])
-
-            # for now only evaluate central values
-            if isCentral and isMC:
-                print(
-                    f"Calling weight_corrector.UpdateBtagWeight for unc_source={unc_source} unc_scale={unc_scale}"
-                )
-                weight_corrector.UpdateBtagWeight(dfw, unc_src=unc_source)
-                # now btag shape weight was corrected
-                # now it must be added to total weight => redefine total weight column
-                weight_name = desc["weight"]
-                dfw.df = dfw.df.Redefine(desc["weight"], f"return {weight_name} * weight_bTagShape_Central;")
-                btag_shape_was_corrected = True
 
             print("Defining binned columns")
             for var in flatten_vars:

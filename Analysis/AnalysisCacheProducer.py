@@ -137,9 +137,11 @@ def createAnalysisCache(
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
 
-    # verbosity = ROOT.RLogScopedVerbosity(
-    #     ROOT.Detail.RDF.RDFLogChannel(), ROOT.ELogLevel.kLogInfo
-    # )
+    isData = setup.datasets[dataset_name]["process_group"] == "data"
+
+    if saveAs == "json":
+        histTupleDef.Initialize()
+        histTupleDef.analysis_setup(setup)
 
     Utilities.InitializeCorrections(setup, dataset_name, stage="HistTuple")
     scale_uncertainties = set()
@@ -187,6 +189,9 @@ def createAnalysisCache(
                 if not isCentral:
                     continue
 
+                # in AnalysisCacheTask btag shape weight correction is being produced,
+                # so when defining weights for histograms weight for btags must not be applied to events
+                # otherwise it will be counted twice
                 dfw = histTupleDef.GetDfw(df, setup, dataset_name)
                 histTupleDef.DefineWeightForHistograms(
                     dfw=dfw,
@@ -198,6 +203,7 @@ def createAnalysisCache(
                     global_params=setup.global_params,
                     final_weight_name=f"weight_{unc_source}_{unc_scale}",
                     df_is_central=isCentral,
+                    btag_shape_was_corrected=False,
                 )
 
                 tmp_fileName = (

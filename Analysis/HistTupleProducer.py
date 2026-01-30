@@ -190,6 +190,7 @@ def createHistTuple(
     centralTree = None
     centralCaches = None
     allRootFiles = {}
+    btag_shape_was_corrected = False
     for unc_source in [central] + list(scale_uncertainties):
         for unc_scale in getScales(unc_source):
             print(f"Processing events for {unc_source} {unc_scale}")
@@ -235,6 +236,8 @@ def createHistTuple(
                         )
             for desc in iter_descs:
                 print(f"Defining the final weight for {desc['source']} {desc['scale']}")
+                # before writing btag shape weight into the total weight expression,
+                # it must be corrected by the integral ratio
                 histTupleDef.DefineWeightForHistograms(
                     dfw=dfw,
                     isData=isData,
@@ -245,6 +248,7 @@ def createHistTuple(
                     global_params=setup.global_params,
                     final_weight_name=desc["weight"],
                     df_is_central=isCentral,
+                    btag_shape_was_corrected=btag_shape_was_corrected
                 )
                 dfw.colToSave.append(desc["weight"])
 
@@ -254,6 +258,11 @@ def createHistTuple(
                     f"Calling weight_corrector.UpdateBtagWeight for unc_source={unc_source} unc_scale={unc_scale}"
                 )
                 weight_corrector.UpdateBtagWeight(dfw, unc_src=unc_source)
+                # now btag shape weight was corrected
+                # now it must be added to total weight => redefine total weight column
+                weight_name = desc["weight"]
+                dfw.df = dfw.df.Redefine(desc["weight"], f"return {weight_name} * weight_bTagShape_Central;")
+                btag_shape_was_corrected = True
 
             print("Defining binned columns")
             for var in flatten_vars:

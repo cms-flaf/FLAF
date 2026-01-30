@@ -39,7 +39,9 @@ class InputFileTask(Task, law.LocalWorkflow):
         input_files = []
         for file in fs_nanoAOD.listdir(folder_name):
             if re.match(pattern, file):
-                file_path = os.path.join(folder_name, file) if include_folder_name else file
+                file_path = (
+                    os.path.join(folder_name, file) if include_folder_name else file
+                )
                 input_files.append(file_path)
 
         if len(input_files) == 0:

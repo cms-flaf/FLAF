@@ -186,7 +186,7 @@ class Task(law.Task):
             return (
                 self.setup.get_fs(f"fs_nanoAOD_{dataset_name}", dataset["fs_nanoAOD"]),
                 folder_name,
-                True
+                True,
             )
 
         isData = dataset["process_group"] == "data"

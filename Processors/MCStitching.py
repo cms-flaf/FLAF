@@ -15,9 +15,10 @@ class MCStitcher:
         self.global_params = global_params
         self.processor_entry = processor_entry
         self.verbose = verbose
+        self.xs_expression_printed = False
         self.bins = []
 
-        if stage not in ["AnaCache", "AnaTuple"]:
+        if stage not in ["AnaTuple", "AnaTupleMerge"]:
             raise RuntimeError(f"Unsupported stage: {stage}")
 
         config_path = os.path.join(
@@ -49,7 +50,7 @@ class MCStitcher:
             value = self.xs_db.evaluateExpression(
                 bin_entry["crossSection"], entry_name=f'MCStitching/{bin_entry["name"]}'
             )
-            if verbose > 0:
+            if verbose > 1:
                 print(
                     f"[MCStitcher] Bin '{bin_entry['name']}': selection = {bin_entry['selection']}, crossSection = {value}",
                     file=sys.stderr,
@@ -75,12 +76,27 @@ class MCStitcher:
                 )
         self.totalCrossSection = totalCrossSectionFromBins
 
+        self.variables = []
+        for var_entry in cfg.get("variables", []):
+            for key in ["name", "expression"]:
+                if key not in var_entry:
+                    raise RuntimeError(
+                        f"MCStitcher: missing '{key}' for variable entry '{var_entry}'."
+                    )
+            self.variables.append((var_entry["name"], var_entry["expression"]))
+
     def defineVariables(self, df):
         """Define any additional variables needed for stitching."""
+
+        for name, expression in self.variables:
+            df = df.Define(name, expression)
         return df
 
     def onAnaCache_initializeDenomEntry(self):
         return {bin["name"]: [] for bin in self.bins}
+
+    def onAnaCache_prepareDataFrame(self, df):
+        return self.defineVariables(df)
 
     def onAnaCache_updateDenomEntry(
         self, entry, df, output_branch_name, weights_to_apply
@@ -117,6 +133,9 @@ class MCStitcher:
                 cmb_entry[bin_name] += entry[bin_name]
         return cmb_entry
 
+    def onAnaTuple_prepareDataFrame(self, df):
+        return self.defineVariables(df)
+
     def onAnaTuple_defineCrossSection(
         self, df, crossSectionBranch, xs_db, dataset_name, dataset_entry
     ):
@@ -126,10 +145,14 @@ class MCStitcher:
             bin_xs = bin_cfg["crossSectionValue"]
             xs_expression += f"if({bin_selection}) return {bin_xs};\n"
         xs_expression += f'throw std::runtime_error("No bin matched in MCStitcher for dataset {dataset_name}");'
-        print(f"Cross-section expression for {dataset_name}:")
-        print(xs_expression)
-        print("-" * 16)
-        return df.Define(crossSectionBranch, xs_expression)
+        if self.verbose > 0 and not self.xs_expression_printed:
+            print(f"Cross-section expression for {dataset_name}:")
+            print(xs_expression)
+            print("-" * 16)
+            self.xs_expression_printed = True
+        tmp_branch = crossSectionBranch + "__tmp"
+        df = df.Define(tmp_branch, xs_expression)
+        return df.Define(crossSectionBranch, f"float({tmp_branch})")
 
     def onAnaTuple_defineDenominator(
         self,

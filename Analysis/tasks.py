@@ -1370,10 +1370,7 @@ class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             sample_name,
             output_name,
         )
-
-        return [
-            self.remote_target(output_path, fs=self.fs_anaTuple),
-        ]
+        return self.remote_target(output_path, fs=self.fs_anaTuple)
 
     def run(self):
         sample_name, _, _ = self.branch_data
@@ -1381,7 +1378,7 @@ class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self.ana_path(), "FLAF", "Analysis", "ComputeBtagShapeWeightCorrection.py"
         )
         with contextlib.ExitStack() as stack:
-            remote_output = self.output()[0]
+            remote_output = self.output()
 
             inputs = self.input()
             local_inputs = [

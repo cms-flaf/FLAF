@@ -637,7 +637,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         is_data = process_group == "data"
         job_home, remove_job_home = self.law_job_home()
         tmpFiles = [
-            os.path.join(job_home, f"AnaTupleMergeTask_tmp{i}.root")
+            os.path.join(job_home, f"AnaTupleMergeTask_{dataset_name}_{i}.root")
             for i in range(len(self.output()))
         ]
         with contextlib.ExitStack() as stack:

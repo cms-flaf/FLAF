@@ -467,8 +467,10 @@ namespace reco_tau {
                             break;
                         }
                     }
-                    if (!nextCopyFound)
-                        ThrowErrorStatic("unable to find a terminal copy.");
+                    if (!nextCopyFound) {
+                        break;
+                        // ThrowErrorStatic("unable to find a terminal copy.");
+                    }
                 }
                 return particle;
             }

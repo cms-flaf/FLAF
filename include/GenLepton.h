@@ -468,6 +468,7 @@ namespace reco_tau {
                         }
                     }
                     if (!nextCopyFound) {
+                        std::cerr << "GenLepton: unable to find a terminal copy for a particle" << std::endl;
                         break;
                         // ThrowErrorStatic("unable to find a terminal copy.");
                     }
@@ -732,7 +733,8 @@ namespace reco_tau {
                 const bool isFinalState = particle.daughters.empty();
                 if (isFinalState && !particle.isLastCopy) {
                     std::cerr << "Inconsistent particle: " << particle << std::endl;
-                    ThrowError("last copy flag is not set for a final state particle.");
+                    std::cerr << "last copy flag is not set for a final state particle." << std::endl;
+                    // ThrowError("last copy flag is not set for a final state particle.");
                 }
                 if (particle.isLastCopy) {
                     const bool isChargedHadron = GenParticle::isChargedHadron(particle.pdgCode());
@@ -790,17 +792,25 @@ namespace reco_tau {
                     return Kind::PromptElectron;
                 if (pdg == GenParticle::PdgId::muon)
                     return Kind::PromptMuon;
-                if (pdg != GenParticle::PdgId::tau)
-                    std::cerr << "pdg code = " << lastCopy_->pdgId << std::endl;
-                if (nChargedHadrons_ == 0 && nNeutralHadrons_ != 0)
-                    ThrowError("invalid hadron counts");
+                if (pdg != GenParticle::PdgId::tau) {
+                    std::cerr << "GenLepton: invalid lepton pdg code = " << lastCopy_->pdgId << std::endl;
+                    return Kind::Other;
+                }
+                if (nChargedHadrons_ == 0 && nNeutralHadrons_ != 0) {
+                    //ThrowError("invalid hadron counts");
+                    std::cerr << "GenLepton: invalid hadron counts: nChargedHadrons = " << nChargedHadrons_
+                              << ", nNeutralHadrons = " << nNeutralHadrons_ << std::endl;
+                    return Kind::Other;
+                }
                 if (nChargedHadrons_ != 0)
                     return Kind::TauDecayedToHadrons;
                 if (nFinalStateElectrons_ == 1 && nFinalStateNeutrinos_ == 2)
                     return Kind::TauDecayedToElectron;
                 if (nFinalStateMuons_ == 1 && nFinalStateNeutrinos_ == 2)
                     return Kind::TauDecayedToMuon;
-                ThrowError("unable to determine gen lepton kind.");
+                std::cerr << "GenLepton: unable to determine tau decay mode." << std::endl;
+                return Kind::Other;
+                // ThrowError("unable to determine gen lepton kind.");
             }
 
             [[noreturn]] void ThrowError(const std::string &message) const {

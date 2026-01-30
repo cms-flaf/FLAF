@@ -2,6 +2,7 @@ import time
 import os
 import sys
 import ROOT
+import json
 
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
@@ -68,6 +69,8 @@ def createHistTuple(
     range,
     evtIds,
     histTupleDef,
+    btagIntegralRatios,
+    isData,
 ):
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
@@ -109,6 +112,7 @@ def createHistTuple(
     centralTree = None
     centralCaches = None
     allRootFiles = {}
+    btag_shape_was_corrected = False
     for unc_source in [central] + list(scale_uncertainties):
         for unc_scale in getScales(unc_source):
             print(f"Processing events for {unc_source} {unc_scale}")
@@ -164,6 +168,7 @@ def createHistTuple(
                     global_params=setup.global_params,
                     final_weight_name=desc["weight"],
                     df_is_central=isCentral,
+                    btag_integral_ratios=btagIntegralRatios
                 )
                 dfw.colToSave.append(desc["weight"])
 
@@ -204,9 +209,15 @@ if __name__ == "__main__":
     parser.add_argument("--channels", type=str, default=None)
     parser.add_argument("--nEvents", type=int, default=None)
     parser.add_argument("--evtIds", type=str, default=None)
+    parser.add_argument("--btagCorrectionsJson", type=str, default="")
 
     args = parser.parse_args()
     startTime = time.time()
+
+    btagIntegralRatios = {}
+    if args.btagCorrectionsJson:
+        with open(args.btagCorrectionsJson, "r") as file:
+            btagIntegralRatios = json.load(file)
 
     ROOT.gROOT.ProcessLine(".include " + os.environ["FLAF_PATH"])
     ROOT.gROOT.ProcessLine('#include "include/Utilities.h"')
@@ -230,6 +241,8 @@ if __name__ == "__main__":
         else "data"
     )
     setup.global_params["process_group"] = process_group
+
+    isData = process_group == "data"
 
     setup.global_params["compute_rel_weights"] = (
         args.compute_rel_weights and process_group != "data"
@@ -265,6 +278,8 @@ if __name__ == "__main__":
         range=args.nEvents,
         evtIds=args.evtIds,
         histTupleDef=histTupleDef,
+        isData=isData,
+        btagIntegralRatios=btagIntegralRatios,
     )
     hadd_cmd = ["hadd", "-j", args.outFile]
     hadd_cmd.extend(tmp_fileNames)

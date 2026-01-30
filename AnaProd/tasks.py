@@ -1,4 +1,5 @@
 import contextlib
+import json
 import law
 import luigi
 import os
@@ -27,53 +28,34 @@ class InputFileTask(Task, law.LocalWorkflow):
 
     def output(self):
         dataset_name = self.branch_data
-        return self.local_target("input_files", f"{dataset_name}.txt")
+        return self.local_target("input_files", f"{dataset_name}.json")
 
     def run(self):
         dataset_name = self.branch_data
-        folder_name = (
-            self.datasets[dataset_name]["dirName"]
-            if "dirName" in self.datasets[dataset_name]
-            else dataset_name
-        )
-        print(
-            f"Creating inputFile for dataset {dataset_name} into {self.output().path}"
-        )
+        print(f"{dataset_name}: creating input file list into {self.output().path}")
+        fs_nanoAOD, folder_name = self.get_fs_nanoAOD(dataset_name)
+        pattern = self.datasets[dataset_name].get("fileNamePattern", r".*\.root$")
 
-        fs_nanoAOD = self.fs_nanoAOD
-        if self.datasets[dataset_name].get("fs_nanoAOD", None) is not None:
-            fs_nanoAOD = self.setup.get_fs(
-                f"fs_nanoAOD_{dataset_name}", self.datasets[dataset_name]["fs_nanoAOD"]
-            )
-        if fs_nanoAOD is None:
-            raise RuntimeError(f"fs_nanoAOD is not defined for dataset {dataset_name}")
+        input_files = []
+        for file in fs_nanoAOD.listdir(folder_name):
+            if re.match(pattern, file):
+                input_files.append(file)
 
+        if len(input_files) == 0:
+            raise RuntimeError(f"No input files found for {dataset_name}")
+
+        input_files = natural_sort(input_files)
         with self.output().localize("w") as out_local_file:
-            input_files = []
-            pattern = self.datasets[dataset_name].get("fileNamePattern", r".*\.root$")
-            for file in natural_sort(fs_nanoAOD.listdir(folder_name)):
-                if re.match(pattern, file):
-                    input_files.append(file)
-            with open(out_local_file.path, "w") as inputFileTxt:
-                for input_line in input_files:
-                    inputFileTxt.write(input_line + "\n")
-        print(
-            f"inputFile for dataset {dataset_name} is created in {self.output().path}"
-        )
+            with open(out_local_file.path, "w") as f:
+                json.dump(input_files, f, indent=2)
+
+        print(f"{dataset_name}: {len(input_files)} input files are found.")
 
     @staticmethod
-    def load_input_files(
-        input_file_list, folder_name, fs=None, return_uri=False, test=False
-    ):
-        input_files = []
-        with open(input_file_list, "r") as txt_file:
-            for file in txt_file.readlines():
-                file_path = os.path.join(folder_name, file.strip())
-                file_full_path = fs.uri(file_path) if return_uri else file_path
-                input_files.append(file_full_path)
-        if len(input_files) == 0:
-            raise RuntimeError(f"No input files found for {folder_name}")
-        active_files = [input_files[0]] if test else input_files
+    def load_input_files(input_file_list, test=False):
+        with open(input_file_list, "r") as f:
+            input_files = json.load(f)
+        active_files = [input_files[0]] if test and len(input_files) > 0 else input_files
         return active_files
 
 
@@ -112,26 +94,13 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         branch_idx = 0
         branches = {}
         for dataset_id, dataset_name in self.iter_datasets():
-            fs_nanoAOD = self.fs_nanoAOD
-            dataset = self.datasets[dataset_name]
-
-            if dataset.get("fs_nanoAOD", None) is not None:
-                fs_nanoAOD = self.setup.get_fs(
-                    f"fs_nanoAOD_{dataset_name}", dataset["fs_nanoAOD"]
-                )
-            dir_to_list = dataset.get("dirName", dataset_name)
             input_file_list = (
                 InputFileTask.req(self, branch=dataset_id, branches=(dataset_id,))
                 .output()
                 .path
             )
-            input_files = InputFileTask.load_input_files(
-                input_file_list, dir_to_list, test=self.test > 0
-            )
-            if fs_nanoAOD is None:
-                raise RuntimeError(
-                    f"fs_nanoAOD is not defined for dataset {dataset_name}"
-                )
+            input_files = InputFileTask.load_input_files(input_file_list, test=self.test > 0)
+            fs_nanoAOD, _ = self.get_fs_nanoAOD(dataset_name)
             for input_file in input_files:
                 fileintot = self.remote_target(input_file, fs=fs_nanoAOD)
                 branches[branch_idx] = (

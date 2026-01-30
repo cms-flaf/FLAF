@@ -427,6 +427,7 @@ class Setup:
         self.cmssw_env_ = None
         self.anaTupleFiles = {}
         self.processors_cache = {}
+        self.fs_das_ = None
 
     def get_processors(self, process_name, stage, create_instances=False):
         key = (process_name, stage, create_instances)
@@ -512,6 +513,12 @@ class Setup:
             self.fs_dict[fs_name] = fs_instance
 
             return self.fs_dict[fs_name]
+
+    @property
+    def fs_das(self):
+        if self.fs_das_ is None:
+            self.fs_das_ = WLCGFileSystem("DAS")
+        return self.fs_das_
 
     @property
     def cmssw_env(self):

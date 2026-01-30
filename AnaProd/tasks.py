@@ -55,7 +55,9 @@ class InputFileTask(Task, law.LocalWorkflow):
     def load_input_files(input_file_list, test=False):
         with open(input_file_list, "r") as f:
             input_files = json.load(f)
-        active_files = [input_files[0]] if test and len(input_files) > 0 else input_files
+        active_files = (
+            [input_files[0]] if test and len(input_files) > 0 else input_files
+        )
         return active_files
 
 
@@ -99,7 +101,9 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 .output()
                 .path
             )
-            input_files = InputFileTask.load_input_files(input_file_list, test=self.test > 0)
+            input_files = InputFileTask.load_input_files(
+                input_file_list, test=self.test > 0
+            )
             fs_nanoAOD, _ = self.get_fs_nanoAOD(dataset_name)
             for input_file in input_files:
                 fileintot = self.remote_target(input_file, fs=fs_nanoAOD)

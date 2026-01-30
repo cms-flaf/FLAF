@@ -183,13 +183,16 @@ class Task(law.Task):
         folder_name = dataset.get("dirName", dataset_name)
 
         if "fs_nanoAOD" in dataset:
-            return self.setup.get_fs(
-                f"fs_nanoAOD_{dataset_name}", dataset["fs_nanoAOD"]
-            ), folder_name
+            return (
+                self.setup.get_fs(f"fs_nanoAOD_{dataset_name}", dataset["fs_nanoAOD"]),
+                folder_name,
+            )
 
         isData = dataset["process_group"] == "data"
         version_label = "data" if isData else "mc"
-        nano_version = self.global_params.get("nanoAODVersions", {}).get(version_label, "HLepRare")
+        nano_version = self.global_params.get("nanoAODVersions", {}).get(
+            version_label, "HLepRare"
+        )
         if nano_version == "HLepRare":
             return self.fs_nanoAOD, folder_name
         das_cfg = dataset.get("nanoAOD", {})
@@ -203,7 +206,9 @@ class Task(law.Task):
         if das_ds_name is not None:
             return self.setup.fs_das, das_ds_name
 
-        raise RuntimeError(f"Unable to identify the file source for dataset {dataset_name}")
+        raise RuntimeError(
+            f"Unable to identify the file source for dataset {dataset_name}"
+        )
 
 
 class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):

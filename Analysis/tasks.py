@@ -840,13 +840,9 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             dataset_name, prod_br, need_cache_global, producer_list, input_index = (
                 self.branch_data
             )
-            unc_config = os.path.join(
-                self.ana_path(), "config", self.period, f"weights.yaml"
-            )
             analysis_cache_producer = os.path.join(
                 self.ana_path(), "FLAF", "Analysis", "AnalysisCacheProducer.py"
             )
-            global_config = os.path.join(self.ana_path(), "config", "global.yaml")
             customisation_dict = getCustomisationSplit(self.customisations)
             channels = (
                 customisation_dict["channels"]

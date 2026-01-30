@@ -83,7 +83,7 @@ class MCStitcher:
                     raise RuntimeError(
                         f"MCStitcher: missing '{key}' for variable entry '{var_entry}'."
                     )
-            self.variables.append(var_entry["name"], var_entry["expression"])
+            self.variables.append((var_entry["name"], var_entry["expression"]))
 
     def defineVariables(self, df):
         """Define any additional variables needed for stitching."""

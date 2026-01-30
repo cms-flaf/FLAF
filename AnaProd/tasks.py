@@ -351,7 +351,6 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         branches = {}
         k = 0
         data_done = False
-        data_sub_eras = set()
         for dataset_id, dataset_name in self.iter_datasets():
             dataset = self.datasets[dataset_name]
             process_group = dataset["process_group"]

@@ -464,6 +464,7 @@ class ServiceThread:
 
     def __enter__(self):
         self.thread.start()
+        return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.cond.acquire()

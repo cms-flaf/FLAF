@@ -235,7 +235,7 @@ def mergeAnaTuples(
         df = ROOT.RDataFrame(tree_name, tmp_central_file)
         n_events = df.Count().GetValue()
         # Add 1 to take care of int() always flooring
-        n_events_per_file = int(n_events / n_events_per_file) + 1
+        n_events_per_file = int(n_events / n_files) + 1
         print(f"Going to make {n_events_per_file} events per file")
         range_start = 0
         for output in root_outputs:

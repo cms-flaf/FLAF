@@ -137,7 +137,7 @@ def createAnalysisCache(
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
 
-    isData = setup.datasets[dataset_name]["process_group"] == "data"
+    isData = dataset_name == "data"
 
     if saveAs == "json":
         histTupleDef.Initialize()

@@ -132,10 +132,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     idx
                     for idx, (
                         btag_sample,
-                        process_group,
                         _,
                     ) in btag_shape_task_branch_map.items()
-                    if btag_sample == hist_tuple_sample and process_group != "data"
+                    if btag_sample == hist_tuple_sample and btag_sample != "data"
                 ]
                 # MC samples must have exactly one BtagShapeWeightCorrectionTask per sample
                 # Data samples must have exactly 0 bc they are skipped
@@ -198,19 +197,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             # in btag_branches collect all branches of BtagShapeWeightCorrectionTask that HistTupleProducer needs to run this sample
             # for some reason, passing a tuple to branches argument of BtagShapeWeightCorrectionTask is not working
             btag_branches = []
-            for btag_branch_idx, (
-                btag_sample_name,
-                process_group,
-                _,
-            ) in btag_shape_task_branch_map.items():
-                if (
-                    process_group != "data"
-                    and hist_tuple_producers_sample_name == btag_sample_name
-                ):
+            for btag_branch_idx, (btag_sample_name, _) in btag_shape_task_branch_map.items():
+                if btag_sample_name != "data" and hist_tuple_producers_sample_name == btag_sample_name:
                     btag_branches.append(btag_branch_idx)
-            assert (
-                len(btag_branches) <= 1
-            ), "Must be at most one BtagShapeWeightCorrectionTask branch per sample"
+            assert len(btag_branches) <= 1, "Must be at most one BtagShapeWeightCorrectionTask branch per sample"
             if len(btag_branches) == 1:
                 deps["btagShapeWeightCorr"] = BtagShapeWeightCorrectionTask.req(
                     self,
@@ -1020,9 +1010,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         else None
                     )
 
-                    ds_info = self.datasets[dataset_name]
-                    process_group = ds_info["process_group"]
-                    isData = process_group == "data"
+                    isData = dataset_name == "data"
                     if isData:
                         analysisCacheProducer_cmd.append("--isData")
 
@@ -1294,7 +1282,7 @@ class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return deps
 
     def requires(self):
-        sample_name, process_group, list_of_br_idxes = self.branch_data
+        sample_name, list_of_br_idxes = self.branch_data
         reqs = [
             AnalysisCacheTask.req(
                 self,
@@ -1324,30 +1312,27 @@ class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         # but e.g. for ttbar it will be (TTto2L2Nu, backgrounds) -> [1, 2, 3, 4, 5, ...]
         # so branch_map of BtagShapeWeightCorrectionTask will contain:
         # ---- name of sample,
-        # ---- process group
         # ---- list of branch indices of the task it depends on (AnalysisCacheTask(producer_to_run="BtagShape"))
         sample_branch_map = {}
         # btag_cache_branch_idx is key of branch map of AnalysisCacheTask(producer_to_run="BtagShape") 
         for btag_cache_branch_idx, (sample_name, _, _, _, _) in btag_cache_map.items():
-            ds_info = self.datasets[sample_name]
-            process_group = ds_info['process_group']
-            if process_group != "data":
-                if (sample_name, process_group) not in sample_branch_map:
-                    sample_branch_map[(sample_name, process_group)] = []
-                sample_branch_map[(sample_name, process_group)].append(btag_cache_branch_idx)
+            if sample_name != "data":
+                if sample_name not in sample_branch_map:
+                    sample_branch_map[sample_name] = []
+                sample_branch_map[sample_name].append(btag_cache_branch_idx)
 
-        for (sample_name, process_group), list_of_btag_cache_keys in sample_branch_map.items():
-            if process_group == "data":
+        for sample_name, list_of_btag_cache_keys in sample_branch_map.items():
+            if sample_name == "data":
                 # btag shape weights exist only for MC
-                raise RuntimeError(f'Illegal dataset {sample_name} from proces group {process_group} is being passed to BtagShapeWeightCorrectionTask')
+                raise RuntimeError(f'Illegal dataset {sample_name} is being passed to BtagShapeWeightCorrectionTask.')
             else:
-                branches[btag_corr_branch_idx] = (sample_name, process_group, list_of_btag_cache_keys)
+                branches[btag_corr_branch_idx] = (sample_name, list_of_btag_cache_keys)
                 btag_corr_branch_idx += 1
         return branches
 
     @workflow_condition.output
     def output(self):
-        sample_name, _, _ = self.branch_data
+        sample_name, _ = self.branch_data
         output_name = "BtagShapeWeightCorrection.json"
         output_path = os.path.join(
             "BtagShapeWeightCorrection",
@@ -1359,7 +1344,7 @@ class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return self.remote_target(output_path, fs=self.fs_anaTuple)
 
     def run(self):
-        sample_name, _, _ = self.branch_data
+        sample_name, _ = self.branch_data
         computeBtagShapeWeight = os.path.join(
             self.ana_path(), "FLAF", "Analysis", "ComputeBtagShapeWeightCorrection.py"
         )

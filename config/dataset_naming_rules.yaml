@@ -1,0 +1,20 @@
+# Dataset naming rules for FLAF
+# Based on https://github.com/cms-tau-pog/NanoProd/blob/main/NanoProd/crab/dataset_naming_rules.yaml
+
+# Pattern that dataset names must match
+# Allows alphanumerics, underscores, and slashes for DAS paths
+allowed_name_pattern: ^[A-Za-z0-9_/]+$
+
+# Known name variants that should not be used
+# Maps: pattern -> preferred replacement
+known_name_variants:
+  toTauTau: to2Tau
+  toWW: to2W
+  toZZ: to2Z
+  toQQ: to2Q
+  to(BB|bb|2b): to2B
+  to[Nn]on(BB|bb|2b): toNon2B
+  to4b: to4B
+  to[Nn]on4b: toNon4B
+  toLL: to2L
+  toNuNu: to2Nu

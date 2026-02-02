@@ -30,6 +30,7 @@ def CreateMCMergeStrategy(input_reports, n_events_per_file):
 
     return merge_strategy
 
+
 def CreateDataMergeStrategy(setup, input_reports):
     input_files = {}
     for report in input_reports:
@@ -42,15 +43,17 @@ def CreateDataMergeStrategy(setup, input_reports):
         eraVersion = dataset.get("eraVersion", "")
         output_name = f"anaTuple_{eraLetter}{eraVersion}.root"
         if output_name not in input_files:
-            input_files[output_name] = { "files": [], "n_events": 0 }
+            input_files[output_name] = {"files": [], "n_events": 0}
         input_files[output_name]["files"].append(file_path)
         input_files[output_name]["n_events"] += data["n_events"]
 
     merge_strategy = []
     for output_file, inputs in input_files.items():
-        merge_strategy.append({
-            "inputs": inputs["files"],
-            "outputs": [output_file],
-            "n_events": inputs["n_events"],
-        })
+        merge_strategy.append(
+            {
+                "inputs": inputs["files"],
+                "outputs": [output_file],
+                "n_events": inputs["n_events"],
+            }
+        )
     return merge_strategy

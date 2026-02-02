@@ -3,6 +3,7 @@ import os
 import sys
 import ROOT
 import json
+import inspect
 
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
@@ -158,18 +159,25 @@ def createHistTuple(
                         )
             for desc in iter_descs:
                 print(f"Defining the final weight for {desc['source']} {desc['scale']}")
-                histTupleDef.DefineWeightForHistograms(
-                    dfw=dfw,
-                    isData=isData,
-                    uncName=desc["source"],
-                    uncScale=desc["scale"],
-                    unc_cfg_dict=unc_cfg_dict,
-                    hist_cfg_dict=hist_cfg_dict,
-                    global_params=setup.global_params,
-                    final_weight_name=desc["weight"],
-                    df_is_central=isCentral,
-                    btag_integral_ratios=btagIntegralRatios
-                )
+                # dynamically checking args of DefineWeightForHistograms
+                # for compatibility with other analyses
+                call_args = {
+                    "dfw": dfw,
+                    "isData": isData,
+                    "uncName": desc["source"],
+                    "uncScale": desc["scale"],
+                    "unc_cfg_dict": unc_cfg_dict,
+                    "hist_cfg_dict": hist_cfg_dict,
+                    "global_params": setup.global_params,
+                    "final_weight_name": desc["weight"],
+                    "df_is_central": isCentral
+                }
+
+                expected_args = inspect.signature(histTupleDef.DefineWeightForHistograms).parameters.keys()
+                btag_ratios_expected = "btag_integral_ratios" in expected_args
+                if btag_ratios_expected:
+                    call_args["btag_integral_ratios"] = btagIntegralRatios
+                histTupleDef.DefineWeightForHistograms(**call_args)
                 dfw.colToSave.append(desc["weight"])
 
             print("Defining binned columns")

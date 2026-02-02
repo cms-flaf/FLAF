@@ -9,6 +9,7 @@ import awkward as ak
 import numpy as np
 import sys
 import json
+import inspect
 
 ROOT.EnableThreadSafety()
 
@@ -194,18 +195,26 @@ def createAnalysisCache(
                 # to avoid applying btag shape weights
                 # corresponding producer will take care of it
                 # purpose of histTupleDef - define raw btag shape weight
-                histTupleDef.DefineWeightForHistograms(
-                    dfw=dfw,
-                    isData=isData,
-                    uncName=unc_source,
-                    uncScale=unc_scale,
-                    unc_cfg_dict=unc_cfg_dict,
-                    hist_cfg_dict=setup.hists,
-                    global_params=setup.global_params,
-                    final_weight_name=f"weight_{unc_source}_{unc_scale}",
-                    df_is_central=isCentral,
-                    btag_integral_ratios=None,
-                )
+
+                # dynamically checking args of DefineWeightForHistograms
+                # for compatibility with other analyses
+                call_args = {
+                    "dfw": dfw,
+                    "isData": isData,
+                    "uncName": unc_source,
+                    "uncScale": unc_scale,
+                    "unc_cfg_dict": unc_cfg_dict,
+                    "hist_cfg_dict": setup.hists,
+                    "global_params": setup.global_params,
+                    "final_weight_name": f"weight_{unc_source}_{unc_scale}",
+                    "df_is_central": isCentral
+                }
+
+                expected_args = inspect.signature(histTupleDef.DefineWeightForHistograms).parameters.keys()
+                btag_ratios_expected = "btag_integral_ratios" in expected_args
+                if btag_ratios_expected:
+                    call_args["btag_integral_ratios"] = None
+                histTupleDef.DefineWeightForHistograms(**call_args)
 
                 tmp_fileName = (
                     f"{central}.json" if isCentral else f"{unc_source}_{unc_scale}.json"

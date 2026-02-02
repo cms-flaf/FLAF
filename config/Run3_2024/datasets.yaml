@@ -2037,15 +2037,7 @@ ZZto4L_powheg:
   nanoAOD:
     v15: /ZZto4L_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 
-EWK_2L2J_madgraph_herwig:
-  crossSection: EWK_2L2J_MLL50_MJJ120
-  generator: madgraph
-  nanoAOD:
-    v15: /EWK-2L2J_Bin-MLL-50-MJJ-120_TuneCH3_13p6TeV_madgraph-herwig7/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-
 ### VVV ###
-
-
 WWW_4F:
   crossSection: WWW
   generator: amcatnlo

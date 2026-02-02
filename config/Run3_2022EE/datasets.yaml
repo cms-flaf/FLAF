@@ -1595,13 +1595,6 @@ ZZZ:
   nanoAOD:
     v12: /ZZZ_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
 
-EWK_2L2J_madgraph_herwig:
-  crossSection: EWK_2L2J_MLL50_MJJ120
-  generator: madgraph
-  miniAOD: /EWK_2L2J_TuneCH3_13p6TeV_madgraph-herwig7/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
-  nanoAOD:
-    v12: /EWK_2L2J_TuneCH3_13p6TeV_madgraph-herwig7/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
-
 ############## VVV ##############
 WWW_4F:
   crossSection: WWW

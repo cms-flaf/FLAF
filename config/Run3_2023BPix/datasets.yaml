@@ -1773,10 +1773,3 @@ ZZZ:
   miniAOD: /ZZZ_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v2/MINIAODSIM
   nanoAOD:
     v12: /ZZZ_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v2/NANOAODSIM
-
-EWK_2L2J_madgraph_herwig:
-  crossSection: EWK_2L2J_MLL50_MJJ120
-  generator: madgraph
-  miniAOD: /EWK_2L2J_TuneCH3_13p6TeV_madgraph-herwig7/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v6-v2/MINIAODSIM
-  nanoAOD:
-    v12: /EWK_2L2J_TuneCH3_13p6TeV_madgraph-herwig7/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v6-v2/NANOAODSIM

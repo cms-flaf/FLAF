@@ -1019,12 +1019,32 @@ ZZZ:
   reference: XSDB ZZZ_TuneCP5_13p6TeV_amcatnlo-pythia8 modifiedOn 2023-05-26 21:19:33
   unc: 7.828e-06
 
-EWK_2L2J_madgraph_herwig:
+DYto2L_2Jets_EWK_MLL_50_LO:
+  crossSec: 13.07
+  reference: XSDB DYto2L-2Jets-EWK_MLL-50_TuneCP5_13p6TeV_madgraph-pythia8 modifiedOn 2026-01-26 00:01:51
+  unc: 0.003645
+
+EWK_2L2J_MLL50_MJJ120:
   crossSec: 1.418 # 1.422e+00
-  reference: genereting datacards/tarballs https://cms-pdmv-prod.web.cern.ch/mcm/requests?prepid=HIG-Run3Summer22wmLHEGS-01369&page=0&shown=1310847 # genXsec analyzer
+  reference: from gridpack generation log taken fro /cvmfs/cms.cern.ch/phys_generator/gridpacks/RunIII/13p6TeV/slc7_amd64_gcc10/MadGraph5_aMCatNLO/LLJJ_50-Inf_EWK_SM_5f_LO_slc7_amd64_gcc10_CMSSW_12_4_8_tarball.tar.xz and with this setting: 50.0	=  mmll     ! min invariant mass of l+l- (same flavour) lepton pair and 120.0	=  mmjj ! min invariant mass of a jet pair
   unc: 2.142e-03 # 0.003502
 
-EWK_2Mu2J_madgraph_herwig:
-  crossSec: 1.418 * (0.3*0.3) # 1.422e+00
-  reference: genereting datacards/tarballs https://cms-pdmv-prod.web.cern.ch/mcm/public/restapi/requests/get_fragment/HIG-Run3Summer22EEwmLHEGS-02216/0 # genXsec analyzer
-  unc: 2.142e-03  * (0.3*0.3) # 0.003502
+EWK_2Mu2J_MLL105to160_MJJ120:
+  crossSec: 0.0635
+  reference: from gridpack generation log taken from /cvmfs/cms.cern.ch/phys_generator/gridpacks/RunIII/13p6TeV/slc7_amd64_gcc10/MadGraph5_aMCatNLO/LLJJ_105-160_EWK_SM_5f_LO_slc7_amd64_gcc10_CMSSW_12_4_8_tarball.tar.xz and with this setting: set run_card mmjj 120.0 set run_card mmll 105.0 set run_card mmllmax 160.0
+  unc:  0.0003071 # 0.003502
+
+TTLNu_EWK:
+  crossSec: 0.01769
+  reference: XSDB TTLNu-EWK_TuneCP5_13p6TeV_amcatnlo-pythia8 modifiedOn 2024-12-20 08:23:11
+  unc: 0.00000569
+
+WZto3LNu_2Jets_EWK_QCD:
+  crossSec: 0.5437
+  reference: XSDB TTLNu-EWK_TuneCP5_13p6TeV_amcatnlo-pythia8 modifiedOn 2024-12-20 08:28:09
+  unc: 0.0001215
+
+WmWmJJ_EWK:
+  crossSec: 0.000122
+  reference: XSDB TTLNu-EWK_TuneCP5_13p6TeV_amcatnlo-pythia8 modifiedOn 2025-09-22 09:07:36
+  unc: 0.00002832

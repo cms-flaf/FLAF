@@ -1026,13 +1026,13 @@ DYto2L_2Jets_EWK_MLL_50_LO:
 
 EWK_2L2J_MLL50_MJJ120:
   crossSec: 1.418 # 1.422e+00
-  reference: from gridpack generation log taken fro /cvmfs/cms.cern.ch/phys_generator/gridpacks/RunIII/13p6TeV/slc7_amd64_gcc10/MadGraph5_aMCatNLO/LLJJ_50-Inf_EWK_SM_5f_LO_slc7_amd64_gcc10_CMSSW_12_4_8_tarball.tar.xz and with this setting #: 50.0 =  mmll     ! min invariant mass of l+l- (same flavour) lepton pair and 120.0 =  mmjj ! min invariant mass of a jet pair
+  reference: from gridpack generation log taken fro /cvmfs/cms.cern.ch/phys_generator/gridpacks/RunIII/13p6TeV/slc7_amd64_gcc10/MadGraph5_aMCatNLO/LLJJ_50-Inf_EWK_SM_5f_LO_slc7_amd64_gcc10_CMSSW_12_4_8_tarball.tar.xz and with this setting # : 50.0 =  mmll     ! min invariant mass of l+l- (same flavour) lepton pair and 120.0 =  mmjj ! min invariant mass of a jet pair
   unc: 2.142e-03 # 0.003502
 
 EWK_2Mu2J_MLL105to160_MJJ120:
   crossSec: 0.0635
   reference: from gridpack generation log taken from /cvmfs/cms.cern.ch/phys_generator/gridpacks/RunIII/13p6TeV/slc7_amd64_gcc10/MadGraph5_aMCatNLO/LLJJ_105-160_EWK_SM_5f_LO_slc7_amd64_gcc10_CMSSW_12_4_8_tarball.tar.xz and with this setting # : set run_card mmjj 120.0 set run_card mmll 105.0 set run_card mmllmax 160.0
-  unc:  0.0003071 # 0.003502
+  unc: 0.0003071 # 0.003502
 
 TTLNu_EWK:
   crossSec: 0.01769

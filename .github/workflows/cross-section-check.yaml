@@ -28,8 +28,7 @@ jobs:
             console.log(`Total files changed: ${files.length}`);
             const allChangedFiles = files.map(file => file.filename);
             const changedFiles = allChangedFiles.filter(file =>
-              file.startsWith('config/crossSections') && file.endsWith('.yaml') ||
-              file.startsWith('config/Run') && (file.endsWith('datasets.yaml') || file.endsWith('global.yaml'))
+              file.startsWith('config/crossSections') && file.endsWith('.yaml')
             );
             core.setOutput('files', btoa(changedFiles.join('\n')));
             const has_changes = changedFiles.length > 0 ? 'true' : 'false';

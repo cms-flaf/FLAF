@@ -46,3 +46,7 @@ jobs:
       - name: Check dataset configs consistency
         if: ${{ steps.changed_files.outputs.has_ds_configs == 'true' }}
         run: python3 test/checkDatasetConfigConsistency.py --exception config/dataset_exceptions.yaml Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024
+
+      - name: Check dataset naming
+        if: ${{ steps.changed_files.outputs.has_ds_configs == 'true' }}
+        run: python3 test/checkDatasetNaming.py --rules config/dataset_naming_rules.yaml Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024

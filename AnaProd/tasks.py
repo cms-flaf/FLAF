@@ -13,6 +13,7 @@ from FLAF.Common.Utilities import (
     ServiceThread,
     SerializeObjectToString,
 )
+from .AnaTupleFileList import CreateMCMergeStrategy, CreateDataMergeStrategy
 
 
 class InputFileTask(Task, law.LocalWorkflow):
@@ -352,9 +353,6 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     def run(self):
         dataset_name, process_group = self.branch_data
-        AnaTupleFileList = os.path.join(
-            self.ana_path(), "FLAF", "AnaProd", "AnaTupleFileList.py"
-        )
         with contextlib.ExitStack() as stack:
             remote_output = self.output()
 
@@ -366,38 +364,26 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
             job_home, remove_job_home = self.law_job_home()
             tmpFile = os.path.join(job_home, f"AnaTupleFileList_tmp.json")
-            nEventsPerFile = self.setup.global_params.get("nEventsPerFile", 100_000)
-            AnaTupleFileList_cmd = [
-                "python3",
-                AnaTupleFileList,
-                "--outFile",
-                tmpFile,
-            ]  # , '--remove-files', 'True']
-            AnaTupleFileList_cmd.extend(["--nEventsPerFile", f"{nEventsPerFile}"])
-            if dataset_name == "data":
-                AnaTupleFileList_cmd.extend(["--isData", "True"])
-                if self.test > 0:
-                    print(
-                        "Don't split test by lumi if its data, its already only 1000 events"
-                    )
-                    AnaTupleFileList_cmd.extend(["--lumi", f"1.0"])
-                else:
-                    # I know this isn't clean, but I don't want to put a 'if not self.test' for the base case
-                    AnaTupleFileList_cmd.extend(
-                        ["--lumi", f'{self.setup.global_params["luminosity"]}']
-                    )
-                AnaTupleFileList_cmd.extend(
-                    [
-                        "--nPbPerFile",
-                        f'{self.setup.global_params.get("nPbPerFile", 10_000)}',
-                    ]
+
+            if process_group == "data":
+                merge_strategy = CreateDataMergeStrategy(
+                    self.setup, local_inputs
                 )
-            AnaTupleFileList_cmd.extend(local_inputs)
-            ps_call(AnaTupleFileList_cmd, verbose=1)
+            else:
+                nEventsPerFile = self.setup.global_params.get("nEventsPerFile", 100_000)
+                merge_strategy = CreateMCMergeStrategy(
+                    local_inputs, nEventsPerFile
+                )
+            output = { "merge_strategy": merge_strategy }
+            with open(tmpFile, "w") as f:
+                json.dump(output, f, indent=2)
 
             with remote_output.localize("w") as tmp_local_file:
                 out_local_path = tmp_local_file.path
                 shutil.move(tmpFile, out_local_path)
+
+            if remove_job_home:
+                shutil.rmtree(job_home)
 
 
 class AnaTupleFileListTask(AnaTupleFileListBuilderTask):

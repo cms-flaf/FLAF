@@ -1531,11 +1531,6 @@ GluGluHto2B_M125_ext1:
   generator: powheg
   nanoAOD:
     v15: /GluGluH-Hto2B_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2_ext1-v2/NANOAODSIM
-GluGluHto2Mu:
-  crossSection: GluGluHto2Mu
-  generator: powheg
-  nanoAOD:
-    v15: /GluGluH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 GluGluHto2Tau_M125:
   crossSection: GluGluHToTauTau_M125
   generator: powheg
@@ -1678,11 +1673,6 @@ TWminustoLNu2Q:
     v15: /TWminustoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 
 ############## TT ##############
-TTH_Hto2Mu:
-  crossSection: TTH_Hto2Mu
-  generator: powheg
-  nanoAOD:
-    v15: /TTH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 TTHto2B_M125:
   crossSection: TTHto2B_M125
   generator: powheg
@@ -1755,11 +1745,6 @@ VBFHto2Tau_M125:
   generator: powheg
   nanoAOD:
     v15: /VBFH-HTo2Tau_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
-VBFHto2Mu:
-  crossSection: VBFHto2Mu
-  generator: powheg
-  nanoAOD:
-    v15: /VBFH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 VBFHto2Tau_UncorrelatedDecay_UnFiltered:
   crossSection: VBFHto2Tau
   generator: powheg
@@ -1786,11 +1771,6 @@ WminusH_Hto2B_Wto2Q:
   generator: powheg
   nanoAOD:
     v15: /WminusH_Hto2B_Wto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v2/NANOAODSIM
-WminusH_Hto2Mu_WtoAll:
-  crossSection: WminusH_Hto2Mu_WtoAll
-  generator: powheg
-  nanoAOD:
-    v15: /WminusH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 WplusH_Hto2B_WtoLNu:
   crossSection: WplusH_Hbb_Wlnu
   generator: powheg
@@ -1801,11 +1781,6 @@ WplusH_Hto2B_Wto2Q:
   generator: powheg
   nanoAOD:
     v15: /WplusH_Hto2B_Wto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v2/NANOAODSIM
-WplusH_Hto2Mu_WtoAll:
-  crossSection: WplusH_Hto2Mu_WtoAll
-  generator: powheg
-  nanoAOD:
-    v15: /WplusH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 WminusHto2Tau_UncorrelatedDecay_Filtered:
   crossSection: WminusHto2Tau_Filtered
   generator: powheg
@@ -2040,11 +2015,6 @@ WZtoLNu2Q_powheg:
   nanoAOD:
     v15: /WZtoLNu2Q_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 
-ZH_Hto2Mu_ZtoAll:
-  crossSection: ZH_Hto2Mu_ZtoAll
-  generator: powheg
-  nanoAOD:
-    v15: /ZH-Hto2Mu_Par-M-125_TuneCP5_13p6TeV_powhegMINLO-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 
 ZZto2L2Nu_powheg:
   crossSection: ZZto2L2Nu_powheg
@@ -2068,7 +2038,7 @@ ZZto4L_powheg:
     v15: /ZZto4L_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 
 EWK_2L2J_madgraph_herwig:
-  crossSection: EWK_2L2J_madgraph_herwig
+  crossSection: EWK_2L2J_MLL50_MJJ120
   generator: madgraph
   nanoAOD:
     v15: /EWK-2L2J_Bin-MLL-50-MJJ-120_TuneCH3_13p6TeV_madgraph-herwig7/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM

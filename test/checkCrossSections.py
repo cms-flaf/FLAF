@@ -20,22 +20,32 @@ def check_cross_sections(eras):
 
     for era in eras:
         print(f"Checking era: {era}")
+
+        # Check for Run3 structure (separate global.yaml and datasets.yaml)
         global_file = f"config/{era}/global.yaml"
         datasets_file = f"config/{era}/datasets.yaml"
 
-        if not os.path.isfile(global_file):
-            print(f"ERROR: {global_file} does not exist.")
+        # Check for Run2 structure (single samples.yaml with GLOBAL section)
+        samples_file = f"config/{era}/samples.yaml"
+
+        if os.path.isfile(global_file) and os.path.isfile(datasets_file):
+            # Run3 structure
+            with open(global_file, "r") as f:
+                global_config = yaml.safe_load(f)
+            with open(datasets_file, "r") as f:
+                datasets = yaml.safe_load(f)
+        elif os.path.isfile(samples_file):
+            # Run2 structure
+            with open(samples_file, "r") as f:
+                samples = yaml.safe_load(f)
+            global_config = samples.get("GLOBAL", {})
+            datasets = {k: v for k, v in samples.items() if k != "GLOBAL"}
+        else:
+            print(
+                f"ERROR: {era}: Neither global.yaml+datasets.yaml nor samples.yaml found."
+            )
             all_ok = False
             continue
-
-        if not os.path.isfile(datasets_file):
-            print(f"ERROR: {datasets_file} does not exist.")
-            all_ok = False
-            continue
-
-        # Load global config to get cross-sections file
-        with open(global_file, "r") as f:
-            global_config = yaml.safe_load(f)
 
         xs_file = global_config.get("crossSectionsFile", "")
         if xs_file.startswith("FLAF/"):
@@ -70,10 +80,7 @@ def check_cross_sections(eras):
         else:
             xs_db = xs_databases[xs_file]
 
-        # Load datasets and check that all referenced cross-sections exist
-        with open(datasets_file, "r") as f:
-            datasets = yaml.safe_load(f)
-
+        # Check that all referenced cross-sections exist
         for ds_name, ds_desc in datasets.items():
             if "crossSection" in ds_desc:
                 xs_name = ds_desc["crossSection"]

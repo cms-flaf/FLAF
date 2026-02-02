@@ -64,19 +64,29 @@ def check_dataset_naming(eras, rules_file=None):
 
     for era in eras:
         print(f"Checking dataset naming for era: {era}")
+
+        # Check for Run3 structure (separate datasets.yaml)
         datasets_file = f"config/{era}/datasets.yaml"
 
-        if not os.path.isfile(datasets_file):
-            print(f"ERROR: {datasets_file} does not exist.")
+        # Check for Run2 structure (single samples.yaml with GLOBAL section)
+        samples_file = f"config/{era}/samples.yaml"
+
+        if os.path.isfile(datasets_file):
+            # Run3 structure
+            with open(datasets_file, "r") as f:
+                datasets = yaml.safe_load(f)
+        elif os.path.isfile(samples_file):
+            # Run2 structure
+            with open(samples_file, "r") as f:
+                samples = yaml.safe_load(f)
+            datasets = {k: v for k, v in samples.items() if k != "GLOBAL"}
+        else:
+            print(f"ERROR: {era}: Neither datasets.yaml nor samples.yaml found.")
             all_ok = False
             continue
 
-        # Load datasets
-        with open(datasets_file, "r") as f:
-            datasets = yaml.safe_load(f)
-
         if datasets is None:
-            print(f"WARNING: {era}: No datasets found in {datasets_file}")
+            print(f"WARNING: {era}: No datasets found in configuration files")
             continue
 
         for ds_name, ds_desc in datasets.items():

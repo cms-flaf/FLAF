@@ -13,6 +13,7 @@ from FLAF.Common.Utilities import (
     ServiceThread,
     SerializeObjectToString,
 )
+from .AnaTupleFileList import CreateMCMergeStrategy, CreateDataMergeStrategy
 
 
 class InputFileTask(Task, law.LocalWorkflow):
@@ -376,9 +377,6 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     def run(self):
         dataset_name, process_group = self.branch_data
-        AnaTupleFileList = os.path.join(
-            self.ana_path(), "FLAF", "AnaProd", "AnaTupleFileList.py"
-        )
         with contextlib.ExitStack() as stack:
             remote_output = self.output()
 
@@ -387,33 +385,25 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 stack.enter_context(inp[1].localize("r")).path for inp in self.input()
             ]
             print(f"Localized {len(local_inputs)} inputs")
-            job_home, _ = self.law_job_home()
-            tmpFile = os.path.join(job_home, "AnaTupleFileList_tmp.json")
-            nEventsPerFile = self.setup.global_params.get("nEventsPerFile", 100_000)
-            cmd = [
-                "python3",
-                AnaTupleFileList,
-                "--outFile",
-                tmpFile,
-                "--nEventsPerFile",
-                f"{nEventsPerFile}",
-            ]
+
+            job_home, remove_job_home = self.law_job_home()
+            tmpFile = os.path.join(job_home, f"AnaTupleFileList_tmp.json")
+
             if process_group == "data":
-                cmd.extend(["--isData", "True"])
-                if self.test > 0:
-                    cmd.extend(["--lumi", "1.0"])
-                else:
-                    cmd.extend(["--lumi", f'{self.setup.global_params["luminosity"]}'])
-                cmd.extend(
-                    [
-                        "--nPbPerFile",
-                        f'{self.setup.global_params.get("nPbPerFile", 10_000)}',
-                    ]
-                )
-            cmd.extend(local_inputs)
-            ps_call(cmd, verbose=1)
-            with remote_output.localize("w") as tmp_local:
-                shutil.move(tmpFile, tmp_local.path)
+                merge_strategy = CreateDataMergeStrategy(self.setup, local_inputs)
+            else:
+                nEventsPerFile = self.setup.global_params.get("nEventsPerFile", 100_000)
+                merge_strategy = CreateMCMergeStrategy(local_inputs, nEventsPerFile)
+            output = {"merge_strategy": merge_strategy}
+            with open(tmpFile, "w") as f:
+                json.dump(output, f, indent=2)
+
+            with remote_output.localize("w") as tmp_local_file:
+                out_local_path = tmp_local_file.path
+                shutil.move(tmpFile, out_local_path)
+
+            if remove_job_home:
+                shutil.rmtree(job_home)
 
 
 class AnaTupleFileListTask(AnaTupleFileListBuilderTask):

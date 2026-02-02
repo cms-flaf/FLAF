@@ -174,7 +174,9 @@ def createAnatuple(
                     p_name
                 ] = p_instance.onAnaCache_initializeDenomEntry()
 
-    gen_weight_name = "weight_gen" if setup.global_params["nano_version"] != "v12" else "genWeight"
+    gen_weight_name = (
+        "weight_gen" if setup.global_params["nano_version"] != "v12" else "genWeight"
+    )
 
     def updateDenomEntry(rdf):
         for p_instance in processor_instances.values():

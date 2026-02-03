@@ -57,6 +57,7 @@ def CreateDataMergeStrategy(setup, input_reports, n_events_per_file):
     merge_strategy = []
     for era_key, files in era_files.items():
         file_idx = 0
+        # Shallow copy is safe here as we only remove items, not modify dicts
         remaining_files = files.copy()
 
         while len(remaining_files) > 0:

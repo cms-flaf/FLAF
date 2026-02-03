@@ -8,6 +8,7 @@ def CreateMergeStrategy(setup, local_inputs, n_events_per_file, is_data):
     else:
         return CreateMCMergeStrategy(local_inputs, n_events_per_file)
 
+
 def CreateMCMergeStrategy(input_reports, n_events_per_file):
     input_files = {}
     for report in input_reports:
@@ -62,10 +63,10 @@ def CreateDataMergeStrategy(setup, input_reports, n_events_per_file):
         n_outputs = round(inputs["n_events"] / n_events_per_file)
         n_outputs = max(1, n_outputs)
         entry = {
-                "inputs": inputs["files"],
-                "outputs": [],
-                "n_events": inputs["n_events"],
-            }
+            "inputs": inputs["files"],
+            "outputs": [],
+            "n_events": inputs["n_events"],
+        }
         for i in range(n_outputs):
             output_file = f"anaTuple_{output_label}_{i}.root"
             entry["outputs"].append(output_file)

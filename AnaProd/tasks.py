@@ -365,12 +365,16 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             job_home, remove_job_home = self.law_job_home()
             tmpFile = os.path.join(job_home, f"AnaTupleFileList_tmp.json")
 
-            nEventsPerFile = self.setup.global_params.get("nEventsPerFile", {"data": 1_000_000})
+            nEventsPerFile = self.setup.global_params.get(
+                "nEventsPerFile", {"data": 1_000_000}
+            )
             if isinstance(nEventsPerFile, dict):
                 nEventsPerFile = nEventsPerFile.get(process_group, 100_000)
             is_data = process_group == "data"
 
-            merge_strategy = CreateMergeStrategy(self.setup, local_inputs, nEventsPerFile, is_data)
+            merge_strategy = CreateMergeStrategy(
+                self.setup, local_inputs, nEventsPerFile, is_data
+            )
             output = {"merge_strategy": merge_strategy}
             with open(tmpFile, "w") as f:
                 json.dump(output, f, indent=2)

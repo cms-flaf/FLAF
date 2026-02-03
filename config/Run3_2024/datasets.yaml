@@ -1033,64 +1033,64 @@ Tau_Run2024J:
 ############## amcatnloFXFX ##############
 ############## DYto2L ##############
 # DYto2E_M_50_amcatnloFXFX:
-#   crossSection: DYto2L_M_50_amcatnloFXFX
+#   crossSection: DYto2L_M_50_amcatnloFXFX_singleFlavor
 #   generator: amcatnlo
 #   nanoAOD: /DYto2E-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v4/NANOAODSIM
 # DYto2Mu_M_50_amcatnloFXFX:
-#   crossSection: DYto2L_M_50_amcatnloFXFX
+#   crossSection: DYto2L_M_50_amcatnloFXFX_singleFlavor
 #   generator: amcatnlo
 #   nanoAOD: /DYto2Mu-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v6/NANOAODSIM
 # DYto2Tau_M_50_amcatnloFXFX:
-#   crossSection: DYto2L_M_50_amcatnloFXFX
+#   crossSection: DYto2L_M_50_amcatnloFXFX_singleFlavor
 #   generator: amcatnlo
 #   nanoAOD: /DYto2Tau-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v7/NANOAODSIM
 ## DY et:
 # DY 4E
 DYto2E_M_50_0J_amcatnloFXFX:
-  crossSection: DYto2L_M_50_0J_amcatnloFXFX
+  crossSection: DYto2L_M_50_0J_amcatnloFXFX_singleFlavor
   generator: amcatnlo
   nanoAOD:
     v15: /DYto2E-2Jets_Bin-0J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 DYto2E_M_50_1J_amcatnloFXFX:
-  crossSection: DYto2L_M_50_1J_amcatnloFXFX
+  crossSection: DYto2L_M_50_1J_amcatnloFXFX_singleFlavor
   generator: amcatnlo
   nanoAOD:
     v15: /DYto2E-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 DYto2E_M_50_2J_amcatnloFXFX:
-  crossSection: DYto2L_M_50_2J_amcatnloFXFX
+  crossSection: DYto2L_M_50_2J_amcatnloFXFX_singleFlavor
   generator: amcatnlo
   nanoAOD:
     v15: /DYto2E-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 # DY 2Mu
 DYto2Mu_M_50_0J_amcatnloFXFX:
-  crossSection: DYto2L_M_50_0J_amcatnloFXFX
+  crossSection: DYto2L_M_50_0J_amcatnloFXFX_singleFlavor
   generator: amcatnlo
   nanoAOD:
     v15: /DYto2Mu-2Jets_Bin-0J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 # # FIXME still missing
 DYto2Mu_M_50_1J_amcatnloFXFX:
-  crossSection: DYto2L_M_50_1J_amcatnloFXFX
+  crossSection: DYto2L_M_50_1J_amcatnloFXFX_singleFlavor
   generator: amcatnlo
   nanoAOD:
     v15: /DYto2Mu-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v1/NANOAODSIM
 DYto2Mu_M_50_2J_amcatnloFXFX:
-  crossSection: DYto2L_M_50_2J_amcatnloFXFX
+  crossSection: DYto2L_M_50_2J_amcatnloFXFX_singleFlavor
   generator: amcatnlo
   nanoAOD:
     v15: /DYto2Mu-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 DYto2Tau_M_50_0J_amcatnloFXFX:
-  crossSection: DYto2L_M_50_0J_amcatnloFXFX
+  crossSection: DYto2L_M_50_0J_amcatnloFXFX_singleFlavor
   generator: amcatnlo
   nanoAOD:
     v15: /DYto2Tau-2Jets_Bin-0J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v4/NANOAODSIM
 
 DYto2Tau_M_50_1J_amcatnloFXFX:
-  crossSection: DYto2L_M_50_1J_amcatnloFXFX
+  crossSection: DYto2L_M_50_1J_amcatnloFXFX_singleFlavor
   generator: amcatnlo
   nanoAOD:
     v15: /DYto2Tau-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 DYto2Tau_M_50_2J_amcatnloFXFX:
-  crossSection: DYto2L_M_50_2J_amcatnloFXFX
+  crossSection: DYto2L_M_50_2J_amcatnloFXFX_singleFlavor
   generator: amcatnlo
   nanoAOD:
     v15: /DYto2Tau-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
@@ -1098,72 +1098,72 @@ DYto2Tau_M_50_2J_amcatnloFXFX:
 
 #### old ones ####
 # DYto2E012J_M_50_1J_amcatnloFXFX:
-#   crossSection: DYto2L_M_50_1J_amcatnloFXFX
+#   crossSection: DYto2L_M_50_1J_amcatnloFXFX_singleFlavor
 #   generator: amcatnlo
 #   nanoAOD:
     # v15: /DYto2E-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 # DYto2E012J_M_50_2J_amcatnloFXFX:
-#   crossSection: DYto2L_M_50_2J_amcatnloFXFX
+#   crossSection: DYto2L_M_50_2J_amcatnloFXFX_singleFlavor
 #   generator: amcatnlo
 #   nanoAOD:
     # v15: /DYto2E-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 DYto2E_M_10to50_amcatnloFXFX:
-  crossSection: DYto2L_M_10to50_amcatnloFXFX
+  crossSection: DYto2L_M_10to50_amcatnloFXFX_singleFlavor
   generator: amcatnlo
   nanoAOD:
     v15: /DYto2E-2Jets_Bin-MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 DYto2E_M_50_amcatnloFXFX:
-  crossSection: DYto2L_M_50_amcatnloFXFX
+  crossSection: DYto2L_M_50_amcatnloFXFX_singleFlavor
   generator: amcatnlo
   nanoAOD:
     v15: /DYto2E-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v4/NANOAODSIM
 
 # DYto2Mu012J_M_50_1J_amcatnloFXFX:
-#   crossSection: DYto2L_M_50_1J_amcatnloFXFX
+#   crossSection: DYto2L_M_50_1J_amcatnloFXFX_singleFlavor
 #   generator: amcatnlo
 #   nanoAOD:
     # v15: /DYto2Mu-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v1/NANOAODSIM
 # DYto2Mu012J_M_50_2J_amcatnloFXFX:
-#   crossSection: DYto2L_M_50_2J_amcatnloFXFX
+#   crossSection: DYto2L_M_50_2J_amcatnloFXFX_singleFlavor
 #   generator: amcatnlo
 #   nanoAOD:
     # v15: /DYto2Mu-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 DYto2Mu_M_10to50_amcatnloFXFX:
-  crossSection: DYto2L_M_10to50_amcatnloFXFX
+  crossSection: DYto2L_M_10to50_amcatnloFXFX_singleFlavor
   generator: amcatnlo
   nanoAOD:
     v15: /DYto2Mu-2Jets_Bin-MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 DYto2Mu_M_50_amcatnloFXFX:
-  crossSection: DYto2L_M_50_amcatnloFXFX
+  crossSection: DYto2L_M_50_amcatnloFXFX_singleFlavor
   generator: amcatnlo
   nanoAOD:
     v15: /DYto2Mu-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v6/NANOAODSIM
 
 
 # DYto2Tau012J_M_50_1J_amcatnloFXFX:
-#   crossSection: DYto2L_M_50_1J_amcatnloFXFX
+#   crossSection: DYto2L_M_50_1J_amcatnloFXFX_singleFlavor
 #   generator: amcatnlo
 #   nanoAOD:
     # v15: /DYto2Tau-2Jets_Bin-1J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v1/NANOAODSIM
 # DYto2Tau012J_M_50_2J_amcatnloFXFX:
-#   crossSection: DYto2L_M_50_2J_amcatnloFXFX
+#   crossSection: DYto2L_M_50_2J_amcatnloFXFX_singleFlavor
 #   generator: amcatnlo
 #   nanoAOD:
     # v15: /DYto2Tau-2Jets_Bin-2J-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 DYto2Tau_M_10to50_amcatnloFXFX:
-  crossSection: DYto2L_M_10to50_amcatnloFXFX
+  crossSection: DYto2L_M_10to50_amcatnloFXFX_singleFlavor
   generator: amcatnlo
   nanoAOD:
     v15: /DYto2Tau-2Jets_Bin-MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 # DYto2Tau_M_50_amcatnloFXFX:
-#   crossSection: DYto2L_M_50_amcatnloFXFX
+#   crossSection: DYto2L_M_50_amcatnloFXFX_singleFlavor
 #   generator: amcatnlo
 #   nanoAOD:
     # v15: /DYto2Tau-2Jets_Bin-MLL-50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v7/NANOAODSIM
 
 ### other samples with 1 pT value and amcatnlo fxfx ?? #
 # DYto2E_M_50_PTLL_100_amcatnloFXFX:
-#   crossSection: N/A
+#   crossSection: N/A_singleFlavor
 #   generator: amcatnloFXFX
 #   nanoAOD:
     # v15: /DYto2L-2Jets_Bin-MLL-50-PTLL-100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
@@ -1183,7 +1183,7 @@ DYto2Tau_M_10to50_amcatnloFXFX:
 #   nanoAOD:
     # v15: /DYto2L-2Jets_Bin-MLL-50-PTLL-600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 # DYto2Mu_M_50_PTLL_100_amcatnloFXFX:
-#   crossSection: N/A
+#   crossSection: N/A_singleFlavor
 #   generator: amcatnloFXFX
 #   nanoAOD:
     # v15: /DYto2L-2Jets_Bin-MLL-50-PTLL-100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
@@ -1204,7 +1204,7 @@ DYto2Tau_M_10to50_amcatnloFXFX:
     # v15: /DYto2L-2Jets_Bin-MLL-50-PTLL-600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v3/NANOAODSIM
 ### Madgrapgh MLM ####
 # DYto2E_MLL_10to50_madgraphMLM:
-#   crossSection: DYto2E_MLL_10to50_powheg # to be changed with madgraph
+#   crossSection: DYto2E_MLL_10to50_powheg # to be changed with madgraph_singleFlavor
 #   generator: madgraph
 #   nanoAOD:
     # v15: /DYto2E-4Jets_Bin-MLL-10to50_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM

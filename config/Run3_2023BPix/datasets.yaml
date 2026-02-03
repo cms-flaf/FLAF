@@ -364,7 +364,6 @@ DYto2Tau_M_50_1J_Filtered_amcatnloFXFX:
 DYto2L_M_50_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_2J_amcatnloFXFX_allFlavors
   generator: amcatnlo
-    generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM
   nanoAOD:
     v12: /DYto2L-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v3/NANOAODSIM
@@ -408,7 +407,6 @@ DYto2Tau_M_50_2J_Filtered_amcatnloFXFX:
 DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_allFlavors
   generator: amcatnlo
-    generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-40to100_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v1/MINIAODSIM
   nanoAOD:
     v12: /DYto2L-2Jets_MLL-50_PTLL-40to100_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v1/NANOAODSIM
@@ -438,7 +436,6 @@ DYto2Mu_M_50_PTLL_40to100_1J_amcatnloFXFX:
 DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_allFlavors
   generator: amcatnlo
-    generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-40to100_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v1/MINIAODSIM
   nanoAOD:
     v12: /DYto2L-2Jets_MLL-50_PTLL-40to100_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v1/NANOAODSIM
@@ -495,7 +492,6 @@ DYto2Mu_M_50_PTLL_100to200_1J_amcatnloFXFX:
 DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX_allFlavors
   generator: amcatnlo
-    generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100to200_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v1/MINIAODSIM
   nanoAOD:
     v12: /DYto2L-2Jets_MLL-50_PTLL-100to200_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v1/NANOAODSIM
@@ -525,7 +521,6 @@ DYto2Mu_M_50_PTLL_100to200_2J_amcatnloFXFX:
 DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX_allFlavors
   generator: amcatnlo
-    generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200to400_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v1/MINIAODSIM
   nanoAOD:
     v12: /DYto2L-2Jets_MLL-50_PTLL-200to400_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v1/NANOAODSIM
@@ -554,7 +549,6 @@ DYto2Mu_M_50_PTLL_200to400_1J_amcatnloFXFX:
 DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX_allFlavors
   generator: amcatnlo
-    generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200to400_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v1/MINIAODSIM
   nanoAOD:
     v12: /DYto2L-2Jets_MLL-50_PTLL-200to400_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v1/NANOAODSIM
@@ -583,7 +577,6 @@ DYto2Mu_M_50_PTLL_200to400_2J_amcatnloFXFX:
 DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX_allFlavors
   generator: amcatnlo
-    generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400to600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v1/MINIAODSIM
   nanoAOD:
     v12: /DYto2L-2Jets_MLL-50_PTLL-400to600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v1/NANOAODSIM
@@ -612,7 +605,6 @@ DYto2Mu_M_50_PTLL_400to600_1J_amcatnloFXFX:
 DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX_allFlavors
   generator: amcatnlo
-    generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400to600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v1/MINIAODSIM
   nanoAOD:
     v12: /DYto2L-2Jets_MLL-50_PTLL-400to600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v1/NANOAODSIM
@@ -641,7 +633,6 @@ DYto2Mu_M_50_PTLL_400to600_2J_amcatnloFXFX:
 DYto2L_M_50_PTLL_600_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX_allFlavors
   generator: amcatnlo
-    generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v1/MINIAODSIM
   nanoAOD:
     v12: /DYto2L-2Jets_MLL-50_PTLL-600_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v1/NANOAODSIM
@@ -670,7 +661,6 @@ DYto2Mu_M_50_PTLL_600_1J_amcatnloFXFX:
 DYto2L_M_50_PTLL_600_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_allFlavors
   generator: amcatnlo
-    generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v1/MINIAODSIM
   nanoAOD:
     v12: /DYto2L-2Jets_MLL-50_PTLL-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v1/NANOAODSIM

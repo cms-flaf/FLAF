@@ -3,6 +3,18 @@ import json
 
 
 def CreateMergeStrategy(setup, local_inputs, n_events_per_file, is_data):
+    """Create a merge strategy for either data or MC.
+
+    Args:
+        setup (Setup): FLAF setup object
+        local_inputs (list[str]): list of input report file paths
+        n_events_per_file (int): an aproximate number of events per output file. The goal is to have output files with a number of events close to this value, so it is not guaranteed that the actual number of events is less or equal to this value.
+        is_data (bool): data or MC
+
+    Returns:
+        dict: merge strategy
+    """
+
     if is_data:
         return CreateDataMergeStrategy(setup, local_inputs, n_events_per_file)
     else:
@@ -10,6 +22,7 @@ def CreateMergeStrategy(setup, local_inputs, n_events_per_file, is_data):
 
 
 def CreateMCMergeStrategy(input_reports, n_events_per_file):
+    assert(n_events_per_file > 0)
     input_files = {}
     for report in input_reports:
         with open(report, "r") as file:
@@ -43,6 +56,7 @@ def CreateMCMergeStrategy(input_reports, n_events_per_file):
 
 
 def CreateDataMergeStrategy(setup, input_reports, n_events_per_file):
+    assert(n_events_per_file > 0)
     input_files = {}
     for report in input_reports:
         with open(report, "r") as file:

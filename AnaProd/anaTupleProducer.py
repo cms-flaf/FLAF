@@ -174,10 +174,6 @@ def createAnatuple(
                     p_name
                 ] = p_instance.onAnaCache_initializeDenomEntry()
 
-    gen_weight_name = (
-        "weight_gen" if setup.global_params["nano_version"] != "v12" else "genWeight"
-    )
-
     def updateDenomEntry(rdf):
         for p_instance in processor_instances.values():
             rdf = p_instance.onAnaCache_prepareDataFrame(rdf)
@@ -188,7 +184,6 @@ def createAnatuple(
                 weights_to_apply = [gen_weight_name]
                 if "pu" in corrections.to_apply:
                     weights_to_apply.append(f"weight_pu_{shape_unc_scale}")
-                print(report)
                 for p_name, p_instance in processor_instances.items():
                     output_branch_name = f"weight_denom_{p_name}_{shape_unc_name}"
                     report["denominator"][shape_unc_source][shape_unc_scale][p_name] = (

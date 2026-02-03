@@ -175,6 +175,11 @@ class Task(law.Task):
             raise KeyError(f"dataset name '{dataset_name}' not found")
         return self._dataset_name_id_dict[dataset_name]
 
+    def get_nano_version(self, version_label):
+        return self.global_params.get("nanoAODVersions", {}).get(
+            version_label, "HLepRare"
+        )
+
     def get_fs_nanoAOD(self, dataset_name):
         if dataset_name not in self.datasets:
             raise KeyError(f"dataset name '{dataset_name}' not found")
@@ -191,9 +196,7 @@ class Task(law.Task):
 
         isData = dataset["process_group"] == "data"
         version_label = "data" if isData else "mc"
-        nano_version = self.global_params.get("nanoAODVersions", {}).get(
-            version_label, "HLepRare"
-        )
+        nano_version = self.get_nano_version(version_label)
         if nano_version == "HLepRare":
             return self.fs_nanoAOD, folder_name, True
         das_cfg = dataset.get("nanoAOD", {})

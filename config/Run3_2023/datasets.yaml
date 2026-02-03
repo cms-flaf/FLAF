@@ -363,8 +363,8 @@ DYto2Mu_M_50_amcatnloFXFX:
 #    HLepRare: ^nanoTauTau_\d+\.root$
 #   dirName: DYto2L_M_50_amcatnloFXFX_ext1
 ############## DYto2L_M-50_nJ ##############
-DYto2L_M_50_1J_amcatnloFXFX:
-  crossSection: DYto2L_M_50_1J_amcatnloFXFX_allFlavors
+DYto2L_M_50_0J_amcatnloFXFX:
+  crossSection: DYto2L_M_50_0J_amcatnloFXFX_allFlavors
   generator: amcatnlo
   miniAOD: /DYto2L-2Jets_MLL-50_0J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
   nanoAOD:

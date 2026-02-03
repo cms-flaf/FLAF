@@ -322,7 +322,7 @@ DYto2Tau_M_50_0J_Filtered_amcatnloFXFX:
 DYto2L_M_50_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_1J_amcatnloFXFX_allFlavors
   generator: amcatnlo
-    miniAOD: /DYto2L-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM
+  miniAOD: /DYto2L-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixMiniAODv4-130X_mcRun3_2023_realistic_postBPix_v2-v3/MINIAODSIM
   nanoAOD:
     v12: /DYto2L-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v3/NANOAODSIM
 

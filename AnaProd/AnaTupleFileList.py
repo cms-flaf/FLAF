@@ -38,8 +38,8 @@ def CreateMCMergeStrategy(input_reports, n_events_per_file):
 
 
 def CreateDataMergeStrategy(setup, input_reports, n_events_per_file):
-    # First, group files by era
-    era_files = {}
+    # First, group files by era (keeps original logic for duplicate filtering)
+    input_files = {}
     for report in input_reports:
         with open(report, "r") as file:
             data = json.load(file)
@@ -48,20 +48,42 @@ def CreateDataMergeStrategy(setup, input_reports, n_events_per_file):
         dataset = setup.datasets[dataset_name]
         eraLetter = dataset["eraLetter"]
         eraVersion = dataset.get("eraVersion", "")
-        era_key = f"{eraLetter}{eraVersion}"
-        if era_key not in era_files:
-            era_files[era_key] = []
-        era_files[era_key].append({"path": file_path, "n_events": data["n_events"]})
+        output_name = f"anaTuple_{eraLetter}{eraVersion}.root"
+        if output_name not in input_files:
+            input_files[output_name] = {"files": [], "n_events": 0}
+        input_files[output_name]["files"].append(file_path)
+        input_files[output_name]["n_events"] += data["n_events"]
 
-    # Now create merge strategy with event limits per output file
+    # Now split into multiple output files if needed to satisfy n_events_per_file
     merge_strategy = []
-    for era_key, files in era_files.items():
-        file_idx = 0
-        # Shallow copy is safe here as we only remove items, not modify dicts
-        remaining_files = files.copy()
+    for output_file, inputs in input_files.items():
+        # Extract era info from output_file name
+        # Format: anaTuple_{eraLetter}{eraVersion}.root
+        base_name = output_file.replace("anaTuple_", "").replace(".root", "")
+        all_files = inputs["files"]
+
+        # Build list of files with their event counts for splitting
+        file_info_list = []
+        for file_path in all_files:
+            # Find the corresponding report to get n_events
+            for report in input_reports:
+                with open(report, "r") as file:
+                    data = json.load(file)
+                report_file_path = os.path.join(
+                    data["dataset_name"], data["nano_file_name"]
+                )
+                if report_file_path == file_path:
+                    file_info_list.append(
+                        {"path": file_path, "n_events": data["n_events"]}
+                    )
+                    break
+
+        # Split files into multiple outputs based on n_events_per_file
+        out_idx = 0
+        remaining_files = file_info_list.copy()
 
         while len(remaining_files) > 0:
-            out_file_name = f"anaTuple_{era_key}_{file_idx}.root"
+            out_file_name = f"anaTuple_{base_name}_{out_idx}.root"
             merge = {
                 "inputs": [],
                 "outputs": [out_file_name],
@@ -89,6 +111,6 @@ def CreateDataMergeStrategy(setup, input_reports, n_events_per_file):
                 remaining_files.remove(file_info)
 
             merge_strategy.append(merge)
-            file_idx += 1
+            out_idx += 1
 
     return merge_strategy

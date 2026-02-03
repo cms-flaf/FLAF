@@ -366,16 +366,36 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             tmpFile = os.path.join(job_home, f"AnaTupleFileList_tmp.json")
 
             if process_group == "data":
-                n_events_per_file_data = self.setup.global_params.get(
-                    "nEventsPerFile_data", 10_000_000
-                )
+                # Handle backward compatibility with old nEventsPerFile parameter
+                n_events_param = self.setup.global_params.get("nEventsPerFile")
+                if n_events_param is None:
+                    # No old parameter, use new separate parameters
+                    n_events_per_file_data = self.setup.global_params.get(
+                        "nEventsPerFile_data", 10_000_000
+                    )
+                elif isinstance(n_events_param, dict):
+                    # Dict format: get data value from dict
+                    n_events_per_file_data = n_events_param.get("data", 10_000_000)
+                else:
+                    # Single number: use same value for both data and MC
+                    n_events_per_file_data = n_events_param
                 merge_strategy = CreateDataMergeStrategy(
                     self.setup, local_inputs, n_events_per_file_data
                 )
             else:
-                n_events_per_file_mc = self.setup.global_params.get(
-                    "nEventsPerFile_mc", 100_000
-                )
+                # Handle backward compatibility with old nEventsPerFile parameter
+                n_events_param = self.setup.global_params.get("nEventsPerFile")
+                if n_events_param is None:
+                    # No old parameter, use new separate parameters
+                    n_events_per_file_mc = self.setup.global_params.get(
+                        "nEventsPerFile_mc", 100_000
+                    )
+                elif isinstance(n_events_param, dict):
+                    # Dict format: get mc value from dict
+                    n_events_per_file_mc = n_events_param.get("mc", 100_000)
+                else:
+                    # Single number: use same value for both data and MC
+                    n_events_per_file_mc = n_events_param
                 merge_strategy = CreateMCMergeStrategy(
                     local_inputs, n_events_per_file_mc
                 )

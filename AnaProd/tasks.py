@@ -13,7 +13,7 @@ from FLAF.Common.Utilities import (
     ServiceThread,
     SerializeObjectToString,
 )
-from .AnaTupleFileList import CreateMCMergeStrategy, CreateDataMergeStrategy
+from .AnaTupleFileList import CreateMergeStrategy
 
 
 class InputFileTask(Task, law.LocalWorkflow):
@@ -365,11 +365,12 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             job_home, remove_job_home = self.law_job_home()
             tmpFile = os.path.join(job_home, f"AnaTupleFileList_tmp.json")
 
-            if process_group == "data":
-                merge_strategy = CreateDataMergeStrategy(self.setup, local_inputs)
-            else:
-                nEventsPerFile = self.setup.global_params.get("nEventsPerFile", 100_000)
-                merge_strategy = CreateMCMergeStrategy(local_inputs, nEventsPerFile)
+            nEventsPerFile = self.setup.global_params.get("nEventsPerFile", {"data": 1_000_000})
+            if isinstance(nEventsPerFile, dict):
+                nEventsPerFile = nEventsPerFile.get(process_group, 100_000)
+            is_data = process_group == "data"
+
+            merge_strategy = CreateMergeStrategy(self.setup, local_inputs, nEventsPerFile, is_data)
             output = {"merge_strategy": merge_strategy}
             with open(tmpFile, "w") as f:
                 json.dump(output, f, indent=2)

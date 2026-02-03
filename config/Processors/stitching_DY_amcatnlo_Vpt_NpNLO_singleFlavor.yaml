@@ -40,4 +40,3 @@ bins:
   - name: Vpt_600_inf_NpNLO_2
     selection: "LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 2"
     crossSection: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_allFlavors
-

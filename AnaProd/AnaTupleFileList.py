@@ -22,7 +22,7 @@ def CreateMergeStrategy(setup, local_inputs, n_events_per_file, is_data):
 
 
 def CreateMCMergeStrategy(input_reports, n_events_per_file):
-    assert(n_events_per_file > 0)
+    assert n_events_per_file > 0
     input_files = {}
     for report in input_reports:
         with open(report, "r") as file:
@@ -56,7 +56,7 @@ def CreateMCMergeStrategy(input_reports, n_events_per_file):
 
 
 def CreateDataMergeStrategy(setup, input_reports, n_events_per_file):
-    assert(n_events_per_file > 0)
+    assert n_events_per_file > 0
     input_files = {}
     for report in input_reports:
         with open(report, "r") as file:

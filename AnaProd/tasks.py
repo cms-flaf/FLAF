@@ -35,8 +35,9 @@ class InputFileTask(Task, law.LocalWorkflow):
         dataset_name = self.branch_data
         print(f"{dataset_name}: creating input file list into {self.output().path}")
         fs_nanoAOD, folder_name, include_folder_name = self.get_fs_nanoAOD(dataset_name)
-        pattern = self.datasets[dataset_name].get("fileNamePattern", r".*\.root$")
-
+        nano_version = self.get_nano_version(dataset_name)
+        pattern_dict = self.datasets[dataset_name].get("fileNamePattern", {})
+        pattern = pattern_dict.get(nano_version, r".*\.root$")
         input_files = []
         for file in fs_nanoAOD.listdir(folder_name):
             if re.match(pattern, file):

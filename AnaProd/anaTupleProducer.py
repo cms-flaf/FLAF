@@ -174,10 +174,12 @@ def createAnatuple(
                     p_name
                 ] = p_instance.onAnaCache_initializeDenomEntry()
 
+    gen_weight_name = "weight_gen"
+
     def updateDenomEntry(rdf):
         for p_instance in processor_instances.values():
             rdf = p_instance.onAnaCache_prepareDataFrame(rdf)
-        gen_weight_name = "weight_gen"
+
         for shape_unc_source in shape_sources:
             for shape_unc_scale in getScales(shape_unc_source):
                 shape_unc_name = getSystName(shape_unc_source, shape_unc_scale)

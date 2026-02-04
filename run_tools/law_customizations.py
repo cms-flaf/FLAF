@@ -197,9 +197,7 @@ class Task(law.Task):
                 True,
             )
 
-        isData = dataset["process_group"] == "data"
-        version_label = "data" if isData else "mc"
-        nano_version = self.get_nano_version(version_label)
+        nano_version = self.get_nano_version(dataset_name)
         if nano_version == "HLepRare":
             return self.fs_nanoAOD, folder_name, True
         das_cfg = dataset.get("nanoAOD", {})

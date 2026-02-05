@@ -48,13 +48,9 @@ class Triggers:
                         cut_vars.append(cut_var_name)
                     df = df.Define(var_name_online, " && ".join(cut_vars))
                     matching_var = f"{obj}_Matching_{leg_id+1}_{path}"
-                    leg_p4 = f"{obj}_p4"
-                    if "pt" in extraFormat.keys():
-                        leg_p4 += f"""_{extraFormat["pt"]}"""
-                    print(f"using {leg_p4} for computing trigger matching")
                     df = df.Define(
                         matching_var,
-                        f"""FindMatching({var_name_offline}, {var_name_online}, {leg_p4}, TrigObj_p4, {self.deltaR_matching} )""",
+                        f"""FindMatching({var_name_offline}, {var_name_online}, {obj}_p4, TrigObj_p4, {self.deltaR_matching} )""",
                     )
                     matchedObjectsBranches.append(matching_var)
             for obj in offline_legs:

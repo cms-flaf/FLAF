@@ -27,14 +27,11 @@ def find_keys(inFiles_list):
 
 
 def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
-    if len(hist_list[0]) == 3:
-        model, unit_hist, rdf = hist_list[0]
-        if verbose > 0:
-            print(
-                f"Saving hist for key: {key_tuple}, unc: {unc}, scale: {scale}. Number of RDF runs: {rdf.GetNRuns()}"
-            )
-    else:
-        model, unit_hist = hist_list[0]
+    model, unit_hist, rdf = hist_list[0]
+    if verbose > 0:
+        print(
+            f"Saving hist for key: {key_tuple}, unc: {unc}, scale: {scale}. Number of RDF runs: {rdf.GetNRuns()}"
+        )
     dir_name = "/".join(key_tuple)
     dir_ptr = Utilities.mkdir(outFile, dir_name)
 
@@ -70,7 +67,7 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     dir_ptr.WriteTObject(merged_hist, final_hist_name, "Overwrite")
 
 
-def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale, fake=False):
+def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
     var_entry = HistHelper.findBinEntry(hist_cfg_dict, args.var)
     dims = (
         1
@@ -87,16 +84,12 @@ def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale, fake=Fals
         else [f"{var}_bin"]
     )
 
-    # If fake structure, we want to build a correct dimensional histogram
-    if fake:
-        unit_hist = unit_bin_model.GetHistogram()
+    rdf_filtered = rdf.Filter(filter_to_apply)
+    if dims >= 1 and dims <= 3:
+        mkhist_fn = getattr(rdf_filtered, f"Histo{dims}D")
+        unit_hist = mkhist_fn(unit_bin_model, *var_bin_list, weight_name)
     else:
-        rdf_filtered = rdf.Filter(filter_to_apply)
-        if dims >= 1 and dims <= 3:
-            mkhist_fn = getattr(rdf_filtered, f"Histo{dims}D")
-            unit_hist = mkhist_fn(unit_bin_model, *var_bin_list, weight_name)
-        else:
-            raise RuntimeError("Only 1D, 2D and 3D histograms are supported")
+        raise RuntimeError("Only 1D, 2D and 3D histograms are supported")
     return model, unit_hist
 
 
@@ -198,23 +191,6 @@ def SaveTmpFileUnc(
     tmp_file_root.Close()
     tmp_files.append(tmp_file)
 
-
-def CreateFakeStructure(outFile, setup, var, key_filter_dict, further_cuts):
-    for filter_key in key_filter_dict.keys():
-        print(filter_key)
-        for further_cut_name in [None] + list(further_cuts.keys()):
-            rdf_dummy = ROOT.RDataFrame(1)
-            model, unit_hist = GetUnitBinHist(
-                rdf_dummy, var, "", "weight_Central", "Central", "Central", fake=True
-            )
-            key_tuple = filter_key
-            if further_cut_name:
-                key_tuple += (further_cut_name,)
-            SaveHist(
-                key_tuple, outFile, [(model, unit_hist)], var, "Central", "Central"
-            )
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("inputFiles", nargs="+", type=str)
@@ -256,39 +232,9 @@ if __name__ == "__main__":
     for key in unique_keys:
         if not key.startswith(treeName):
             continue
-        valid_files = []
-        has_entries = False
-        for f in all_infiles:
-            rf = ROOT.TFile.Open(f)
-            if rf and rf.Get(key):
-                tree = rf.Get(key)
-                if tree and tree.GetEntries() > 0:
-                    has_entries = True
-                    valid_files.append(f)
-            rf.Close()
 
-        if valid_files and has_entries:
-            base_rdfs[key] = ROOT.RDataFrame(key, Utilities.ListToVector(valid_files))
-            ROOT.RDF.Experimental.AddProgressBar(base_rdfs[key])
-        else:
-            print(f"{key} tree not found or with 0 entries: fake structure creation")
-            outFile_root = ROOT.TFile(args.outFile, "UPDATE")
-            key_filter_dict = analysis.createKeyFilterDict(
-                setup.global_params, setup.global_params["era"]
-            )
-            further_cuts = {}
-            if args.furtherCut:
-                further_cuts = {f: (f, f) for f in args.furtherCut.split(",")}
-            if (
-                "further_cuts" in setup.global_params
-                and setup.global_params["further_cuts"]
-            ):
-                further_cuts.update(setup.global_params["further_cuts"])
-            CreateFakeStructure(
-                outFile_root, setup, args.var, key_filter_dict, further_cuts
-            )
-            outFile_root.Close()
-            continue
+        base_rdfs[key] = ROOT.RDataFrame(key, Utilities.ListToVector(all_infiles))
+        ROOT.RDF.Experimental.AddProgressBar(base_rdfs[key])
 
     further_cuts = {}
     if args.furtherCut:

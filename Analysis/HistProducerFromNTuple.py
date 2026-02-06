@@ -191,6 +191,7 @@ def SaveTmpFileUnc(
     tmp_file_root.Close()
     tmp_files.append(tmp_file)
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("inputFiles", nargs="+", type=str)

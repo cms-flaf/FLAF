@@ -27,11 +27,14 @@ def find_keys(inFiles_list):
 
 
 def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
-    model, unit_hist, rdf = hist_list[0]
-    if verbose > 0:
-        print(
-            f"Saving hist for key: {key_tuple}, unc: {unc}, scale: {scale}. Number of RDF runs: {rdf.GetNRuns()}"
-        )
+    if len(hist_list[0]) == 3:
+        model, unit_hist, rdf = hist_list[0]
+        if verbose > 0:
+            print(
+                f"Saving hist for key: {key_tuple}, unc: {unc}, scale: {scale}. Number of RDF runs: {rdf.GetNRuns()}"
+            )
+    else:
+        model, unit_hist = hist_list[0]
     dir_name = "/".join(key_tuple)
     dir_ptr = Utilities.mkdir(outFile, dir_name)
 
@@ -67,7 +70,7 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     dir_ptr.WriteTObject(merged_hist, final_hist_name, "Overwrite")
 
 
-def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
+def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale, fake=False):
     var_entry = HistHelper.findBinEntry(hist_cfg_dict, args.var)
     dims = (
         1
@@ -83,12 +86,17 @@ def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
         if dims > 1
         else [f"{var}_bin"]
     )
-    rdf_filtered = rdf.Filter(filter_to_apply)
-    if dims >= 1 and dims <= 3:
-        mkhist_fn = getattr(rdf_filtered, f"Histo{dims}D")
-        unit_hist = mkhist_fn(unit_bin_model, *var_bin_list, weight_name)
+
+    # If fake structure, we want to build a correct dimensional histogram
+    if fake:
+        unit_hist = unit_bin_model.GetHistogram()
     else:
-        raise RuntimeError("Only 1D, 2D and 3D histograms are supported")
+        rdf_filtered = rdf.Filter(filter_to_apply)
+        if dims >= 1 and dims <= 3:
+            mkhist_fn = getattr(rdf_filtered, f"Histo{dims}D")
+            unit_hist = mkhist_fn(unit_bin_model, *var_bin_list, weight_name)
+        else:
+            raise RuntimeError("Only 1D, 2D and 3D histograms are supported")
     return model, unit_hist
 
 
@@ -192,31 +200,18 @@ def SaveTmpFileUnc(
 
 
 def CreateFakeStructure(outFile, setup, var, key_filter_dict, further_cuts):
-    hist_cfg_dict = setup.hists
-    channels = setup.global_params["channels_to_consider"]
-
     for filter_key in key_filter_dict.keys():
         print(filter_key)
         for further_cut_name in [None] + list(further_cuts.keys()):
-            var_entry = HistHelper.findBinEntry(hist_cfg_dict, args.var)
-            dims = (
-                1
-                if not hist_cfg_dict[var_entry].get("var_list", False)
-                else len(hist_cfg_dict[var_entry]["var_list"])
+            rdf_dummy = ROOT.RDataFrame(1)
+            model, unit_hist = GetUnitBinHist(
+                rdf_dummy, var, "", "weight_Central", "Central", "Central", fake=True
             )
-            model, unit_bin_model = HistHelper.GetModel(
-                hist_cfg_dict, var, dims, return_unit_bin_model=True
-            )
-            nbins = unit_bin_model.fNbinsX
-            xmin = -0.5
-            xmax = unit_bin_model.fNbinsX - 0.5
-            empty_hist = ROOT.TH1F(var, var, nbins, xmin, xmax)
-            empty_hist.Sumw2()
             key_tuple = filter_key
             if further_cut_name:
                 key_tuple += (further_cut_name,)
             SaveHist(
-                key_tuple, outFile, [(model, empty_hist)], var, "Central", "Central"
+                key_tuple, outFile, [(model, unit_hist)], var, "Central", "Central"
             )
 
 

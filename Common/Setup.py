@@ -242,6 +242,7 @@ class Setup:
         self,
         ana_path,
         period,
+        law_run_version,
         custom_process_selection=None,
         custom_dataset_selection=None,
         custom_model_selection=None,
@@ -249,6 +250,7 @@ class Setup:
     ):
         self.ana_path = ana_path
         self.period = period
+        self.law_run_version = law_run_version
 
         self.config_path_order = [
             os.path.join(ana_path, "FLAF", "config"),
@@ -555,6 +557,7 @@ class Setup:
     def getGlobal(
         ana_path,
         period,
+        law_run_version,
         custom_process_selection=None,
         custom_dataset_selection=None,
         custom_model_selection=None,
@@ -563,6 +566,7 @@ class Setup:
         key = (
             ana_path,
             period,
+            law_run_version,
             custom_process_selection,
             custom_dataset_selection,
             custom_model_selection,
@@ -572,6 +576,7 @@ class Setup:
             Setup._global_instances[key] = Setup(
                 ana_path,
                 period,
+                law_run_version,
                 custom_process_selection=custom_process_selection,
                 custom_dataset_selection=custom_dataset_selection,
                 custom_model_selection=custom_model_selection,

@@ -441,7 +441,7 @@ def InitializeCorrections(setup, dataset_name, stage):
         trigger_class = Triggers.Triggers(triggerFile)
     if Corrections._global_instance is None:
         Corrections.initializeGlobal(
-            global_params=setup.global_params,
+            setup=setup,
             stage=stage,
             dataset_name=dataset_name,
             dataset_cfg=dataset_cfg,

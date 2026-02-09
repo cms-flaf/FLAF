@@ -89,11 +89,7 @@ def run_producer(
                 else:
                     final_array = ak.concatenate([final_array, new_array])
             elif save_as == "json":
-                if final_dict is None:
-                    final_dict = {key: new_array[key] for key in new_array.keys()}
-                else:
-                    for key in final_dict.keys():
-                        final_dict[key] += new_array[key]
+                final_dict = producer.combine(final_dict=final_dict, new_dict=new_array)
             else:
                 raise RuntimeError(f"Illegal output format `{save_as}`.")
 
@@ -114,7 +110,7 @@ def run_producer(
         dfw.df.Snapshot(treeName, outFileName, varToSave, snapshotOptions)
         n_orig = n_orig.GetValue()
         n_final = n_final.GetValue()
-    if save_as != "json" and n_orig != n_final:
+    if save_as == "root" and n_orig != n_final:
         # json doesn't save tree => cannot calculate n_final
         raise Exception(
             f"Mismatch in number of events before and after producer {n_orig} != {n_final}"
@@ -132,19 +128,12 @@ def createAnalysisCache(
     producer_to_run,
     uprootCompression,
     workingDir,
-    histTupleDef,
-    saveAs,
+    histTupleDef=None,
 ):
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
-
-    isData = dataset_name == "data"
-
-    if saveAs == "json":
-        histTupleDef.Initialize()
-        histTupleDef.analysis_setup(setup)
-
-    Utilities.InitializeCorrections(setup, dataset_name, stage="HistTuple")
+    isData = setup.datasets[dataset_name]["process_group"] == "data"
+    
     scale_uncertainties = set()
     if setup.global_params["compute_unc_variations"]:
         scale_uncertainties.update(unc_cfg_dict["shape"].keys())
@@ -156,6 +145,7 @@ def createAnalysisCache(
     producers_module = importlib.import_module(producers_module_name)
     producer_class = getattr(producers_module, producer_name)
     producer = producer_class(producer_config, producer_to_run, period)
+    saveAs = producer_config.get("save_as", "root")
 
     tmp_fileNames = []
     centralTree = None
@@ -189,32 +179,20 @@ def createAnalysisCache(
             elif saveAs == "json":
                 if not isCentral:
                     continue
-
-                dfw = histTupleDef.GetDfw(df, setup, dataset_name)
-                # must be called with btag_integral_ratios=None
-                # to avoid applying btag shape weights
-                # corresponding producer will take care of it
-                # purpose of histTupleDef - define raw btag shape weight
-
-                # dynamically checking args of DefineWeightForHistograms
-                # for compatibility with other analyses
-                call_args = {
-                    "dfw": dfw,
-                    "isData": isData,
-                    "uncName": unc_source,
-                    "uncScale": unc_scale,
-                    "unc_cfg_dict": unc_cfg_dict,
-                    "hist_cfg_dict": setup.hists,
-                    "global_params": setup.global_params,
-                    "final_weight_name": f"weight_{unc_source}_{unc_scale}",
-                    "df_is_central": isCentral
-                }
-
-                expected_args = inspect.signature(histTupleDef.DefineWeightForHistograms).parameters.keys()
-                btag_ratios_expected = "btag_integral_ratios" in expected_args
-                if btag_ratios_expected:
-                    call_args["btag_integral_ratios"] = None
-                histTupleDef.DefineWeightForHistograms(**call_args)
+                    
+                if hasattr(producer, "create_dfw"):
+                    dfw = producer.create_dfw(
+                        df=df,
+                        dataset_name=dataset_name,
+                        histTupleDef=histTupleDef,
+                        isData=isData,
+                        setup=setup,
+                        uncName=unc_source,
+                        uncScale=unc_scale,
+                        unc_cfg_dict=unc_cfg_dict,
+                        final_weight_name=f"weight_{unc_source}_{unc_scale}",
+                        df_is_central=isCentral,
+                    )
 
                 tmp_fileName = (
                     f"{central}.json" if isCentral else f"{unc_source}_{unc_scale}.json"
@@ -255,9 +233,8 @@ if __name__ == "__main__":
     parser.add_argument("--compressionAlgo", type=str, default="LZMA")
     parser.add_argument("--channels", type=str, default=None)
     parser.add_argument("--workingDir", required=True, type=str)
-    parser.add_argument("--saveAs", type=str, default="root")
-    parser.add_argument("--isData", action="store_true")
     parser.add_argument("--histTupleDef", type=str)
+    parser.add_argument("--LAWrunVersion", required=True, type=str)
     args = parser.parse_args()
 
     startTime = time.time()
@@ -268,13 +245,8 @@ if __name__ == "__main__":
     for header in headers:
         DeclareHeader(os.environ["ANALYSIS_PATH"] + "/" + header)
 
-    setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period)
+    setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period, args.LAWrunVersion)
     producer_config = setup.global_params["payload_producers"][args.producer]
-    # need it for BtagShapeProducer to implement different behavior in data
-    # (data does not have btag weight branches)
-    # this seems to be the only option without breaking everything/rewriting all existing producers to implement this different behavior
-    producer_config["isData"] = args.isData
-
     histTupleDef = Utilities.load_module(args.histTupleDef)
 
     setup.global_params["channels_to_consider"] = (
@@ -332,10 +304,10 @@ if __name__ == "__main__":
         uprootCompression=uprootCompression,
         workingDir=args.workingDir,
         histTupleDef=histTupleDef,
-        saveAs=args.saveAs,
     )
 
-    if args.saveAs == "root":
+    saveAs = producer_config.get("save_as", "root")
+    if saveAs == "root":
         hadd_cmd = ["hadd", "-j", args.outFile]
         hadd_cmd.extend(tmp_fileNames)
         ps_call(hadd_cmd, verbose=1)
@@ -343,7 +315,7 @@ if __name__ == "__main__":
             for file_syst in tmp_fileNames:
                 if file_syst != args.outFile:
                     os.remove(file_syst)
-    elif args.saveAs == "json":
+    elif saveAs == "json":
         print(f"Saving json output to {args.outFile}")
 
         data = {}

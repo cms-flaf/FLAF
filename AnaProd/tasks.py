@@ -200,6 +200,8 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     inFileName,
                     "--reportOutput",
                     rawReportPath,
+                    "--LAWrunVersion",
+                    self.version,
                 ]
                 if compute_unc_variations:
                     anatuple_cmd.append("--compute-unc-variations")
@@ -664,6 +666,8 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 local_json_files_str,
                 "--input-roots",
                 *local_root_inputs,
+                "--LAWrunVersion",
+                self.version,
             ]
             if is_data:
                 cmd.append("--is-data")

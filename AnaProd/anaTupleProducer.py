@@ -124,7 +124,7 @@ def createAnatuple(
     if len(processors_cfg) == 0:
         processor_instances["default"] = DefaultAnaCacheProcessor()
     Corrections.initializeGlobal(
-        global_params=setup.global_params,
+        setup=setup,
         stage="AnaTuple",
         dataset_name=dataset_name,
         dataset_cfg=dataset_cfg,
@@ -418,6 +418,7 @@ if __name__ == "__main__":
     parser.add_argument("--nEvents", type=int, default=None)
     parser.add_argument("--evtIds", type=str, default="")
     parser.add_argument("--reportOutput", type=str, default=None)
+    parser.add_argument("--LAWrunVersion", required=True, type=str)
 
     args = parser.parse_args()
 
@@ -425,7 +426,10 @@ if __name__ == "__main__":
     ROOT.gROOT.ProcessLine('#include "include/GenTools.h"')
     ROOT.gInterpreter.ProcessLine(f'ParticleDB::Initialize("{args.particleFile}");')
     setup = Setup.getGlobal(
-        os.environ["ANALYSIS_PATH"], args.period, args.customisations
+        os.environ["ANALYSIS_PATH"], 
+        args.period, 
+        args.LAWrunVersion,
+        customisations=args.customisations,
     )
 
     channels = setup.global_params["channelSelection"]

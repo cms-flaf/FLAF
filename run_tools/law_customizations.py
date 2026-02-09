@@ -52,6 +52,7 @@ class Task(law.Task):
         self.setup = Setup.getGlobal(
             os.getenv("ANALYSIS_PATH"),
             self.period,
+            self.version,
             custom_process_selection=self.process if len(self.process) > 0 else None,
             custom_dataset_selection=self.dataset if len(self.dataset) > 0 else None,
             custom_model_selection=self.model if len(self.model) > 0 else None,

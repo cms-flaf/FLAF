@@ -23,7 +23,13 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
 
     def workflow_requires(self):
-        correct_btagShape_weights = self.global_params.get("correct_btagShape_weights", False)
+        producers_to_aggregate = []
+        corrections_cfg = self.global_params["corrections"]
+        btag_corr_cfg = corrections_cfg["btag"]
+        btag_corr_mode = btag_corr_cfg["modes"]["HistTuple"]
+        if btag_corr_mode == "shape":
+            producers_to_aggregate.append("BtagShape")
+
         merge_organization_complete = AnaTupleFileListTask.req(
             self, branches=()
         ).complete()
@@ -56,6 +62,11 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             for var_name in flatten_vars:
                 producer_to_run = var_produced_by.get(var_name, None)
                 if producer_to_run is not None:
+                    producer_cfg = self.global_params[producer_to_run]
+                    needs_aggregation = producer_cfg.get("needs_aggregation", False)
+                    if needs_aggregation:
+                        producers_to_aggregate.append(producer_to_run)
+                    producers_to_aggregate.append(producer_to_run)
                     req_dict["AnalysisCacheTask"].append(
                         AnalysisCacheTask.req(
                             self,
@@ -65,12 +76,13 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         )
                     )
 
-            if correct_btagShape_weights:
-                req_dict["btagShapeWeight"] = BtagShapeWeightCorrectionTask.req(
+            if producers_to_aggregate:
+                req_dict["AnalysisCacheAggregationTask"] = AnalysisCacheAggregationTask.req(
                     self,
                     branches=(),
                     customisations=self.customisations,
                 )
+            
             return req_dict
 
         branch_set = set()
@@ -111,49 +123,12 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     )
                 )
 
-        if correct_btagShape_weights:
-            btag_shape_weight_branch_set = set()
-            btag_shape_task_branch_map = BtagShapeWeightCorrectionTask.req(
-                self, branch=-1
-            ).create_branch_map()
-            hist_tuple_branch_map = self.branch_map
-            # filter out branches of BtagShapeWeightCorrectionTask that correspond to each sample of HistTupleProducerTask
-            hist_tuple_sample_map = {}
-            for idx, (
-                hist_tuple_sample,
-                hist_tuple_br,
-                need_cache_global,
-                producer_list,
-                input_index,
-            ) in hist_tuple_branch_map.items():
-                # data doesn't have btag weights, only MC does
-                # so data tasks should not even depend on BtagShapeWeightCorrectionTask
-                btag_branches_for_hist_tuple_sample = [
-                    idx
-                    for idx, (
-                        btag_sample,
-                        _,
-                    ) in btag_shape_task_branch_map.items()
-                    if btag_sample == hist_tuple_sample and btag_sample != "data"
-                ]
-                # MC samples must have exactly one BtagShapeWeightCorrectionTask per sample
-                # Data samples must have exactly 0 bc they are skipped
-                assert (
-                    len(btag_branches_for_hist_tuple_sample) <= 1
-                ), "Must be at most one BtagShapeWeightCorrectionTask branch per sample"
-                if len(btag_branches_for_hist_tuple_sample) == 1:
-                    btag_weight_shape_branch = btag_branches_for_hist_tuple_sample[0]
-                    hist_tuple_sample_map[hist_tuple_sample] = btag_weight_shape_branch
-
-            for sample, btag_branch in hist_tuple_sample_map.items():
-                if sample == "data":
-                    continue
-                btag_shape_weight_branch_set.add(btag_branch)
-
-            if len(btag_shape_weight_branch_set) > 0:
-                reqs["btagShapeWeightCorr"] = BtagShapeWeightCorrectionTask.req(
-                    self, branches=tuple(btag_shape_weight_branch_set)
-                )
+        if producers_to_aggregate:
+            reqs["aggregatedAnalysisCache"] = AnalysisCacheAggregationTask.req(
+                self,
+                branches=(),
+                customisations=self.customisations,
+            )
 
         return reqs
 
@@ -185,29 +160,39 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if len(anaCaches) > 0:
                 deps["anaCaches"] = anaCaches
 
-        isMC = dataset_name != "data"
-        correct_btagShape_weights = self.global_params.get("correct_btagShape_weights", False)
-        if correct_btagShape_weights and isMC:
-            btag_shape_task_branch_map = BtagShapeWeightCorrectionTask.req(
+        producers_to_aggregate = []
+        for p in producer_list:
+            if p:
+                producer_cfg = self.global_params["payload_producers"][p]
+                needs_aggregation = producer_cfg.get("needs_aggregation", False)
+                if needs_aggregation:
+                    producers_to_aggregate.append(p)
+       
+        corrections_cfg = self.global_params["corrections"]
+        btag_corr_cfg = corrections_cfg["btag"]
+        btag_corr_mode = btag_corr_cfg["modes"]["HistTuple"]
+        if dataset_name != "data" and btag_corr_mode == "shape":
+            producers_to_aggregate.append("BtagShape")
+
+        if producers_to_aggregate:
+            # need to set to dependencies of this branch all branches of 
+            # AnalysisCacheAggregationTask that have this dataset_name and these producers (producers_to_aggregate)
+            aggr_ana_cache_branches = []
+
+            aggr_ana_cache_branch_map = AnalysisCacheAggregationTask.req(
                 self, branch=-1
             ).create_branch_map()
-            hist_tuple_producers_sample_name = (
-                dataset_name  # name of the sample which HistTupleProducer is running
+
+            # each branch of AnalysisCacheAggregationTask corresponds to one dataset and one producer
+            for aggr_ana_cache_br_idx, (agg_ana_cache_sample, aggr_ana_cache_producer, _) in aggr_ana_cache_branch_map.items():
+                if dataset_name == agg_ana_cache_sample and aggr_ana_cache_producer in producers_to_aggregate:
+                    aggr_ana_cache_branches.append(aggr_ana_cache_br_idx)
+
+            deps["aggrAnaCaches"] = AnalysisCacheAggregationTask.req(
+                self,
+                branches=tuple(aggr_ana_cache_branches),
             )
-            # in btag_branches collect all branches of BtagShapeWeightCorrectionTask that HistTupleProducer needs to run this sample
-            # for some reason, passing a tuple to branches argument of BtagShapeWeightCorrectionTask is not working
-            btag_branches = []
-            for btag_branch_idx, (btag_sample_name, _) in btag_shape_task_branch_map.items():
-                if btag_sample_name != "data" and hist_tuple_producers_sample_name == btag_sample_name:
-                    btag_branches.append(btag_branch_idx)
-            assert len(btag_branches) <= 1, "Must be at most one BtagShapeWeightCorrectionTask branch per sample"
-            if len(btag_branches) == 1:
-                deps["btagShapeWeightCorr"] = BtagShapeWeightCorrectionTask.req(
-                    self,
-                    max_runtime=BtagShapeWeightCorrectionTask.max_runtime._default,
-                    branch=-1,
-                    branches=tuple(btag_branches),
-                )
+
         return deps
 
     @law.dynamic_workflow_condition
@@ -338,6 +323,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 self.period,
                 "--channels",
                 channels,
+                "--LAWrunVersion",
+                self.version,
             ]
             if compute_unc_histograms:
                 HistTupleProducer_cmd.extend(
@@ -360,18 +347,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     f"{producer}:{path}" for producer, path in local_anacaches.items()
                 )
                 HistTupleProducer_cmd.extend(["--cacheFile", local_anacaches_str])
-
-            isMC = dataset_name != "data"
-            correct_bragShape_weights = self.global_params.get("correct_btagShape_weights", False)
-            if correct_bragShape_weights and isMC:
-                tc = self.input()["btagShapeWeightCorr"]["collection"]
-                btag_corr_json = tc._flat_target_list[0]
-                local_btag_corr_json = stack.enter_context(
-                    (btag_corr_json).localize("r")
-                )
-                HistTupleProducer_cmd.extend(
-                    ["--btagCorrectionsJson", local_btag_corr_json.path]
-                )
 
             ps_call(HistTupleProducer_cmd, verbose=1)
 
@@ -968,7 +943,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 output_file = self.output()
                 print(f"considering dataset {dataset_name}, and file {input_file.path}")
                 customisation_dict = getCustomisationSplit(self.customisations)
-                tmpFile = os.path.join(job_home, f"AnalysisCacheTask.root")
+                tmpFile = os.path.join(job_home, f"AnalysisCacheTask.{self.output_file_extension}")
                 with input_file.localize("r") as local_input:
                     analysisCacheProducer_cmd = [
                         "python3",
@@ -987,8 +962,8 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         self.producer_to_run,
                         "--workingDir",
                         job_home,
-                        "--saveAs",
-                        self.output_file_extension,
+                        "--LAWrunVersion",
+                        self.version,
                     ]
                     if (
                         self.global_params["store_noncentral"]
@@ -1009,10 +984,6 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         ].get("cmssw_env", False)
                         else None
                     )
-
-                    isData = dataset_name == "data"
-                    if isData:
-                        analysisCacheProducer_cmd.append("--isData")
 
                     histTupleDef = os.path.join(
                         self.ana_path(), self.global_params["histTupleDef"]
@@ -1230,13 +1201,12 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     cmd += ["--rebin", "true"]
                 ps_call(cmd, verbose=1)
 
-
-class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
+class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
 
     def __init__(self, *args, **kwargs):
-        super(BtagShapeWeightCorrectionTask, self).__init__(*args, **kwargs)
+        super(AnalysisCacheAggregationTask, self).__init__(*args, **kwargs)
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
@@ -1246,6 +1216,7 @@ class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         merge_organization_complete = AnaTupleFileListTask.req(
             self, branches=()
         ).complete()
+        payload_producers = self.global_params["payload_producers"]
         if not merge_organization_complete:
             deps = {
                 "AnaTupleFileListTask": AnaTupleFileListTask.req(
@@ -1254,35 +1225,54 @@ class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     max_runtime=AnaTupleFileListTask.max_runtime._default,
                     n_cpus=AnaTupleFileListTask.n_cpus._default,
                 ),
-                "BtagShape": AnalysisCacheTask.req(
-                    self,
-                    branches=(),
-                    max_runtime=AnalysisCacheTask.max_runtime._default,
-                    n_cpus=AnalysisCacheTask.n_cpus._default,
-                    customisations=self.customisations,
-                    producer_to_run="BtagShape",
-                ),
-            }
-            return deps
+            }   
 
-        btag_cache_map = AnalysisCacheTask.req(
-            self, branch=-1, branches=(), producer_to_run="BtagShape"
-        ).create_branch_map()
-        branches = [b for b in btag_cache_map.keys()]
-        deps = {
-            "BtagShape": AnalysisCacheTask.req(
-                self,
-                branches=tuple(branches),
-                max_runtime=AnalysisCacheTask.max_runtime._default,
-                n_cpus=AnalysisCacheTask.n_cpus._default,
-                customisations=self.customisations,
-                producer_to_run="BtagShape",
-            )
-        }
+            # find which producers need aggregation and add their cache to dependencies of the task
+            producers_to_aggregate = []
+            for producer_name, producer_cfg in payload_producers.items():
+                needs_aggregation = producer_cfg.get("needs_aggregation", None)
+                if needs_aggregation:
+                    producers_to_aggregate.append(
+                        AnalysisCacheTask.req(
+                            self,
+                            branches=(),
+                            max_runtime=AnalysisCacheTask.max_runtime._default,
+                            n_cpus=AnalysisCacheTask.n_cpus._default,
+                            customisations=self.customisations,
+                            producer_to_run=producer_name
+                        )
+                    )
+
+            if producers_to_aggregate:
+                deps["AnalysisCacheTask"] = producers_to_aggregate
+            return deps
+        
+        producers_to_aggregate = []
+        for producer_name, producer_cfg in payload_producers.items():
+            needs_aggregation = producer_cfg.get("needs_aggregation", None)
+            if needs_aggregation:
+                producers_cache_branch_map = AnalysisCacheTask.req(
+                    self, branch=-1, branches=(), producer_to_run=producer_name
+                ).create_branch_map()
+                branches = [b for b in producers_cache_branch_map.keys()]
+                producers_to_aggregate.append(
+                    AnalysisCacheTask.req(
+                        self,
+                        branches=tuple(branches),
+                        max_runtime=AnalysisCacheTask.max_runtime._default,
+                        n_cpus=AnalysisCacheTask.n_cpus._default,
+                        customisations=self.customisations,
+                        producer_to_run=producer_name
+                    )
+                )
+
+        deps = {}
+        if producers_to_aggregate:
+            deps["AnalysisCacheTask"] = producers_to_aggregate
         return deps
 
     def requires(self):
-        sample_name, list_of_br_idxes = self.branch_data
+        sample_name, producer_name, list_of_producer_cache_keys = self.branch_data
         reqs = [
             AnalysisCacheTask.req(
                 self,
@@ -1290,95 +1280,148 @@ class BtagShapeWeightCorrectionTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 branch=prod_br,
                 branches=(prod_br,),
                 customisations=self.customisations,
-                producer_to_run="BtagShape",
+                producer_to_run=producer_name,
             )
-            for prod_br in list_of_br_idxes
+            for prod_br in list_of_producer_cache_keys
         ]
         return reqs
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
-        branches = {}
-        btag_corr_branch_idx = 0
-        data_done = False
-        # obtain branch map for the previos task
-        # it is structured per file
-        btag_cache_map = AnalysisCacheTask.req(
-            self, branch=-1, branches=(), producer_to_run="BtagShape"
-        ).create_branch_map()
-
-        # restructure btag_cache_map so it maps each sample to list of branch indices from prev. task
-        # i.e. for signal it will be (XtoYHto2B2Wto2B2L2Nu_MX_300_MY_125, signals) -> [0]
-        # but e.g. for ttbar it will be (TTto2L2Nu, backgrounds) -> [1, 2, 3, 4, 5, ...]
-        # so branch_map of BtagShapeWeightCorrectionTask will contain:
+        # structure of branch map 
         # ---- name of sample,
-        # ---- list of branch indices of the task it depends on (AnalysisCacheTask(producer_to_run="BtagShape"))
-        sample_branch_map = {}
-        # btag_cache_branch_idx is key of branch map of AnalysisCacheTask(producer_to_run="BtagShape") 
-        for btag_cache_branch_idx, (sample_name, _, _, _, _) in btag_cache_map.items():
-            if sample_name != "data":
-                if sample_name not in sample_branch_map:
-                    sample_branch_map[sample_name] = []
-                sample_branch_map[sample_name].append(btag_cache_branch_idx)
+        # ---- name of producer,
+        # ---- list of branch indices of the AnalysisCacheTask(producer_to_run=producer_name)
+        branches = {}
+        branch_idx = 0
 
-        for sample_name, list_of_btag_cache_keys in sample_branch_map.items():
-            if sample_name == "data":
-                # btag shape weights exist only for MC
-                raise RuntimeError(f'Illegal dataset {sample_name} is being passed to BtagShapeWeightCorrectionTask.')
-            else:
-                branches[btag_corr_branch_idx] = (sample_name, list_of_btag_cache_keys)
-                btag_corr_branch_idx += 1
+        payload_producers = self.global_params["payload_producers"]
+        # for each producer compute its branch map if it needs aggregation
+        # and save all branches of this producer to list
+        for producer_name, producer_cfg in payload_producers.items():
+            needs_aggregation = producer_cfg.get("needs_aggregation", None)
+            ignore_data = producer_cfg.get("ignore_data", False)
+            if needs_aggregation:
+                producer_cache_branch_map = AnalysisCacheTask.req(
+                    self, branch=-1, branches=(), producer_to_run=producer_name
+                ).create_branch_map()
+
+                # find which branches of this producer correspond to each sample
+                sample_branch_map = {}
+                for producer_cache_branch_idx, (sample_name, _, _, _, _) in producer_cache_branch_map.items():
+                    if sample_name not in sample_branch_map:
+                        sample_branch_map[sample_name] = []
+                    sample_branch_map[sample_name].append(producer_cache_branch_idx)
+
+                if ignore_data:
+                    sample_branch_map.pop("data", None)
+
+                for sample_name, list_of_producer_cache_keys in sample_branch_map.items():
+                    branches[branch_idx] = (sample_name, producer_name, list_of_producer_cache_keys)
+                    branch_idx += 1
+        
         return branches
 
+    # @workflow_condition.output
+    # def output(self):
+    #     sample_name, producer_name, _ = self.branch_data
+    #     extension = self.global_params["payload_producers"][producer_name].get("save_as", "root")
+    #     output_name = f"aggregatedCache.{extension}"
+    #     output_path = os.path.join(
+    #         "AggregatedAnalysisCache",
+    #         self.version,
+    #         self.period,
+    #         sample_name,
+    #         producer_name,
+    #         output_name,
+    #     )
+    #     return self.remote_target(output_path, fs=self.fs_anaTuple)
+    
     @workflow_condition.output
     def output(self):
-        sample_name, _ = self.branch_data
-        output_name = "BtagShapeWeightCorrection.json"
-        output_path = os.path.join(
-            "BtagShapeWeightCorrection",
-            self.version,
-            self.period,
-            sample_name,
-            output_name,
-        )
-        return self.remote_target(output_path, fs=self.fs_anaTuple)
+        sample_name, producer_name, _ = self.branch_data
+        extension = self.global_params["payload_producers"][producer_name].get("save_as", "root")
+        output_name = f"aggregatedCache.{extension}"
+        return self.local_target(sample_name, producer_name, output_name)
+
+    # def run(self):
+    #     sample_name, producer_name, _ = self.branch_data
+    #     producers = self.global_params["payload_producers"]
+    #     cacheAggregator = os.path.join(
+    #         self.ana_path(), "FLAF", "Analysis", "AnalysisCacheAggregator.py"
+    #     )
+    #     with contextlib.ExitStack() as stack:
+    #         remote_output = self.output()
+
+    #         inputs = self.input()
+    #         local_inputs = [
+    #             stack.enter_context(inp.localize("r")).path
+    #             for inp in inputs
+    #         ]
+
+    #         assert local_inputs, "`local_inputs` must be a non-empty list"
+
+    #         producer_cfg = producers[producer_name]
+    #         ext = producer_cfg.get("save_as", "root")
+
+    #         job_home, remove_job_home = self.law_job_home()
+    #         tmpFile = os.path.join(job_home, f"aggregatedCache_tmp.{ext}")
+    #         aggregate_cmd = [
+    #             "python3",
+    #             cacheAggregator,
+    #             "--outFile",
+    #             tmpFile,
+    #             "--period",
+    #             self.period,
+    #             "--producer",
+    #             producer_name,
+    #         ]
+
+    #         aggregate_cmd.append("--inputFiles")
+    #         aggregate_cmd.extend(local_inputs)
+    #         ps_call(aggregate_cmd, verbose=1)
+
+    #         with remote_output.localize("w") as tmp_local_file:
+    #             out_local_path = tmp_local_file.path
+    #             shutil.move(tmpFile, out_local_path)
 
     def run(self):
-        sample_name, _ = self.branch_data
-        computeBtagShapeWeight = os.path.join(
-            self.ana_path(), "FLAF", "Analysis", "ComputeBtagShapeWeightCorrection.py"
+        sample_name, producer_name, _ = self.branch_data
+        producers = self.global_params["payload_producers"]
+        cacheAggregator = os.path.join(
+            self.ana_path(), "FLAF", "Analysis", "AnalysisCacheAggregator.py"
         )
         with contextlib.ExitStack() as stack:
-            remote_output = self.output()
-
+            local_output = self.output()
             inputs = self.input()
             local_inputs = [
                 stack.enter_context(inp.localize("r")).path
                 for inp in inputs
             ]
-
             assert local_inputs, "`local_inputs` must be a non-empty list"
-
-            btag_shape_cfg = self.global_params["payload_producers"]["BtagShape"]
-            jet_multiplicities = btag_shape_cfg["jet_multiplicities"]
-
+            producer_cfg = producers[producer_name]
+            ext = producer_cfg.get("save_as", "root")
             job_home, remove_job_home = self.law_job_home()
-            tmpFile = os.path.join(job_home, f"BtagShapeWeightCorrection_tmp.json")
-            computeBtagShapeWeight_cmd = [
+            tmpFile = os.path.join(job_home, f"aggregatedCache_tmp.{ext}")
+            aggregate_cmd = [
                 "python3",
-                computeBtagShapeWeight,
+                cacheAggregator,
                 "--outFile",
                 tmpFile,
+                "--period",
+                self.period,
+                "--producer",
+                producer_name,
+                "--LAWrunVersion",
+                self.version,
             ]
+            aggregate_cmd.append("--inputFiles")
+            aggregate_cmd.extend(local_inputs)
+            ps_call(aggregate_cmd, verbose=1)
+            
+            # For local target: ensure parent directory exists and move directly
+            out_local_path = local_output.path
+            local_output.parent.touch()  # Creates parent directories if needed
+            shutil.move(tmpFile, out_local_path)
 
-            computeBtagShapeWeight_cmd.append("--inputFiles")
-            computeBtagShapeWeight_cmd.extend(local_inputs)
 
-            computeBtagShapeWeight_cmd.append("--jetMultiplicities")
-            computeBtagShapeWeight_cmd.extend([str(m) for m in jet_multiplicities])
-
-            ps_call(computeBtagShapeWeight_cmd, verbose=1)
-
-            with remote_output.localize("w") as tmp_local_file:
-                out_local_path = tmp_local_file.path
-                shutil.move(tmpFile, out_local_path)

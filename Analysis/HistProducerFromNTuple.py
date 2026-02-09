@@ -83,6 +83,7 @@ def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
         if dims > 1
         else [f"{var}_bin"]
     )
+
     rdf_filtered = rdf.Filter(filter_to_apply)
     if dims >= 1 and dims <= 3:
         mkhist_fn = getattr(rdf_filtered, f"Histo{dims}D")
@@ -186,35 +187,6 @@ def SaveTmpFileUnc(
     tmp_files.append(tmp_file)
 
 
-def CreateFakeStructure(outFile, setup, var, key_filter_dict, further_cuts):
-    hist_cfg_dict = setup.hists
-    channels = setup.global_params["channels_to_consider"]
-
-    for filter_key in key_filter_dict.keys():
-        print(filter_key)
-        for further_cut_name in [None] + list(further_cuts.keys()):
-            var_entry = HistHelper.findBinEntry(hist_cfg_dict, args.var)
-            dims = (
-                1
-                if not hist_cfg_dict[var_entry].get("var_list", False)
-                else len(hist_cfg_dict[var_entry]["var_list"])
-            )
-            model, unit_bin_model = HistHelper.GetModel(
-                hist_cfg_dict, var, dims, return_unit_bin_model=True
-            )
-            nbins = unit_bin_model.fNbinsX
-            xmin = -0.5
-            xmax = unit_bin_model.fNbinsX - 0.5
-            empty_hist = ROOT.TH1F(var, var, nbins, xmin, xmax)
-            empty_hist.Sumw2()
-            key_tuple = filter_key
-            if further_cut_name:
-                key_tuple += (further_cut_name,)
-            SaveHist(
-                key_tuple, outFile, [(model, empty_hist)], var, "Central", "Central"
-            )
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("inputFiles", nargs="+", type=str)
@@ -256,39 +228,9 @@ if __name__ == "__main__":
     for key in unique_keys:
         if not key.startswith(treeName):
             continue
-        valid_files = []
-        has_entries = False
-        for f in all_infiles:
-            rf = ROOT.TFile.Open(f)
-            if rf and rf.Get(key):
-                tree = rf.Get(key)
-                if tree and tree.GetEntries() > 0:
-                    has_entries = True
-                    valid_files.append(f)
-            rf.Close()
 
-        if valid_files and has_entries:
-            base_rdfs[key] = ROOT.RDataFrame(key, Utilities.ListToVector(valid_files))
-            ROOT.RDF.Experimental.AddProgressBar(base_rdfs[key])
-        else:
-            print(f"{key} tree not found or with 0 entries: fake structure creation")
-            outFile_root = ROOT.TFile(args.outFile, "UPDATE")
-            key_filter_dict = analysis.createKeyFilterDict(
-                setup.global_params, setup.global_params["era"]
-            )
-            further_cuts = {}
-            if args.furtherCut:
-                further_cuts = {f: (f, f) for f in args.furtherCut.split(",")}
-            if (
-                "further_cuts" in setup.global_params
-                and setup.global_params["further_cuts"]
-            ):
-                further_cuts.update(setup.global_params["further_cuts"])
-            CreateFakeStructure(
-                outFile_root, setup, args.var, key_filter_dict, further_cuts
-            )
-            outFile_root.Close()
-            continue
+        base_rdfs[key] = ROOT.RDataFrame(key, Utilities.ListToVector(all_infiles))
+        ROOT.RDF.Experimental.AddProgressBar(base_rdfs[key])
 
     further_cuts = {}
     if args.furtherCut:

@@ -141,8 +141,18 @@ def mergeAnaTuples(
     input_reports,
     input_roots,
     root_outputs,
-    snapshot_options,
+    compression_algo="LZMA",
+    compression_level=9,
 ):
+
+    snapshot_options = ROOT.RDF.RSnapshotOptions()
+    snapshot_options.fOverwriteIfExists = False
+    snapshot_options.fLazy = False
+    snapshot_options.fMode = "UPDATE"
+    snapshot_options.fCompressionAlgorithm = getattr(
+        ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + compression_algo
+    )
+    snapshot_options.fCompressionLevel = compression_level
 
     if not is_data:
         dataset_cfg = setup.datasets[dataset_name]
@@ -273,15 +283,6 @@ if __name__ == "__main__":
         os.environ["ANALYSIS_PATH"], args.period, args.customisations
     )
 
-    snapshotOptions = ROOT.RDF.RSnapshotOptions()
-    snapshotOptions.fOverwriteIfExists = False
-    snapshotOptions.fLazy = False
-    snapshotOptions.fMode = "UPDATE"
-    snapshotOptions.fCompressionAlgorithm = getattr(
-        ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + args.compression_algo
-    )
-    snapshotOptions.fCompressionLevel = args.compression_level
-
     report_files = DeserializeObjectFromString(args.input_reports)
     reports = {}
     for ds_name, report_files in report_files.items():
@@ -298,5 +299,6 @@ if __name__ == "__main__":
         input_reports=reports,
         input_roots=args.input_roots,
         root_outputs=args.root_outputs,
-        snapshot_options=snapshotOptions,
+        compression_algo=args.compression_algo,
+        compression_level=args.compression_level,
     )

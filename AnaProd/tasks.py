@@ -5,6 +5,7 @@ import luigi
 import os
 import shutil
 import re
+import yaml
 
 from FLAF.RunKit.run_tools import ps_call, natural_sort
 from FLAF.run_tools.law_customizations import Task, HTCondorWorkflow, copy_param
@@ -14,6 +15,7 @@ from FLAF.Common.Utilities import (
     SerializeObjectToString,
 )
 from .AnaTupleFileList import CreateMergeStrategy
+from .MergeAnaTuples import mergeAnaTuples
 
 
 class InputFileTask(Task, law.LocalWorkflow):
@@ -585,9 +587,6 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ]
 
     def run(self):
-        producer_Merge = os.path.join(
-            self.ana_path(), "FLAF", "AnaProd", "MergeAnaTuples.py"
-        )
         (
             dataset_name,
             process_group,
@@ -632,30 +631,26 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         n_total += len(files)
                 print(f"Localized {n_total} {key} inputs")
 
-            local_json_files_str = SerializeObjectToString(local_inputs["json"])
+            reports = {}
+            for ds_name, report_files in local_inputs["json"].items():
+                reports[ds_name] = []
+                for report_file in report_files:
+                    with open(report_file, "r") as f:
+                        reports[ds_name].append(yaml.safe_load(f))
+
             local_root_inputs = []
             for ds_name, files in local_inputs["root"].items():
                 local_root_inputs.extend(files)
-            cmd = [
-                "python3",
-                "-u",
-                producer_Merge,
-                "--period",
-                self.period,
-                "--work-dir",
-                job_home,
-                "--dataset",
-                dataset_name,
-                "--root-outputs",
-                *tmpFiles,
-                "--input-reports",
-                local_json_files_str,
-                "--input-roots",
-                *local_root_inputs,
-            ]
-            if is_data:
-                cmd.append("--is-data")
-            ps_call(cmd, verbose=1)
+
+            mergeAnaTuples(
+                setup=self.setup,
+                dataset_name=dataset_name,
+                is_data=is_data,
+                work_dir=job_home,
+                input_reports=reports,
+                input_roots=local_root_inputs,
+                root_outputs=tmpFiles,
+            )
 
         for outFile, tmpFile in zip(self.output(), tmpFiles):
             with outFile.localize("w") as tmp_local_file:
@@ -669,8 +664,6 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 for ds_name, files in source.items():
                     for remote_targets in files:
                         remote_targets[idx].remove()
-                        with remote_targets[idx].localize("w") as tmp_local_file:
-                            tmp_local_file.touch()  # Create a dummy to avoid dependency crashes
 
         if remove_job_home:
             shutil.rmtree(job_home)

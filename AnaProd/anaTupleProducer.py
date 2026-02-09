@@ -161,7 +161,7 @@ def createAnatuple(
     report["output_files"] = []
 
     shape_sources = [central]
-    if "pu" in corrections.to_apply:
+    if "pu" in corrections.to_apply and compute_unc_variations:
         shape_sources += puWeightProducer.uncSource
 
     report["denominator"] = {}

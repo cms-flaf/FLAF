@@ -132,7 +132,7 @@ def createAnalysisCache(
 ):
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
-    isData = setup.datasets[dataset_name]["process_group"] == "data"
+    isData = dataset_name == "data"
     
     scale_uncertainties = set()
     if setup.global_params["compute_unc_variations"]:

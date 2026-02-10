@@ -1331,68 +1331,27 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     branch_idx += 1
         return branches
 
-    # @workflow_condition.output
-    # def output(self):
-    #     sample_name, producer_name, _ = self.branch_data
-    #     extension = self.global_params["payload_producers"][producer_name].get("save_as", "root")
-    #     output_name = f"aggregatedCache.{extension}"
-    #     output_path = os.path.join(
-    #         "AggregatedAnalysisCache",
-    #         self.version,
-    #         self.period,
-    #         sample_name,
-    #         producer_name,
-    #         output_name,
-    #     )
-    #     return self.remote_target(output_path, fs=self.fs_anaTuple)
-    
     @workflow_condition.output
     def output(self):
         sample_name, producer_name, _ = self.branch_data
         extension = self.global_params["payload_producers"][producer_name].get("save_as", "root")
         output_name = f"aggregatedCache.{extension}"
-        return self.local_target(sample_name, producer_name, output_name)
-
-    # def run(self):
+        output_path = os.path.join(
+            "AggregatedAnalysisCache",
+            self.version,
+            self.period,
+            sample_name,
+            producer_name,
+            output_name,
+        )
+        return self.remote_target(output_path, fs=self.fs_anaTuple)
+    
+    # @workflow_condition.output
+    # def output(self):
     #     sample_name, producer_name, _ = self.branch_data
-    #     producers = self.global_params["payload_producers"]
-    #     cacheAggregator = os.path.join(
-    #         self.ana_path(), "FLAF", "Analysis", "AnalysisCacheAggregator.py"
-    #     )
-    #     with contextlib.ExitStack() as stack:
-    #         remote_output = self.output()
-
-    #         inputs = self.input()
-    #         local_inputs = [
-    #             stack.enter_context(inp.localize("r")).path
-    #             for inp in inputs
-    #         ]
-
-    #         assert local_inputs, "`local_inputs` must be a non-empty list"
-
-    #         producer_cfg = producers[producer_name]
-    #         ext = producer_cfg.get("save_as", "root")
-
-    #         job_home, remove_job_home = self.law_job_home()
-    #         tmpFile = os.path.join(job_home, f"aggregatedCache_tmp.{ext}")
-    #         aggregate_cmd = [
-    #             "python3",
-    #             cacheAggregator,
-    #             "--outFile",
-    #             tmpFile,
-    #             "--period",
-    #             self.period,
-    #             "--producer",
-    #             producer_name,
-    #         ]
-
-    #         aggregate_cmd.append("--inputFiles")
-    #         aggregate_cmd.extend(local_inputs)
-    #         ps_call(aggregate_cmd, verbose=1)
-
-    #         with remote_output.localize("w") as tmp_local_file:
-    #             out_local_path = tmp_local_file.path
-    #             shutil.move(tmpFile, out_local_path)
+    #     extension = self.global_params["payload_producers"][producer_name].get("save_as", "root")
+    #     output_name = f"aggregatedCache.{extension}"
+    #     return self.local_target(sample_name, producer_name, output_name)
 
     def run(self):
         sample_name, producer_name, _ = self.branch_data
@@ -1401,15 +1360,19 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self.ana_path(), "FLAF", "Analysis", "AnalysisCacheAggregator.py"
         )
         with contextlib.ExitStack() as stack:
-            local_output = self.output()
+            remote_output = self.output()
+
             inputs = self.input()
             local_inputs = [
                 stack.enter_context(inp.localize("r")).path
                 for inp in inputs
             ]
+
             assert local_inputs, "`local_inputs` must be a non-empty list"
+
             producer_cfg = producers[producer_name]
             ext = producer_cfg.get("save_as", "root")
+
             job_home, remove_job_home = self.law_job_home()
             tmpFile = os.path.join(job_home, f"aggregatedCache_tmp.{ext}")
             aggregate_cmd = [
@@ -1424,13 +1387,52 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 "--LAWrunVersion",
                 self.version,
             ]
+
             aggregate_cmd.append("--inputFiles")
             aggregate_cmd.extend(local_inputs)
             ps_call(aggregate_cmd, verbose=1)
+
+            with remote_output.localize("w") as tmp_local_file:
+                out_local_path = tmp_local_file.path
+                shutil.move(tmpFile, out_local_path)
+
+    # def run(self):
+    #     sample_name, producer_name, _ = self.branch_data
+    #     producers = self.global_params["payload_producers"]
+    #     cacheAggregator = os.path.join(
+    #         self.ana_path(), "FLAF", "Analysis", "AnalysisCacheAggregator.py"
+    #     )
+    #     with contextlib.ExitStack() as stack:
+    #         local_output = self.output()
+    #         inputs = self.input()
+    #         local_inputs = [
+    #             stack.enter_context(inp.localize("r")).path
+    #             for inp in inputs
+    #         ]
+    #         assert local_inputs, "`local_inputs` must be a non-empty list"
+    #         producer_cfg = producers[producer_name]
+    #         ext = producer_cfg.get("save_as", "root")
+    #         job_home, remove_job_home = self.law_job_home()
+    #         tmpFile = os.path.join(job_home, f"aggregatedCache_tmp.{ext}")
+    #         aggregate_cmd = [
+    #             "python3",
+    #             cacheAggregator,
+    #             "--outFile",
+    #             tmpFile,
+    #             "--period",
+    #             self.period,
+    #             "--producer",
+    #             producer_name,
+    #             "--LAWrunVersion",
+    #             self.version,
+    #         ]
+    #         aggregate_cmd.append("--inputFiles")
+    #         aggregate_cmd.extend(local_inputs)
+    #         ps_call(aggregate_cmd, verbose=1)
             
-            # For local target: ensure parent directory exists and move directly
-            out_local_path = local_output.path
-            local_output.parent.touch()  # Creates parent directories if needed
-            shutil.move(tmpFile, out_local_path)
+    #         # For local target: ensure parent directory exists and move directly
+    #         out_local_path = local_output.path
+    #         local_output.parent.touch()  # Creates parent directories if needed
+    #         shutil.move(tmpFile, out_local_path)
 
 

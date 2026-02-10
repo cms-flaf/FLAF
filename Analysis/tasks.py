@@ -62,7 +62,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             for var_name in flatten_vars:
                 producer_to_run = var_produced_by.get(var_name, None)
                 if producer_to_run is not None:
-                    producer_cfg = self.global_params[producer_to_run]
+                    producers_cfgs = self.global_params["payload_producers"]
+                    producer_cfg = producers_cfgs[producer_to_run]
                     needs_aggregation = producer_cfg.get("needs_aggregation", False)
                     if needs_aggregation:
                         producers_to_aggregate.append(producer_to_run)

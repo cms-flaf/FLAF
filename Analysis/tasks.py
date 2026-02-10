@@ -177,7 +177,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         if producers_to_aggregate:
             # need to set to dependencies of this branch all branches of 
             # AnalysisCacheAggregationTask that have this dataset_name and these producers (producers_to_aggregate)
-            aggr_ana_cache_branches = []
+            # there might caches made by different producers for given dataset to aggregate
+            # so collect them all in a dict
+            aggr_ana_cache_producer_branch_map = {}
 
             aggr_ana_cache_branch_map = AnalysisCacheAggregationTask.req(
                 self, branch=-1
@@ -186,12 +188,20 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             # each branch of AnalysisCacheAggregationTask corresponds to one dataset and one producer
             for aggr_ana_cache_br_idx, (agg_ana_cache_sample, aggr_ana_cache_producer, _) in aggr_ana_cache_branch_map.items():
                 if dataset_name == agg_ana_cache_sample and aggr_ana_cache_producer in producers_to_aggregate:
-                    aggr_ana_cache_branches.append(aggr_ana_cache_br_idx)
+                    if aggr_ana_cache_producer not in aggr_ana_cache_producer_branch_map:
+                        aggr_ana_cache_producer_branch_map[aggr_ana_cache_producer] = []
+                    aggr_ana_cache_producer_branch_map[aggr_ana_cache_producer].append(aggr_ana_cache_br_idx)
 
-            deps["aggrAnaCaches"] = AnalysisCacheAggregationTask.req(
-                self,
-                branches=tuple(aggr_ana_cache_branches),
-            )
+            aggrAnaCaches = {}
+            for producer_name, aggr_ana_cache_br_indices in aggr_ana_cache_producer_branch_map.items():
+                assert len(aggr_ana_cache_br_indices) == 1, "There must be exactly 1 aggregation branch for each producer."
+                aggrAnaCaches[producer_name] = AnalysisCacheAggregationTask.req(
+                    self,
+                    branch=aggr_ana_cache_br_indices[0],
+                )
+                
+            if aggrAnaCaches:
+                deps["aggrAnaCaches"] = aggrAnaCaches
 
         return deps
 
@@ -1319,7 +1329,6 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 for sample_name, list_of_producer_cache_keys in sample_branch_map.items():
                     branches[branch_idx] = (sample_name, producer_name, list_of_producer_cache_keys)
                     branch_idx += 1
-        
         return branches
 
     # @workflow_condition.output

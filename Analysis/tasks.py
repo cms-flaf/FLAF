@@ -1180,6 +1180,8 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     self.ana_path(),
                     "--period",
                     self.period,
+                    "--LAWrunVersion",
+                    self.version,
                 ]
                 if plot_wantData:
                     cmd.append("--wantData")

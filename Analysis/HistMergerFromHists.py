@@ -129,7 +129,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     startTime = time.time()
 
-    setup = Setup.Setup(os.environ["ANALYSIS_PATH"], args.LAWrunVersion, args.period)
+    setup = Setup.Setup(os.environ["ANALYSIS_PATH"], args.period, args.LAWrunVersion)
 
     global_cfg_dict = setup.global_params
     unc_cfg_dict = setup.weights_config

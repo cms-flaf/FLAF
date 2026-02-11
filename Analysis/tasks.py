@@ -24,11 +24,11 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     def workflow_requires(self):
         producers_to_aggregate = []
-        corrections_cfg = self.global_params["corrections"]
-        btag_corr_cfg = corrections_cfg["btag"]
-        btag_corr_mode = btag_corr_cfg["modes"]["HistTuple"]
-        if btag_corr_mode == "shape":
-            producers_to_aggregate.append("BtagShape")
+        # corrections_cfg = self.global_params["corrections"]
+        # btag_corr_cfg = corrections_cfg["btag"]
+        # btag_corr_mode = btag_corr_cfg["modes"]["HistTuple"]
+        # if btag_corr_mode == "shape":
+        #     producers_to_aggregate.append("BtagShape")
 
         merge_organization_complete = AnaTupleFileListTask.req(
             self, branches=()
@@ -1241,7 +1241,7 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             # find which producers need aggregation and add their cache to dependencies of the task
             producers_to_aggregate = []
             for producer_name, producer_cfg in payload_producers.items():
-                needs_aggregation = producer_cfg.get("needs_aggregation", None)
+                needs_aggregation = producer_cfg.get("needs_aggregation", False)
                 if needs_aggregation:
                     producers_to_aggregate.append(
                         AnalysisCacheTask.req(
@@ -1260,7 +1260,7 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         
         producers_to_aggregate = []
         for producer_name, producer_cfg in payload_producers.items():
-            needs_aggregation = producer_cfg.get("needs_aggregation", None)
+            needs_aggregation = producer_cfg.get("needs_aggregation", False)
             if needs_aggregation:
                 producers_cache_branch_map = AnalysisCacheTask.req(
                     self, branch=-1, branches=(), producer_to_run=producer_name
@@ -1284,17 +1284,36 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     def requires(self):
         sample_name, producer_name, list_of_producer_cache_keys = self.branch_data
-        reqs = [
-            AnalysisCacheTask.req(
-                self,
-                max_runtime=AnalysisCacheTask.max_runtime._default,
-                branch=prod_br,
-                branches=(prod_br,),
-                customisations=self.customisations,
-                producer_to_run=producer_name,
-            )
-            for prod_br in list_of_producer_cache_keys
-        ]
+        payload_producers = self.global_params["payload_producers"]
+        producer_cfg = payload_producers[producer_name]
+        ignore_data = producer_cfg.get("ignore_data", False)
+        needs_aggregation = producer_cfg.get("needs_aggregation", False)
+        reqs = []
+        if needs_aggregation:
+            if ignore_data:           
+                reqs = [
+                    AnalysisCacheTask.req(
+                        self,
+                        max_runtime=AnalysisCacheTask.max_runtime._default,
+                        branch=prod_br,
+                        branches=(prod_br,),
+                        customisations=self.customisations,
+                        producer_to_run=producer_name,
+                    )
+                    for prod_br in list_of_producer_cache_keys if sample_name != "data"
+                ]
+            else:
+                reqs = [
+                    AnalysisCacheTask.req(
+                        self,
+                        max_runtime=AnalysisCacheTask.max_runtime._default,
+                        branch=prod_br,
+                        branches=(prod_br,),
+                        customisations=self.customisations,
+                        producer_to_run=producer_name,
+                    )
+                    for prod_br in list_of_producer_cache_keys
+                ]
         return reqs
 
     @workflow_condition.create_branch_map
@@ -1310,7 +1329,7 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         # for each producer compute its branch map if it needs aggregation
         # and save all branches of this producer to list
         for producer_name, producer_cfg in payload_producers.items():
-            needs_aggregation = producer_cfg.get("needs_aggregation", None)
+            needs_aggregation = producer_cfg.get("needs_aggregation", False)
             ignore_data = producer_cfg.get("ignore_data", False)
             if needs_aggregation:
                 producer_cache_branch_map = AnalysisCacheTask.req(

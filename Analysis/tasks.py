@@ -710,6 +710,8 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             channels,
                             "--period",
                             self.period,
+                            "--LAWrunVersion",
+                            self.version,
                         ]
                         MergerProducer_cmd.extend(local_inputs)
                         ps_call(MergerProducer_cmd, verbose=1)
@@ -741,6 +743,8 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             outFile.path,
                             "--var",
                             var_name,
+                            "--LAWrunVersion",
+                            self.version,
                         ]
                         HaddMergedHistsProducer_cmd.extend(local_merged_files)
                         ps_call(HaddMergedHistsProducer_cmd, verbose=1)

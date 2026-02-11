@@ -23,7 +23,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
 
     def workflow_requires(self):
-        producers_to_aggregate = []
+        # producers_to_aggregate = []
         # corrections_cfg = self.global_params["corrections"]
         # btag_corr_cfg = corrections_cfg["btag"]
         # btag_corr_mode = btag_corr_cfg["modes"]["HistTuple"]
@@ -62,12 +62,11 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             for var_name in flatten_vars:
                 producer_to_run = var_produced_by.get(var_name, None)
                 if producer_to_run is not None:
-                    producers_cfgs = self.global_params["payload_producers"]
-                    producer_cfg = producers_cfgs[producer_to_run]
-                    needs_aggregation = producer_cfg.get("needs_aggregation", False)
-                    if needs_aggregation:
-                        producers_to_aggregate.append(producer_to_run)
-                    producers_to_aggregate.append(producer_to_run)
+                    # producers_cfgs = self.global_params["payload_producers"]
+                    # producer_cfg = producers_cfgs[producer_to_run]
+                    # needs_aggregation = producer_cfg.get("needs_aggregation", False)
+                    # if needs_aggregation:
+                    #     producers_to_aggregate.append(producer_to_run)
                     req_dict["AnalysisCacheTask"].append(
                         AnalysisCacheTask.req(
                             self,
@@ -77,12 +76,12 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         )
                     )
 
-            if producers_to_aggregate:
-                req_dict["AnalysisCacheAggregationTask"] = AnalysisCacheAggregationTask.req(
-                    self,
-                    branches=(),
-                    customisations=self.customisations,
-                )
+            # if producers_to_aggregate:
+            #     req_dict["AnalysisCacheAggregationTask"] = AnalysisCacheAggregationTask.req(
+            #         self,
+            #         branches=(),
+            #         customisations=self.customisations,
+            #     )
             
             return req_dict
 
@@ -124,12 +123,12 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     )
                 )
 
-        if producers_to_aggregate:
-            reqs["aggregatedAnalysisCache"] = AnalysisCacheAggregationTask.req(
-                self,
-                branches=(),
-                customisations=self.customisations,
-            )
+        # if producers_to_aggregate:
+        #     reqs["aggregatedAnalysisCache"] = AnalysisCacheAggregationTask.req(
+        #         self,
+        #         branches=(),
+        #         customisations=self.customisations,
+        #     )
 
         return reqs
 

@@ -23,13 +23,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
 
     def workflow_requires(self):
-        # producers_to_aggregate = []
-        # corrections_cfg = self.global_params["corrections"]
-        # btag_corr_cfg = corrections_cfg["btag"]
-        # btag_corr_mode = btag_corr_cfg["modes"]["HistTuple"]
-        # if btag_corr_mode == "shape":
-        #     producers_to_aggregate.append("BtagShape")
-
         merge_organization_complete = AnaTupleFileListTask.req(
             self, branches=()
         ).complete()
@@ -62,11 +55,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             for var_name in flatten_vars:
                 producer_to_run = var_produced_by.get(var_name, None)
                 if producer_to_run is not None:
-                    # producers_cfgs = self.global_params["payload_producers"]
-                    # producer_cfg = producers_cfgs[producer_to_run]
-                    # needs_aggregation = producer_cfg.get("needs_aggregation", False)
-                    # if needs_aggregation:
-                    #     producers_to_aggregate.append(producer_to_run)
                     req_dict["AnalysisCacheTask"].append(
                         AnalysisCacheTask.req(
                             self,
@@ -75,13 +63,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             producer_to_run=producer_to_run,
                         )
                     )
-
-            # if producers_to_aggregate:
-            #     req_dict["AnalysisCacheAggregationTask"] = AnalysisCacheAggregationTask.req(
-            #         self,
-            #         branches=(),
-            #         customisations=self.customisations,
-            #     )
             
             return req_dict
 
@@ -123,13 +104,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     )
                 )
 
-        # if producers_to_aggregate:
-        #     reqs["aggregatedAnalysisCache"] = AnalysisCacheAggregationTask.req(
-        #         self,
-        #         branches=(),
-        #         customisations=self.customisations,
-        #     )
-
         return reqs
 
     def requires(self):
@@ -170,9 +144,11 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
        
         corrections_cfg = self.global_params["corrections"]
         btag_corr_cfg = corrections_cfg["btag"]
-        btag_corr_mode = btag_corr_cfg["modes"]["HistTuple"]
-        if dataset_name != "data" and btag_corr_mode == "shape":
-            producers_to_aggregate.append("BtagShape")
+        btag_corr_modes = btag_corr_cfg["modes"]
+        btag_corr_mode = btag_corr_modes.get("HistTuple", None)
+        if btag_corr_mode:
+            if dataset_name != "data" and btag_corr_mode == "shape":
+                producers_to_aggregate.append("BtagShape")
 
         if producers_to_aggregate:
             # need to set to dependencies of this branch all branches of 
@@ -497,6 +473,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 var,
                 "--dataset_name",
                 dataset_name,
+                "--LAWrunVersion",
+                self.version,
             ]
             if compute_unc_histograms:
                 HistFromNtupleProducer_cmd.extend(
@@ -702,6 +680,8 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         channels,
                         "--period",
                         self.period,
+                        "--LAWrunVersion",
+                        self.version,
                     ]
                     MergerProducer_cmd.extend(local_inputs)
                     ps_call(MergerProducer_cmd, verbose=1)

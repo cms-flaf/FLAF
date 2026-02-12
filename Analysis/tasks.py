@@ -660,7 +660,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         )
         RenameHistsProducer = os.path.join(
             self.ana_path(), "FLAF", "Analysis", "renameHists.py"
-        )
+        ) # this one is not used
 
         input_dir = os.path.join("hists", self.version, self.period, var_name)
         input_dir_remote = self.remote_dir_target(input_dir, fs=self.fs_HistTuple)
@@ -756,8 +756,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             outFile.path,
                             "--var",
                             var_name,
-                            "--LAWrunVersion",
-                            self.version,
                         ]
                         HaddMergedHistsProducer_cmd.extend(local_merged_files)
                         ps_call(HaddMergedHistsProducer_cmd, verbose=1)

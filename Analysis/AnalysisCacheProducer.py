@@ -134,6 +134,7 @@ def createAnalysisCache(
     unc_cfg_dict = setup.weights_config
     isData = dataset_name == "data"
     
+    Utilities.InitializeCorrections(setup, dataset_name, stage="AnalysisCache")
     scale_uncertainties = set()
     if setup.global_params["compute_unc_variations"]:
         scale_uncertainties.update(unc_cfg_dict["shape"].keys())

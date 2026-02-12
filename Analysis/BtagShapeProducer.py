@@ -86,7 +86,6 @@ class BtagShapeProducer:
         df_is_central,
         isData,
     ):
-        Utilities.InitializeCorrections(setup, dataset_name, stage="AnalysisCache")
         histTupleDef.Initialize()
         histTupleDef.analysis_setup(setup)
 

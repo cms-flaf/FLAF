@@ -641,7 +641,12 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             local_root_inputs = []
             for ds_name, files in local_inputs["root"].items():
                 local_root_inputs.extend(files)
-
+            customisation_dict = getCustomisationSplit(self.customisations)
+            compute_unc_variations = (
+                customisation_dict["compute_unc_variations"] == "True"
+                if "compute_unc_variations" in customisation_dict.keys()
+                else self.global_params.get("compute_unc_variations", False)
+            )
             mergeAnaTuples(
                 setup=self.setup,
                 dataset_name=dataset_name,
@@ -650,7 +655,10 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 input_reports=reports,
                 input_roots=local_root_inputs,
                 root_outputs=tmpFiles,
+                compute_unc_variations=compute_unc_variations,
             )
+
+
 
         for outFile, tmpFile in zip(self.output(), tmpFiles):
             with outFile.localize("w") as tmp_local_file:

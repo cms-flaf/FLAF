@@ -141,7 +141,6 @@ def mergeAnaTuples(
     input_reports,
     input_roots,
     root_outputs,
-    compute_unc_variations=True,
     compression_algo="LZMA",
     compression_level=9,
 ):
@@ -281,7 +280,6 @@ if __name__ == "__main__":
     parser.add_argument("--compression-level", type=int, default=9)
     parser.add_argument("--compression-algo", type=str, default="LZMA")
     parser.add_argument("--is-data", action="store_true")
-    parser.add_argument("--compute-unc-variations", action="store_true")
     args = parser.parse_args()
 
     setup = Setup.getGlobal(
@@ -304,7 +302,6 @@ if __name__ == "__main__":
         input_reports=reports,
         input_roots=args.input_roots,
         root_outputs=args.root_outputs,
-        compute_unc=args.compute_unc_variations,
         compression_algo=args.compression_algo,
         compression_level=args.compression_level,
     )

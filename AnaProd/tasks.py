@@ -6,16 +6,11 @@ import os
 import shutil
 import re
 import yaml
-import yaml
 
 from FLAF.RunKit.run_tools import ps_call, natural_sort
 from FLAF.run_tools.law_customizations import Task, HTCondorWorkflow, copy_param
-from FLAF.Common.Utilities import (
-    getCustomisationSplit,
-    ServiceThread,
-    SerializeObjectToString,
-)
-from .AnaTupleFileList import CreateMergeStrategy
+from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
+from .AnaTupleFileList import CreateMergePlan
 from .MergeAnaTuples import mergeAnaTuples
 
 
@@ -636,50 +631,28 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ]
         print(f"dataset: {dataset_name}")
         with contextlib.ExitStack() as stack:
-            remote_inputs = {
-                "root": {
-                    "index": 0,
-                    "sources": [self.input()["root"]],
-                },
-                "json": {
-                    "index": 1,
-                    "sources": [self.input()["root"], self.input()["json"]],
-                },
-            }
-            local_inputs = {}
-            for key, entry in remote_inputs.items():
-                print(f"Localizing {key} inputs")
-                n_total = 0
-                local_inputs[key] = {}
-                index = entry["index"]
-                for source in entry["sources"]:
-                    for ds_name, files in source.items():
-                        if ds_name not in local_inputs[key]:
-                            local_inputs[key][ds_name] = []
-                        for file_list in files:
-                            local_input = stack.enter_context(
-                                file_list[index].localize("r")
-                            ).path
-                            local_inputs[key][ds_name].append(local_input)
-                        n_total += len(files)
-                print(f"Localized {n_total} {key} inputs")
 
-            reports = {}
-            for ds_name, report_files in local_inputs["json"].items():
-                reports[ds_name] = []
-                for report_file in report_files:
-                    with open(report_file, "r") as f:
-                        reports[ds_name].append(yaml.safe_load(f))
-
+            print("Localizing root inputs")
             local_root_inputs = []
-            for ds_name, files in local_inputs["root"].items():
-                local_root_inputs.extend(files)
-            customisation_dict = getCustomisationSplit(self.customisations)
-            compute_unc_variations = (
-                customisation_dict["compute_unc_variations"] == "True"
-                if "compute_unc_variations" in customisation_dict.keys()
-                else self.global_params.get("compute_unc_variations", False)
-            )
+            for ds_name, files in self.input()["root"].items():
+                for file_list in files:
+                    local_input = stack.enter_context(
+                        file_list["root"].localize("r")
+                    ).path
+                    local_root_inputs.append(local_input)
+            print(f"Localized {len(local_root_inputs)} root inputs")
+
+            print("Localizing reports")
+            reports = {}
+            for ds_name, file_list in self.input()["json"].items():
+                report_file = stack.enter_context(
+                    file_list["reports"].localize("r")
+                ).path
+                with open(report_file, "r") as f:
+                    ds_reports = yaml.safe_load(f)
+                reports[ds_name] = list(ds_reports.values())
+            print(f"Localized {len(reports)} reports")
+
             mergeAnaTuples(
                 setup=self.setup,
                 dataset_name=dataset_name,
@@ -688,7 +661,6 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 input_reports=reports,
                 input_roots=local_root_inputs,
                 root_outputs=tmpFiles,
-                compute_unc_variations=compute_unc_variations,
             )
 
         for outFile, tmpFile in zip(self.output(), tmpFiles):
@@ -697,12 +669,11 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 shutil.move(tmpFile, out_local_path)
 
         if self.delete_inputs_after_merge:
-            print(f"Finished merging, lets delete remote targets")
-            idx = remote_inputs["root"]["index"]
-            for source in remote_inputs["root"]["sources"]:
-                for ds_name, files in source.items():
-                    for remote_targets in files:
-                        remote_targets[idx].remove()
+            print(f"Finished merging, lets delete remote AnaTupleFile targets")
+            for ds_name, files in self.input()["root"].items():
+                for remote_targets in files:
+                    for target in remote_targets:
+                        target.remove()
 
         if remove_job_home:
             shutil.rmtree(job_home)

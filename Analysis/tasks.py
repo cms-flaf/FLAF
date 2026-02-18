@@ -137,7 +137,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         producers_to_aggregate = []
         for producer_name in producer_list:
             if producer_name:
-                producer_cfg = self.global_params["payload_producers"][producer_name]
+                payload_producers = self.global_params.get("payload_producers")
+                if not payload_producers:
+                    continue
+                producer_cfg = payload_producers[producer_name]
                 needs_aggregation = producer_cfg.get("needs_aggregation", False)
                 ignore_data = producer_cfg.get("ignore_data", False)
                 is_data = dataset_name == "data"

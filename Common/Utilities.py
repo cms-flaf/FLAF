@@ -394,7 +394,8 @@ def create_processor_instances(global_params, processor_entries, stage, verbose=
             processor_instances[p_name] = processor
     return processor_instances
 
-WPInit=False
+
+WPInit = False
 
 
 def InitializeCorrections(setup, dataset_name, stage):

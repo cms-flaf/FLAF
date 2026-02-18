@@ -691,8 +691,6 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 compute_unc_variations=compute_unc_variations,
             )
 
-
-
         for outFile, tmpFile in zip(self.output(), tmpFiles):
             with outFile.localize("w") as tmp_local_file:
                 out_local_path = tmp_local_file.path

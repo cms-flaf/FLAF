@@ -395,9 +395,12 @@ def create_processor_instances(global_params, processor_entries, stage, verbose=
     return processor_instances
 
 WPInit=False
+
+
 def InitializeCorrections(setup, dataset_name, stage):
     from Corrections.Corrections import Corrections
     import FLAF.Common.triggerSel as Triggers
+
     global WPInit
     if not WPInit:
         headers_dir = os.path.dirname(os.path.abspath(__file__))
@@ -422,7 +425,7 @@ def InitializeCorrections(setup, dataset_name, stage):
             WorkingPointsMuonID,
         ]:
             ROOT.gInterpreter.Declare(f"{generate_enum_class(wpcl)}")
-        WPInit=True
+        WPInit = True
     isData = dataset_name == "data"
     dataset_cfg = {} if isData else setup.datasets[dataset_name]
     process_name = "data" if isData else dataset_cfg["process_name"]

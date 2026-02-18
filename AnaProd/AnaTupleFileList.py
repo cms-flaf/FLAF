@@ -1,95 +1,99 @@
 import os
 import json
 
-if __name__ == "__main__":
-    import argparse
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("inputFile", nargs="+", type=str)
-    parser.add_argument("--outFile", required=True, type=str)
-    parser.add_argument("--test", required=False, type=bool, default=False)
-    parser.add_argument("--remove-files", required=False, type=bool, default=False)
-    parser.add_argument("--nEventsPerFile", required=False, type=int, default=100_000)
-    parser.add_argument("--isData", required=False, type=bool, default=False)
-    parser.add_argument("--lumi", required=False, type=float, default=None)
-    parser.add_argument(
-        "--nPbPerFile", required=False, type=int, default=1_000
-    )  # 1fb-1 per split data file
+def CreateMergePlan(setup, local_inputs, n_events_per_file, is_data):
+    """Create a merge plan for either data or MC.
 
-    args = parser.parse_args()
+    Args:
+        setup (Setup): FLAF setup object
+        local_inputs (list[str]): list of input report file paths
+        n_events_per_file (int): an aproximate number of events per output file. The goal is to have output files with a number of events close to this value, so it is not guaranteed that the actual number of events is less or equal to this value.
+        is_data (bool): data or MC
 
-    # 1 list files :
-    all_files = [fileName for fileName in args.inputFile]
+    Returns:
+        dict: merge plan and combined reports
+    """
 
-    nEventsCounter = 0
-    hadd_dict = {}
-    nFileCounter = 0
-    hadd_dict["merge_strategy"] = []
-    input_file_list = []
-    output_file_list = []
-    # hadd_dict[f'anaTuple_{nFileCounter}.root'] = []
-    for this_json in all_files:
-        with open(this_json, "r") as file:
+    combined_reports = {}
+    for report in local_inputs:
+        with open(report, "r") as file:
             data = json.load(file)
+        key = os.path.join(data["dataset_name"], data["anaTuple_file_name"])
+        if key in combined_reports:
+            raise ValueError(f"Duplicate report for file {key}")
+        combined_reports[key] = data
 
-            nEvents = data["n_events"]
-            nEventsCounter += nEvents
-            dataset_name = data["dataset_name"]
-            file_name = os.path.join(dataset_name, data["nano_file_name"])
-            input_file_list.append(file_name)
+    if is_data:
+        plan = CreateDataMergePlan(setup, combined_reports, n_events_per_file)
+    else:
+        plan = CreateMCMergePlan(combined_reports, n_events_per_file)
+    return {"plan": plan, "reports": combined_reports}
 
-            if nEventsCounter > args.nEventsPerFile and not args.isData:
-                output_file_list.append(f"anaTuple_{nFileCounter}.root")
-                hadd_dict["merge_strategy"].append(
-                    {
-                        "inputs": input_file_list,
-                        "outputs": output_file_list,
-                        "n_events": nEventsCounter,
-                    }
+
+def CreateMCMergePlan(input_reports, n_events_per_file, oversize_tolerance=1.2):
+    assert n_events_per_file > 0
+    input_files = {}
+    for file_path, data in input_reports.items():
+        input_files[file_path] = data["n_events"]
+
+    merge_plan = []
+    while len(input_files) > 0:
+        file_idx = len(merge_plan)
+        out_file_name = f"anaTuple_{file_idx}.root"
+        merge = {
+            "inputs": [],
+            "outputs": [out_file_name],
+            "n_events": 0,
+        }
+        for file, n_events in input_files.items():
+            n_old = merge["n_events"]
+            n_new = n_old + n_events
+            delta_old = abs(n_old - n_events_per_file)
+            delta_new = abs(n_new - n_events_per_file)
+            if (
+                n_old == 0
+                or n_events == 0
+                or (
+                    delta_new <= delta_old
+                    and n_new <= n_events_per_file * oversize_tolerance
                 )
-                nEventsCounter = 0
-                nFileCounter += 1
-                output_file_list = []
-                input_file_list = []
+            ):
+                merge["inputs"].append(file)
+                merge["n_events"] += n_events
 
-    # Append whatever is leftover
-    if len(input_file_list) > 0 and not args.isData:
-        # Had leftover files, so we need to add them to the output
-        output_file_list.append(f"anaTuple_{nFileCounter}.root")
-        nFileCounter += 1
-        hadd_dict["merge_strategy"].append(
-            {
-                "inputs": input_file_list,
-                "outputs": output_file_list,
-                "n_events": nEventsCounter,
-            }
-        )
-        input_file_list = []
-        output_file_list = []
+        for input_file in merge["inputs"]:
+            del input_files[input_file]
+        merge_plan.append(merge)
 
-    # If data, then just do the lumi look-up and calculate the nFiles for splitting
-    if args.isData:
-        if hasattr(args, "lumi") and hasattr(args, "nPbPerFile"):
-            print("Inside the final data part")
-            nPbPerFile = args.nPbPerFile
-            lumi = args.lumi
-            nFiles = (
-                int(lumi / nPbPerFile) + 1
-            )  # Need to add 1 since int will floor the division
-            for nFileCounter in range(nFiles):
-                output_file_list.append(f"anaTuple_{nFileCounter}.root")
-            hadd_dict["merge_strategy"].append(
-                {
-                    "inputs": input_file_list,
-                    "outputs": output_file_list,
-                    "n_events": nEventsCounter,
-                }
-            )
-        else:
-            raise ValueError(
-                "For data, you need to provide --lumi and --nPbPerFile arguments."
-            )
+    return merge_plan
 
-    jsonName = args.outFile
-    with open(jsonName, "w") as fp:
-        json.dump(hadd_dict, fp)
+
+def CreateDataMergePlan(setup, input_reports, n_events_per_file):
+    assert n_events_per_file > 0
+    input_files = {}
+    for file_path, data in input_reports.items():
+        dataset_name = data["dataset_name"]
+        dataset = setup.datasets[dataset_name]
+        eraLetter = dataset["eraLetter"]
+        eraVersion = dataset.get("eraVersion", "")
+        output_label = f"{eraLetter}{eraVersion}"
+        if output_label not in input_files:
+            input_files[output_label] = {"files": [], "n_events": 0}
+        input_files[output_label]["files"].append(file_path)
+        input_files[output_label]["n_events"] += data["n_events"]
+
+    merge_plan = []
+    for output_label, inputs in input_files.items():
+        n_outputs = round(inputs["n_events"] / n_events_per_file)
+        n_outputs = max(1, n_outputs)
+        entry = {
+            "inputs": inputs["files"],
+            "outputs": [],
+            "n_events": inputs["n_events"],
+        }
+        for i in range(n_outputs):
+            output_file = f"anaTuple_{output_label}_{i}.root"
+            entry["outputs"].append(output_file)
+        merge_plan.append(entry)
+    return merge_plan

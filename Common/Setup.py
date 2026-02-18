@@ -473,7 +473,18 @@ class Setup:
         if path_to_check.startswith("/"):
             return path_to_check
         else:
-            return WLCGFileSystem(path_or_paths)
+            cfg = self.global_params.get("WLCGFileSystem", {})
+            cache_validity = cfg.get("localPathCacheValidity", 600)
+            host = cfg.get("remotePathCacheHost", None)
+            port = cfg.get("remotePathCachePort", None)
+            verbose = cfg.get("verbose", 0)
+            return WLCGFileSystem(
+                path_or_paths,
+                local_path_cache_validity_period=cache_validity,
+                path_cache_host=host,
+                path_cache_port=port,
+                verbose=verbose,
+            )
 
     def get_fs(self, fs_name, custom_paths=None):
         fs_instance = None

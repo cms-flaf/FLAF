@@ -115,11 +115,21 @@ def check_era_consistency(era, era_desc, xs_db):
                 print(f"{era}/{name}: unexpected property '{item}'.")
                 all_ok = False
         dirName = desc.get("dirName", name)
-        fileNamePattern = desc.get("fileNamePattern", ".*")
-        source_key = (dirName, fileNamePattern)
-        if source_key not in sources:
-            sources[source_key] = []
-        sources[source_key].append(name)
+        fileNamePattern = ".*"
+        fileNamePatternDict = desc.get("fileNamePattern", {})
+        if fileNamePatternDict:
+            for fileNamePatternKey in fileNamePatternDict.keys():
+                fileNamePattern = fileNamePatternDict.get(fileNamePatternKey, ".*")
+                source_key = (dirName, fileNamePatternKey, fileNamePattern)
+                if source_key not in sources:
+                    sources[source_key] = []
+                sources[source_key].append(name)
+
+        else:
+            source_key = (dirName, fileNamePattern)
+            if source_key not in sources:
+                sources[source_key] = []
+            sources[source_key].append(name)
 
         for item in must_have_properties[datasetType]:
             if item not in desc:

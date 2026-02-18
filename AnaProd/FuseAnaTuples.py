@@ -17,6 +17,7 @@ default_values = {
     "float": np.float32(0.0),
     "double": np.float64(0.0),
     "uint8_t": np.uint8(0),
+    "int8_t": np.int8(0),
     "int16_t": np.int16(0),
 }
 

@@ -306,7 +306,7 @@ if __name__ == "__main__":
 
     saveAs = producer_config.get("save_as", "root")
     if saveAs == "root":
-        hadd_cmd = ["hadd", "-j", args.outFile]
+        hadd_cmd = ["hadd", "-j", "-ff", args.outFile]
         hadd_cmd.extend(tmp_fileNames)
         ps_call(hadd_cmd, verbose=1)
         if os.path.exists(args.outFile) and len(tmp_fileNames) != 0:

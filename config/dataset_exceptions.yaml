@@ -1,4 +1,10 @@
 # DY
+^DYto2L_M_(10to50|50)_amcatnloFXFX:
+  - Run3_2024
+^DYto2L_M_50_[012]J_amcatnloFXFX:
+  - Run3_2024
+^DYto2(E|Mu)_M_50_PTLL_.*_amcatnloFXFX:
+  - Run3_2024
 ^DYto2.*_M_50_amcatnloFXFX_ext1:
   - Run3_2023
   - Run3_2023BPix
@@ -37,6 +43,8 @@ VBFHto2B_M125_ext1:
 ^ZH_Hto2B.*_ext1:
   - Run3_2023
   - Run3_2023BPix
+  - Run3_2024
+^W(plus|minus)H_Hto2B_Wto2Q$:
   - Run3_2024
 
 # QCD

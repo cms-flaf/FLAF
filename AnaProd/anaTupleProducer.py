@@ -91,6 +91,7 @@ def createAnatuple(
     uncertainties,
     anaTupleDef,
     channels,
+    outputName,
     reportOutput=None,
     use_genWeight_sign_only=True,
 ):
@@ -156,12 +157,13 @@ def createAnatuple(
     # run_lumi = [ f"{run}:{lumi}" for run,lumi in zip(runs_val,lumis_val) ]
     # unique_run_lumi = list(set(run_lumi))
     report["nano_file_name"] = inFileName
+    report["anaTuple_file_name"] = outputName
     report["n_original_events"] = nEventsInFile
     report["dataset_name"] = dataset_name
     report["output_files"] = []
 
     shape_sources = [central]
-    if "pu" in corrections.to_apply:
+    if "pu" in corrections.to_apply and compute_unc_variations:
         shape_sources += puWeightProducer.uncSource
 
     report["denominator"] = {}
@@ -397,6 +399,7 @@ if __name__ == "__main__":
     parser.add_argument("--inFileName", required=True, type=str)
     parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--anaTupleDef", required=True, type=str)
+    parser.add_argument("--output-name", required=True, type=str)
     parser.add_argument(
         "--store-noncentral", action="store_true", help="Store ES variations."
     )
@@ -467,4 +470,5 @@ if __name__ == "__main__":
         anaTupleDef=anaTupleDef,
         channels=channels,
         reportOutput=args.reportOutput,
+        outputName=args.output_name,
     )

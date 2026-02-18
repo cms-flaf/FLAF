@@ -201,8 +201,8 @@ def copyFileContent(
                         if out_name in histograms:
                             hist, is_converted = histograms[out_name]
                             if not is_converted:
-                                hist = uproot.to_hist(hist)
-                            new_hist = hist + uproot.to_hist(obj)
+                                hist = hist.to_hist()
+                            new_hist = hist + obj.to_hist()
                             histograms[out_name] = (new_hist, True)
                         else:
                             histograms[out_name] = (obj, False)

@@ -262,9 +262,14 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self.branch_data
         )
         input = self.input()["anaTuple"][input_index]
-        outFileName = f"histTuple_" + os.path.basename(input.path).split("_")[1]
+        input_name = os.path.basename(input.path)
+        outFileName = (
+            f"histTuple_" + os.path.basename(input.path).split("_", 1)[1]
+            if input_name.startswith("anaTuple_")
+            else input_name
+        )
         output_path = os.path.join(
-            "histTuples", self.version, self.period, dataset_name, outFileName
+            self.version, "HistTuples", self.period, dataset_name, outFileName
         )
         return self.remote_target(output_path, fs=self.fs_HistTuple)
 
@@ -431,7 +436,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         if isinstance(var, dict):
             var = var["name"]
         output_path = os.path.join(
-            "hists", self.version, self.period, var, f"{dataset_name}.root"
+            self.version, "Hists_split", self.period, var, f"{dataset_name}.root"
         )
         return self.remote_target(output_path, fs=self.fs_HistTuple)
 
@@ -605,7 +610,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     @workflow_condition.output
     def output(self):
         var_name, br_indices, datasets = self.branch_data
-        output_path = os.path.join("merged_hists", self.version, self.period, var_name)
+        output_path = os.path.join(self.version, "Hists_merged", self.period, var_name)
         output_file_name = os.path.join(output_path, f"{var_name}.root")
         return self.remote_target(output_file_name, fs=self.fs_HistTuple)
 
@@ -889,11 +894,11 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         outFileNameWithoutExtension = os.path.basename(inputFilePath).split('.')[0]
         outFileName = f"{outFileNameWithoutExtension}.{self.output_file_extension}"
         output_path = os.path.join(
-            "AnalysisCache",
             self.version,
+            "AnalysisCache",
+            self.producer_to_run,
             self.period,
             dataset_name,
-            self.producer_to_run,
             outFileName,
         )
         return self.remote_target(output_path, fs=self.fs_anaCacheTuple)
@@ -1103,8 +1108,8 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 for custom_region in custom_regions:
                     rel_path = os.path.join(
                         self.version,
+                        "Plots",
                         self.period,
-                        "plots",
                         var,
                         custom_region,
                         cat,

@@ -428,7 +428,7 @@ class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
 
 class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 48.0)
-    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 8)
+    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     delete_inputs_after_merge = luigi.BoolParameter(default=False)
 
     def workflow_requires(self):

@@ -476,8 +476,13 @@ class Setup:
             host = cfg.get("remotePathCacheHost", None)
             port = cfg.get("remotePathCachePort", None)
             verbose = cfg.get("verbose", 0)
-            return WLCGFileSystem(path_or_paths, local_path_cache_validity_period=cache_validity,
-                                  path_cache_host=host, path_cache_port=port, verbose=verbose)
+            return WLCGFileSystem(
+                path_or_paths,
+                local_path_cache_validity_period=cache_validity,
+                path_cache_host=host,
+                path_cache_port=port,
+                verbose=verbose,
+            )
 
     def get_fs(self, fs_name, custom_paths=None):
         fs_instance = None

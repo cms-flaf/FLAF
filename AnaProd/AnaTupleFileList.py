@@ -28,7 +28,7 @@ def CreateMergePlan(setup, local_inputs, n_events_per_file, is_data):
         plan = CreateDataMergePlan(setup, combined_reports, n_events_per_file)
     else:
         plan = CreateMCMergePlan(combined_reports, n_events_per_file)
-    return { "plan": plan, "reports": combined_reports }
+    return {"plan": plan, "reports": combined_reports}
 
 
 def CreateMCMergePlan(input_reports, n_events_per_file, oversize_tolerance=1.2):
@@ -51,7 +51,14 @@ def CreateMCMergePlan(input_reports, n_events_per_file, oversize_tolerance=1.2):
             n_new = n_old + n_events
             delta_old = abs(n_old - n_events_per_file)
             delta_new = abs(n_new - n_events_per_file)
-            if n_old == 0 or n_events == 0 or (delta_new <= delta_old and n_new <= n_events_per_file * oversize_tolerance):
+            if (
+                n_old == 0
+                or n_events == 0
+                or (
+                    delta_new <= delta_old
+                    and n_new <= n_events_per_file * oversize_tolerance
+                )
+            ):
                 merge["inputs"].append(file)
                 merge["n_events"] += n_events
 

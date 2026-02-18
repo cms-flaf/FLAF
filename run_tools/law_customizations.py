@@ -216,6 +216,7 @@ class Task(law.Task):
             f"Unable to identify the file source for dataset {dataset_name}"
         )
 
+
 class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     """
     Batch systems are typically very heterogeneous by design, and so is HTCondor. Law does not aim

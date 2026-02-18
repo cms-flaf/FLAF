@@ -17,7 +17,8 @@ from Corrections.CorrectionsCore import central, getSystName, getScales
 from FLAF.AnaProd.anaTupleProducer import DefaultAnaCacheProcessor
 from FLAF.Common.Utilities import DeserializeObjectFromString
 
-ROOT.gInterpreter.Declare("""
+ROOT.gInterpreter.Declare(
+    """
     struct EventDuplicateFilter {
         using LumiEventMapType = std::map<unsigned int, std::set<unsigned long long>>;
         using EventMapType = std::map<unsigned int, LumiEventMapType>;
@@ -52,7 +53,8 @@ ROOT.gInterpreter.Declare("""
         std::shared_ptr<EventMapType> eventMap;
         std::shared_ptr<std::mutex> eventMap_mutex;
     };
-    """)
+    """
+)
 
 
 def combineAnaCaches(anaCaches, processors):

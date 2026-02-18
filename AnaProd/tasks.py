@@ -34,7 +34,9 @@ class InputFileTask(Task, law.LocalWorkflow):
         print(f"{dataset_name}: creating input file list into {self.output().path}")
         dataset = self.datasets[dataset_name]
         process_group = dataset["process_group"]
-        ignore_missing = self.global_params.get("ignore_missing_nanoAOD_files", {}).get(process_group, False)
+        ignore_missing = self.global_params.get("ignore_missing_nanoAOD_files", {}).get(
+            process_group, False
+        )
         fs_nanoAOD, folder_name, include_folder_name = self.get_fs_nanoAOD(dataset_name)
         nano_version = self.get_nano_version(dataset_name)
         pattern_dict = self.datasets[dataset_name].get("fileNamePattern", {})
@@ -42,14 +44,17 @@ class InputFileTask(Task, law.LocalWorkflow):
         input_files = []
         inactive_files = []
         for file in fs_nanoAOD.listdir(folder_name):
-            if not re.match(pattern, file): continue
-            file_path = (
-                os.path.join(folder_name, file) if include_folder_name else file
-            )
+            if not re.match(pattern, file):
+                continue
+            file_path = os.path.join(folder_name, file) if include_folder_name else file
             if hasattr(fs_nanoAOD.file_interface, "is_available"):
-                if not fs_nanoAOD.file_interface.is_available(folder_name, file, verbose=1):
+                if not fs_nanoAOD.file_interface.is_available(
+                    folder_name, file, verbose=1
+                ):
                     if ignore_missing:
-                        print(f"{file_path}: will be ignored because no sites are found.")
+                        print(
+                            f"{file_path}: will be ignored because no sites are found."
+                        )
                         inactive_files.append(file_path)
                         continue
                     else:
@@ -71,6 +76,7 @@ class InputFileTask(Task, law.LocalWorkflow):
         print(f"{dataset_name}: {len(input_files)} input files are found.")
 
     input_file_cache = {}
+
     @staticmethod
     def load_input_files(input_file_list, test=False):
         if input_file_list not in InputFileTask.input_file_cache:
@@ -85,6 +91,7 @@ class InputFileTask(Task, law.LocalWorkflow):
 
     WF = None
     WF_complete_ = False
+
     @staticmethod
     def WF_complete(ref_task):
         if InputFileTask.WF_complete_:
@@ -108,6 +115,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return []
 
     _req_params = None
+
     @classmethod
     def req(cls, inst, **kwargs):
         if cls._req_params is None:
@@ -116,7 +124,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             param_value = kwargs.get(param_name, getattr(inst, param_name))
             cls._req_params[param_name] = param_value
         return cls(**cls._req_params)
-
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
@@ -128,9 +135,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         branches = {}
         for dataset_id, dataset_name in self.iter_datasets():
             input_file_list = (
-                InputFileTask.req(self, branch=dataset_id, branches=())
-                .output()
-                .path
+                InputFileTask.req(self, branch=dataset_id, branches=()).output().path
             )
             input_files = InputFileTask.load_input_files(
                 input_file_list, test=self.test > 0
@@ -369,7 +374,7 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         output_file = f"{dataset_name}.json"
         base_name = "AnaTupleFileList"
         if output_name != "plan":
-            base_name += f'_{output_name}'
+            base_name += f"_{output_name}"
         return os.path.join(self.version, base_name, self.period, output_file)
 
     def output(self):
@@ -399,9 +404,7 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 nEventsPerFile = nEventsPerFile.get(process_group, 100_000)
             is_data = process_group == "data"
 
-            result = CreateMergePlan(
-                self.setup, local_inputs, nEventsPerFile, is_data
-            )
+            result = CreateMergePlan(self.setup, local_inputs, nEventsPerFile, is_data)
 
             for output_name, output_remote in self.output().items():
                 output_path_tmp = os.path.join(job_home, f"{output_name}_tmp.json")
@@ -486,7 +489,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         anaTuple_branch_map = AnaTupleFileTask.req(
             self, branch=-1, branches=()
         ).create_branch_map()
-        required_branches = {"root": {} }
+        required_branches = {"root": {}}
         for prod_br, (
             anaTuple_dataset_id,
             anaTuple_dataset_name,
@@ -525,13 +528,21 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 self, branch=-1, branches=()
             ).create_branch_map()
 
-            for builder_branch, (builder_dataset_name, _) in anaTupleFileListBuilder_branch_map.items():
-                if builder_dataset_name == dataset_name or builder_dataset_name in dataset_dependencies:
-                    required_branches["json"][builder_dataset_name] = AnaTupleFileListBuilderTask.req(
-                        self,
-                        max_runtime=AnaTupleFileListBuilderTask.max_runtime._default,
-                        branch=builder_branch,
-                        branches=(builder_branch,),
+            for builder_branch, (
+                builder_dataset_name,
+                _,
+            ) in anaTupleFileListBuilder_branch_map.items():
+                if (
+                    builder_dataset_name == dataset_name
+                    or builder_dataset_name in dataset_dependencies
+                ):
+                    required_branches["json"][builder_dataset_name] = (
+                        AnaTupleFileListBuilderTask.req(
+                            self,
+                            max_runtime=AnaTupleFileListBuilderTask.max_runtime._default,
+                            branch=builder_branch,
+                            branches=(builder_branch,),
+                        )
                     )
 
         return required_branches
@@ -637,16 +648,16 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             local_root_inputs = []
             for ds_name, files in self.input()["root"].items():
                 for file_list in files:
-                    local_input = stack.enter_context(
-                        file_list[0].localize("r")
-                    ).path
+                    local_input = stack.enter_context(file_list[0].localize("r")).path
                     local_root_inputs.append(local_input)
             print(f"Localized {len(local_root_inputs)} root inputs")
 
             print("Localizing reports")
             reports = {}
             for ds_name, file_list in self.input()["json"].items():
-                report_file = stack.enter_context(file_list["reports"].localize("r")).path
+                report_file = stack.enter_context(
+                    file_list["reports"].localize("r")
+                ).path
                 with open(report_file, "r") as f:
                     ds_reports = yaml.safe_load(f)
                 reports[ds_name] = list(ds_reports.values())

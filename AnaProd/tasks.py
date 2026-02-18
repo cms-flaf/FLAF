@@ -154,7 +154,9 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     @workflow_condition.output
     def output(self):
         dataset_name, _, output_name = self.branch_data
-        output_path = os.path.join(self.version, "AnaTuples_split", self.period, dataset_name)
+        output_path = os.path.join(
+            self.version, "AnaTuples_split", self.period, dataset_name
+        )
         root_output = os.path.join(output_path, f"{output_name}.root")
         report_output = os.path.join(output_path, f"{output_name}.json")
         return {
@@ -298,11 +300,7 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ).create_branch_map()
         branch_set = set()
         for idx, (dataset_name, process_group) in self.branch_map.items():
-            for br_idx, (
-                anaTuple_dataset_name,
-                _,
-                _
-            ) in AnaTuple_map.items():
+            for br_idx, (anaTuple_dataset_name, _, _) in AnaTuple_map.items():
                 match = dataset_name == anaTuple_dataset_name
                 if not match and process_group == "data":
                     anaTuple_dataset = self.datasets[anaTuple_dataset_name]
@@ -327,10 +325,7 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self, branch=-1, branches=()
         ).create_branch_map()
         branch_set = set()
-        for br_idx, (
-            anaTuple_dataset_name,
-            _, _
-        ) in AnaTuple_map.items():
+        for br_idx, (anaTuple_dataset_name, _, _) in AnaTuple_map.items():
             match = dataset_name == anaTuple_dataset_name
             if not match and process_group == "data":
                 anaTuple_dataset = self.datasets[anaTuple_dataset_name]
@@ -387,7 +382,8 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
             print("Localizing inputs")
             local_inputs = [
-                stack.enter_context(inp["report"].localize("r")).path for inp in self.input()
+                stack.enter_context(inp["report"].localize("r")).path
+                for inp in self.input()
             ]
             print(f"Localized {len(local_inputs)} inputs")
 
@@ -489,7 +485,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         for prod_br, (
             anaTuple_dataset_name,
             anaTuple_input_file,
-            anaTuple_output_name
+            anaTuple_output_name,
         ) in anaTuple_branch_map.items():
             match = dataset_name == anaTuple_dataset_name
             if not match and process_group == "data":
@@ -640,7 +636,9 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             local_root_inputs = []
             for ds_name, files in self.input()["root"].items():
                 for file_list in files:
-                    local_input = stack.enter_context(file_list["root"].localize("r")).path
+                    local_input = stack.enter_context(
+                        file_list["root"].localize("r")
+                    ).path
                     local_root_inputs.append(local_input)
             print(f"Localized {len(local_root_inputs)} root inputs")
 

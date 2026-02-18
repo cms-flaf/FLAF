@@ -27,7 +27,7 @@ class InputFileTask(Task, law.LocalWorkflow):
 
     def output(self):
         dataset_name = self.branch_data
-        return self.local_target("input_files", f"{dataset_name}.json")
+        return self.local_target(f"{dataset_name}.json")
 
     def run(self):
         dataset_name = self.branch_data
@@ -140,36 +140,31 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             input_files = InputFileTask.load_input_files(
                 input_file_list, test=self.test > 0
             )
-            fs_nanoAOD, _, _ = self.get_fs_nanoAOD(dataset_name)
+
             for input_file in input_files:
-                fileintot = self.remote_target(input_file, fs=fs_nanoAOD)
+                output_name = f"anaTupleFile_{branch_idx}"
                 branches[branch_idx] = (
-                    dataset_id,
                     dataset_name,
-                    fileintot,
+                    input_file,
+                    output_name,
                 )
                 branch_idx += 1
         return branches
 
     @workflow_condition.output
     def output(self):
-        _, dataset_name, input_file = self.branch_data
-        output_name = os.path.basename(input_file.path)
-        json_name = f"{output_name.split('.')[0]}.json"
-        output_path = os.path.join(
-            "anaTuples", self.version, self.period, dataset_name, "split", output_name
-        )
-        json_path = os.path.join(
-            "anaTuples", self.version, self.period, dataset_name, "split", json_name
-        )
-        return [
-            self.remote_target(output_path, fs=self.fs_anaTuple),
-            self.remote_target(json_path, fs=self.fs_anaTuple),
-        ]
+        dataset_name, _, output_name = self.branch_data
+        output_path = os.path.join(self.version, "AnaTuples_split", self.period, dataset_name)
+        root_output = os.path.join(output_path, f"{output_name}.root")
+        report_output = os.path.join(output_path, f"{output_name}.json")
+        return {
+            "root": self.remote_target(root_output, fs=self.fs_anaTuple),
+            "report": self.remote_target(report_output, fs=self.fs_anaTuple),
+        }
 
     def run(self):
         with ServiceThread() as service_thread:
-            dataset_id, dataset_name, input_file = self.branch_data
+            dataset_name, input_file_name, output_name = self.branch_data
             dataset = self.datasets[dataset_name]
             process_group = dataset["process_group"]
             producer_anatuples = os.path.join(
@@ -195,8 +190,10 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 else self.global_params.get("compute_unc_variations", False)
             )
 
+            fs_nanoAOD, _, _ = self.get_fs_nanoAOD(dataset_name)
+            input_file = self.remote_target(input_file_name, fs=fs_nanoAOD)
+
             job_home, remove_job_home = self.law_job_home()
-            print(f"dataset_id: {dataset_id}")
             print(f"dataset_name: {dataset_name}")
             print(f"process_group: {process_group}")
             print(f"input_file = {input_file.uri()}")
@@ -233,6 +230,8 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     inFileName,
                     "--reportOutput",
                     rawReportPath,
+                    "--output-name",
+                    output_name,
                 ]
                 if compute_unc_variations:
                     anatuple_cmd.append("--compute-unc-variations")
@@ -273,11 +272,9 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             ]
             ps_call(fuseTuple_cmd, verbose=1)
 
-            tuple_output = self.output()[0]
-            report_output = self.output()[1]
-            with tuple_output.localize("w") as local_file:
+            with self.output()["root"].localize("w") as local_file:
                 shutil.move(outFilePath, local_file.path)
-            with report_output.localize("w") as local_file:
+            with self.output()["report"].localize("w") as local_file:
                 shutil.move(finalReportPath, local_file.path)
 
             if remove_job_home:
@@ -302,9 +299,9 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         branch_set = set()
         for idx, (dataset_name, process_group) in self.branch_map.items():
             for br_idx, (
-                anaTuple_dataset_id,
                 anaTuple_dataset_name,
-                anaTuple_fileintot,
+                _,
+                _
             ) in AnaTuple_map.items():
                 match = dataset_name == anaTuple_dataset_name
                 if not match and process_group == "data":
@@ -331,9 +328,8 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ).create_branch_map()
         branch_set = set()
         for br_idx, (
-            anaTuple_dataset_id,
             anaTuple_dataset_name,
-            anaTuple_fileintot,
+            _, _
         ) in AnaTuple_map.items():
             match = dataset_name == anaTuple_dataset_name
             if not match and process_group == "data":
@@ -391,7 +387,7 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
             print("Localizing inputs")
             local_inputs = [
-                stack.enter_context(inp[1].localize("r")).path for inp in self.input()
+                stack.enter_context(inp["report"].localize("r")).path for inp in self.input()
             ]
             print(f"Localized {len(local_inputs)} inputs")
 
@@ -491,9 +487,9 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ).create_branch_map()
         required_branches = {"root": {}}
         for prod_br, (
-            anaTuple_dataset_id,
             anaTuple_dataset_name,
-            anaTuple_fileintot,
+            anaTuple_input_file,
+            anaTuple_output_name
         ) in anaTuple_branch_map.items():
             match = dataset_name == anaTuple_dataset_name
             if not match and process_group == "data":
@@ -502,13 +498,8 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 match = anaTuple_process_group == "data"
             dependency_type = None
             if match:
-                # print(f"{anaTuple_dataset_name}, {dataset_name} are the same, thus including:")
-                file_name = anaTuple_fileintot.path.split("/")[-1]
-                # print(input_file_list)
-                # print(f"anaTuple_dataset_name/file_name  = {anaTuple_dataset_name}/{file_name}  in input_fileList? ", f"{anaTuple_dataset_name}/{file_name}" in input_file_list)
-                if (
-                    f"{anaTuple_dataset_name}/{file_name}" in input_file_list
-                ):  # [1:] to remove the first '/' in the pathway
+                key = f"{anaTuple_dataset_name}/{anaTuple_output_name}"
+                if key in input_file_list:
                     dependency_type = "root"
             if dependency_type:
                 if anaTuple_dataset_name not in required_branches[dependency_type]:
@@ -642,13 +633,14 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             os.path.join(job_home, f"AnaTupleMergeTask_{dataset_name}_{i}.root")
             for i in range(len(self.output()))
         ]
+        print(f"dataset: {dataset_name}")
         with contextlib.ExitStack() as stack:
 
             print("Localizing root inputs")
             local_root_inputs = []
             for ds_name, files in self.input()["root"].items():
                 for file_list in files:
-                    local_input = stack.enter_context(file_list[0].localize("r")).path
+                    local_input = stack.enter_context(file_list["root"].localize("r")).path
                     local_root_inputs.append(local_input)
             print(f"Localized {len(local_root_inputs)} root inputs")
 

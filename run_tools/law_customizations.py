@@ -27,11 +27,6 @@ def get_param_value(cls, param_name):
         return None
 
 
-# def get_param_value(cls, param_name):
-#     param = getattr(cls, param_name)
-#     return param.task_value(cls.__name__, param_name)
-
-
 class Task(law.Task):
     """
     Base task that we use to force a version parameter on all inheriting tasks, and that provides
@@ -62,7 +57,7 @@ class Task(law.Task):
         self._dataset_name_id_dict = None
 
     def store_parts(self):
-        return (self.__class__.__name__, self.version, self.period)
+        return (self.version, self.__class__.__name__, self.period)
 
     @property
     def cmssw_env(self):

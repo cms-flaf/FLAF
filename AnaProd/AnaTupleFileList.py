@@ -19,7 +19,7 @@ def CreateMergePlan(setup, local_inputs, n_events_per_file, is_data):
     for report in local_inputs:
         with open(report, "r") as file:
             data = json.load(file)
-        key = os.path.join(data["dataset_name"], data["nano_file_name"])
+        key = os.path.join(data["dataset_name"], data["anaTuple_file_name"])
         if key in combined_reports:
             raise ValueError(f"Duplicate report for file {key}")
         combined_reports[key] = data

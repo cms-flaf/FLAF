@@ -2,8 +2,8 @@ import os
 import json
 
 
-def CreateMergeStrategy(setup, local_inputs, n_events_per_file, is_data):
-    """Create a merge strategy for either data or MC.
+def CreateMergePlan(setup, local_inputs, n_events_per_file, is_data):
+    """Create a merge plan for either data or MC.
 
     Args:
         setup (Setup): FLAF setup object
@@ -12,27 +12,34 @@ def CreateMergeStrategy(setup, local_inputs, n_events_per_file, is_data):
         is_data (bool): data or MC
 
     Returns:
-        dict: merge strategy
+        dict: merge plan and combined reports
     """
 
-    if is_data:
-        return CreateDataMergeStrategy(setup, local_inputs, n_events_per_file)
-    else:
-        return CreateMCMergeStrategy(local_inputs, n_events_per_file)
-
-
-def CreateMCMergeStrategy(input_reports, n_events_per_file):
-    assert n_events_per_file > 0
-    input_files = {}
-    for report in input_reports:
+    combined_reports = {}
+    for report in local_inputs:
         with open(report, "r") as file:
             data = json.load(file)
-        file_path = os.path.join(data["dataset_name"], data["nano_file_name"])
+        key = os.path.join(data["dataset_name"], data["anaTuple_file_name"])
+        if key in combined_reports:
+            raise ValueError(f"Duplicate report for file {key}")
+        combined_reports[key] = data
+
+    if is_data:
+        plan = CreateDataMergePlan(setup, combined_reports, n_events_per_file)
+    else:
+        plan = CreateMCMergePlan(combined_reports, n_events_per_file)
+    return {"plan": plan, "reports": combined_reports}
+
+
+def CreateMCMergePlan(input_reports, n_events_per_file, oversize_tolerance=1.2):
+    assert n_events_per_file > 0
+    input_files = {}
+    for file_path, data in input_reports.items():
         input_files[file_path] = data["n_events"]
 
-    merge_strategy = []
+    merge_plan = []
     while len(input_files) > 0:
-        file_idx = len(merge_strategy)
+        file_idx = len(merge_plan)
         out_file_name = f"anaTuple_{file_idx}.root"
         merge = {
             "inputs": [],
@@ -40,29 +47,33 @@ def CreateMCMergeStrategy(input_reports, n_events_per_file):
             "n_events": 0,
         }
         for file, n_events in input_files.items():
-            if merge["n_events"] + n_events <= n_events_per_file:
+            n_old = merge["n_events"]
+            n_new = n_old + n_events
+            delta_old = abs(n_old - n_events_per_file)
+            delta_new = abs(n_new - n_events_per_file)
+            if (
+                n_old == 0
+                or n_events == 0
+                or (
+                    delta_new <= delta_old
+                    and n_new <= n_events_per_file * oversize_tolerance
+                )
+            ):
                 merge["inputs"].append(file)
                 merge["n_events"] += n_events
-            elif len(merge["inputs"]) == 0 and n_events > n_events_per_file:
-                merge["inputs"].append(file)
-                merge["n_events"] += n_events
-                break
 
         for input_file in merge["inputs"]:
             del input_files[input_file]
-        merge_strategy.append(merge)
+        merge_plan.append(merge)
 
-    return merge_strategy
+    return merge_plan
 
 
-def CreateDataMergeStrategy(setup, input_reports, n_events_per_file):
+def CreateDataMergePlan(setup, input_reports, n_events_per_file):
     assert n_events_per_file > 0
     input_files = {}
-    for report in input_reports:
-        with open(report, "r") as file:
-            data = json.load(file)
+    for file_path, data in input_reports.items():
         dataset_name = data["dataset_name"]
-        file_path = os.path.join(dataset_name, data["nano_file_name"])
         dataset = setup.datasets[dataset_name]
         eraLetter = dataset["eraLetter"]
         eraVersion = dataset.get("eraVersion", "")
@@ -72,7 +83,7 @@ def CreateDataMergeStrategy(setup, input_reports, n_events_per_file):
         input_files[output_label]["files"].append(file_path)
         input_files[output_label]["n_events"] += data["n_events"]
 
-    merge_strategy = []
+    merge_plan = []
     for output_label, inputs in input_files.items():
         n_outputs = round(inputs["n_events"] / n_events_per_file)
         n_outputs = max(1, n_outputs)
@@ -84,5 +95,5 @@ def CreateDataMergeStrategy(setup, input_reports, n_events_per_file):
         for i in range(n_outputs):
             output_file = f"anaTuple_{output_label}_{i}.root"
             entry["outputs"].append(output_file)
-        merge_strategy.append(entry)
-    return merge_strategy
+        merge_plan.append(entry)
+    return merge_plan

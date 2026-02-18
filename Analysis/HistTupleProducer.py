@@ -112,7 +112,6 @@ def createHistTuple(
     centralTree = None
     centralCaches = None
     allRootFiles = {}
-    btag_shape_was_corrected = False
     for unc_source in [central] + list(scale_uncertainties):
         for unc_scale in getScales(unc_source):
             print(f"Processing events for {unc_source} {unc_scale}")

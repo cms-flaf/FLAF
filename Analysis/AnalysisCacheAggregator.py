@@ -18,62 +18,31 @@ def aggregate_caches(
     save_as = producer_cfg.get("save_as")
 
     if save_as == "json":
-        dataset_btag_weight_dict = {}
+        aggregated_dict = {}
         for this_json in inputFiles:
             with open(this_json, "r") as file:
                 this_json_dict = json.load(file)
 
-                for unc_src, unc_dict in this_json_dict.items():
-                    if unc_src not in dataset_btag_weight_dict.keys():
-                        dataset_btag_weight_dict[unc_src] = {}
-
-                    this_unc_dict = dataset_btag_weight_dict[unc_src]
-                    for lep_cat, lep_cat_dict in unc_dict.items():
-                        if lep_cat not in this_unc_dict.keys():
-                            this_unc_dict[lep_cat] = {}
-
-                        for key, val in lep_cat_dict.items():
-                            if key not in this_unc_dict[lep_cat]:
-                                this_unc_dict[lep_cat][key] = val
-                            else:
-                                this_unc_dict[lep_cat][key] += val
-
-        # calculate ratio of integrals
-        # structure: {category:{ratio_ncentralJet_k for k in range(2, 9)} for category in [e, mu, eE, eMu, muMu]}
-        multiplicities = producer_cfg["jet_multiplicities"]
-        integral_ratio_dict = {}
-        for unc_src, unc_src_dict in dataset_btag_weight_dict.items():
-            if unc_src not in integral_ratio_dict.keys():
-                integral_ratio_dict[unc_src] = {}
-
-            this_unc_dict = integral_ratio_dict[unc_src]
-            for lep_cat, lep_cat_dict in unc_src_dict.items():
-                if lep_cat not in this_unc_dict.keys():
-                    this_unc_dict[lep_cat] = {}
-
-                this_lep_cat_dict = this_unc_dict[lep_cat]
-                weights_before = np.array(
-                    [lep_cat_dict[f"weight_noBtag_ncentralJet_{m}"] for m in multiplicities]
-                )
-                weights_after = np.array(
-                    [lep_cat_dict[f"weight_total_ncentralJet_{m}"] for m in multiplicities]
-                )
-                zero_division_mask = np.isclose(weights_after, 0)
-                integral_ratios = np.ones_like(weights_before, dtype=float)
-                np.divide(
-                    weights_before,
-                    weights_after,
-                    out=integral_ratios,
-                    where=~zero_division_mask,
-                )
-                this_lep_cat_dict = {
-                    f"ratio_ncentralJet_{m}": integral_ratios[idx]
-                    for idx, m in enumerate(multiplicities)
-                }
-                integral_ratio_dict[unc_src][lep_cat] = this_lep_cat_dict
-        
+            for outer_key, inner_dict in this_json_dict.items():
+                if outer_key not in aggregated_dict.keys():
+                    aggregated_dict[outer_key] = inner_dict
+                else:
+                    for inner_key, inner_value in inner_dict.items():
+                        aggregated_dict[outer_key][inner_key] += inner_value
+                
+        result_dict = {}
+        bins = list(producer_cfg["bins"].keys())
+        for outer_key, inner_dict in aggregated_dict.items():
+            print(f"Computing btag shape norm correction for {outer_key}")
+            result_dict[outer_key] = {}
+            for bin_name in bins:
+                weight_before = inner_dict[f"weight_noBtag_{bin_name}"]
+                weight_after = inner_dict[f"weight_total_{bin_name}"]
+                result_dict[outer_key][bin_name] = weight_before/weight_after if weight_after != 0 else 1
+                
         with open(outFile, "w") as fp:
-            json.dump(integral_ratio_dict, fp, indent=4)
+            json.dump(result_dict, fp, indent=4)
+
     else:
         raise NotImplementedError(f"Aggregating caches in {save_as} format is not supported.")
        

@@ -135,20 +135,20 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 deps["anaCaches"] = anaCaches
 
         producers_to_aggregate = []
-        for p in producer_list:
-            if p:
-                producer_cfg = self.global_params["payload_producers"][p]
+        for producer_name in producer_list:
+            if producer_name:
+                producer_cfg = self.global_params["payload_producers"][producer_name]
                 needs_aggregation = producer_cfg.get("needs_aggregation", False)
                 if needs_aggregation:
-                    producers_to_aggregate.append(p)
+                    producers_to_aggregate.append(producer_name)
        
-        corrections_cfg = self.global_params["corrections"]
-        btag_corr_cfg = corrections_cfg["btag"]
-        btag_corr_modes = btag_corr_cfg["modes"]
-        btag_corr_mode = btag_corr_modes.get("HistTuple", None)
-        if btag_corr_mode:
-            if dataset_name != "data" and btag_corr_mode == "shape":
-                producers_to_aggregate.append("BtagShape")
+        # corrections_cfg = self.global_params["corrections"]
+        # btag_corr_cfg = corrections_cfg["btag"]
+        # btag_corr_modes = btag_corr_cfg["modes"]
+        # btag_corr_mode = btag_corr_modes.get("HistTuple", None)
+        # if btag_corr_mode:
+        #     if dataset_name != "data" and btag_corr_mode == "shape":
+        #         producers_to_aggregate.append("BtagShape")
 
         if producers_to_aggregate:
             # need to set to dependencies of this branch all branches of 
@@ -225,6 +225,13 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
             need_cache_list.append(need_cache)
             producer_list.append(producer_to_run)
+
+        payload_producers = self.global_params["payload_producers"]
+        for producer_name, producer_cfg in payload_producers.items():
+            is_global = producer_cfg.get("is_global", False)
+            not_present = producer_name not in producer_list
+            if not_present and is_global:
+                producer_list.append(producer_name)
 
         for prod_br, (
             dataset_name,

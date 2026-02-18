@@ -178,9 +178,6 @@ def createAnalysisCache(
                 dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
                 tmp_fileName = f"{fullTreeName}.root"
             elif saveAs == "json":
-                if not isCentral:
-                    continue
-                    
                 if hasattr(producer, "create_dfw"):
                     dfw = producer.create_dfw(
                         df=df,

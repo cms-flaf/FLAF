@@ -232,6 +232,8 @@ load_flaf_env() {
   set -- "${current_args[@]}"
   #export PATH="$ANALYSIS_SOFT_PATH/bin:$PATH"
   alias cmsEnv="env -i HOME=$HOME ANALYSIS_PATH=$ANALYSIS_PATH ANALYSIS_DATA_PATH=$ANALYSIS_DATA_PATH X509_USER_PROXY=$X509_USER_PROXY FLAF_CMSSW_BASE=$FLAF_CMSSW_BASE FLAF_CMSSW_ARCH=$FLAF_CMSSW_ARCH $FLAF_PATH/cmsEnv.sh"
+
+  ulimit -n 4096
 }
 
 source_env_fn() {

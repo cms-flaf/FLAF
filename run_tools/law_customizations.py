@@ -77,6 +77,10 @@ class Task(law.Task):
         return self.setup.global_params
 
     @property
+    def fs_default(self):
+        return self.setup.get_fs("default")
+
+    @property
     def fs_nanoAOD(self):
         return self.setup.get_fs("nanoAOD")
 
@@ -122,7 +126,7 @@ class Task(law.Task):
         return law.LocalFileTarget(self.local_path(*path))
 
     def remote_target(self, *path, fs=None):
-        fs = fs or self.setup.fs_default
+        fs = fs or self.fs_default
         path = os.path.join(*path)
         if type(fs) == str:
             path = os.path.join(fs, path)
@@ -130,7 +134,7 @@ class Task(law.Task):
         return WLCGFileTarget(path, fs)
 
     def remote_dir_target(self, *path, fs=None):
-        fs = fs or self.setup.fs_default
+        fs = fs or self.fs_default
         path = os.path.join(*path)
         if type(fs) == str:
             path = os.path.join(fs, path)
@@ -142,9 +146,6 @@ class Task(law.Task):
             return os.environ["LAW_JOB_HOME"], False
         os.makedirs(self.local_path(), exist_ok=True)
         return tempfile.mkdtemp(dir=self.local_path()), True
-
-    def poll_callback(self, poll_data):
-        update_kinit(verbose=0)
 
     def _create_dataset_mappings(self):
         if self._dataset_id_name_list is None:
@@ -215,7 +216,6 @@ class Task(law.Task):
             f"Unable to identify the file source for dataset {dataset_name}"
         )
 
-
 class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     """
     Batch systems are typically very heterogeneous by design, and so is HTCondor. Law does not aim
@@ -242,9 +242,18 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     def htcondor_check_job_completeness(self):
         return False
 
+    def htcondor_poll_callback(self, poll_data):
+        update_kinit(verbose=0)
+        return True
+
     def htcondor_output_directory(self):
         # the directory where submission meta data should be stored
         return law.LocalDirectoryTarget(self.local_path())
+
+    # def htcondor_log_directory(self):
+    #     # the directory where HTCondor should store job logs, it can be the same as the output directory
+    #     path = ("logs",) + self.store_parts()
+    #     return self.remote_dir_target(*path)
 
     def htcondor_bootstrap_file(self):
         # each job can define a bootstrap file that is executed prior to the actual job

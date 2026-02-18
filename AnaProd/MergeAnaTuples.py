@@ -181,22 +181,25 @@ def mergeAnaTuples(
         for ds_name, reports in input_reports.items():
             ana_caches[ds_name] = combineAnaCaches(reports, processor_instances)
 
-    tree_list = None
-    for ds_name, reports in input_reports.items():
-        for report in reports:
-            report_tree_list = getTreeListFromReport(report)
-            if tree_list is None:
-                tree_list = report_tree_list
-            elif tree_list != report_tree_list:
-                raise RuntimeError(
-                    f"Uncertainty list mismatch between reports for dataset {ds_name}."
-                )
+        tree_list = None
+        for ds_name, reports in input_reports.items():
+            for report in reports:
+                report_tree_list = getTreeListFromReport(report)
+                if tree_list is None:
+                    tree_list = report_tree_list
+                elif tree_list != report_tree_list:
+                    raise RuntimeError(
+                        f"Uncertainty list mismatch between reports for dataset {ds_name}."
+                    )
+    else:
+        tree_list = [(central, central, "Events")]
 
     if len(root_outputs) > 1 and len(tree_list) > 1:
         raise NotImplementedError(
             "Cannot write multiple output files when there are multiple uncertainties."
         )
     tmp_central_file = os.path.join(work_dir, f"{dataset_name}_central_tmp.root")
+    compute_unc_variations = setup.global_params.get("compute_unc_variations", False)
 
     for unc_source, unc_scale, tree_name in tree_list:
         syst_name = getSystName(unc_source, unc_scale)
@@ -224,7 +227,7 @@ def mergeAnaTuples(
                     unc_source=unc_source,
                     unc_scale=unc_scale,
                     ana_caches=ana_caches,
-                    return_variations=True,
+                    return_variations=compute_unc_variations,
                     use_genWeight_sign_only=True,
                 )
                 columns += weight_branches

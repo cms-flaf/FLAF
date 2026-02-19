@@ -203,8 +203,9 @@ def createAnatuple(
         return rdf
 
     if not isData:
-        for data_frame in [ df, df_not_selected ]:
-            if data_frame is None: continue
+        for data_frame in [df, df_not_selected]:
+            if data_frame is None:
+                continue
             genWeight_def = (
                 "std::copysign<float>(1.f, genWeight)"
                 if use_genWeight_sign_only

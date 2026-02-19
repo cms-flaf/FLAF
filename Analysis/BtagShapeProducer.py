@@ -5,6 +5,7 @@ import awkward as ak
 import os
 import importlib
 
+
 class BtagShapeProducer:
     def __init__(self, cfg, payload_name, *args):
         self.payload_name = payload_name
@@ -20,7 +21,8 @@ class BtagShapeProducer:
         total_weight = self.weight_module.GetWeight(None, None, None)
         dfw.df = dfw.df.Define("weight_total", f"return {total_weight}")
         dfw.df = dfw.df.Define(
-            "weight_noBtag", f"return weight_bTagShape_Central != 0.0 ? {total_weight} / weight_bTagShape_Central : 0.0"
+            "weight_noBtag",
+            f"return weight_bTagShape_Central != 0.0 ? {total_weight} / weight_bTagShape_Central : 0.0",
         )
         for bin_name, bin_def in self.cfg["bins"].items():
             dfw.df = dfw.df.Define(bin_name, f"return {bin_def}")
@@ -37,9 +39,9 @@ class BtagShapeProducer:
         return res
 
     def combine(
-        self, 
-        *, 
-        final_dict, 
+        self,
+        *,
+        final_dict,
         new_dict,
     ):
         if final_dict is None:

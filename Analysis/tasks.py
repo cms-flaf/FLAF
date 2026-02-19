@@ -63,7 +63,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                             producer_to_run=producer_to_run,
                         )
                     )
-            
+
             return req_dict
 
         branch_set = set()
@@ -144,7 +144,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 producer_cfg = payload_producers[producer_name]
                 needs_aggregation = producer_cfg.get("needs_aggregation", False)
                 target_groups = producer_cfg.get("target_groups", None)
-                applies_for_group = target_groups is None or process_group in target_groups
+                applies_for_group = (
+                    target_groups is None or process_group in target_groups
+                )
                 if needs_aggregation:
                     if applies_for_group:
                         producers_to_aggregate.append(producer_name)
@@ -153,8 +155,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             aggrAnaCaches = {}
             for producer_name in producers_to_aggregate:
                 aggr_task_branch_map = AnalysisCacheAggregationTask.req(
-                    self, 
-                    branch=-1, 
+                    self,
+                    branch=-1,
                     producer_to_aggregate=producer_name,
                 ).create_branch_map()
 
@@ -168,11 +170,11 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 assert branch_idx >= 0, "Must find correct branch"
 
                 aggrAnaCaches[producer_name] = AnalysisCacheAggregationTask.req(
-                    self, 
-                    branch=branch_idx, 
+                    self,
+                    branch=branch_idx,
                     producer_to_aggregate=producer_name,
                 )
-        
+
             if aggrAnaCaches:
                 deps["aggrAnaCaches"] = aggrAnaCaches
 
@@ -254,13 +256,15 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         if not is_configurable:
                             producers_to_run.append(prod)
                             continue
-                        
+
                         target_groups = cfg.get("target_groups", None)
-                        applies_for_group = target_groups is None or process_group in target_groups
-                        
+                        applies_for_group = (
+                            target_groups is None or process_group in target_groups
+                        )
+
                         if applies_for_group:
                             producers_to_run.append(prod)
-                        
+
                     branches[n] = (
                         dataset_name,
                         prod_br,
@@ -678,7 +682,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         )
         RenameHistsProducer = os.path.join(
             self.ana_path(), "FLAF", "Analysis", "renameHists.py"
-        ) # this one is not used
+        )  # this one is not used
 
         input_dir = os.path.join("hists", self.version, self.period, var_name)
         input_dir_remote = self.remote_dir_target(input_dir, fs=self.fs_HistTuple)
@@ -914,7 +918,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     def output(self):
         dataset_name, _, _, _, input_index = self.branch_data
         inputFilePath = self.input()["anaTuple"][input_index].path
-        outFileNameWithoutExtension = os.path.basename(inputFilePath).split('.')[0]
+        outFileNameWithoutExtension = os.path.basename(inputFilePath).split(".")[0]
         outFileName = f"{outFileNameWithoutExtension}.{self.output_file_extension}"
         output_path = os.path.join(
             self.version,
@@ -966,7 +970,9 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 output_file = self.output()
                 print(f"considering dataset {dataset_name}, and file {input_file.path}")
                 customisation_dict = getCustomisationSplit(self.customisations)
-                tmpFile = os.path.join(job_home, f"AnalysisCacheTask.{self.output_file_extension}")
+                tmpFile = os.path.join(
+                    job_home, f"AnalysisCacheTask.{self.output_file_extension}"
+                )
                 with input_file.localize("r") as local_input:
                     analysisCacheProducer_cmd = [
                         "python3",
@@ -1011,9 +1017,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     histTupleDef = os.path.join(
                         self.ana_path(), self.global_params["histTupleDef"]
                     )
-                    analysisCacheProducer_cmd.extend(
-                        ["--histTupleDef", histTupleDef]
-                    )
+                    analysisCacheProducer_cmd.extend(["--histTupleDef", histTupleDef])
 
                     ps_call(analysisCacheProducer_cmd, env=prod_env, verbose=1)
                 print(
@@ -1226,6 +1230,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     cmd += ["--rebin", "true"]
                 ps_call(cmd, verbose=1)
 
+
 class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
@@ -1251,8 +1256,8 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     max_runtime=AnaTupleFileListTask.max_runtime._default,
                     n_cpus=AnaTupleFileListTask.n_cpus._default,
                 ),
-            }   
-                
+            }
+
             deps["AnalysisCacheTask"] = AnalysisCacheTask.req(
                 self,
                 branches=(),
@@ -1262,8 +1267,7 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 producer_to_run=self.producer_to_aggregate,
             )
             return deps
-        
-        
+
         deps = {}
         producers_cache_branch_map = AnalysisCacheTask.req(
             self, branch=-1, branches=(), producer_to_run=self.producer_to_aggregate
@@ -1275,7 +1279,7 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             max_runtime=AnalysisCacheTask.max_runtime._default,
             n_cpus=AnalysisCacheTask.n_cpus._default,
             customisations=self.customisations,
-            producer_to_run=self.producer_to_aggregate
+            producer_to_run=self.producer_to_aggregate,
         )
         return deps
 
@@ -1297,10 +1301,10 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
-        # structure of branch map 
+        # structure of branch map
         # ---- name of sample,
         # ---- list of branch indices of the AnalysisCacheTask(producer_to_run=producer_name)
-        
+
         branches = {}
         branch_idx = 0
 
@@ -1312,7 +1316,13 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         # find which branches of this producer correspond to each sample
         sample_branch_map = {}
-        for producer_cache_branch_idx, (sample_name, _, _, _, _) in producer_cache_branch_map.items():
+        for producer_cache_branch_idx, (
+            sample_name,
+            _,
+            _,
+            _,
+            _,
+        ) in producer_cache_branch_map.items():
             if sample_name not in sample_branch_map:
                 sample_branch_map[sample_name] = []
             sample_branch_map[sample_name].append(producer_cache_branch_idx)
@@ -1325,13 +1335,15 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if applies_for_group:
                 branches[branch_idx] = (sample_name, list_of_producer_cache_keys)
                 branch_idx += 1
-                
+
         return branches
-    
+
     @workflow_condition.output
     def output(self):
         sample_name, _ = self.branch_data
-        extension = self.global_params["payload_producers"][self.producer_to_aggregate].get("save_as", "root")
+        extension = self.global_params["payload_producers"][
+            self.producer_to_aggregate
+        ].get("save_as", "root")
         output_name = f"aggregatedCache.{extension}"
         return self.local_target(sample_name, self.producer_to_aggregate, output_name)
 
@@ -1345,8 +1357,7 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             local_output = self.output()
             inputs = self.input()
             local_inputs = [
-                stack.enter_context(inp.localize("r")).path
-                for inp in inputs
+                stack.enter_context(inp.localize("r")).path for inp in inputs
             ]
             assert local_inputs, "`local_inputs` must be a non-empty list"
             producer_cfg = producers[self.producer_to_aggregate]
@@ -1368,11 +1379,11 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             aggregate_cmd.append("--inputFiles")
             aggregate_cmd.extend(local_inputs)
             ps_call(aggregate_cmd, verbose=1)
-            
+
             # For local target: ensure parent directory exists and move directly
             out_local_path = local_output.path
             local_output.parent.touch()  # Creates parent directories if needed
             shutil.move(tmpFile, out_local_path)
-            print(f"Creating aggregated cache for producer {self.producer_to_aggregate} and dataset {sample_name} at {out_local_path}")
-
-
+            print(
+                f"Creating aggregated cache for producer {self.producer_to_aggregate} and dataset {sample_name} at {out_local_path}"
+            )

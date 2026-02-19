@@ -215,7 +215,9 @@ if __name__ == "__main__":
     ROOT.gROOT.ProcessLine(".include " + os.environ["FLAF_PATH"])
     ROOT.gROOT.ProcessLine('#include "include/Utilities.h"')
 
-    setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period, args.LAWrunVersion)
+    setup = Setup.getGlobal(
+        os.environ["ANALYSIS_PATH"], args.period, args.LAWrunVersion
+    )
 
     setup.global_params["channels_to_consider"] = (
         args.channels.split(",")

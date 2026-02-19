@@ -17,7 +17,6 @@ from FLAF.Common.HistHelper import *
 import importlib
 import FLAF.Common.Setup as Setup
 
-
 processes = [
     "GluGluToRadionToHHTo2B2Tau_M-250",
     "GluGluToRadionToHHTo2B2Tau_M-260",

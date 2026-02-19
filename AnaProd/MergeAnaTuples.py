@@ -284,7 +284,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     setup = Setup.getGlobal(
-        os.environ["ANALYSIS_PATH"], 
+        os.environ["ANALYSIS_PATH"],
         args.period,
         args.LAWrunVersion,
         customisations=args.customisations,

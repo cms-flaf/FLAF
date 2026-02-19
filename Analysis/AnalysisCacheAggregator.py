@@ -7,6 +7,7 @@ import numpy as np
 from FLAF.Common.Utilities import DeclareHeader
 from FLAF.Common.Setup import Setup
 
+
 def aggregate_caches(
     *,
     setup,
@@ -14,7 +15,9 @@ def aggregate_caches(
     inputFiles,
     outFile,
 ):
-    producer_cfg = producer_config = setup.global_params["payload_producers"][producer_name]
+    producer_cfg = producer_config = setup.global_params["payload_producers"][
+        producer_name
+    ]
     save_as = producer_cfg.get("save_as")
 
     if save_as == "json":
@@ -29,7 +32,7 @@ def aggregate_caches(
                 else:
                     for inner_key, inner_value in inner_dict.items():
                         aggregated_dict[outer_key][inner_key] += inner_value
-                
+
         result_dict = {}
         bins = list(producer_cfg["bins"].keys())
         for outer_key, inner_dict in aggregated_dict.items():
@@ -38,14 +41,18 @@ def aggregate_caches(
             for bin_name in bins:
                 weight_before = inner_dict[f"weight_noBtag_{bin_name}"]
                 weight_after = inner_dict[f"weight_total_{bin_name}"]
-                result_dict[outer_key][bin_name] = weight_before/weight_after if weight_after != 0 else 1
-                
+                result_dict[outer_key][bin_name] = (
+                    weight_before / weight_after if weight_after != 0 else 1
+                )
+
         with open(outFile, "w") as fp:
             json.dump(result_dict, fp, indent=4)
 
     else:
-        raise NotImplementedError(f"Aggregating caches in {save_as} format is not supported.")
-       
+        raise NotImplementedError(
+            f"Aggregating caches in {save_as} format is not supported."
+        )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -62,7 +69,9 @@ if __name__ == "__main__":
     for header in headers:
         DeclareHeader(os.environ["ANALYSIS_PATH"] + "/" + header)
 
-    setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period, args.LAWrunVersion)
+    setup = Setup.getGlobal(
+        os.environ["ANALYSIS_PATH"], args.period, args.LAWrunVersion
+    )
 
     aggregate_caches(
         setup=setup,

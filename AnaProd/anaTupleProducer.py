@@ -429,8 +429,8 @@ if __name__ == "__main__":
     ROOT.gROOT.ProcessLine('#include "include/GenTools.h"')
     ROOT.gInterpreter.ProcessLine(f'ParticleDB::Initialize("{args.particleFile}");')
     setup = Setup.getGlobal(
-        os.environ["ANALYSIS_PATH"], 
-        args.period, 
+        os.environ["ANALYSIS_PATH"],
+        args.period,
         args.LAWrunVersion,
         customisations=args.customisations,
     )

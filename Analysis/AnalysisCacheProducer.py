@@ -133,7 +133,7 @@ def createAnalysisCache(
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
     isData = dataset_name == "data"
-    
+
     Utilities.InitializeCorrections(setup, dataset_name, stage="AnalysisCache")
     scale_uncertainties = set()
     if setup.global_params["compute_unc_variations"]:
@@ -243,7 +243,9 @@ if __name__ == "__main__":
     for header in headers:
         DeclareHeader(os.environ["ANALYSIS_PATH"] + "/" + header)
 
-    setup = Setup.getGlobal(os.environ["ANALYSIS_PATH"], args.period, args.LAWrunVersion)
+    setup = Setup.getGlobal(
+        os.environ["ANALYSIS_PATH"], args.period, args.LAWrunVersion
+    )
     producer_config = setup.global_params["payload_producers"][args.producer]
     histTupleDef = Utilities.load_module(args.histTupleDef)
 

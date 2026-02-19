@@ -143,7 +143,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     continue
                 producer_cfg = payload_producers[producer_name]
                 needs_aggregation = producer_cfg.get("needs_aggregation", False)
-                target_groups = cfg.get("target_groups", None)
+                target_groups = producer_cfg.get("target_groups", None)
                 applies_for_group = target_groups is None or process_group in target_groups
                 if needs_aggregation:
                     if applies_for_group:
@@ -152,9 +152,24 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         if producers_to_aggregate:
             aggrAnaCaches = {}
             for producer_name in producers_to_aggregate:
-                aggrAnaCaches[producer_name] = AnalysisCacheAggregationTask.req(
+                aggr_task_branch_map = AnalysisCacheAggregationTask.req(
                     self, 
                     branch=-1, 
+                    producer_to_aggregate=producer_name,
+                ).create_branch_map()
+
+                # find which branch of AnalysisCacheAggregationTask is needed for this producer and dataset
+                branch_idx = -1
+                for aggr_br_idx, (aggr_dataset_name, _) in aggr_task_branch_map.items():
+                    if aggr_dataset_name == dataset_name:
+                        branch_idx = aggr_br_idx
+                        break
+
+                assert branch_idx >= 0, "Must find correct branch"
+
+                aggrAnaCaches[producer_name] = AnalysisCacheAggregationTask.req(
+                    self, 
+                    branch=branch_idx, 
                     producer_to_aggregate=producer_name,
                 )
         
@@ -1346,7 +1361,7 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 "--period",
                 self.period,
                 "--producer",
-                producer_name,
+                self.producer_to_aggregate,
                 "--LAWrunVersion",
                 self.version,
             ]
@@ -1358,5 +1373,6 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             out_local_path = local_output.path
             local_output.parent.touch()  # Creates parent directories if needed
             shutil.move(tmpFile, out_local_path)
+            print(f"Creating aggregated cache for producer {self.producer_to_aggregate} and dataset {sample_name} at {out_local_path}")
 
 

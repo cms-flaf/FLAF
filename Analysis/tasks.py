@@ -135,6 +135,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 deps["anaCaches"] = anaCaches
 
         producers_to_aggregate = []
+        process_group = self.datasets[dataset_name]["process_group"]
         for producer_name in producer_list:
             if producer_name:
                 payload_producers = self.global_params.get("payload_producers")
@@ -142,38 +143,52 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     continue
                 producer_cfg = payload_producers[producer_name]
                 needs_aggregation = producer_cfg.get("needs_aggregation", False)
-                ignore_data = producer_cfg.get("ignore_data", False)
-                is_data = dataset_name == "data"
+                target_groups = cfg.get("target_groups", None)
+                applies_for_group = target_groups is None or process_group in target_groups
                 if needs_aggregation:
-                    if not ignore_data or not is_data:
+                    if applies_for_group:
                         producers_to_aggregate.append(producer_name)
 
         if producers_to_aggregate:
+            # # need to set to dependencies of this branch all branches of 
+            # # AnalysisCacheAggregationTask that have this dataset_name and these producers (producers_to_aggregate)
+            # # there might caches made by different producers for given dataset to aggregate
+            # # so collect them all in a dict
+            # aggr_ana_cache_producer_branch_map = {}
+
+            # aggr_ana_cache_branch_map = AnalysisCacheAggregationTask.req(
+            #     self, branch=-1,
+            # ).create_branch_map()
+
+            # # each branch of AnalysisCacheAggregationTask corresponds to one dataset and one producer
+            # for aggr_ana_cache_br_idx, (agg_ana_cache_sample, aggr_ana_cache_producer, _) in aggr_ana_cache_branch_map.items():
+            #     if dataset_name == agg_ana_cache_sample and aggr_ana_cache_producer in producers_to_aggregate:
+            #         if aggr_ana_cache_producer not in aggr_ana_cache_producer_branch_map:
+            #             aggr_ana_cache_producer_branch_map[aggr_ana_cache_producer] = []
+            #         aggr_ana_cache_producer_branch_map[aggr_ana_cache_producer].append(aggr_ana_cache_br_idx)
+
+            # aggrAnaCaches = {}
+            # for producer_name, aggr_ana_cache_br_indices in aggr_ana_cache_producer_branch_map.items():
+            #     assert len(aggr_ana_cache_br_indices) == 1, "There must be exactly 1 aggregation branch for each producer."
+            #     aggrAnaCaches[producer_name] = AnalysisCacheAggregationTask.req(
+            #         self,
+            #         branch=aggr_ana_cache_br_indices[0],
+            #     )
+                
+            # if aggrAnaCaches:
+            #     deps["aggrAnaCaches"] = aggrAnaCaches
             # need to set to dependencies of this branch all branches of 
             # AnalysisCacheAggregationTask that have this dataset_name and these producers (producers_to_aggregate)
             # there might caches made by different producers for given dataset to aggregate
             # so collect them all in a dict
-            aggr_ana_cache_producer_branch_map = {}
-
-            aggr_ana_cache_branch_map = AnalysisCacheAggregationTask.req(
-                self, branch=-1,
-            ).create_branch_map()
-
-            # each branch of AnalysisCacheAggregationTask corresponds to one dataset and one producer
-            for aggr_ana_cache_br_idx, (agg_ana_cache_sample, aggr_ana_cache_producer, _) in aggr_ana_cache_branch_map.items():
-                if dataset_name == agg_ana_cache_sample and aggr_ana_cache_producer in producers_to_aggregate:
-                    if aggr_ana_cache_producer not in aggr_ana_cache_producer_branch_map:
-                        aggr_ana_cache_producer_branch_map[aggr_ana_cache_producer] = []
-                    aggr_ana_cache_producer_branch_map[aggr_ana_cache_producer].append(aggr_ana_cache_br_idx)
-
             aggrAnaCaches = {}
-            for producer_name, aggr_ana_cache_br_indices in aggr_ana_cache_producer_branch_map.items():
-                assert len(aggr_ana_cache_br_indices) == 1, "There must be exactly 1 aggregation branch for each producer."
+            for producer_name in producers_to_aggregate:
                 aggrAnaCaches[producer_name] = AnalysisCacheAggregationTask.req(
-                    self,
-                    branch=aggr_ana_cache_br_indices[0],
+                    self, 
+                    branch=-1, 
+                    producer_to_aggregate=producer_name,
                 )
-                
+        
             if aggrAnaCaches:
                 deps["aggrAnaCaches"] = aggrAnaCaches
 
@@ -224,12 +239,13 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             need_cache_list.append(need_cache)
             producer_list.append(producer_to_run)
 
-        payload_producers = self.global_params["payload_producers"]
-        for producer_name, producer_cfg in payload_producers.items():
-            is_global = producer_cfg.get("is_global", False)
-            not_present = producer_name not in producer_list
-            if not_present and is_global:
-                producer_list.append(producer_name)
+        payload_producers = self.global_params.get("payload_producers")
+        if payload_producers:
+            for producer_name, producer_cfg in payload_producers.items():
+                is_global = producer_cfg.get("is_global", False)
+                not_present = producer_name not in producer_list
+                if not_present and is_global:
+                    producer_list.append(producer_name)
 
         for prod_br, (
             dataset_name,
@@ -246,13 +262,36 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 continue
 
             for input_index in range(len(output_file_list)):
-                branches[n] = (
-                    dataset_name,
-                    prod_br,
-                    need_cache_global,
-                    producer_list,
-                    input_index,
-                )
+                producers_to_run = []
+                if payload_producers:
+                    for prod in producer_list:
+                        cfg = payload_producers.get(prod, None)
+                        is_configurable = cfg is not None
+                        if not is_configurable:
+                            producers_to_run.append(prod)
+                            continue
+                        
+                        target_groups = cfg.get("target_groups", None)
+                        applies_for_group = target_groups is None or process_group in target_groups
+                        
+                        if applies_for_group:
+                            producers_to_run.append(prod)
+                        
+                    branches[n] = (
+                        dataset_name,
+                        prod_br,
+                        need_cache_global,
+                        producers_to_run,
+                        input_index,
+                    )
+                else:
+                    branches[n] = (
+                        dataset_name,
+                        prod_br,
+                        need_cache_global,
+                        producer_list,
+                        input_index,
+                    )
                 n += 1
         return branches
 
@@ -1206,6 +1245,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
+    producer_to_aggregate = luigi.Parameter()
 
     def __init__(self, *args, **kwargs):
         super(AnalysisCacheAggregationTask, self).__init__(*args, **kwargs)
@@ -1230,125 +1270,204 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             }   
 
             # find which producers need aggregation and add their cache to dependencies of the task
-            producers_to_aggregate = []
-            for producer_name, producer_cfg in payload_producers.items():
-                needs_aggregation = producer_cfg.get("needs_aggregation", False)
-                if needs_aggregation:
-                    producers_to_aggregate.append(
-                        AnalysisCacheTask.req(
-                            self,
-                            branches=(),
-                            max_runtime=AnalysisCacheTask.max_runtime._default,
-                            n_cpus=AnalysisCacheTask.n_cpus._default,
-                            customisations=self.customisations,
-                            producer_to_run=producer_name
-                        )
-                    )
+            # producers_to_aggregate = []
+            # for producer_name, producer_cfg in payload_producers.items():
+            #     needs_aggregation = producer_cfg.get("needs_aggregation", False)
+            #     if needs_aggregation:
+            #         producers_to_aggregate.append(
+            #             AnalysisCacheTask.req(
+            #                 self,
+            #                 branches=(),
+            #                 max_runtime=AnalysisCacheTask.max_runtime._default,
+            #                 n_cpus=AnalysisCacheTask.n_cpus._default,
+            #                 customisations=self.customisations,
+            #                 producer_to_run=producer_name
+            #             )
+            #         )
 
-            if producers_to_aggregate:
-                deps["AnalysisCacheTask"] = producers_to_aggregate
+            # if producers_to_aggregate:
+            #     deps["AnalysisCacheTask"] = producers_to_aggregate
+                
+            deps["AnalysisCacheTask"] = AnalysisCacheTask.req(
+                self,
+                branches=(),
+                max_runtime=AnalysisCacheTask.max_runtime._default,
+                n_cpus=AnalysisCacheTask.n_cpus._default,
+                customisations=self.customisations,
+                producer_to_run=self.producer_to_aggregate,
+            )
             return deps
         
-        producers_to_aggregate = []
-        for producer_name, producer_cfg in payload_producers.items():
-            needs_aggregation = producer_cfg.get("needs_aggregation", False)
-            if needs_aggregation:
-                producers_cache_branch_map = AnalysisCacheTask.req(
-                    self, branch=-1, branches=(), producer_to_run=producer_name
-                ).create_branch_map()
-                branches = [b for b in producers_cache_branch_map.keys()]
-                producers_to_aggregate.append(
-                    AnalysisCacheTask.req(
-                        self,
-                        branches=tuple(branches),
-                        max_runtime=AnalysisCacheTask.max_runtime._default,
-                        n_cpus=AnalysisCacheTask.n_cpus._default,
-                        customisations=self.customisations,
-                        producer_to_run=producer_name
-                    )
-                )
+        # producers_to_aggregate = []
+        # for producer_name, producer_cfg in payload_producers.items():
+        #     needs_aggregation = producer_cfg.get("needs_aggregation", False)
+        #     if needs_aggregation:
+        #         producers_cache_branch_map = AnalysisCacheTask.req(
+        #             self, branch=-1, branches=(), producer_to_run=producer_name
+        #         ).create_branch_map()
+        #         branches = [b for b in producers_cache_branch_map.keys()]
+        #         producers_to_aggregate.append(
+        #             AnalysisCacheTask.req(
+        #                 self,
+        #                 branches=tuple(branches),
+        #                 max_runtime=AnalysisCacheTask.max_runtime._default,
+        #                 n_cpus=AnalysisCacheTask.n_cpus._default,
+        #                 customisations=self.customisations,
+        #                 producer_to_run=producer_name
+        #             )
+        #         )
+
+        # deps = {}
+        # if producers_to_aggregate:
+        #     deps["AnalysisCacheTask"] = producers_to_aggregate
 
         deps = {}
-        if producers_to_aggregate:
-            deps["AnalysisCacheTask"] = producers_to_aggregate
+        producers_cache_branch_map = AnalysisCacheTask.req(
+            self, branch=-1, branches=(), producer_to_run=self.producer_to_aggregate
+        ).create_branch_map()
+        branches = [b for b in producers_cache_branch_map.keys()]
+        deps["AnalysisCacheTask"] = AnalysisCacheTask.req(
+            self,
+            branches=tuple(branches),
+            max_runtime=AnalysisCacheTask.max_runtime._default,
+            n_cpus=AnalysisCacheTask.n_cpus._default,
+            customisations=self.customisations,
+            producer_to_run=self.producer_to_aggregate
+        )
+
         return deps
 
     def requires(self):
-        sample_name, producer_name, list_of_producer_cache_keys = self.branch_data
-        payload_producers = self.global_params["payload_producers"]
-        producer_cfg = payload_producers[producer_name]
-        ignore_data = producer_cfg.get("ignore_data", False)
-        needs_aggregation = producer_cfg.get("needs_aggregation", False)
-        reqs = []
-        if needs_aggregation:
-            if ignore_data:           
-                reqs = [
-                    AnalysisCacheTask.req(
-                        self,
-                        max_runtime=AnalysisCacheTask.max_runtime._default,
-                        branch=prod_br,
-                        customisations=self.customisations,
-                        producer_to_run=producer_name,
-                    )
-                    for prod_br in list_of_producer_cache_keys if sample_name != "data"
-                ]
-            else:
-                reqs = [
-                    AnalysisCacheTask.req(
-                        self,
-                        max_runtime=AnalysisCacheTask.max_runtime._default,
-                        branch=prod_br,
-                        customisations=self.customisations,
-                        producer_to_run=producer_name,
-                    )
-                    for prod_br in list_of_producer_cache_keys
-                ]
+        # sample_name, producer_name, list_of_producer_cache_keys = self.branch_data
+        # payload_producers = self.global_params["payload_producers"]
+        # producer_cfg = payload_producers[producer_name]
+        # ignore_data = producer_cfg.get("ignore_data", False)
+        # needs_aggregation = producer_cfg.get("needs_aggregation", False)
+        # reqs = []
+        # if needs_aggregation:
+        #     if ignore_data:           
+        #         reqs = [
+        #             AnalysisCacheTask.req(
+        #                 self,
+        #                 max_runtime=AnalysisCacheTask.max_runtime._default,
+        #                 branch=prod_br,
+        #                 customisations=self.customisations,
+        #                 producer_to_run=producer_name,
+        #             )
+        #             for prod_br in list_of_producer_cache_keys if sample_name != "data"
+        #         ]
+        #     else:
+        #         reqs = [
+        #             AnalysisCacheTask.req(
+        #                 self,
+        #                 max_runtime=AnalysisCacheTask.max_runtime._default,
+        #                 branch=prod_br,
+        #                 customisations=self.customisations,
+        #                 producer_to_run=producer_name,
+        #             )
+        #             for prod_br in list_of_producer_cache_keys
+        #         ]
+        # return reqs
+
+        # I dno't need to check here that this producer applies to target group
+        # the reason is that if its in the branch map - it already was checked
+        sample_name, list_of_producer_cache_keys = self.branch_data
+        # producer_cfg = payload_producers[self.producer_to_aggregate]
+        # target_groups = producer_cfg.get("target_groups", None)
+        # process_group = self.datasets[sample_name]["process_group"]
+        # applies_for_group = target_groups is None or process_group in target_groups
+        reqs = [
+            AnalysisCacheTask.req(
+                self,
+                max_runtime=AnalysisCacheTask.max_runtime._default,
+                branch=prod_br,
+                customisations=self.customisations,
+                producer_to_run=self.producer_to_aggregate,
+            )
+            for prod_br in list_of_producer_cache_keys
+        ]
         return reqs
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        # # structure of branch map 
+        # # ---- name of sample,
+        # # ---- name of producer,
+        # # ---- list of branch indices of the AnalysisCacheTask(producer_to_run=producer_name)
+        # branches = {}
+        # branch_idx = 0
+
+        # payload_producers = self.global_params["payload_producers"]
+        # # for each producer compute its branch map if it needs aggregation
+        # # and save all branches of this producer to list
+        # for producer_name, producer_cfg in payload_producers.items():
+        #     needs_aggregation = producer_cfg.get("needs_aggregation", False)
+        #     ignore_data = producer_cfg.get("ignore_data", False)
+        #     if needs_aggregation:
+        #         producer_cache_branch_map = AnalysisCacheTask.req(
+        #             self, branch=-1, branches=(), producer_to_run=producer_name
+        #         ).create_branch_map()
+
+        #         # find which branches of this producer correspond to each sample
+        #         sample_branch_map = {}
+        #         for producer_cache_branch_idx, (sample_name, _, _, _, _) in producer_cache_branch_map.items():
+        #             if sample_name not in sample_branch_map:
+        #                 sample_branch_map[sample_name] = []
+        #             sample_branch_map[sample_name].append(producer_cache_branch_idx)
+
+        #         if ignore_data:
+        #             sample_branch_map.pop("data", None)
+
+        #         for sample_name, list_of_producer_cache_keys in sample_branch_map.items():
+        #             branches[branch_idx] = (sample_name, producer_name, list_of_producer_cache_keys)
+        #             branch_idx += 1
+        # return branches
+        
         # structure of branch map 
         # ---- name of sample,
-        # ---- name of producer,
         # ---- list of branch indices of the AnalysisCacheTask(producer_to_run=producer_name)
+        
         branches = {}
         branch_idx = 0
 
         payload_producers = self.global_params["payload_producers"]
-        # for each producer compute its branch map if it needs aggregation
-        # and save all branches of this producer to list
-        for producer_name, producer_cfg in payload_producers.items():
-            needs_aggregation = producer_cfg.get("needs_aggregation", False)
-            ignore_data = producer_cfg.get("ignore_data", False)
-            if needs_aggregation:
-                producer_cache_branch_map = AnalysisCacheTask.req(
-                    self, branch=-1, branches=(), producer_to_run=producer_name
-                ).create_branch_map()
+        producer_cfg = payload_producers[self.producer_to_aggregate]
+        producer_cache_branch_map = AnalysisCacheTask.req(
+            self, branch=-1, branches=(), producer_to_run=self.producer_to_aggregate
+        ).create_branch_map()
 
-                # find which branches of this producer correspond to each sample
-                sample_branch_map = {}
-                for producer_cache_branch_idx, (sample_name, _, _, _, _) in producer_cache_branch_map.items():
-                    if sample_name not in sample_branch_map:
-                        sample_branch_map[sample_name] = []
-                    sample_branch_map[sample_name].append(producer_cache_branch_idx)
+        # find which branches of this producer correspond to each sample
+        sample_branch_map = {}
+        for producer_cache_branch_idx, (sample_name, _, _, _, _) in producer_cache_branch_map.items():
+            if sample_name not in sample_branch_map:
+                sample_branch_map[sample_name] = []
+            sample_branch_map[sample_name].append(producer_cache_branch_idx)
 
-                if ignore_data:
-                    sample_branch_map.pop("data", None)
+        target_groups = producer_cfg.get("target_groups", None)
 
-                for sample_name, list_of_producer_cache_keys in sample_branch_map.items():
-                    branches[branch_idx] = (sample_name, producer_name, list_of_producer_cache_keys)
-                    branch_idx += 1
+        for sample_name, list_of_producer_cache_keys in sample_branch_map.items():
+            process_group = self.datasets[sample_name]["process_group"]
+            applies_for_group = target_groups is None or process_group in target_groups
+            if applies_for_group:
+                branches[branch_idx] = (sample_name, list_of_producer_cache_keys)
+                branch_idx += 1
+                
         return branches
     
     @workflow_condition.output
     def output(self):
-        sample_name, producer_name, _ = self.branch_data
-        extension = self.global_params["payload_producers"][producer_name].get("save_as", "root")
+        # sample_name, producer_name, _ = self.branch_data
+        # extension = self.global_params["payload_producers"][producer_name].get("save_as", "root")
+        # output_name = f"aggregatedCache.{extension}"
+        # return self.local_target(sample_name, producer_name, output_name)
+        sample_name, _ = self.branch_data
+        extension = self.global_params["payload_producers"][self.producer_to_aggregate].get("save_as", "root")
         output_name = f"aggregatedCache.{extension}"
-        return self.local_target(sample_name, producer_name, output_name)
+        return self.local_target(sample_name, self.producer_to_aggregate, output_name)
 
     def run(self):
-        sample_name, producer_name, _ = self.branch_data
+        # sample_name, producer_name, _ = self.branch_data
+        sample_name, _ = self.branch_data
         producers = self.global_params["payload_producers"]
         cacheAggregator = os.path.join(
             self.ana_path(), "FLAF", "Analysis", "AnalysisCacheAggregator.py"
@@ -1361,7 +1480,8 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 for inp in inputs
             ]
             assert local_inputs, "`local_inputs` must be a non-empty list"
-            producer_cfg = producers[producer_name]
+            # producer_cfg = producers[producer_name]
+            producer_cfg = producers[self.producer_to_aggregate]
             ext = producer_cfg.get("save_as", "root")
             job_home, remove_job_home = self.law_job_home()
             tmpFile = os.path.join(job_home, f"aggregatedCache_tmp.{ext}")

@@ -135,7 +135,11 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 deps["anaCaches"] = anaCaches
 
         producers_to_aggregate = []
-        process_group = self.datasets[dataset_name]["process_group"]
+        process_group = (
+            self.datasets[dataset_name]["process_group"]
+            if dataset_name != "data"
+            else "data"
+        )
         for producer_name in producer_list:
             if producer_name:
                 payload_producers = self.global_params.get("payload_producers")
@@ -1330,7 +1334,11 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         target_groups = producer_cfg.get("target_groups", None)
 
         for sample_name, list_of_producer_cache_keys in sample_branch_map.items():
-            process_group = self.datasets[sample_name]["process_group"]
+            process_group = (
+                self.datasets[sample_name]["process_group"]
+                if sample_name != "data"
+                else "data"
+            )
             applies_for_group = target_groups is None or process_group in target_groups
             if applies_for_group:
                 branches[branch_idx] = (sample_name, list_of_producer_cache_keys)

@@ -91,6 +91,7 @@ if __name__ == "__main__":
     parser.add_argument("--analysis", required=False, type=str, default="")
     parser.add_argument("--ana_path", required=True, type=str)
     parser.add_argument("--period", required=True, type=str)
+    parser.add_argument("--LAWrunVersion", required=True, type=str)
 
     args = parser.parse_args()
 
@@ -104,7 +105,7 @@ if __name__ == "__main__":
         os.environ["ANALYSIS_PATH"], "config", "plot/histograms.yaml"
     )
 
-    setup = Setup.Setup(args.ana_path, args.period)
+    setup = Setup.Setup(args.ana_path, args.period, args.LAWrunVersion)
 
     #### config opening ####
     with open(hist_cfg, "r") as f:

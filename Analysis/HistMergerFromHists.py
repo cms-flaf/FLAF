@@ -124,11 +124,12 @@ if __name__ == "__main__":
     parser.add_argument("--period", required=True, type=str)
     parser.add_argument("--uncSource", required=False, type=str, default="Central")
     parser.add_argument("--channels", required=False, type=str, default="")
+    parser.add_argument("--LAWrunVersion", required=True, type=str)
 
     args = parser.parse_args()
     startTime = time.time()
 
-    setup = Setup.Setup(os.environ["ANALYSIS_PATH"], args.period)
+    setup = Setup.Setup(os.environ["ANALYSIS_PATH"], args.period, args.LAWrunVersion)
 
     global_cfg_dict = setup.global_params
     unc_cfg_dict = setup.weights_config

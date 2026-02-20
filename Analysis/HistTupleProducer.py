@@ -139,26 +139,19 @@ def createHistTuple(
                 )
 
             dfw = histTupleDef.GetDfw(df, setup, dataset_name)
-            channels_dict = setup.global_params[
-                setup.global_params["channelDefinition"]
-            ]
-            channels_values = [channels_dict[x] for x in channels_dict.keys()]
-            channels_filter = " || ".join(
-                [f"channelId == {x}" for x in channels_values]
-            )
-            categories_filter = " || ".join(setup.global_params["categories"])
-            custom_regions = setup.global_params.get("custom_regions", False)
-            regions_filter = "True"
-            if custom_regions and setup.global_params.get(custom_regions, False):
-                regions_list = setup.global_params[custom_regions]
-                if isinstance(regions_list, dict):
-                    regions_list = regions_list.keys()
-                regions_filter = " || ".join(regions_list)
 
-            categories_and_regions_filter = (
-                f"({channels_filter} && {categories_filter}) && ({regions_filter})"
-            )
-            dfw.df = dfw.df.Filter(categories_and_regions_filter)
+            selection_tags = setup.global_params.get("histTuple_selectors", [])
+            selection_flags = []
+            for tag_name in selection_tags:
+              if not tag_name in setup.global_params: continue
+              tags = setup.global_params[tag_name]
+              tag_flags = tags if isinstance(tags, list) else list(tags.keys())
+              if len(tag_flags) > 0:
+                tag_flags_str = "(" + " || ".join(tag_flags) + ")"
+                selection_flags.append(tag_flags_str)
+            if len(selection_flags) > 0:
+              selection_str = " && ".join(selection_flags)
+              dfw.df = dfw.df.Filter(selection_str, "events of interest")
 
             iter_descs = [
                 {"source": unc_source, "scale": unc_scale, "weight": "weight_Central"}

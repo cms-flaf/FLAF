@@ -142,11 +142,14 @@ def createHistTuple(
             channels_dict = setup.global_params[setup.global_params["channelDefinition"]
             channels_filter = " || ".join([ f"channelId == {channels_dict[x]}" for x in channels_dict.keys() ])
             categories_filter = " || ".join(setup.global_params["categories"])
-            regions_list = setup.global_params[setup.global_params["custom_regions"]]
-            
-            if isinstance(regions_list, dict):
-                regions_list = regions_list.keys()
-            regions_filter = " || ".join(regions_list)
+            custom_regions = setup.global_params.get("custom_regions", False)
+            regions_filter = "True"
+            if custom_regions and setup.global_params.get(custom_regions, False):
+                regions_list = setup.global_params[custom_regions]
+                if isinstance(regions_list, dict):
+                    regions_list = regions_list.keys()
+                regions_filter = " || ".join(regions_list)
+
             categories_and_regions_filter = (
                 f"({channels_filter} && {categories_filter}) && ({regions_filter})"
             )

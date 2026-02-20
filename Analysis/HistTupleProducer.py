@@ -142,7 +142,7 @@ def createHistTuple(
             channels_dict = setup.global_params[
                 setup.global_params["channelDefinition"]
             ]
-            channels_values = [ channels_dict[x] for x in channels_dict.keys() ]
+            channels_values = [channels_dict[x] for x in channels_dict.keys()]
             channels_filter = " || ".join(
                 [f"channelId == {x}" for x in channels_values]
             )

@@ -202,16 +202,19 @@ def createAnatuple(
                     )
         return rdf
 
-    if tree_not_selected is not None and not isData:
-        genWeight_def = (
-            "std::copysign<float>(1.f, genWeight)"
-            if use_genWeight_sign_only
-            else "genWeight"
-        )
-        df_not_selected = df_not_selected.Define(gen_weight_name, genWeight_def)
-        if "pu" in corrections.to_apply:
-            df_not_selected = corrections.pu.getWeight(df_not_selected)
-        df_not_selected = updateDenomEntry(df_not_selected)
+    if not isData:
+        for data_frame in [df, df_not_selected]:
+            if data_frame is None:
+                continue
+            genWeight_def = (
+                "std::copysign<float>(1.f, genWeight)"
+                if use_genWeight_sign_only
+                else "genWeight"
+            )
+            data_frame = data_frame.Define(gen_weight_name, genWeight_def)
+            if "pu" in corrections.to_apply:
+                data_frame = corrections.pu.getWeight(data_frame)
+            updateDenomEntry(data_frame)
     # if isData: json_dict_for_cache['RunLumi'] = unique_run_lumi
     ROOT.RDF.Experimental.AddProgressBar(df)
     if range is not None:
@@ -328,8 +331,6 @@ def createAnatuple(
             )
             dfw.colToSave.extend(weight_branches)
 
-            if is_central:
-                dfw.df = updateDenomEntry(dfw.df)
         # Analysis anaTupleDef should define a legType as a leg obj
         # But to save with RDF, it needs to be converted to an int
         for leg_name in lepton_legs:

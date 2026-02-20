@@ -37,7 +37,8 @@ def DefineBinnedColumn(hist_cfg_dict, var):
         start, stop = bin_range.split(":")
         axis_definition = f"static const TAxis axis({n_bins}, {start}, {stop});"
 
-    ROOT.gInterpreter.Declare(f"""
+    ROOT.gInterpreter.Declare(
+        f"""
         #include "ROOT/RVec.hxx"
         #include "TAxis.h"
 
@@ -55,7 +56,8 @@ def DefineBinnedColumn(hist_cfg_dict, var):
             }}
             return out;
         }}
-        """)
+        """
+    )
 
 
 def createHistTuple(
@@ -139,12 +141,18 @@ def createHistTuple(
                 )
 
             dfw = histTupleDef.GetDfw(df, setup, dataset_name)
-            categories_filter = ' || '.join(setup.global_params["categories"])
-            regions_list = setup.global_params[setup.global_params["custom_regions"]] if isinstance(regions_list, list) else setup.global_params[setup.global_params["custom_regions"]].keys()
-            regions_filter = ' || '.join(regions_list)
-            categories_and_regions_filter = f"({categories_filter}) && ({regions_filter})"
+            categories_filter = " || ".join(setup.global_params["categories"])
+            regions_list = (
+                setup.global_params[setup.global_params["custom_regions"]]
+                if isinstance(regions_list, list)
+                else setup.global_params[setup.global_params["custom_regions"]].keys()
+            )
+            regions_filter = " || ".join(regions_list)
+            categories_and_regions_filter = (
+                f"({categories_filter}) && ({regions_filter})"
+            )
             dfw.df = dfw.df.Filter(categories_and_regions_filter)
-            
+
             iter_descs = [
                 {"source": unc_source, "scale": unc_scale, "weight": "weight_Central"}
             ]

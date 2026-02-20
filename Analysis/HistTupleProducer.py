@@ -139,9 +139,13 @@ def createHistTuple(
                 )
 
             dfw = histTupleDef.GetDfw(df, setup, dataset_name)
-            channels_dict = setup.global_params[setup.global_params["channelDefinition"]]
+            channels_dict = setup.global_params[
+                setup.global_params["channelDefinition"]
+            ]
             channels_values = [ channels_dict[x] for x in channels_dict.keys() ]
-            channels_filter = " || ".join([ f"channelId == {x}" for x in channels_values ])
+            channels_filter = " || ".join(
+                [f"channelId == {x}" for x in channels_values]
+            )
             categories_filter = " || ".join(setup.global_params["categories"])
             custom_regions = setup.global_params.get("custom_regions", False)
             regions_filter = "True"

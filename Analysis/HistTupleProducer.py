@@ -143,16 +143,16 @@ def createHistTuple(
             selection_tags = setup.global_params.get("histTuple_selectors", [])
             selection_flags = []
             for tag_name in selection_tags:
-              if not tag_name in setup.global_params: 
-                raise RuntimeError(f"HistTuple Selector {tag_name} doesn't exist!")
-              tags = setup.global_params[tag_name]
-              tag_flags = tags if isinstance(tags, list) else list(tags.keys())
-              if len(tag_flags) > 0:
-                tag_flags_str = "(" + " || ".join(tag_flags) + ")"
-                selection_flags.append(tag_flags_str)
+                if not tag_name in setup.global_params: 
+                    raise RuntimeError(f"HistTuple Selector {tag_name} doesn't exist!")
+                tags = setup.global_params[tag_name]
+                tag_flags = tags if isinstance(tags, list) else list(tags.keys())
+                if len(tag_flags) > 0:
+                    tag_flags_str = "(" + " || ".join(tag_flags) + ")"
+                    selection_flags.append(tag_flags_str)
             if len(selection_flags) > 0:
-              selection_str = " && ".join(selection_flags)
-              dfw.df = dfw.df.Filter(selection_str, "events of interest")
+                selection_str = " && ".join(selection_flags)
+                dfw.df = dfw.df.Filter(selection_str, "events of interest")
 
             iter_descs = [
                 {"source": unc_source, "scale": unc_scale, "weight": "weight_Central"}

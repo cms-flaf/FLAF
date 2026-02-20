@@ -371,7 +371,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         cache_file.localize("r")
                     ).path
                 local_anacaches_str = ",".join(
-                    f"{producer}:{path}" for producer, path in local_anacaches.items()
+                    f"{producer}:{path}"
+                    for producer, path in local_anacaches.items()
+                    if path.endswith("root")
                 )
                 HistTupleProducer_cmd.extend(["--cacheFile", local_anacaches_str])
 

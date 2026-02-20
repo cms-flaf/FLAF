@@ -143,7 +143,8 @@ def createHistTuple(
             selection_tags = setup.global_params.get("histTuple_selectors", [])
             selection_flags = []
             for tag_name in selection_tags:
-              if not tag_name in setup.global_params: continue
+              if not tag_name in setup.global_params: 
+                raise RuntimeError(f"HistTuple Selector {tag_name} doesn't exist!")
               tags = setup.global_params[tag_name]
               tag_flags = tags if isinstance(tags, list) else list(tags.keys())
               if len(tag_flags) > 0:

@@ -139,6 +139,12 @@ def createHistTuple(
                 )
 
             dfw = histTupleDef.GetDfw(df, setup, dataset_name)
+            categories_filter = ' || '.join(setup.global_params["categories"])
+            regions_list = setup.global_params[setup.global_params["custom_regions"]] if isinstance(regions_list, list) else setup.global_params[setup.global_params["custom_regions"]].keys()
+            regions_filter = ' || '.join(regions_list)
+            categories_and_regions_filter = f"({categories_filter}) && ({regions_filter})"
+            dfw.df = dfw.df.Filter(categories_and_regions_filter)
+            
             iter_descs = [
                 {"source": unc_source, "scale": unc_scale, "weight": "weight_Central"}
             ]

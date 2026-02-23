@@ -6,8 +6,14 @@ import os
 import shutil
 import re
 import yaml
+from pathlib import Path
 
-from FLAF.RunKit.run_tools import ps_call, natural_sort
+from FLAF.RunKit.run_tools import (
+    ps_call,
+    PsCallError,
+    natural_sort,
+    check_root_file_integrity,
+)
 from FLAF.run_tools.law_customizations import Task, HTCondorWorkflow, copy_param
 from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 from .AnaTupleFileList import CreateMergePlan
@@ -207,7 +213,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
             reportFileName = "report.json"
             rawReportPath = os.path.join(outdir_anatuples, reportFileName)
-
+            input_ok = True
             with contextlib.ExitStack() as stack:
                 local_input = stack.enter_context(input_file.localize("r")).path
                 inFileName = os.path.basename(input_file.path)
@@ -245,9 +251,18 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 env = None
                 if self.global_params.get("use_cmssw_env_AnaTupleProduction", False):
                     env = self.cmssw_env
-                ps_call(anatuple_cmd, env=env, verbose=1)
+                try:
+                    ps_call(anatuple_cmd, env=env, verbose=1)
+                except PsCallError as e:
+                    print(f"anaTupleProducer failed: {e}")
+                    print("Checking input file integrity...")
+                    input_ok = check_root_file_integrity(local_input, verbose=1)
+                    if input_ok:
+                        raise RuntimeError("anaTupleProducer failed.")
+                    print(
+                        "Input file is corrupted. Will create empty anaTuple and report."
+                    )
 
-            print("step 2: raw anaTuples -> fused anaTuples")
             producer_fuseTuples = os.path.join(
                 self.ana_path(), "FLAF", "AnaProd", "FuseAnaTuples.py"
             )
@@ -255,24 +270,36 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             outFileName = os.path.basename(input_file.path)
             outFilePath = os.path.join(outdir_fusedTuples, outFileName)
             finalReportPath = os.path.join(outdir_fusedTuples, reportFileName)
-            # verbosity = "2" if self.test > 0 else "1"
-            verbosity = "1"
-            fuseTuple_cmd = [
-                "python",
-                "-u",
-                producer_fuseTuples,
-                "--input-config",
-                rawReportPath,
-                "--work-dir",
-                outdir_fusedTuples,
-                "--tuple-output",
-                outFileName,
-                "--report-output",
-                reportFileName,
-                "--verbose",
-                verbosity,
-            ]
-            ps_call(fuseTuple_cmd, verbose=1)
+            if input_ok:
+                print("step 2: raw anaTuples -> fused anaTuples")
+                verbosity = "1"
+                fuseTuple_cmd = [
+                    "python",
+                    "-u",
+                    producer_fuseTuples,
+                    "--input-config",
+                    rawReportPath,
+                    "--work-dir",
+                    outdir_fusedTuples,
+                    "--tuple-output",
+                    outFileName,
+                    "--report-output",
+                    reportFileName,
+                    "--verbose",
+                    verbosity,
+                ]
+                ps_call(fuseTuple_cmd, verbose=1)
+            else:
+                os.makedirs(outdir_fusedTuples, exist_ok=True)
+                Path(outFilePath).touch()
+                report = {
+                    "valid": False,
+                    "nano_file_name": inFileName,
+                    "anaTuple_file_name": output_name,
+                    "dataset_name": dataset_name,
+                }
+                with open(finalReportPath, "w") as f:
+                    json.dump(report, f, indent=2)
 
             with self.output()["root"].localize("w") as local_file:
                 shutil.move(outFilePath, local_file.path)

@@ -10,32 +10,47 @@ class BtagShapeProducer:
     def __init__(self, cfg, payload_name, *args):
         self.payload_name = payload_name
         self.cfg = cfg
-        self.vars_to_save = [
-            "weight_noBtag",
-            "weight_total",
-        ]
-        self.vars_to_save.extend(self.cfg["bins"].keys())
         self.weight_module = importlib.import_module(cfg["weight_module"])
 
     def prepare_dfw(self, dfw, dataset):
+        self.vars_to_save = [
+            "weight_total",
+        ]
+        self.vars_to_save.extend(self.cfg["bins"].keys())
+
         total_weight = self.weight_module.GetWeight(None, None, None)
         dfw.df = dfw.df.Define("weight_total", f"return {total_weight}")
-        dfw.df = dfw.df.Define(
-            "weight_noBtag",
-            f"return weight_bTagShape_Central != 0.0 ? {total_weight} / weight_bTagShape_Central : 0.0",
-        )
+
+        cols = dfw.df.GetColumnNames()
+        btag_cols = [
+            c for c in cols if "weight_bTagShape" in c and c.endswith("_double")
+        ]
+        self.entry_names_noBtag = []
+        for c in btag_cols:
+            syst = c.split("_")[-2]
+            branch_name = f"weight_bTagShape_{syst}_double"
+
+            json_record_name = f"weight_noBtag_{syst}"
+            if json_record_name not in self.entry_names_noBtag:
+                self.entry_names_noBtag.append(json_record_name)
+                self.vars_to_save.append(json_record_name)
+            dfw.df = dfw.df.Define(
+                json_record_name,
+                f"return {branch_name} != 0.0 ? {total_weight} / {branch_name} : 0.0",
+            )
         for bin_name, bin_def in self.cfg["bins"].items():
             dfw.df = dfw.df.Define(bin_name, f"return {bin_def}")
         return dfw
 
     def run(self, array, keep_all_columns=False):
         res = {}
-        weights_noBtag = array["weight_noBtag"]
         weights_total = array["weight_total"]
         for bin_name in self.cfg["bins"]:
             mask = array[bin_name]
-            res[f"weight_noBtag_{bin_name}"] = float(np.sum(weights_noBtag[mask]))
             res[f"weight_total_{bin_name}"] = float(np.sum(weights_total[mask]))
+            for syst_noBtag in self.entry_names_noBtag:
+                weights_noBtag = array[syst_noBtag]
+                res[f"{syst_noBtag}_{bin_name}"] = float(np.sum(weights_noBtag[mask]))
         return res
 
     def combine(

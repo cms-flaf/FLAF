@@ -9,7 +9,6 @@ import awkward as ak
 import numpy as np
 import sys
 import json
-import inspect
 
 ROOT.EnableThreadSafety()
 

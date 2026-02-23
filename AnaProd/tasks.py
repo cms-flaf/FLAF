@@ -8,7 +8,12 @@ import re
 import yaml
 from pathlib import Path
 
-from FLAF.RunKit.run_tools import ps_call, PsCallError, natural_sort, check_root_file_integrity
+from FLAF.RunKit.run_tools import (
+    ps_call,
+    PsCallError,
+    natural_sort,
+    check_root_file_integrity,
+)
 from FLAF.run_tools.law_customizations import Task, HTCondorWorkflow, copy_param
 from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 from .AnaTupleFileList import CreateMergePlan
@@ -249,12 +254,14 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 try:
                     ps_call(anatuple_cmd, env=env, verbose=1)
                 except PsCallError as e:
-                    print(f'anaTupleProducer failed: {e}')
+                    print(f"anaTupleProducer failed: {e}")
                     print("Checking input file integrity...")
                     input_ok = check_root_file_integrity(local_input, verbose=1)
                     if input_ok:
                         raise RuntimeError("anaTupleProducer failed.")
-                    print("Input file is corrupted. Will create empty anaTuple and report.")
+                    print(
+                        "Input file is corrupted. Will create empty anaTuple and report."
+                    )
 
             producer_fuseTuples = os.path.join(
                 self.ana_path(), "FLAF", "AnaProd", "FuseAnaTuples.py"

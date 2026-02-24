@@ -20,6 +20,10 @@ def CreateMergePlan(setup, local_inputs, n_events_per_file, is_data):
         with open(report, "r") as file:
             data = json.load(file)
         key = os.path.join(data["dataset_name"], data["anaTuple_file_name"])
+        is_valid = data.get("valid", True)
+        if not is_valid:
+            print(f"{key}: is marked as invalid, skipping", file=os.sys.stderr)
+            continue
         if key in combined_reports:
             raise ValueError(f"Duplicate report for file {key}")
         combined_reports[key] = data

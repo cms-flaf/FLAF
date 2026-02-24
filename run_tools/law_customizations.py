@@ -34,7 +34,7 @@ class Task(law.Task):
     """
 
     version = luigi.Parameter()
-    prefer_params_cli = ["version"]
+    prefer_params_cli = ["version", "tasks_per_job"]
     period = luigi.Parameter()
     customisations = luigi.Parameter(default="")
     test = luigi.IntParameter(default=-1)

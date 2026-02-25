@@ -164,7 +164,7 @@ def mergeAnaTuples(
         if len(processors_cfg) == 0:
             processor_instances["default"] = DefaultAnaCacheProcessor()
         Corrections.initializeGlobal(
-            global_params=setup.global_params,
+            setup=setup,
             stage="AnaTupleMerge",
             dataset_name=dataset_name,
             dataset_cfg=dataset_cfg,
@@ -280,10 +280,14 @@ if __name__ == "__main__":
     parser.add_argument("--compression-level", type=int, default=9)
     parser.add_argument("--compression-algo", type=str, default="LZMA")
     parser.add_argument("--is-data", action="store_true")
+    parser.add_argument("--LAWrunVersion", required=True, type=str)
     args = parser.parse_args()
 
     setup = Setup.getGlobal(
-        os.environ["ANALYSIS_PATH"], args.period, args.customisations
+        os.environ["ANALYSIS_PATH"],
+        args.period,
+        args.LAWrunVersion,
+        customisations=args.customisations,
     )
 
     report_files = DeserializeObjectFromString(args.input_reports)

@@ -238,6 +238,8 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     inFileName,
                     "--reportOutput",
                     rawReportPath,
+                    "--LAWrunVersion",
+                    self.version,
                     "--output-name",
                     output_name,
                 ]

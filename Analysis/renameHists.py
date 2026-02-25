@@ -17,7 +17,6 @@ from FLAF.Common.HistHelper import *
 import importlib
 import FLAF.Common.Setup as Setup
 
-
 processes = [
     "GluGluToRadionToHHTo2B2Tau_M-250",
     "GluGluToRadionToHHTo2B2Tau_M-260",
@@ -234,9 +233,10 @@ if __name__ == "__main__":
     # parser.add_argument('--remove-files', required=False, type=bool, default=False)
     parser.add_argument("--ana_path", required=True, type=str)
     parser.add_argument("--period", required=True, type=str)
+    parser.add_argument("--LAWrunVersion", required=True, type=str)
     args = parser.parse_args()
 
-    setup = Setup.Setup(args.ana_path, args.period)
+    setup = Setup.Setup(args.ana_path, args.period, args.LAWrunVersion)
 
 analysis_import = setup.global_params["analysis_import"]
 analysis = importlib.import_module(f"{analysis_import}")

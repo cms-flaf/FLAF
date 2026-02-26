@@ -199,12 +199,16 @@ if __name__ == "__main__":
     parser.add_argument("--compute_unc_variations", type=bool, default=False)
     parser.add_argument("--compute_rel_weights", type=bool, default=False)
     parser.add_argument("--furtherCut", type=str, default=None)
+    parser.add_argument("--LAWrunVersion", required=True, type=str)
     args = parser.parse_args()
 
     start = time.time()
 
     setup = Setup.getGlobal(
-        os.environ["ANALYSIS_PATH"], args.period, args.customisations
+        os.environ["ANALYSIS_PATH"],
+        args.period,
+        args.LAWrunVersion,
+        customisations=args.customisations,
     )
     unc_cfg_dict = setup.weights_config
     analysis_import = setup.global_params["analysis_import"]

@@ -686,12 +686,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         HaddMergedHistsProducer = os.path.join(
             self.ana_path(), "FLAF", "Analysis", "hadd_merged_hists.py"
         )
-        RenameHistsProducer = os.path.join(
-            self.ana_path(), "FLAF", "Analysis", "renameHists.py"
-        )  # this one is not used
 
-        input_dir = os.path.join("hists", self.version, self.period, var_name)
-        input_dir_remote = self.remote_dir_target(input_dir, fs=self.fs_HistTuple)
         all_datasets = []
         local_inputs = []
         with contextlib.ExitStack() as stack:
@@ -701,9 +696,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 local_inputs.append(stack.enter_context(inp.localize("r")).path)
             dataset_names = ",".join(smpl for smpl in all_datasets)
             all_outputs_merged = []
-            outdir_histograms = os.path.join(
-                self.version, self.period, "merged", var_name, "tmp"
-            )
             if len(uncNames) == 1:
                 with self.output().localize("w") as outFile:
                     MergerProducer_cmd = [
@@ -727,66 +719,44 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     MergerProducer_cmd.extend(local_inputs)
                     ps_call(MergerProducer_cmd, verbose=1)
             else:
+                job_home, remove_job_home = self.law_job_home()
                 for uncName in uncNames:
                     final_histname = f"{var_name}_{uncName}.root"
-                    tmp_outfile_merge = os.path.join(outdir_histograms, final_histname)
-                    tmp_outfile_merge_remote = self.remote_target(
-                        tmp_outfile_merge, fs=self.fs_histograms
-                    )
-                    with tmp_outfile_merge_remote.localize(
-                        "w"
-                    ) as tmp_outfile_merge_unc:
-                        MergerProducer_cmd = [
-                            "python3",
-                            MergerProducer,
-                            "--outFile",
-                            tmp_outfile_merge_unc.path,
-                            "--var",
-                            var_name,
-                            "--dataset_names",
-                            dataset_names,
-                            "--uncSource",
-                            uncName,
-                            "--channels",
-                            channels,
-                            "--period",
-                            self.period,
-                            "--LAWrunVersion",
-                            self.version,
-                        ]
-                        MergerProducer_cmd.extend(local_inputs)
-                        ps_call(MergerProducer_cmd, verbose=1)
-                        all_outputs_merged.append(tmp_outfile_merge)
-            if len(uncNames) > 1:
-                all_uncertainties_string = ",".join(unc for unc in uncNames)
-                tmp_outFile = self.remote_target(
-                    os.path.join(
-                        outdir_histograms, f"all_histograms_{var_name}_hadded.root"
-                    ),
-                    fs=self.fs_histograms,
-                )
-                with contextlib.ExitStack() as stack:
-                    local_merged_files = []
-                    for infile_merged in all_outputs_merged:
-                        tmp_outfile_merge_remote = self.remote_target(
-                            infile_merged, fs=self.fs_histograms
-                        )
-                        local_merged_files.append(
-                            stack.enter_context(
-                                tmp_outfile_merge_remote.localize("r")
-                            ).path
-                        )
-                    with self.output().localize("w") as outFile:
-                        HaddMergedHistsProducer_cmd = [
-                            "python3",
-                            HaddMergedHistsProducer,
-                            "--outFile",
-                            outFile.path,
-                            "--var",
-                            var_name,
-                        ]
-                        HaddMergedHistsProducer_cmd.extend(local_merged_files)
-                        ps_call(HaddMergedHistsProducer_cmd, verbose=1)
+                    tmp_outfile_merge = os.path.join(job_home, final_histname)
+                    MergerProducer_cmd = [
+                        "python3",
+                        MergerProducer,
+                        "--outFile",
+                        tmp_outfile_merge,
+                        "--var",
+                        var_name,
+                        "--dataset_names",
+                        dataset_names,
+                        "--uncSource",
+                        uncName,
+                        "--channels",
+                        channels,
+                        "--period",
+                        self.period,
+                        "--LAWrunVersion",
+                        self.version,
+                    ]
+                    MergerProducer_cmd.extend(local_inputs)
+                    ps_call(MergerProducer_cmd, verbose=1)
+                    all_outputs_merged.append(tmp_outfile_merge)
+                with self.output().localize("w") as outFile:
+                    HaddMergedHistsProducer_cmd = [
+                        "python3",
+                        HaddMergedHistsProducer,
+                        "--outFile",
+                        outFile.path,
+                        "--var",
+                        var_name,
+                    ]
+                    HaddMergedHistsProducer_cmd.extend(all_outputs_merged)
+                    ps_call(HaddMergedHistsProducer_cmd, verbose=1)
+                if remove_job_home:
+                    shutil.rmtree(job_home)
 
 
 class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):

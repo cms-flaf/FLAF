@@ -212,7 +212,7 @@ load_flaf_env() {
 
     export PATH="$FLAF_COMBINE_PATH/build/bin:$PATH"
     export LD_LIBRARY_PATH="$FLAF_COMBINE_PATH/build/lib:$LD_LIBRARY_PATH"
-    export PYTHONPATH="$FLAF_COMBINE_PATH/build/lib/python:$PYTHONPATH"
+    export PYTHONPATH="$FLAF_COMBINE_PATH/build/python:$PYTHONPATH"
     if [ -d "$HH_INFERENCE_PATH" ]; then
       install_inference "$env_file" $node_os $cmb_os $FLAF_COMBINE_VERSION
       export PYTHONPATH="$HH_INFERENCE_PATH:$PYTHONPATH"

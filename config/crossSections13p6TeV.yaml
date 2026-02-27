@@ -4,6 +4,21 @@
   reference:
   unc:
 
+1pb_BR_HH_bbWW_2B2L2Nu:
+  crossSec: 1 * ( 2 * 5.824e-01 * ( 2.137e-01 * 3 * 10.86e-02 * 3 * 10.86e-02) )
+  reference:
+  unc:
+
+1pb_BR_HH_bbWW_2B2Q1L1Nu:
+  crossSec: 1 * ( 2 * 5.824e-01 * ( 2.137e-01 * 2 * (3 * 10.86e-02 * 67.41e-02)) )
+  reference:
+  unc:
+
+1pb_BR_HH_bbtautau:
+  crossSec: 1 * ( 2 * 5.824e-01 * ( 6.272e-02 ) )
+  reference:
+  unc:
+
 ############## Backgrounds ##############
 DY_NNLO_QCD+NLO_EW:
   crossSec: 2094.2

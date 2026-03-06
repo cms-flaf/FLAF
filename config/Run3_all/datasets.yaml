@@ -1,4 +1,3 @@
-
 # MC samples: https://cms-pdmv-prod.web.cern.ch/grasp/samples?campaign=Run3Summer23*GS############## DY ##############
 ############## amcatnloFXFX ##############
 ############## DYto2L ##############
@@ -331,7 +330,8 @@ DYto2Tau_MLL_6000_powheg:
   crossSection: DYto2Tau_MLL_6000_powheg
   generator: powheg
 
-############## ggZH ##############ggZH_Hto2B_Zto2L:
+############## ggZH ##############
+ggZH_Hto2B_Zto2L:
   crossSection: ZH_Hbb_Zll
   generator: powheg
 
@@ -340,7 +340,6 @@ ggZH_Hto2B_Zto2Q:
   generator: powheg
 
 ############## H ##############
-############## HtoMuMu ############################ Htobb##############
 GluGluHto2B_M125:
   crossSection: GluGluHToBB_M125
   generator: powheg
@@ -354,7 +353,8 @@ GluGluHto2Tau_UncorrelatedDecay_UnFiltered:
   crossSection: GluGluHToTauTau_M125
   generator: powheg
 
-############## Htoww##############GluGluHto2Wto2L2Nu_M125:
+############## Htoww##############
+GluGluHto2Wto2L2Nu_M125:
   crossSection: GluGluHToWWTo2L2Nu_M125
   generator: powheg
 
@@ -392,6 +392,7 @@ QCD_HT70to100_MLM:
 QCD_HT100to200_MLM:
   crossSection: QCD_HT100to200_MLM
   generator: madgraphMLM
+QCD_HT200to400_MLM:
   crossSection: QCD_HT200to400_MLM
   generator: madgraphMLM
 QCD_HT400to600_MLM:
@@ -400,6 +401,7 @@ QCD_HT400to600_MLM:
 QCD_HT600to800_MLM:
   crossSection: QCD_HT600to800_MLM
   generator: madgraphMLM
+QCD_HT800to1000_MLM:
   crossSection: QCD_HT800to1000_MLM
   generator: madgraphMLM
 QCD_HT1000to1200_MLM:
@@ -408,6 +410,7 @@ QCD_HT1000to1200_MLM:
 QCD_HT1200to1500_MLM:
   crossSection: QCD_HT1200to1500_MLM
   generator: madgraphMLM
+QCD_HT1500to2000_MLM:
   crossSection: QCD_HT1500to2000_MLM
   generator: madgraphMLM
 QCD_HT2000toInf_MLM:
@@ -432,10 +435,6 @@ QCD_PT_120to170_EMEnriched:
 QCD_PT_170to300_EMEnriched:
   crossSection: QCD_PT_170to300_EMEnriched
   generator: pythia8
-# QCD_PT_300_EMEnriched:
-#   crossSection: QCD_PT_300_EMEnriched
-#   generator: pythia8
-#
 QCD_PT_300toInf_EMEnriched:
   crossSection: QCD_PT_300toInf_EMEnriched
   generator: pythia8
@@ -612,7 +611,8 @@ VBFHto2B_M125:
   crossSection: VBFHToBB_M125
   generator: powheg
 
-############## Htotautau##############VBFHto2Tau_M125:
+############## Htotautau##############
+VBFHto2Tau_M125:
   crossSection: VBFHToTauTau_M125
   generator: powheg
 
@@ -632,9 +632,11 @@ VBFHto2Wto2L2Nu_M125:
 WminusH_Hto2B_WtoLNu:
   crossSection: WminusH_Hbb_Wlnu
   generator: powheg
+
 WminusH_Hto2B_Wto2Q:
   crossSection: WminusH_Hbb_Wqq
   generator: powheg
+
 WminusHto2Tau_UncorrelatedDecay_Filtered:
   crossSection: WminusHto2Tau_Filtered
   generator: powheg
@@ -689,31 +691,6 @@ WtoLNu_madgraphMLM:
   crossSection: WtoLNu_NNLO_QCD+NLO_EW
   generator: madgraphMLM
 
-# WtoLNu_MLNu_0to120_HT_40To100_madgraph:
-#   crossSection: WtoLNu_MLNu_0to120_HT_40To100_madgraph#   generator: madgraphMLM
-#
-# nanoAOD:
-  # v12: /WtoLNu-4Jets_MLNu-0to120_HT-40to100_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v14-v2/NANOAODSIM
-# WtoLNu_MLNu_0to120_HT_100To400_madgraph:#   crossSection: WtoLNu_MLNu_0to120_HT_100To400_madgraph
-#   generator: madgraphMLM
-#
-# nanoAOD:
-  # v12: /WtoLNu-4Jets_MLNu-0to120_HT-100to400_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v14-v2/NANOAODSIM
-# WtoLNu_MLNu_0to120_HT_400To800_madgraph:#   crossSection: WtoLNu_MLNu_0to120_HT_400To800_madgraph
-#   generator: madgraphMLM
-#
-# nanoAOD:
-  # v12: /WtoLNu-4Jets_MLNu-0to120_HT-400to800_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v14-v2/NANOAODSIM
-# WtoLNu_MLNu_0to120_HT_800To1500_madgraph:#   crossSection: WtoLNu_MLNu_0to120_HT_800To1500_madgraph
-#   generator: madgraphMLM
-#
-# nanoAOD:
-  # v12: /WtoLNu-4Jets_MLNu-0to120_HT-800to1500_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v5/NANOAODSIM
-# WtoLNu_MLNu_0to120_HT_1500To2500_madgraph:#   crossSection: WtoLNu_MLNu_0to120_HT_1500To2500_madgraph
-#   generator: madgraphMLM
-#
-# nanoAOD:
-  # v12: /WtoLNu-4Jets_MLNu-0to120_HT-1500to2500_TuneCP5_13p6TeV_madgraphMLM-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v4/NANOAODSIM
 WtoLNu_PTLNu_40to100_1J_amcatnloFXFX:
   crossSection: WtoLNu_PTLNu_40to100_1J_amcatnloFXFX
   generator: amcatnlo
@@ -778,26 +755,10 @@ WZto2L2Q_powheg:
   crossSection: WZto2L2Q_powheg
   generator: powheg
 
-# WZto3LNu_amcatnloFXFX:
-#   crossSection: WZto3LNu_amcatnloFXFX
-#   generator: amcatnlo
-#
-  # nanoAOD:
-    # v12: /WZto3LNu-1Jets-4FS_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v14-v3/NANOAODSIM
 WZto3LNu_powheg:
   crossSection: WZto3LNu_powheg
   generator: powheg
 
-# WZtoL3Nu_amcatnloFXFX:
-#   crossSection: WZtoL3Nu_amcatnloFXFX
-#   generator: amcatnlo
-#
-  # nanoAOD:    # v12: /WZtoL3Nu-1Jets-4FS_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v14-v3/NANOAODSIM
-# WZtoLNu2Q_amcatnloFXFX:
-#   crossSection: WZtoLNu2Q_amcatnloFXFX
-#   generator: amcatnlo
-#
-  # nanoAOD:    # v12: /WZtoLNu2Q-1Jets-4FS_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v14-v3/NANOAODSIM
 WZtoLNu2Q_powheg:
   crossSection: WZtoLNu2Q_powheg
   generator: powheg

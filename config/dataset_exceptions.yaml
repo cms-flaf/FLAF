@@ -1,17 +1,34 @@
+# no MC for 2025:
+# ^(A-Z)*.:
+#   - Run3_2025
 # DY
+^DYto2(E|Mu|Tau)_M_50_[012]J_amcatnloFXFX:
+  - Run3_2025
+^DYto2(E|Mu|Tau)_M_(10to50|50)_amcatnloFXFX:
+  - Run3_2025
+^DYto2(E|Mu|Tau)_MLL_*.:
+  - Run3_2025
+^DYto2L_M_50_PTLL_*.:
+  - Run3_2025
 ^DYto2L_M_(10to50|50)_amcatnloFXFX:
   - Run3_2024
+  - Run3_2025
 ^DYto2L_M_50_[012]J_amcatnloFXFX:
   - Run3_2024
+  - Run3_2025
 ^DYto2(E|Mu)_M_50_PTLL_.*_amcatnloFXFX:
   - Run3_2024
+  - Run3_2025
 ^DYto2.*_M_50_amcatnloFXFX_ext1:
   - Run3_2023
   - Run3_2023BPix
   - Run3_2024
 ^DYto2Tau_M_50_(0|1|2)J_Filtered_amcatnloFXFX:
   - Run3_2024
+  - Run3_2025
 # H
+^GluGluH*.:
+  - Run3_2025
 GluGluHto2B_M125_ext1:
   - Run3_2022
   - Run3_2022EE
@@ -20,7 +37,8 @@ GluGluHto2B_M125_ext1:
 GluGluHto2Tau_M125:
   - Run3_2022EE
   - Run3_2023
-
+^ggZH_.*:
+  - Run3_2025
 ^ggZH_.*_ext1:
   - Run3_2023
   - Run3_2023BPix
@@ -30,6 +48,8 @@ GluGluHto2Tau_M125:
   - Run3_2024
 GluGlutoContinto2Zto2Mu2Tau:
   - Run3_2023
+^VBFH*.:
+  - Run3_2025
 VBFHto2B_M125_ext1:
   - Run3_2022
   - Run3_2022EE
@@ -40,6 +60,8 @@ VBFHto2B_M125_ext1:
   - Run3_2023
   - Run3_2023BPix
   - Run3_2024
+^ZH.*:
+  - Run3_2025
 ^ZH_Hto2B.*_ext1:
   - Run3_2023
   - Run3_2023BPix
@@ -56,8 +78,11 @@ QCD_PT_300_EMEnriched:
   - Run3_2023
   - Run3_2023BPix
   - Run3_2022
-^^QCD_PT_.*:
+^QCD_PT_.*:
   - Run3_2024
+  - Run3_2025
+^QCD_HT.*:
+  - Run3_2025
 # ST
 ^T(bar|)W.*_ext1:
   - Run3_2023
@@ -67,11 +92,13 @@ TT:
   - Run3_2022EE
   - Run3_2023
   - Run3_2024
+  - Run3_2025
 TT_ext1:
   - Run3_2022EE
   - Run3_2023
   - Run3_2023BPix
   - Run3_2024
+  - Run3_2025
 TTto2L2Nu_ext1:
   - Run3_2023
   - Run3_2023BPix
@@ -84,26 +111,41 @@ TTtoLNu2Q_ext1:
   - Run3_2023
   - Run3_2023BPix
   - Run3_2024
-
+^TTto(2L2Nu|LNu2Q|4Q):
+  - Run3_2025
 TTZ_Zto2Q:
   - Run3_2023
   - Run3_2023BPix
+  - Run3_2025
 TTWZ:
   - Run3_2022
+  - Run3_2025
 ^TTZ(Z|H)_Z(Z|H)to4B:
   - Run3_2022
   - Run3_2022EE
   - Run3_2023
   - Run3_2023BPix
+  - Run3_2025
 TTZZ:
   - Run3_2024
+  - Run3_2025
 TTZH:
   - Run3_2024
+  - Run3_2025
+
+^TT(WH|WW):
+  - Run3_2025
+
+^TTHto*:
+  - Run3_2025
+
 # VBF
 VBFHto2Tau_M125:
   - Run3_2022EE
 
 # W
+^W(minus|plus|to)*.:
+  - Run3_2025
 WtoLNu_madgraphMLM_ext1:
   - Run3_2023
   - Run3_2023BPix
@@ -115,6 +157,10 @@ WtoLNu_amcatnloFXFX:
 ^WtoLNu_(0|1)J_amcatnloFXFX:
   - Run3_2024
 # VV
+ZZ:
+  - Run3_2025
+^ZZto*.:
+  - Run3_2025
 ^WW.*_ext1:
   - Run3_2023
   - Run3_2023BPix
@@ -127,7 +173,9 @@ WtoLNu_amcatnloFXFX:
   - Run3_2023
   - Run3_2023BPix
   - Run3_2024
-
+# VVV
+ZZZ:
+  - Run3_2025
 # change name in W samples..
 WtoENu_amcatnloFXFX:
   - Run3_2022
@@ -155,14 +203,28 @@ WtoTauNu_amcatnloFXFX:
   - Run3_2022EE
   - Run3_2023
   - Run3_2023BPix
+  - Run3_2025
+^T(barB|Bbar)toL(minus|plus)Nu(B|Bbar)_s_channel_4FS:
+  - Run3_2025
+^T(barBQ|BbarQ)_t_channel_4FS:
+  - Run3_2025
+
+^T(barWplus|Wminus)to(2L2Nu|4Q|LNu2Q):
+  - Run3_2025
 
 ZHto2Tau_UncorrelatedDecay_UnFiltered:
-  - Run3_2024 # tmp missing
+  - Run3_2024
 ^Zto2Q_HT_(400to600|600to800|800toInf|200to400):
   - Run3_2024
+  - Run3_2025
 
 ^Zto2Q_HT_(100to400|400to800|800to1500|1500to2500|2500toInf):
   - Run3_2022
   - Run3_2022EE
   - Run3_2023
   - Run3_2023BPix
+  - Run3_2025
+
+^Zto2Nu_HT*.:
+  - Run3_2025
+

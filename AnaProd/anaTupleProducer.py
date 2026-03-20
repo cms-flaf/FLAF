@@ -126,9 +126,13 @@ def createAnatuple(
     )
     if not isData:
         if "ds" in processor_instances:
-            raise RecursionError("Processor name 'ds' is reserved for dataset-level cache, please rename the processor.")
+            raise RecursionError(
+                "Processor name 'ds' is reserved for dataset-level cache, please rename the processor."
+            )
         ds_processor_default = len(processors_cfg) == 0
-        processor_instances["ds"] = DefaultAnaCacheProcessor(default_denom_processor=ds_processor_default)
+        processor_instances["ds"] = DefaultAnaCacheProcessor(
+            default_denom_processor=ds_processor_default
+        )
     Corrections.initializeGlobal(
         setup=setup,
         stage="AnaTuple",
@@ -165,9 +169,11 @@ def createAnatuple(
     runLumiTracker = ROOT.flaf.RunLumiTracker()
     df = df.Define("__runLumiTracker", runLumiTracker, ["run", "luminosityBlock"])
     runLumiTracker_sum = df.Sum("__runLumiTracker")
-    handles_to_run = [ runLumiTracker_sum ]
+    handles_to_run = [runLumiTracker_sum]
     if df_not_selected is not None:
-        df_not_selected = df_not_selected.Filter(runLumiTracker, ["run", "luminosityBlock"])
+        df_not_selected = df_not_selected.Filter(
+            runLumiTracker, ["run", "luminosityBlock"]
+        )
 
     shape_sources = [central]
     if "pu" in corrections.to_apply and compute_unc_variations:
@@ -276,7 +282,9 @@ def createAnatuple(
     report["tree_name"] = treeName
     report["full_event_id_column"] = fullEventIdColumn
     outfilesNames = [outFileName]
-    handles_to_run.append(df.Snapshot(treeName, outFileName, [fullEventIdColumn], snapshotOptions))
+    handles_to_run.append(
+        df.Snapshot(treeName, outFileName, [fullEventIdColumn], snapshotOptions)
+    )
     selection_reports = [df.Report()]
 
     print(f"syst_dict={syst_dict}")
@@ -357,7 +365,9 @@ def createAnatuple(
             }
         )
         selection_reports.append(dfw.df.Report())
-        handles_to_run.append(dfw.df.Snapshot(treeName, outFileName, varToSave, snapshotOptions))
+        handles_to_run.append(
+            dfw.df.Snapshot(treeName, outFileName, varToSave, snapshotOptions)
+        )
 
     ROOT.RDF.RunGraphs(handles_to_run)
 

@@ -18,20 +18,24 @@ class MCStitcher:
         self.xs_expression_printed = False
         self.bins = []
         self.variables = []
-        self.default_denom_processor = processor_entry.get("defaultDenomProcessor", True)
-        self.useDatasetCrossSection = processor_entry.get("useDatasetCrossSection", False)
+        self.default_denom_processor = processor_entry.get(
+            "defaultDenomProcessor", True
+        )
+        self.useDatasetCrossSection = processor_entry.get(
+            "useDatasetCrossSection", False
+        )
 
         if stage not in ["AnaTuple", "AnaTupleMerge"]:
             raise RuntimeError(f"Unsupported stage: {stage}")
 
         if self.useDatasetCrossSection:
             if "config" in processor_entry != 0:
-                raise RuntimeError("MCStitcher: config should not be defined if useDatasetCrossSection is True")
-            self.bins.append({
-                "name": "all",
-                "selection": "true",
-                "crossSectionValue": None
-            })
+                raise RuntimeError(
+                    "MCStitcher: config should not be defined if useDatasetCrossSection is True"
+                )
+            self.bins.append(
+                {"name": "all", "selection": "true", "crossSectionValue": None}
+            )
             return
 
         config_path = os.path.join(
@@ -90,7 +94,8 @@ class MCStitcher:
         self.totalCrossSection = totalCrossSectionFromBins
 
         self.totalCrossSectionScaling = self.xs_db.evaluateExpression(
-            cfg.get("totalCrossSectionScaling", 1.0), entry_name='MCStitching/totalCrossSectionScaling'
+            cfg.get("totalCrossSectionScaling", 1.0),
+            entry_name="MCStitching/totalCrossSectionScaling",
         )
 
         for var_entry in cfg.get("variables", []):

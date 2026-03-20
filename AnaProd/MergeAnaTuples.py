@@ -17,7 +17,8 @@ from Corrections.CorrectionsCore import central, getSystName, getScales
 from FLAF.AnaProd.anaTupleProducer import DefaultAnaCacheProcessor
 from FLAF.Common.Utilities import DeserializeObjectFromString
 
-ROOT.gInterpreter.Declare("""
+ROOT.gInterpreter.Declare(
+    """
     struct EventDuplicateFilter {
         using LumiEventMapType = std::map<unsigned int, std::set<unsigned long long>>;
         using EventMapType = std::map<unsigned int, LumiEventMapType>;
@@ -52,7 +53,8 @@ ROOT.gInterpreter.Declare("""
         std::shared_ptr<EventMapType> eventMap;
         std::shared_ptr<std::mutex> eventMap_mutex;
     };
-    """)
+    """
+)
 
 
 def combineAnaCaches(anaCaches, processors):
@@ -163,9 +165,13 @@ def mergeAnaTuples(
         )
         if not is_data:
             if "ds" in processor_instances:
-                raise RecursionError("Processor name 'ds' is reserved for dataset-level cache, please rename the processor.")
+                raise RecursionError(
+                    "Processor name 'ds' is reserved for dataset-level cache, please rename the processor."
+                )
             ds_processor_default = len(processors_cfg) == 0
-            processor_instances["ds"] = DefaultAnaCacheProcessor(default_denom_processor=ds_processor_default)
+            processor_instances["ds"] = DefaultAnaCacheProcessor(
+                default_denom_processor=ds_processor_default
+            )
         Corrections.initializeGlobal(
             setup=setup,
             stage="AnaTupleMerge",

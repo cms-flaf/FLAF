@@ -7,13 +7,12 @@
 
 namespace flaf {
     class RunLumiTracker {
-    public:
+      public:
         using LumiSetType = std::set<unsigned int>;
         using LumiRangeType = std::pair<unsigned int, unsigned int>;
         using LumiRangeVectorType = std::vector<LumiRangeType>;
         using RunMapType = std::map<unsigned int, LumiSetType>;
         using RunLumiRangeMapType = std::map<unsigned int, std::vector<LumiRangeType>>;
-
 
         RunLumiTracker() : runMap(std::make_shared<RunMapType>()), mutex(std::make_shared<std::mutex>()) {}
         bool operator()(const unsigned int run, const unsigned int lumi) {
@@ -28,7 +27,7 @@ namespace flaf {
             for (const auto& [run, lumis] : *runMap) {
                 LumiRangeVectorType runRanges;
                 std::optional<LumiRangeType> activeRange;
-                for(const unsigned int currentLumi : lumis) {
+                for (const unsigned int currentLumi : lumis) {
                     if (!activeRange.has_value()) {
                         activeRange = LumiRangeType(currentLumi, currentLumi);
                     } else if (currentLumi == activeRange.value().second + 1) {
@@ -53,8 +52,8 @@ namespace flaf {
             runMap->clear();
         }
 
-    private:
+      private:
         std::shared_ptr<RunMapType> runMap;
         std::shared_ptr<std::mutex> mutex;
     };
-};
+};  // namespace flaf

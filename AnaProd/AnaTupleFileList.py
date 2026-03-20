@@ -173,7 +173,7 @@ def CreateMergeSchema(
             delta = 0
         else:
             split_size = int(math.ceil(size / n_splits))
-            delta = abs(split_size - target_output_size)
+            delta = n_splits * abs(split_size - target_output_size)
         return np.array([delta, delta**2, active], dtype=np.int64)
 
     def combined_metric():

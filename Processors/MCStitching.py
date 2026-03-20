@@ -14,12 +14,25 @@ class MCStitcher:
     def __init__(self, *, global_params, processor_entry, stage, verbose=0):
         self.global_params = global_params
         self.processor_entry = processor_entry
-        self.verbose = verbose
+        self.verbose = max(verbose, processor_entry.get("verbose", 0))
         self.xs_expression_printed = False
         self.bins = []
+        self.variables = []
+        self.default_denom_processor = processor_entry.get("defaultDenomProcessor", True)
+        self.useDatasetCrossSection = processor_entry.get("useDatasetCrossSection", False)
 
         if stage not in ["AnaTuple", "AnaTupleMerge"]:
             raise RuntimeError(f"Unsupported stage: {stage}")
+
+        if self.useDatasetCrossSection:
+            if "config" in processor_entry != 0:
+                raise RuntimeError("MCStitcher: config should not be defined if useDatasetCrossSection is True")
+            self.bins.append({
+                "name": "all",
+                "selection": "true",
+                "crossSectionValue": None
+            })
+            return
 
         config_path = os.path.join(
             os.environ["ANALYSIS_PATH"], processor_entry["config"]
@@ -37,8 +50,8 @@ class MCStitcher:
         if "crossSections" in cfg:
             for entry_name, entry in cfg["crossSections"].items():
                 self.xs_db.addEntry(entry_name, entry)
-        self.bins = []
-        for bin_number, bin_entry in enumerate(cfg["bins"]):
+
+        for bin_number, bin_entry in enumerate(cfg.get("bins", [])):
             for key in ["name", "selection", "crossSection"]:
                 if key not in bin_entry:
                     msg = f"MCStitcher: missing '{key}' for bin "
@@ -76,7 +89,10 @@ class MCStitcher:
                 )
         self.totalCrossSection = totalCrossSectionFromBins
 
-        self.variables = []
+        self.totalCrossSectionScaling = self.xs_db.evaluateExpression(
+            cfg.get("totalCrossSectionScaling", 1.0), entry_name='MCStitching/totalCrossSectionScaling'
+        )
+
         for var_entry in cfg.get("variables", []):
             for key in ["name", "expression"]:
                 if key not in var_entry:
@@ -139,12 +155,16 @@ class MCStitcher:
     def onAnaTuple_defineCrossSection(
         self, df, crossSectionBranch, xs_db, dataset_name, dataset_entry
     ):
-        xs_expression = ""
-        for bin_cfg in self.bins:
-            bin_selection = bin_cfg["selection"]
-            bin_xs = bin_cfg["crossSectionValue"]
-            xs_expression += f"if({bin_selection}) return {bin_xs};\n"
-        xs_expression += f'throw std::runtime_error("No bin matched in MCStitcher for dataset {dataset_name}");'
+        if self.useDatasetCrossSection:
+            xs_name = dataset_entry["crossSection"]
+            xs_expression = str(xs_db.getValue(xs_name))
+        else:
+            xs_expression = ""
+            for bin_cfg in self.bins:
+                bin_selection = bin_cfg["selection"]
+                bin_xs = bin_cfg["crossSectionValue"]
+                xs_expression += f"if({bin_selection}) return {bin_xs} * {self.totalCrossSectionScaling};\n"
+            xs_expression += f'throw std::runtime_error("No bin matched in MCStitcher for dataset {dataset_name}");'
         if self.verbose > 0 and not self.xs_expression_printed:
             print(f"Cross-section expression for {dataset_name}:")
             print(xs_expression)

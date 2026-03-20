@@ -437,7 +437,9 @@ def InitializeCorrections(setup, dataset_name, stage):
         dataset_cfg = setup.datasets[dataset_name]
         process_name = dataset_cfg["process_name"]
         process = setup.base_processes[process_name]
-        _, processor_instances = setup.get_processors(process_name, stage=stage, create_instances=True)
+        _, processor_instances = setup.get_processors(
+            process_name, stage=stage, create_instances=True
+        )
 
     triggerFile = setup.global_params.get("triggerFile")
     trigger_class = None

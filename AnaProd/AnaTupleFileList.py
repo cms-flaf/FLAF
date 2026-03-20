@@ -201,7 +201,7 @@ def CreateMergeSchema(
                 new_metric = output_metric(
                     output.size, output.n_splits + 1, len(output.inputs)
                 )
-                if tuple(new_metric) > tuple(prev_metric):
+                if tuple(new_metric) >= tuple(prev_metric):
                     break
                 output.n_splits += 1
                 prev_metric = new_metric

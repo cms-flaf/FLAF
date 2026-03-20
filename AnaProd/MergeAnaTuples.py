@@ -161,8 +161,11 @@ def mergeAnaTuples(
         processors_cfg, processor_instances = setup.get_processors(
             process_name, stage="AnaTupleMerge", create_instances=True
         )
-        if len(processors_cfg) == 0:
-            processor_instances["default"] = DefaultAnaCacheProcessor()
+        if not is_data:
+            if "ds" in processor_instances:
+                raise RecursionError("Processor name 'ds' is reserved for dataset-level cache, please rename the processor.")
+            ds_processor_default = len(processors_cfg) == 0
+            processor_instances["ds"] = DefaultAnaCacheProcessor(default_denom_processor=ds_processor_default)
         Corrections.initializeGlobal(
             setup=setup,
             stage="AnaTupleMerge",

@@ -147,8 +147,8 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 input_file_list, test=self.test > 0
             )
 
-            for input_file in input_files:
-                output_name = f"anaTupleFile_{branch_idx}"
+            for input_file_idx, input_file in enumerate(input_files):
+                output_name = f"anaTupleFile_{input_file_idx}"
                 branches[branch_idx] = (
                     dataset_name,
                     input_file,

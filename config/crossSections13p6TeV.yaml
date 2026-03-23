@@ -5,7 +5,7 @@
   unc:
 
 ############## Backgrounds ##############
-DY_NNLO_QCD+NLO_EW:
+DY_NNLO_QCD_NLO_EW:
   crossSec: 2094.2
   reference: https://twiki.cern.ch/twiki/bin/viewauth/CMS/MATRIXCrossSectionsat13p6TeV
   unc: +0.7% - 1.1%

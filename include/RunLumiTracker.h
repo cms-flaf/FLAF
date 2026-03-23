@@ -1,3 +1,6 @@
+#ifndef FLAF_RUNLUMITRACKER_H
+#define FLAF_RUNLUMITRACKER_H
+
 #include <mutex>
 #include <set>
 #include <map>
@@ -57,3 +60,5 @@ namespace flaf {
         std::shared_ptr<std::mutex> mutex;
     };
 };  // namespace flaf
+
+#endif  // FLAF_RUNLUMITRACKER_H

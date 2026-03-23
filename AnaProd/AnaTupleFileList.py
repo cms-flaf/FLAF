@@ -235,9 +235,8 @@ def CreateMergeSchema(
                 new_target_metric = output_metric(
                     output.size + input_size, output.n_splits, len(output.inputs) + 1
                 )
-                if (
-                    new_origin_metric + new_target_metric
-                    < old_origin_metric + old_target_metric
+                if tuple(new_origin_metric + new_target_metric) < tuple(
+                    old_origin_metric + old_target_metric
                 ):
                     original_output.remove(input_idx, input_size)
                     output.add(input_idx, input_size)

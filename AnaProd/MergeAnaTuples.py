@@ -163,7 +163,7 @@ def mergeAnaTuples(
         )
         if not is_data:
             if "ds" in processor_instances:
-                raise RecursionError(
+                raise RuntimeError(
                     "Processor name 'ds' is reserved for dataset-level cache, please rename the processor."
                 )
             ds_processor_default = len(processors_cfg) == 0

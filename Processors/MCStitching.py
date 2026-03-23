@@ -29,7 +29,7 @@ class MCStitcher:
             raise RuntimeError(f"Unsupported stage: {stage}")
 
         if self.useDatasetCrossSection:
-            if "config" in processor_entry != 0:
+            if "config" in processor_entry:
                 raise RuntimeError(
                     "MCStitcher: config should not be defined if useDatasetCrossSection is True"
                 )

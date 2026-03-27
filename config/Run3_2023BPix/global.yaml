@@ -1,5 +1,5 @@
 era: Run3_2023BPix
-luminosity: 9676.74 # 9680.0  # pb-1 https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis#DATA_AN2 brilcalc lumi -b "STABLE BEAMS" --normtag /cvmfs/cms-bril.cern.ch/cms-lumi-pog/Normtags/normtag_PHYSICS.json -u /pb -i Cert_Collisions2023_366442_370790_Golden.json --begin 369803 --end 372415 
+luminosity: 9676.74 # 9680.0  # pb-1 https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis#DATA_AN2 brilcalc lumi -b "STABLE BEAMS" --normtag /cvmfs/cms-bril.cern.ch/cms-lumi-pog/Normtags/normtag_PHYSICS.json -u /pb -i Cert_Collisions2023_366442_370790_Golden.json --begin 369803 --end 372415
 fs_nanoAOD:
   - 'T2_CH_CERN:/store/group/phys_higgs/HLepRare/skim_2025_v1/Run3_2023BPix'
 nano_version: v14

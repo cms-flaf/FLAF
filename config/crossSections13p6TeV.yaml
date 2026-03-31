@@ -4,6 +4,26 @@
   reference:
   unc:
 
+BR_H_bb:
+  BR: 5.824e-01
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR
+  unc: 
+
+BR_H_WW:
+  BR: 2.137e-01
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR
+  unc: 
+
+BR_H_ZZ:
+  BR: 2.619e-02
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR
+  unc: 
+
+BR_H_VV:
+  BR: BR_H_WW + BR_H_ZZ
+  reference: add branching ratios for mutually exclusive processes
+  unc: 
+
 ############## Backgrounds ##############
 DY_NNLO_QCD+NLO_EW:
   crossSec: 2094.2

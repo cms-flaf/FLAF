@@ -21,6 +21,8 @@ inline int PeriodToHHbTagInput(int version, Period period) {
         {{1, Period::Run3_2023}, 2018},
         {{1, Period::Run3_2023BPix}, 2018},
         {{1, Period::Run3_2024}, 2018},
+        {{1, Period::Run3_2025}, 2018},
+
         // v2
         {{2, Period::Run2_2016_HIPM}, 2016},
         {{2, Period::Run2_2016}, 2016},
@@ -31,6 +33,8 @@ inline int PeriodToHHbTagInput(int version, Period period) {
         {{2, Period::Run3_2023}, 2018},
         {{2, Period::Run3_2023BPix}, 2018},
         {{2, Period::Run3_2024}, 2018},
+        {{2, Period::Run3_2025}, 2018},
+
         // v3
         {{3, Period::Run2_2016_HIPM}, 0},
         {{3, Period::Run2_2016}, 0},
@@ -41,6 +45,7 @@ inline int PeriodToHHbTagInput(int version, Period period) {
         {{3, Period::Run3_2023}, 2},
         {{3, Period::Run3_2023BPix}, 3},
         {{3, Period::Run3_2024}, 3},
+        {{3, Period::Run3_2025}, 3},
     };
     auto iter = periodHHBtag.find(std::make_pair(version, period));
     if (iter == periodHHBtag.end()) {

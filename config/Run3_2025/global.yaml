@@ -1,5 +1,5 @@
 era: Run3_2025
-luminosity: 110730.  # from https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis#Year_2025
+luminosity: 110730859275.72  # pb-1, https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis#DATA_AN2 brilcalc lumi -b "STABLE BEAMS"  -i Cert_Collisions2025_391658_398903_Golden.json (no normtag available)
 nano_version: v15
 crossSectionsFile: FLAF/config/crossSections13p6TeV.yaml
 MET_flags:  # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersRun2#Run_3_2024_data_and_MC_Recommend
@@ -11,4 +11,4 @@ MET_flags:  # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersR
   - Flag_hfNoisyHitsFilter
   - Flag_eeBadScFilter
   - Flag_ecalBadCalibFilter
-lumiFile: Corrections/data/golden_json/Cert_Collisions2025_391658_398903_Golden.json
+lumiFile: Corrections/data/golden_json/Cert_Collisions2024_378981_386951_Golden.json

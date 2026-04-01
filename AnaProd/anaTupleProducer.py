@@ -5,6 +5,9 @@ import ROOT
 import shutil
 import json
 
+# ROOT.EnableImplicitMT(1)
+ROOT.EnableThreadSafety()
+
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
@@ -20,6 +23,9 @@ from Corrections.pu import puWeightProducer
 
 
 class DefaultAnaCacheProcessor:
+    def __init__(self, default_denom_processor=True):
+        self.default_denom_processor = default_denom_processor
+
     def onAnaCache_initializeDenomEntry(self):
         return []
 
@@ -70,10 +76,6 @@ class DefaultAnaCacheProcessor:
         return df.Define(denomBranch, str(denom_value))
 
 
-# ROOT.EnableImplicitMT(1)
-ROOT.EnableThreadSafety()
-
-
 def createAnatuple(
     *,
     inFile,
@@ -122,8 +124,15 @@ def createAnatuple(
     processors_cfg, processor_instances = setup.get_processors(
         process_name, stage="AnaTuple", create_instances=True
     )
-    if len(processors_cfg) == 0:
-        processor_instances["default"] = DefaultAnaCacheProcessor()
+    if not isData:
+        if "ds" in processor_instances:
+            raise RuntimeError(
+                "Processor name 'ds' is reserved for dataset-level cache, please rename the processor."
+            )
+        ds_processor_default = len(processors_cfg) == 0
+        processor_instances["ds"] = DefaultAnaCacheProcessor(
+            default_denom_processor=ds_processor_default
+        )
     Corrections.initializeGlobal(
         setup=setup,
         stage="AnaTuple",
@@ -146,21 +155,25 @@ def createAnatuple(
     else:
         tree_not_selected = None
         df_not_selected = None
+
+    nEventsInFile = df.Count().GetValue()
+    ROOT.RDF.Experimental.AddProgressBar(df)
+
     report = {}
-    nEventsInFile = (
-        df.Count().GetValue()
-    )  # If range exists, it only loads that number of events -- does this mean the same file could be loaded by multiple anaTuple jobs? This could be an issue for normalizing later
-    # lumis = df.Take["unsigned int"]("luminosityBlock")
-    # runs = df.Take["unsigned int"]("run")
-    # lumis_val = lumis.GetValue()
-    # runs_val = runs.GetValue()
-    # run_lumi = [ f"{run}:{lumi}" for run,lumi in zip(runs_val,lumis_val) ]
-    # unique_run_lumi = list(set(run_lumi))
     report["nano_file_name"] = inFileName
     report["anaTuple_file_name"] = outputName
     report["n_original_events"] = nEventsInFile
     report["dataset_name"] = dataset_name
     report["output_files"] = []
+
+    runLumiTracker = ROOT.flaf.RunLumiTracker()
+    df = df.Define("__runLumiTracker", runLumiTracker, ["run", "luminosityBlock"])
+    runLumiTracker_sum = df.Sum("__runLumiTracker")
+    handles_to_run = [runLumiTracker_sum]
+    if df_not_selected is not None:
+        df_not_selected = df_not_selected.Filter(
+            runLumiTracker, ["run", "luminosityBlock"]
+        )
 
     shape_sources = [central]
     if "pu" in corrections.to_apply and compute_unc_variations:
@@ -216,7 +229,7 @@ def createAnatuple(
                 data_frame = corrections.pu.getWeight(data_frame)
             updateDenomEntry(data_frame)
     # if isData: json_dict_for_cache['RunLumi'] = unique_run_lumi
-    ROOT.RDF.Experimental.AddProgressBar(df)
+
     if range is not None:
         df = df.Range(range)
     if len(evtIds) > 0:
@@ -269,7 +282,9 @@ def createAnatuple(
     report["tree_name"] = treeName
     report["full_event_id_column"] = fullEventIdColumn
     outfilesNames = [outFileName]
-    snaps = [df.Snapshot(treeName, outFileName, [fullEventIdColumn], snapshotOptions)]
+    handles_to_run.append(
+        df.Snapshot(treeName, outFileName, [fullEventIdColumn], snapshotOptions)
+    )
     selection_reports = [df.Report()]
 
     print(f"syst_dict={syst_dict}")
@@ -350,10 +365,23 @@ def createAnatuple(
             }
         )
         selection_reports.append(dfw.df.Report())
-        snaps.append(dfw.df.Snapshot(treeName, outFileName, varToSave, snapshotOptions))
+        handles_to_run.append(
+            dfw.df.Snapshot(treeName, outFileName, varToSave, snapshotOptions)
+        )
 
-    if snapshotOptions.fLazy == True:
-        ROOT.RDF.RunGraphs(snaps)
+    ROOT.RDF.RunGraphs(handles_to_run)
+
+    runLumiRanges_cpp = runLumiTracker.getRunLumiRanges()
+    runLumiRanges = {}
+    for run, lumi_ranges in runLumiRanges_cpp:
+        run_str = str(run)
+        if run_str not in runLumiRanges:
+            runLumiRanges[run_str] = []
+        for lumi_range in lumi_ranges:
+            runLumiRanges[run_str].append([lumi_range.first, lumi_range.second])
+
+    report["run_lumi_ranges"] = runLumiRanges
+
     for shape_unc_source in shape_sources:
         for shape_unc_scale in getScales(shape_unc_source):
             for p_name, p_instance in processor_instances.items():
@@ -427,6 +455,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     ROOT.gROOT.ProcessLine(".include " + os.environ["FLAF_PATH"])
+    ROOT.gROOT.ProcessLine('#include "include/RunLumiTracker.h"')
     ROOT.gROOT.ProcessLine('#include "include/GenTools.h"')
     ROOT.gInterpreter.ProcessLine(f'ParticleDB::Initialize("{args.particleFile}");')
     setup = Setup.getGlobal(

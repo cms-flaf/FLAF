@@ -5,7 +5,7 @@
   unc:
 ggHH_kl_0p00_kt_1p00_c2_0p00:
   crossSection: 0.075766
-  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads 
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads
 ggH_kl_1p00_kt_1p00_c2_0p00:
   crossSection: 0.034170
   reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads

@@ -4,6 +4,33 @@
   reference:
   unc:
 
+GluGlutoHHto2B2Tau_kl_0p00_kt_1p00_c2_0p00:
+  crossSection: 0.0027092467
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads
+GluGlutoHHto2B2Tau_kl_0p00_kt_1p00_c2_1p00:
+  crossSection: 0.0052506807
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads
+GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p00:
+  crossSection: 0.0012218536
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads
+GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p10:
+  crossSection: 0.0052506807
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads
+GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p35:
+  crossSection: 0.00037360042
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads
+GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_3p00:
+  crossSection: 0.10372296
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads
+GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_m2p00:
+  crossSection: 0.071005999
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads
+GluGlutoHHto2B2Tau_kl_2p45_kt_1p00_c2_0p00:
+  crossSection: 0.00052972020
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads
+GluGlutoHHto2B2Tau_kl_5p00_kt_1p00_c2_0p00:
+  crossSection: 0.0034777951
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads
 ############## Backgrounds ##############
 DY_NNLO_QCD_NLO_EW:
   crossSec: 2094.2

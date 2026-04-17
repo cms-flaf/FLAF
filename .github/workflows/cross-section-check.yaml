@@ -47,4 +47,4 @@ jobs:
 
       - name: Check cross-sections
         if: ${{ steps.changed_files.outputs.has_changes == 'true' }}
-        run: python3 test/checkCrossSections.py Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024
+        run: python3 test/checkCrossSections.py Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025

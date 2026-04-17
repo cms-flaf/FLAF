@@ -28,7 +28,7 @@ install() {
     echo "Installing packages in $env_base"
     run_cmd source $env_base/bin/activate
     run_cmd pip install --upgrade pip
-    run_cmd pip install law scinum
+    run_cmd pip install luigi==3.7.3 law scinum
     run_cmd pip install https://github.com/riga/plotlib/archive/refs/heads/master.zip
     run_cmd pip install fastcrc
     run_cmd pip install bayesian-optimization

@@ -1,5 +1,5 @@
 era: Run3_2022
-luminosity: 7980.4  # pb-1
+luminosity: 7989.51 # pb-1 brilcalc lumi -b "STABLE BEAMS" --normtag /cvmfs/cms-bril.cern.ch/cms-lumi-pog/Normtags/normtag_PHYSICS.json -u /pb -i Cert_Collisions2022_355100_362760_Golden.json --begin 355794 --end 359021
 fs_nanoAOD:
   - 'T2_CH_CERN:/store/group/phys_higgs/HLepRare/skim_2025_v1/Run3_2022'
 nano_version: v14

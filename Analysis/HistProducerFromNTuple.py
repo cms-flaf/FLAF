@@ -13,6 +13,11 @@ import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
 from FLAF.RunKit.run_tools import ps_call
 
+ROOT.EnableThreadSafety()
+ROOT.EnableImplicitMT()
+num_threads = ROOT.GetThreadPoolSize()
+
+print(f"ROOT is currently using {num_threads} threads.")
 
 def find_keys(inFiles_list):
     unique_keys = set()

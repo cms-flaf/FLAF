@@ -1,5 +1,5 @@
 ############## For signals ##############
-1pb:
+one_pb:
   crossSec: 1
   reference:
   unc:
@@ -40,32 +40,32 @@ BR_Z_nunu:
   unc: 
 
 xs_XtoYHto2B2Wto2B2L2Nu:
-  crossSec: 1pb * 2 * BR_H_bb * BR_H_WW * 3 * BR_W_lnu * 3 * BR_W_lnu
+  crossSec: one_pb * 2 * BR_H_bb * BR_H_WW * 3 * BR_W_lnu * 3 * BR_W_lnu
   reference: "common sense"
   unc:
 
 xs_XtoYHto2B2Wto2B2Q1L1Nu:
-  crossSec: 1pb * 2 * BR_H_bb * 2 * BR_H_WW * 3 * BR_W_lnu * BR_W_qq
+  crossSec: one_pb * 2 * BR_H_bb * 2 * BR_H_WW * 3 * BR_W_lnu * BR_W_qq
   reference: "common sense"
   unc:
 
 xs_GluGlutoRadiontoHHto2B2Vto2B2JLNu:
-  crossSec: 1pb * 2 * BR_H_bb * 2 * BR_H_WW * 3 * BR_W_lnu * BR_W_qq
+  crossSec: one_pb * 2 * BR_H_bb * 2 * BR_H_WW * 3 * BR_W_lnu * BR_W_qq
   reference: "common sense"
   unc:
 
 xs_GluGlutoBulkGravitontoHHto2B2Vto2B2JLNu:
-  crossSec: 1pb * 2 * BR_H_bb * 2 * BR_H_WW * 3 * BR_W_lnu * BR_W_qq
+  crossSec: one_pb * 2 * BR_H_bb * 2 * BR_H_WW * 3 * BR_W_lnu * BR_W_qq
   reference: "common sense"
   unc:
 
 xs_GluGlutoRadiontoHHto2B2Vto2B2L2Nu:
-  crossSec: 1pb * 2 * BR_H_bb * ( BR_H_WW * 3 * BR_W_lnu * 3 * BR_W_lnu + 2 * BR_H_ZZ * 3 * BR_Z_ll * BR_Z_nunu )
+  crossSec: one_pb * 2 * BR_H_bb * ( BR_H_WW * 3 * BR_W_lnu * 3 * BR_W_lnu + 2 * BR_H_ZZ * 3 * BR_Z_ll * BR_Z_nunu )
   reference: "common sense"
   unc:
 
 xs_GluGlutoBulkGravitontoHHto2B2Vto2B2L2Nu:
-  crossSec: 1pb * 2 * BR_H_bb * ( BR_H_WW * 3 * BR_W_lnu * 3 * BR_W_lnu + 2 * BR_H_ZZ * 3 * BR_Z_ll * BR_Z_nunu ) 
+  crossSec: one_pb * 2 * BR_H_bb * ( BR_H_WW * 3 * BR_W_lnu * 3 * BR_W_lnu + 2 * BR_H_ZZ * 3 * BR_Z_ll * BR_Z_nunu ) 
   reference: "common sense"
   unc:
 

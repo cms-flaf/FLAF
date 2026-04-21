@@ -5,18 +5,18 @@ one_pb:
   unc:
 
 BR_H_bb:
-  BR: 5.824e-01
-  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR
+  BR: 5.760E-01
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
   unc: 
 
 BR_H_WW:
-  BR: 2.137e-01
-  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR
+  BR: 2.203E-01
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
   unc: 
 
 BR_H_ZZ:
-  BR: 2.619e-02
-  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR
+  BR: 2.716E-02
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
   unc: 
 
 BR_W_lnu:
@@ -25,7 +25,7 @@ BR_W_lnu:
   unc:
 
 BR_W_qq:
-  BR: 67.41e-02
+  BR: 1 - BR_W_lnu
   reference: https://pdg.lbl.gov/2019/listings/rpp2019-list-w-boson.pdf
   unc: 
 
@@ -39,32 +39,32 @@ BR_Z_nunu:
   reference: https://pdg.lbl.gov/2018/listings/rpp2018-list-z-boson.pdf
   unc: 
 
-xs_XtoYHto2B2Wto2B2L2Nu:
+XtoYHto2B2Wto2B2L2Nu:
   crossSec: one_pb * 2 * BR_H_bb * BR_H_WW * 3 * BR_W_lnu * 3 * BR_W_lnu
   reference: "common sense"
   unc:
 
-xs_XtoYHto2B2Wto2B2Q1L1Nu:
+XtoYHto2B2Wto2B2Q1L1Nu:
   crossSec: one_pb * 2 * BR_H_bb * 2 * BR_H_WW * 3 * BR_W_lnu * BR_W_qq
   reference: "common sense"
   unc:
 
-xs_GluGlutoRadiontoHHto2B2Vto2B2JLNu:
+GluGlutoRadiontoHHto2B2Vto2B2JLNu:
   crossSec: one_pb * 2 * BR_H_bb * 2 * BR_H_WW * 3 * BR_W_lnu * BR_W_qq
   reference: "common sense"
   unc:
 
-xs_GluGlutoBulkGravitontoHHto2B2Vto2B2JLNu:
+GluGlutoBulkGravitontoHHto2B2Vto2B2JLNu:
   crossSec: one_pb * 2 * BR_H_bb * 2 * BR_H_WW * 3 * BR_W_lnu * BR_W_qq
   reference: "common sense"
   unc:
 
-xs_GluGlutoRadiontoHHto2B2Vto2B2L2Nu:
+GluGlutoRadiontoHHto2B2Vto2B2L2Nu:
   crossSec: one_pb * 2 * BR_H_bb * ( BR_H_WW * 3 * BR_W_lnu * 3 * BR_W_lnu + 2 * BR_H_ZZ * 3 * BR_Z_ll * BR_Z_nunu )
   reference: "common sense"
   unc:
 
-xs_GluGlutoBulkGravitontoHHto2B2Vto2B2L2Nu:
+GluGlutoBulkGravitontoHHto2B2Vto2B2L2Nu:
   crossSec: one_pb * 2 * BR_H_bb * ( BR_H_WW * 3 * BR_W_lnu * 3 * BR_W_lnu + 2 * BR_H_ZZ * 3 * BR_Z_ll * BR_Z_nunu ) 
   reference: "common sense"
   unc:

@@ -692,7 +692,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         with contextlib.ExitStack() as stack:
             for inp in self.input():
                 dataset_name = os.path.basename(inp.path)
-                all_datasets.append(dataset_name.strip(".root"))
+                all_datasets.append(dataset_name.split(".")[0])
                 local_inputs.append(stack.enter_context(inp.localize("r")).path)
             dataset_names = ",".join(smpl for smpl in all_datasets)
             all_outputs_merged = []

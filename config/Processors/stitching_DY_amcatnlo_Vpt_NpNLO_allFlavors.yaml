@@ -1,5 +1,6 @@
 crossSections: { }
 # totalCrossSection: DYto2L_M_50_amcatnloFXFX_allFlavors
+totalCrossSectionScaling: DY_NNLO_QCD_NLO_EW / DYto2L_M_50_amcatnloFXFX_singleFlavor
 bins:
   - name: NpNLO_0
     selection: "LHE_NpNLO == 0"

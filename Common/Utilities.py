@@ -428,17 +428,18 @@ def InitializeCorrections(setup, dataset_name, stage):
             ROOT.gInterpreter.Declare(f"{generate_enum_class(wpcl)}")
         WPInit = True
     isData = dataset_name == "data"
-    dataset_cfg = {} if isData else setup.datasets[dataset_name]
-    process_name = "data" if isData else dataset_cfg["process_name"]
-    process = {} if isData else setup.base_processes[process_name]
-    processors_cfg, processor_instances = (
-        {},
-        (
-            {}
-            if isData
-            else setup.get_processors(process_name, stage=stage, create_instances=True)
-        ),
-    )
+    if isData:
+        dataset_cfg = {}
+        process_name = "data"
+        process = {}
+        processor_instances = {}
+    else:
+        dataset_cfg = setup.datasets[dataset_name]
+        process_name = dataset_cfg["process_name"]
+        process = setup.base_processes[process_name]
+        _, processor_instances = setup.get_processors(
+            process_name, stage=stage, create_instances=True
+        )
 
     triggerFile = setup.global_params.get("triggerFile")
     trigger_class = None

@@ -69,8 +69,59 @@ xs_GluGlutoBulkGravitontoHHto2B2Vto2B2L2Nu:
   reference: "common sense"
   unc:
 
+GluGlutoHH_kl_0p00_kt_1p00_c2_0p00:
+  crossSec: 0.075766
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+GluGlutoHH_kl_1p00_kt_1p00_c2_0p00:
+  crossSec: 0.034170
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+GluGlutoHH_kl_2p45_kt_1p00_c2_0p00:
+  crossSec: 0.014814
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+GluGlutoHH_kl_5p00_kt_1p00_c2_0p00:
+  crossSec: 0.097259
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+GluGlutoHH_kl_1p00_kt_1p00_c2_3p00:
+  crossSec: 2.900686
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+GluGlutoHH_kl_1p00_kt_1p00_c2_0p35:
+  crossSec: 0.010448
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+GluGlutoHH_kl_0p00_kt_1p00_c2_1p00:
+  crossSec: 0.146839
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+GluGlutoHH_kl_1p00_kt_1p00_c2_0p10:
+  crossSec: 0.017809
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+GluGlutoHH_kl_1p00_kt_1p00_c2_m2p00:
+  crossSec: 1.985733
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+BR_H_tautau:
+  BR: 6.208E-02
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+BR_H_bb:
+  BR: 5.760E-01
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+GluGlutoHHto2B2Tau_kl_0p00_kt_1p00_c2_0p00:
+  crossSec: GluGlutoHH_kl_0p00_kt_1p00_c2_0p00 * 2 * BR_H_tautau * BR_H_bb
+GluGlutoHHto2B2Tau_kl_0p00_kt_1p00_c2_1p00:
+  crossSec: GluGlutoHH_kl_0p00_kt_1p00_c2_1p00 * 2 * BR_H_tautau * BR_H_bb
+GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p00:
+  crossSec: GluGlutoHH_kl_1p00_kt_1p00_c2_0p00 * 2 * BR_H_tautau * BR_H_bb
+GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p10:
+  crossSec: GluGlutoHH_kl_1p00_kt_1p00_c2_0p10 * 2 * BR_H_tautau * BR_H_bb
+GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_0p35:
+  crossSec: GluGlutoHH_kl_1p00_kt_1p00_c2_0p35 * 2 * BR_H_tautau * BR_H_bb
+GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_3p00:
+  crossSec: GluGlutoHH_kl_1p00_kt_1p00_c2_3p00 * 2 * BR_H_tautau * BR_H_bb
+GluGlutoHHto2B2Tau_kl_1p00_kt_1p00_c2_m2p00:
+  crossSec: GluGlutoHH_kl_1p00_kt_1p00_c2_m2p00 * 2 * BR_H_tautau * BR_H_bb
+GluGlutoHHto2B2Tau_kl_2p45_kt_1p00_c2_0p00:
+  crossSec: GluGlutoHH_kl_2p45_kt_1p00_c2_0p00 * 2 * BR_H_tautau * BR_H_bb
+GluGlutoHHto2B2Tau_kl_5p00_kt_1p00_c2_0p00:
+  crossSec: GluGlutoHH_kl_5p00_kt_1p00_c2_0p00 * 2 * BR_H_tautau * BR_H_bb
 ############## Backgrounds ##############
-DY_NNLO_QCD+NLO_EW:
+DY_NNLO_QCD_NLO_EW:
   crossSec: 2094.2
   reference: https://twiki.cern.ch/twiki/bin/viewauth/CMS/MATRIXCrossSectionsat13p6TeV
   unc: +0.7% - 1.1%
@@ -114,7 +165,6 @@ DYto2E_MLL_6000_powheg:
   crossSec: 3.519e-08
   reference: XSDB DYto2E_MLL-6000_TuneCP5_13p6TeV_powheg-pythia8 modifiedOn 2024-04-03 19:19:03
   unc: 6.811e-12
-
 DYto2L_M_10to50_amcatnloFXFX_allFlavors:
   crossSec: 20950.0
   reference: XSDB DYto2L-2Jets_MLL-10to50_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2023-03-26 13:56:18

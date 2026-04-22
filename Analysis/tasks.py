@@ -46,11 +46,22 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
             flatten_vars = set()
             for var in self.global_params["variables"]:
-                if isinstance(var, dict) and "vars" in var:
-                    for v in var["vars"]:
-                        flatten_vars.add(v)
+                if isinstance(var, (list, tuple)):
+                    for v in var:
+                        if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                            flatten_vars.add(v)
+                elif isinstance(var, dict):
+                    if "vars" in var:
+                        for v in var["vars"]:
+                            if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                                flatten_vars.add(v)
+                    elif "name" in var:
+                        v = var["name"]
+                        if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                            flatten_vars.add(v)
                 else:
-                    flatten_vars.add(var)
+                    if "(" not in var and ")" not in var and "?" not in var and "*" not in var and "[" not in var and "{" not in var:
+                        flatten_vars.add(var)
 
             for var_name in flatten_vars:
                 producer_to_run = var_produced_by.get(var_name, None)
@@ -207,11 +218,22 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         flatten_vars = set()
         for var in self.global_params["variables"]:
-            if isinstance(var, dict) and "vars" in var:
-                for v in var["vars"]:
-                    flatten_vars.add(v)
+            if isinstance(var, (list, tuple)):
+                for v in var:
+                    if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                        flatten_vars.add(v)
+            elif isinstance(var, dict):
+                if "vars" in var:
+                    for v in var["vars"]:
+                        if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                            flatten_vars.add(v)
+                elif "name" in var:
+                    v = var["name"]
+                    if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                        flatten_vars.add(v)
             else:
-                flatten_vars.add(var)
+                if "(" not in var and ")" not in var and "?" not in var and "*" not in var and "[" not in var and "{" not in var:
+                    flatten_vars.add(var)
 
         need_cache_list = [
             (var_name in var_produced_by, var_produced_by.get(var_name, None))
@@ -468,6 +490,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         var, prod_br, dataset_name = self.branch_data
         if isinstance(var, dict):
             var = var["name"]
+        elif isinstance(var, (list, tuple)):
+            var = "_".join(var)
         output_path = os.path.join(
             self.version, "Hists_split", self.period, var, f"{dataset_name}.root"
         )
@@ -500,7 +524,13 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             ]
 
             var = var if type(var) != dict else var["name"]
-            tmpFile = os.path.join(job_home, f"HistFromNtuple_{var}.root")
+            if isinstance(var, (list, tuple)):
+                var_arg = "[" + ",".join(f"'{v}'" for v in var) + "]"
+                var_filename = "_".join(var)
+            else:
+                var_arg = var
+                var_filename = var
+            tmpFile = os.path.join(job_home, f"HistFromNtuple_{var_filename}.root")
 
             HistFromNtupleProducer_cmd = [
                 "python3",
@@ -512,7 +542,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 "--channels",
                 channels,
                 "--var",
-                var,
+                var_arg,
                 "--dataset_name",
                 dataset_name,
                 "--LAWrunVersion",
@@ -626,6 +656,8 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 if isinstance(var_name, dict)
                 else var_name
             )
+            if isinstance(var_name, (list, tuple)):
+                var_name = "_".join(var_name)
             if var_name not in all_datasets.keys():
                 all_datasets[var_name] = []
             all_datasets[var_name].append((br_idx, current_dataset))
@@ -659,6 +691,28 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         # Channels from the yaml are a list, but the format we need for the ps_call later is 'ch1,ch2,ch3', basically join into a string separated by comma
         if type(channels) == list:
             channels = ",".join(channels)
+
+        # Determine original variable specification for histogram naming (2D vs 1D)
+        original_var = None
+        for v in self.global_params.get("variables", []):
+            v_name = None
+            if isinstance(v, (list, tuple)):
+                v_name = "_".join(v)
+            elif isinstance(v, dict):
+                v_name = v.get("name", "")
+            else:
+                v_name = v
+            if v_name == var_name:
+                original_var = v
+                break
+        if original_var is None:
+            original_var = var_name
+        if isinstance(original_var, (list, tuple)):
+            var_arg = "[" + ",".join(f"'{v}'" for v in original_var) + "]"
+        elif isinstance(original_var, dict):
+            var_arg = original_var.get("name", var_name)
+        else:
+            var_arg = original_var
 
         uncNames = ["Central"]
         unc_cfg_dict = self.setup.weights_config
@@ -704,7 +758,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         "--outFile",
                         outFile.path,
                         "--var",
-                        var_name,
+                        var_arg,
                         "--dataset_names",
                         dataset_names,
                         "--uncSource",
@@ -729,7 +783,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         "--outFile",
                         tmp_outfile_merge,
                         "--var",
-                        var_name,
+                        var_arg,
                         "--dataset_names",
                         dataset_names,
                         "--uncSource",
@@ -1071,7 +1125,10 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ).create_branch_map()
         var_dict = {}
         for var in self.global_params["variables"]:
-            var_name = var if isinstance(var, str) else var["name"]
+            if isinstance(var, (list, tuple)):
+                var_name = "_".join(var)
+            else:
+                var_name = var if isinstance(var, str) else var["name"]
             var_dict[var_name] = var
         for k, (_, (var, _, _)) in enumerate(merge_map.items()):
             # Check if we want to plot this var in the global config
@@ -1085,6 +1142,8 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     @workflow_condition.output
     def output(self):
         var = self.branch_data
+        if isinstance(var, (list, tuple)):
+            var = "_".join(var)
         outputs = {}
         customisation_dict = getCustomisationSplit(self.customisations)
 
@@ -1125,6 +1184,8 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     def run(self):
         var = self.branch_data
+        if isinstance(var, (list, tuple)):
+            var = "_".join(var)
         era = self.period
         ver = self.version
         customisation_dict = getCustomisationSplit(self.customisations)

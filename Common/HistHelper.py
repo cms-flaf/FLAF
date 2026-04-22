@@ -251,10 +251,9 @@ def GetBinVec(x_bins):
     return x_bins_vec
 
 
-def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
+def GetModel(hist_cfg, var_entry, dims, return_unit_bin_model=False):
     THModel_Inputs = []
     unit_bin_Inputs = []
-    var_entry = findBinEntry(hist_cfg, var)
     if dims == 1:
         x_bins_vec = GetBinVec(hist_cfg[var_entry]["x_bins"])
         THModel_Inputs.append(x_bins_vec.size() - 1)

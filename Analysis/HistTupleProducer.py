@@ -95,11 +95,24 @@ def createHistTuple(
     print("Defining binnings for variables")
     flatten_vars = set()
     for var in variables:
-        if isinstance(var, dict) and "vars" in var:
-            for v in var["vars"]:
+        if isinstance(var, (list, tuple)):
+            for v in var:
+                if "(" in v or ")" in v or "?" in v or "*" in v or "[" in v or "{" in v:
+                    continue
                 flatten_vars.add(v)
+        elif isinstance(var, dict):
+            if "vars" in var:
+                for v in var["vars"]:
+                    if "(" in v or ")" in v or "?" in v or "*" in v or "[" in v or "{" in v:
+                        continue
+                    flatten_vars.add(v)
+            elif "name" in var:
+                v = var["name"]
+                if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                    flatten_vars.add(v)
         else:
-            flatten_vars.add(var)
+            if "(" not in var and ")" not in var and "?" not in var and "*" not in var and "[" not in var and "{" not in var:
+                flatten_vars.add(var)
 
     for var in flatten_vars:
         DefineBinnedColumn(hist_cfg_dict, var)

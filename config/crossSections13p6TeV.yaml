@@ -48,32 +48,22 @@ BR_Z_nunu:
   reference: https://pdg.lbl.gov/2018/listings/rpp2018-list-z-boson.pdf
   unc:
 
-XtoYHto2B2Wto2B2L2Nu:
+XtoHHto2B2Wto2B2L2Nu:
   crossSec: one_pb * 2 * BR_H_bb * BR_H_WW * 3 * BR_W_lnu * 3 * BR_W_lnu
   reference: "common sense"
   unc:
 
-XtoYHto2B2Wto2B2Q1L1Nu:
+XtoHHto2B2Wto2B2Q1L1Nu:
   crossSec: one_pb * 2 * BR_H_bb * 2 * BR_H_WW * 3 * BR_W_lnu * BR_W_qq
   reference: "common sense"
   unc:
 
-GluGlutoRadiontoHHto2B2Vto2B2JLNu:
+XtoHHto2B2Vto2B2JLNu:
   crossSec: one_pb * 2 * BR_H_bb * 2 * BR_H_WW * 3 * BR_W_lnu * BR_W_qq
   reference: "common sense"
   unc:
 
-GluGlutoBulkGravitontoHHto2B2Vto2B2JLNu:
-  crossSec: one_pb * 2 * BR_H_bb * 2 * BR_H_WW * 3 * BR_W_lnu * BR_W_qq
-  reference: "common sense"
-  unc:
-
-GluGlutoRadiontoHHto2B2Vto2B2L2Nu:
-  crossSec: one_pb * 2 * BR_H_bb * ( BR_H_WW * 3 * BR_W_lnu * 3 * BR_W_lnu + 2 * BR_H_ZZ * 3 * BR_Z_ll * BR_Z_nunu )
-  reference: "common sense"
-  unc:
-
-GluGlutoBulkGravitontoHHto2B2Vto2B2L2Nu:
+XtoHHto2B2Vto2B2L2Nu:
   crossSec: one_pb * 2 * BR_H_bb * ( BR_H_WW * 3 * BR_W_lnu * 3 * BR_W_lnu + 2 * BR_H_ZZ * 3 * BR_Z_ll * BR_Z_nunu )
   reference: "common sense"
   unc:

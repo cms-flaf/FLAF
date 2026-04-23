@@ -19,6 +19,10 @@ BR_H_ZZ:
   reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
   unc:
 
+BR_H_tautau:
+  BR: 6.208E-02
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+
 BR_W_lnu:
   BR: 10.86e-02
   reference: https://pdg.lbl.gov/2019/listings/rpp2019-list-w-boson.pdf
@@ -95,9 +99,6 @@ GluGlutoHH_kl_1p00_kt_1p00_c2_0p10:
   reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
 GluGlutoHH_kl_1p00_kt_1p00_c2_m2p00:
   crossSec: 1.985733
-  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
-BR_H_tautau:
-  BR: 6.208E-02
   reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
 GluGlutoHHto2B2Tau_kl_0p00_kt_1p00_c2_0p00:
   crossSec: GluGlutoHH_kl_0p00_kt_1p00_c2_0p00 * 2 * BR_H_tautau * BR_H_bb

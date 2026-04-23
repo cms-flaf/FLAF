@@ -4,6 +4,11 @@ one_pb:
   reference:
   unc:
 
+1pb:
+  crossSec: 1
+  reference:
+  unc:
+
 BR_H_bb:
   BR: 5.760E-01
   reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md

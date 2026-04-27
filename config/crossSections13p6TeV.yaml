@@ -1,8 +1,73 @@
 ############## For signals ##############
+one_pb:
+  crossSec: 1
+  reference:
+  unc:
+
 1pb:
   crossSec: 1
   reference:
   unc:
+
+BR_H_bb:
+  BR: 5.760E-01
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+  unc:
+
+BR_H_WW:
+  BR: 2.203E-01
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+  unc:
+
+BR_H_ZZ:
+  BR: 2.716E-02
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+  unc:
+
+BR_H_tautau:
+  BR: 6.208E-02
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+
+BR_W_lnu:
+  BR: 10.86e-02
+  reference: https://pdg.lbl.gov/2019/listings/rpp2019-list-w-boson.pdf
+  unc:
+
+BR_W_qq:
+  BR: 1 - BR_W_lnu
+  reference: https://pdg.lbl.gov/2019/listings/rpp2019-list-w-boson.pdf
+  unc:
+
+BR_Z_ll:
+  BR: 3.3658e-02
+  reference: https://pdg.lbl.gov/2018/listings/rpp2018-list-z-boson.pdf
+  unc:
+
+BR_Z_nunu:
+  BR: 20e-02
+  reference: https://pdg.lbl.gov/2018/listings/rpp2018-list-z-boson.pdf
+  unc:
+
+XtoHHto2B2Wto2B2L2Nu:
+  crossSec: one_pb * 2 * BR_H_bb * BR_H_WW * 3 * BR_W_lnu * 3 * BR_W_lnu
+  reference: "common sense"
+  unc:
+
+XtoHHto2B2Wto2B2Q1L1Nu:
+  crossSec: one_pb * 2 * BR_H_bb * 2 * BR_H_WW * 3 * BR_W_lnu * BR_W_qq
+  reference: "common sense"
+  unc:
+
+XtoHHto2B2Vto2B2JLNu:
+  crossSec: one_pb * 2 * BR_H_bb * 2 * BR_H_WW * 3 * BR_W_lnu * BR_W_qq
+  reference: "common sense"
+  unc:
+
+XtoHHto2B2Vto2B2L2Nu:
+  crossSec: one_pb * 2 * BR_H_bb * ( BR_H_WW * 3 * BR_W_lnu * 3 * BR_W_lnu + 2 * BR_H_ZZ * 3 * BR_Z_ll * BR_Z_nunu )
+  reference: "common sense"
+  unc:
+
 GluGlutoHH_kl_0p00_kt_1p00_c2_0p00:
   crossSec: 0.075766
   reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
@@ -29,12 +94,6 @@ GluGlutoHH_kl_1p00_kt_1p00_c2_0p10:
   reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
 GluGlutoHH_kl_1p00_kt_1p00_c2_m2p00:
   crossSec: 1.985733
-  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
-BR_H_tautau:
-  BR: 6.208E-02
-  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
-BR_H_bb:
-  BR: 5.760E-01
   reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
 GluGlutoHHto2B2Tau_kl_0p00_kt_1p00_c2_0p00:
   crossSec: GluGlutoHH_kl_0p00_kt_1p00_c2_0p00 * 2 * BR_H_tautau * BR_H_bb

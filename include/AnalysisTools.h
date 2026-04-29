@@ -362,19 +362,19 @@ namespace v_ops {
         return ROOT::VecOps::Map(p4, [](const auto &v) -> OutT { return static_cast<OutT>((v.*MemPtr)()); });
     }
 
-#define DEFINE_EXTRACTOR(func)                               \
-    template <typename LV, typename OutT = float>            \
-    ROOT::VecOps::RVec<OutT> func(const LV &p4) {            \
-        return extract<LV, OutT, &LV::value_type::func>(p4); \
+#define DEFINE_EXTRACTOR(fn_name, method_name)                      \
+    template <typename LV, typename OutT = float>                   \
+    ROOT::VecOps::RVec<OutT> fn_name(const LV &p4) {                \
+        return extract<LV, OutT, &LV::value_type::method_name>(p4); \
     }
 
-    DEFINE_EXTRACTOR(pt)
-    DEFINE_EXTRACTOR(eta)
-    DEFINE_EXTRACTOR(phi)
-    DEFINE_EXTRACTOR(mass)
-    DEFINE_EXTRACTOR(energy)
-    DEFINE_EXTRACTOR(Et)
-    DEFINE_EXTRACTOR(rapidity)
+    DEFINE_EXTRACTOR(pt, pt)
+    DEFINE_EXTRACTOR(eta, eta)
+    DEFINE_EXTRACTOR(phi, phi)
+    DEFINE_EXTRACTOR(mass, mass)
+    DEFINE_EXTRACTOR(energy, energy)
+    DEFINE_EXTRACTOR(Et, Et)
+    DEFINE_EXTRACTOR(rapidity, Rapidity)
 
 #undef DEFINE_EXTRACTOR
 }  // namespace v_ops

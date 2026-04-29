@@ -496,7 +496,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         input_list_remote_target = [inp for inp in self.input()[0]]
         with contextlib.ExitStack() as stack:
             local_inputs = [
-                stack.enter_context((inp).localize("r")).abspath for inp in self.input()[0]
+                stack.enter_context((inp).localize("r")).abspath
+                for inp in self.input()[0]
             ]
 
             var = var if type(var) != dict else var["name"]
@@ -944,7 +945,9 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     local_anacaches_str = ""
 
                 output_file = self.output()
-                print(f"considering dataset {dataset_name}, and file {input_file.abspath}")
+                print(
+                    f"considering dataset {dataset_name}, and file {input_file.abspath}"
+                )
                 customisation_dict = getCustomisationSplit(self.customisations)
                 tmpFile = os.path.join(
                     job_home, f"AnalysisCacheTask.{self.output_file_extension}"

@@ -343,31 +343,28 @@ RVecSetInt FindMatchingSet(const RVecB &pre_sel_target,
 
 namespace ROOT {
     namespace VecOps {
-        template<typename TIn, typename TOut>
-        RVec<TOut> TakeAndCast(const RVec<TIn>& v,
-                               const RVec<typename RVec<TIn>::size_type>& i,
-                               const TOut default_val)
-        {
+        template <typename TIn, typename TOut>
+        RVec<TOut> TakeAndCast(const RVec<TIn> &v,
+                               const RVec<typename RVec<TIn>::size_type> &i,
+                               const TOut default_val) {
             RVec<TOut> result(i.size());
             for (auto idx : i) {
                 result[idx] = idx >= 0 && idx < v.size() ? static_cast<TOut>(v[idx]) : default_val;
             }
             return result;
         }
-    } // namespace VecOps
-} // namespace ROOT
+    }  // namespace VecOps
+}  // namespace ROOT
 
 namespace v_ops {
     template <typename VecIn, typename OutT, auto MemPtr>
     ROOT::VecOps::RVec<OutT> extract(const VecIn &p4) {
-        return ROOT::VecOps::Map(p4, [](const auto& v) -> OutT {
-            return static_cast<OutT>((v.*MemPtr)());
-        });
+        return ROOT::VecOps::Map(p4, [](const auto &v) -> OutT { return static_cast<OutT>((v.*MemPtr)()); });
     }
 
-    #define DEFINE_EXTRACTOR(func) \
-    template <typename LV, typename OutT=float> \
-    ROOT::VecOps::RVec<OutT> func(const LV &p4) { \
+#define DEFINE_EXTRACTOR(func)                               \
+    template <typename LV, typename OutT = float>            \
+    ROOT::VecOps::RVec<OutT> func(const LV &p4) {            \
         return extract<LV, OutT, &LV::value_type::func>(p4); \
     }
 
@@ -379,7 +376,7 @@ namespace v_ops {
     DEFINE_EXTRACTOR(Et)
     DEFINE_EXTRACTOR(rapidity)
 
-    #undef DEFINE_EXTRACTOR
+#undef DEFINE_EXTRACTOR
 }  // namespace v_ops
 
 namespace eventId {

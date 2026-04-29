@@ -53,7 +53,9 @@ class InputFileTask(Task, law.LocalWorkflow):
             if not re.match(pattern, file):
                 continue
             file_path = os.path.join(folder_name, file) if include_folder_name else file
-            if hasattr(fs_nanoAOD, 'file_interface') and hasattr(fs_nanoAOD.file_interface, "is_available"):
+            if hasattr(fs_nanoAOD, "file_interface") and hasattr(
+                fs_nanoAOD.file_interface, "is_available"
+            ):
                 if not fs_nanoAOD.file_interface.is_available(
                     folder_name, file, verbose=1
                 ):

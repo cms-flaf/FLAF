@@ -3,6 +3,7 @@ import re
 import yaml
 import json
 import copy
+import law
 
 from FLAF.RunKit.envToJson import get_cmsenv
 from FLAF.RunKit.law_wlcg import WLCGFileSystem
@@ -471,7 +472,7 @@ class Setup:
             )
 
         if path_to_check.startswith("/"):
-            return path_to_check
+            return law.LocalFileSystem(base=path_to_check)
         else:
             cfg = self.global_params.get("WLCGFileSystem", {})
             cache_validity = cfg.get("localPathCacheValidity", 600)

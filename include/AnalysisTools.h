@@ -341,65 +341,45 @@ RVecSetInt FindMatchingSet(const RVecB &pre_sel_target,
     return findMatching;
 }
 
+namespace ROOT {
+    namespace VecOps {
+        template<typename TIn, typename TOut>
+        RVec<TOut> TakeAndCast(const RVec<TIn>& v,
+                               const RVec<typename RVec<TIn>::size_type>& i,
+                               const TOut default_val)
+        {
+            RVec<TOut> result(i.size());
+            for (auto idx : i) {
+                result[idx] = idx >= 0 && idx < v.size() ? static_cast<TOut>(v[idx]) : default_val;
+            }
+            return result;
+        }
+    } // namespace VecOps
+} // namespace ROOT
+
 namespace v_ops {
-    template <typename LV>
-    RVecF pt(const LV &p4) {
-        RVecF pt(p4.size());
-        for (int p4_idx = 0; p4_idx < p4.size(); ++p4_idx) {
-            pt[p4_idx] = p4.at(p4_idx).pt();
-        }
-        return pt;
-    }
-    template <typename LV>
-    RVecF eta(const LV &p4) {
-        RVecF eta(p4.size());
-        for (int p4_idx = 0; p4_idx < p4.size(); ++p4_idx) {
-            eta[p4_idx] = p4.at(p4_idx).eta();
-        }
-        return eta;
-    }
-    template <typename LV>
-    RVecF phi(const LV &p4) {
-        RVecF phi(p4.size());
-        for (int p4_idx = 0; p4_idx < p4.size(); ++p4_idx) {
-            phi[p4_idx] = p4.at(p4_idx).phi();
-        }
-        return phi;
-    }
-    template <typename LV>
-    RVecF mass(const LV &p4) {
-        RVecF m(p4.size());
-        for (int p4_idx = 0; p4_idx < p4.size(); ++p4_idx) {
-            m[p4_idx] = p4.at(p4_idx).mass();
-        }
-        return m;
+    template <typename VecIn, typename OutT, auto MemPtr>
+    ROOT::VecOps::RVec<OutT> extract(const VecIn &p4) {
+        return ROOT::VecOps::Map(p4, [](const auto& v) -> OutT {
+            return static_cast<OutT>((v.*MemPtr)());
+        });
     }
 
-    template <typename LV>
-    RVecF energy(const LV &p4) {
-        RVecF en(p4.size());
-        for (int p4_idx = 0; p4_idx < p4.size(); ++p4_idx) {
-            en[p4_idx] = p4.at(p4_idx).energy();
-        }
-        return en;
-    }
-    template <typename LV>
-    RVecF Et(const LV &p4) {
-        RVecF et(p4.size());
-        for (int p4_idx = 0; p4_idx < p4.size(); ++p4_idx) {
-            et[p4_idx] = p4.at(p4_idx).Et();
-        }
-        return et;
-    }
-    template <typename LV>
-    RVecF rapidity(const LV &p4) {
-        RVecF rapidity(p4.size());
-        for (int p4_idx = 0; p4_idx < p4.size(); ++p4_idx) {
-            rapidity[p4_idx] = p4.at(p4_idx).Rapidity();
-        }
-        return rapidity;
+    #define DEFINE_EXTRACTOR(func) \
+    template <typename LV, typename OutT=float> \
+    ROOT::VecOps::RVec<OutT> func(const LV &p4) { \
+        return extract<LV, OutT, &LV::value_type::func>(p4); \
     }
 
+    DEFINE_EXTRACTOR(pt)
+    DEFINE_EXTRACTOR(eta)
+    DEFINE_EXTRACTOR(phi)
+    DEFINE_EXTRACTOR(mass)
+    DEFINE_EXTRACTOR(energy)
+    DEFINE_EXTRACTOR(Et)
+    DEFINE_EXTRACTOR(rapidity)
+
+    #undef DEFINE_EXTRACTOR
 }  // namespace v_ops
 
 namespace eventId {

@@ -53,7 +53,7 @@ class InputFileTask(Task, law.LocalWorkflow):
             if not re.match(pattern, file):
                 continue
             file_path = os.path.join(folder_name, file) if include_folder_name else file
-            if hasattr(fs_nanoAOD.file_interface, "is_available"):
+            if hasattr(fs_nanoAOD, 'file_interface') and hasattr(fs_nanoAOD.file_interface, "is_available"):
                 if not fs_nanoAOD.file_interface.is_available(
                     folder_name, file, verbose=1
                 ):
@@ -215,7 +215,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             rawReportPath = os.path.join(outdir_anatuples, reportFileName)
             input_ok = True
             with contextlib.ExitStack() as stack:
-                local_input = stack.enter_context(input_file.localize("r")).path
+                local_input = stack.enter_context(input_file.localize("r")).abspath
                 inFileName = os.path.basename(input_file.path)
                 print(f"inFileName {inFileName}")
                 anatuple_cmd = [

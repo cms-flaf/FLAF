@@ -293,9 +293,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self.branch_data
         )
         input = self.input()["anaTuple"][input_index]
-        input_name = os.path.basename(input.path)
+        input_name = os.path.basename(input.abspath)
         outFileName = (
-            f"histTuple_" + os.path.basename(input.path).split("_", 1)[1]
+            f"histTuple_" + os.path.basename(input.abspath).split("_", 1)[1]
             if input_name.startswith("anaTuple_")
             else input_name
         )
@@ -316,12 +316,12 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         if type(channels) == list:
             channels = ",".join(channels)
 
-        print(f"input file is {input_file.path}")
+        print(f"input file is {input_file.abspath}")
         histTupleDef = os.path.join(self.ana_path(), self.global_params["histTupleDef"])
         HistTupleProducer = os.path.join(
             self.ana_path(), "FLAF", "Analysis", "HistTupleProducer.py"
         )
-        outFile = self.output().path
+        outFile = self.output().abspath
         print(f"output file is {outFile}")
         compute_unc_histograms = (
             customisation_dict.get("compute_unc_histograms") == "True"
@@ -339,7 +339,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 "python3",
                 HistTupleProducer,
                 "--inFile",
-                local_input.path,
+                local_input.abspath,
                 "--outFile",
                 tmpFile,
                 "--dataset",
@@ -369,7 +369,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 for producer_name, cache_file in self.input()["anaCaches"].items():
                     local_anacaches[producer_name] = stack.enter_context(
                         cache_file.localize("r")
-                    ).path
+                    ).abspath
                 local_anacaches_str = ",".join(
                     f"{producer}:{path}"
                     for producer, path in local_anacaches.items()
@@ -380,7 +380,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             ps_call(HistTupleProducer_cmd, verbose=1)
 
             with self.output().localize("w") as local_output:
-                out_local_path = local_output.path
+                out_local_path = local_output.abspath
                 shutil.move(tmpFile, out_local_path)
         if remove_job_home:
             shutil.rmtree(job_home)
@@ -496,7 +496,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         input_list_remote_target = [inp for inp in self.input()[0]]
         with contextlib.ExitStack() as stack:
             local_inputs = [
-                stack.enter_context((inp).localize("r")).path for inp in self.input()[0]
+                stack.enter_context((inp).localize("r")).abspath
+                for inp in self.input()[0]
             ]
 
             var = var if type(var) != dict else var["name"]
@@ -536,7 +537,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             ps_call(HistFromNtupleProducer_cmd, verbose=1)
 
         with (self.output()).localize("w") as tmp_local_file:
-            out_local_path = tmp_local_file.path
+            out_local_path = tmp_local_file.abspath
             shutil.move(tmpFile, out_local_path)
 
         delete_after_merge = False  # var == self.global_config["variables"][-1] --> find more robust condition
@@ -691,9 +692,9 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         local_inputs = []
         with contextlib.ExitStack() as stack:
             for inp in self.input():
-                dataset_name = os.path.basename(inp.path)
+                dataset_name = os.path.basename(inp.abspath)
                 all_datasets.append(dataset_name.split(".")[0])
-                local_inputs.append(stack.enter_context(inp.localize("r")).path)
+                local_inputs.append(stack.enter_context(inp.localize("r")).abspath)
             dataset_names = ",".join(smpl for smpl in all_datasets)
             all_outputs_merged = []
             if len(uncNames) == 1:
@@ -702,7 +703,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         "python3",
                         MergerProducer,
                         "--outFile",
-                        outFile.path,
+                        outFile.abspath,
                         "--var",
                         var_name,
                         "--dataset_names",
@@ -749,7 +750,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         "python3",
                         HaddMergedHistsProducer,
                         "--outFile",
-                        outFile.path,
+                        outFile.abspath,
                         "--var",
                         var_name,
                     ]
@@ -893,7 +894,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     @workflow_condition.output
     def output(self):
         dataset_name, _, _, _, input_index = self.branch_data
-        inputFilePath = self.input()["anaTuple"][input_index].path
+        inputFilePath = self.input()["anaTuple"][input_index].abspath
         outFileNameWithoutExtension = os.path.basename(inputFilePath).split(".")[0]
         outFileName = f"{outFileNameWithoutExtension}.{self.output_file_extension}"
         output_path = os.path.join(
@@ -934,7 +935,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     for producer_name, cache_files in self.input()["anaCaches"].items():
                         local_anacaches[producer_name] = stack.enter_context(
                             cache_files[input_index].localize("r")
-                        ).path
+                        ).abspath
                     local_anacaches_str = ",".join(
                         f"{producer}:{path}"
                         for producer, path in local_anacaches.items()
@@ -944,7 +945,9 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     local_anacaches_str = ""
 
                 output_file = self.output()
-                print(f"considering dataset {dataset_name}, and file {input_file.path}")
+                print(
+                    f"considering dataset {dataset_name}, and file {input_file.abspath}"
+                )
                 customisation_dict = getCustomisationSplit(self.customisations)
                 tmpFile = os.path.join(
                     job_home, f"AnalysisCacheTask.{self.output_file_extension}"
@@ -956,7 +959,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         "--period",
                         self.period,
                         "--inFile",
-                        local_input.path,
+                        local_input.abspath,
                         "--outFile",
                         tmpFile,
                         "--dataset",
@@ -997,10 +1000,10 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
                     ps_call(analysisCacheProducer_cmd, env=prod_env, verbose=1)
                 print(
-                    f"Finished producing payload for producer={self.producer_to_run} with name={dataset_name}, file={input_file.path}"
+                    f"Finished producing payload for producer={self.producer_to_run} with name={dataset_name}, file={input_file.abspath}"
                 )
                 with output_file.localize("w") as tmp_local_file:
-                    out_local_path = tmp_local_file.path
+                    out_local_path = tmp_local_file.abspath
                     shutil.move(tmpFile, out_local_path)
             if remove_job_home:
                 shutil.rmtree(job_home)
@@ -1149,7 +1152,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         )
 
         with self.input().localize("r") as local_input:
-            infile = local_input.path
+            infile = local_input.abspath
             print("Loading fname", infile)
 
             # Create list of all keys and all targets
@@ -1165,7 +1168,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             # Now localize all output_targets
             with contextlib.ExitStack() as stack:
                 local_outputs = [
-                    stack.enter_context((output).localize("w")).path
+                    stack.enter_context((output).localize("w")).abspath
                     for output in output_list
                 ]
                 cmd = [
@@ -1337,7 +1340,7 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             local_output = self.output()
             inputs = self.input()
             local_inputs = [
-                stack.enter_context(inp.localize("r")).path for inp in inputs
+                stack.enter_context(inp.localize("r")).abspath for inp in inputs
             ]
             assert local_inputs, "`local_inputs` must be a non-empty list"
             producer_cfg = producers[self.producer_to_aggregate]
@@ -1361,7 +1364,7 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             ps_call(aggregate_cmd, verbose=1)
 
             # For local target: ensure parent directory exists and move directly
-            out_local_path = local_output.path
+            out_local_path = local_output.abspath
             local_output.parent.touch()  # Creates parent directories if needed
             shutil.move(tmpFile, out_local_path)
             print(

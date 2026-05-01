@@ -37,7 +37,7 @@ class InputFileTask(Task, law.LocalWorkflow):
 
     def run(self):
         dataset_name = self.branch_data
-        print(f"{dataset_name}: creating input file list into {self.output().path}")
+        print(f"{dataset_name}: creating input file list into {self.output().abspath}")
         dataset = self.datasets[dataset_name]
         process_group = dataset["process_group"]
         ignore_missing = self.global_params.get("ignore_missing_nanoAOD_files", {}).get(
@@ -53,7 +53,9 @@ class InputFileTask(Task, law.LocalWorkflow):
             if not re.match(pattern, file):
                 continue
             file_path = os.path.join(folder_name, file) if include_folder_name else file
-            if hasattr(fs_nanoAOD.file_interface, "is_available"):
+            if hasattr(fs_nanoAOD, "file_interface") and hasattr(
+                fs_nanoAOD.file_interface, "is_available"
+            ):
                 if not fs_nanoAOD.file_interface.is_available(
                     folder_name, file, verbose=1
                 ):
@@ -76,7 +78,7 @@ class InputFileTask(Task, law.LocalWorkflow):
             "inactive_files": inactive_files,
         }
         with self.output().localize("w") as out_local_file:
-            with open(out_local_file.path, "w") as f:
+            with open(out_local_file.abspath, "w") as f:
                 json.dump(output, f, indent=2)
 
         print(f"{dataset_name}: {len(input_files)} input files are found.")
@@ -141,7 +143,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         branches = {}
         for dataset_id, dataset_name in self.iter_datasets():
             input_file_list = (
-                InputFileTask.req(self, branch=dataset_id, branches=()).output().path
+                InputFileTask.req(self, branch=dataset_id, branches=()).output().abspath
             )
             input_files = InputFileTask.load_input_files(
                 input_file_list, test=self.test > 0
@@ -215,8 +217,8 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             rawReportPath = os.path.join(outdir_anatuples, reportFileName)
             input_ok = True
             with contextlib.ExitStack() as stack:
-                local_input = stack.enter_context(input_file.localize("r")).path
-                inFileName = os.path.basename(input_file.path)
+                local_input = stack.enter_context(input_file.localize("r")).abspath
+                inFileName = os.path.basename(input_file.abspath)
                 print(f"inFileName {inFileName}")
                 anatuple_cmd = [
                     "python3",
@@ -269,7 +271,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 self.ana_path(), "FLAF", "AnaProd", "FuseAnaTuples.py"
             )
             outdir_fusedTuples = os.path.join(job_home, "fusedAnaTuples")
-            outFileName = os.path.basename(input_file.path)
+            outFileName = os.path.basename(input_file.abspath)
             outFilePath = os.path.join(outdir_fusedTuples, outFileName)
             finalReportPath = os.path.join(outdir_fusedTuples, reportFileName)
             if input_ok:
@@ -304,9 +306,9 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     json.dump(report, f, indent=2)
 
             with self.output()["root"].localize("w") as local_file:
-                shutil.move(outFilePath, local_file.path)
+                shutil.move(outFilePath, local_file.abspath)
             with self.output()["report"].localize("w") as local_file:
-                shutil.move(finalReportPath, local_file.path)
+                shutil.move(finalReportPath, local_file.abspath)
 
             if remove_job_home:
                 shutil.rmtree(job_home)
@@ -411,7 +413,7 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
             print("Localizing inputs")
             local_inputs = [
-                stack.enter_context(inp["report"].localize("r")).path
+                stack.enter_context(inp["report"].localize("r")).abspath
                 for inp in self.input()
             ]
             print(f"Localized {len(local_inputs)} inputs")
@@ -432,7 +434,7 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 with open(output_path_tmp, "w") as f:
                     json.dump(result[output_name], f, indent=2)
                 with output_remote.localize("w") as output_localized:
-                    shutil.move(output_path_tmp, output_localized.path)
+                    shutil.move(output_path_tmp, output_localized.abspath)
 
             if remove_job_home:
                 shutil.rmtree(job_home)
@@ -452,7 +454,7 @@ class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
     def run(self):
         with self.input()["plan"].localize("r") as input_local:
             self.output().makedirs()
-            shutil.copy(input_local.path, self.output().path)
+            shutil.copy(input_local.abspath, self.output().abspath)
 
 
 class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
@@ -667,7 +669,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 for file_list in files:
                     local_input = stack.enter_context(
                         file_list["root"].localize("r")
-                    ).path
+                    ).abspath
                     local_root_inputs.append(local_input)
             print(f"Localized {len(local_root_inputs)} root inputs")
 
@@ -676,7 +678,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             for ds_name, file_list in self.input()["json"].items():
                 report_file = stack.enter_context(
                     file_list["reports"].localize("r")
-                ).path
+                ).abspath
                 with open(report_file, "r") as f:
                     ds_reports = yaml.safe_load(f)
                 reports[ds_name] = list(ds_reports.values())
@@ -694,7 +696,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         for outFile, tmpFile in zip(self.output(), tmpFiles):
             with outFile.localize("w") as tmp_local_file:
-                out_local_path = tmp_local_file.path
+                out_local_path = tmp_local_file.abspath
                 shutil.move(tmpFile, out_local_path)
 
         if self.delete_inputs_after_merge:

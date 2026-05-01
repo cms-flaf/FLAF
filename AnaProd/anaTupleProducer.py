@@ -299,7 +299,12 @@ def createAnatuple(
             continue
         columns_to_save = anaTupleDef.getDefaultColumnsToSave(isData)
         dfw = Utilities.DataFrameWrapper(df_empty, columns_to_save)
-        dfw.Apply(Baseline.SelectRecoP4, syst_name, setup.global_params["nano_version"], setup.global_params["met_type"])
+        dfw.Apply(
+            Baseline.SelectRecoP4,
+            syst_name,
+            setup.global_params["nano_version"],
+            setup.global_params["met_type"],
+        )
         # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFilters#Analysis_Recommendations_for_any
         if "MET_flags" in setup.global_params:
             dfw.Apply(

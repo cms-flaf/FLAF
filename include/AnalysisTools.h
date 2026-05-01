@@ -348,8 +348,9 @@ namespace ROOT {
                                const RVec<typename RVec<TIn>::size_type> &i,
                                const TOut default_val) {
             RVec<TOut> result(i.size());
-            for (auto idx : i) {
-                result[idx] = idx >= 0 && idx < v.size() ? static_cast<TOut>(v[idx]) : default_val;
+            for (typename RVec<TIn>::size_type pos = 0; pos < i.size(); ++pos) {
+                const auto idx = i[pos];
+                result[pos] = idx >= 0 && idx < v.size() ? static_cast<TOut>(v[idx]) : default_val;
             }
             return result;
         }

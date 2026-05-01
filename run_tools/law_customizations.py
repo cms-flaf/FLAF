@@ -127,7 +127,7 @@ class Task(law.Task):
         if type(fs) == str:
             path = os.path.join(fs, path)
             return law.LocalFileTarget(path)
-        if fs.__class__.__name__ == "LocalFileSystem":
+        if isinstance(fs, law.LocalFileSystem):
             return law.LocalFileTarget(path, fs=fs)
         return WLCGFileTarget(path, fs)
 

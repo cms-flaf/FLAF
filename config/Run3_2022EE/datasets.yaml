@@ -15,7 +15,7 @@ EGamma_Run2022F:
 EGamma_Run2022G:
   eraLetter: G
   nanoAOD:
-    22Sep23: /EGamma/Run2022G-22Sep2023-v1/NANOAOD
+    22Sep23: /EGamma/Run2022G-22Sep2023-v2/NANOAOD
     16Dec23: /EGamma/Run2022G-16Dec2023-v1/NANOAOD
     19Dec23: /EGamma/Run2022G-19Dec2023-v1/NANOAOD
     v15: /EGamma/Run2022G-NanoAODv15-v1/NANOAOD

@@ -52,7 +52,7 @@ EGamma1_Run2023C_v4:
   eraLetter: C
   eraVersion: v4
   nanoAOD:
-    22Sep23: /EGamma1/Run2023C-22Sep2023_v4-v2/NANOAOD
+    22Sep23: /EGamma1/Run2023C-22Sep2023_v4-v1/NANOAOD
     24Jan24: /EGamma1/Run2023C-24Jan2024_v4-v2/NANOAOD
     v15: /EGamma1/Run2023C-NanoAODv15_v4-v1/NANOAOD
 JetMET0_Run2023C_v1:

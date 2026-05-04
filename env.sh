@@ -191,8 +191,8 @@ load_flaf_env() {
   local os_prefix=$(get_os_prefix $os_version)
   local node_os=$os_prefix$os_version
 
-  [ -z "$FLAF_CMSSW_VERSION" ] && export FLAF_CMSSW_VERSION="CMSSW_14_1_7"
-  [ -z "$FLAF_CMSSW_COMPILER" ] && export FLAF_CMSSW_COMPILER="gcc12"
+  [ -z "$FLAF_CMSSW_VERSION" ] && export FLAF_CMSSW_VERSION="CMSSW_16_0_6"
+  [ -z "$FLAF_CMSSW_COMPILER" ] && export FLAF_CMSSW_COMPILER="gcc13"
   [ -z "$FLAF_CMSSW_OS_VERSION" ] && export FLAF_CMSSW_OS_VERSION="9"
   local target_os_prefix=$(get_os_prefix $FLAF_CMSSW_OS_VERSION)
   local target_os_gt_prefix=$(get_os_prefix $FLAF_CMSSW_OS_VERSION 1)

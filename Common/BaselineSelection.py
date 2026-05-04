@@ -161,8 +161,10 @@ def DefineGenObjects(
     return df
 
 
-def SelectRecoP4(df, syst_name="nano", nano_version="v12"):
+def SelectRecoP4(df, syst_name="nano", nano_version="v12", met_type="PuppiMET"):
     for obj in ana_reco_object_collections[nano_version]:
+        if "MET" in obj and obj != met_type:
+            continue
         if f"{obj}_pt" not in df.GetColumnNames():
             raise RuntimeError(f"{obj}_pt not in col names")
         df = df.Define(f"{obj}_p4", f"{obj}_p4_{syst_name}")

@@ -160,7 +160,7 @@ class Output:
 
 
 def CreateMergeSchema(
-    input_sizes, target_output_size, allow_multiple_outputs_per_block
+    input_sizes, target_output_size, allow_multiple_outputs_per_block, max_steps=10_000
 ):
     inputs = sorted(range(len(input_sizes)), key=lambda i: -input_sizes[i])
     outputs = []
@@ -181,6 +181,10 @@ def CreateMergeSchema(
         for output in outputs:
             cmb += output_metric(output.size, output.n_splits, len(output.inputs))
         return cmb
+
+    def metric_to_str(metric):
+        delta, delta2, groups = metric[0], metric[1], metric[2]
+        return f"sum(delta)={delta}, sum(delta^2)={delta2}, n_groups={groups}"
 
     while len(processed_inputs) != len(input_sizes):
         output = Output()
@@ -244,6 +248,8 @@ def CreateMergeSchema(
         return False
 
     prev_metric = combined_metric()
+    print(f"CreateMergeSchema: metric for the initial merge solution: {metric_to_str(prev_metric)}")
+    step = 0
     while optimization_step():
         new_metric = combined_metric()
         if tuple(new_metric) >= tuple(prev_metric):
@@ -251,6 +257,15 @@ def CreateMergeSchema(
                 "Error in merge schema optimization. Metric did not improve after modification."
             )
         prev_metric = new_metric
+        if step % 100 == 0:
+            print(f"CreateMergeSchema: step {step+1}. metric: {metric_to_str(new_metric)}")
+        if step + 1 >= max_steps:
+            print(
+                f"CreateMergeSchema: reached the maximum number of steps ({max_steps}). "
+            )
+            break
+        step += 1
+    print(f"CreateMergeSchema: optimization finished after {step+1} steps. Final metric: {metric_to_str(prev_metric)}")
     merge_schema = [
         (output.inputs, output.n_splits) for output in outputs if len(output.inputs) > 0
     ]
@@ -306,9 +321,12 @@ def CreateMergePlan(setup, local_inputs, n_events_per_file, is_data):
     processed_input_file_names = set()
     for (eraLetter, eraVersion), blocks in block_groups.items():
         block_sizes = [block.nEvents for block in blocks]
+        report_suffix = f" for era {eraLetter}{eraVersion}" if eraLetter != "" or eraVersion != "" else ""
+        print(f"Creating merge schema{report_suffix}")
         merge_schema = CreateMergeSchema(
             block_sizes, n_events_per_file, allow_multiple_outputs_per_block=is_data
         )
+        print(f"Merge schema{report_suffix} created")
         output_idx = 0
         output_format = "anaTuple_"
         if eraLetter != "" or eraVersion != "":

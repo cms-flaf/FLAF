@@ -49,24 +49,31 @@ class InputFileTask(Task, law.LocalWorkflow):
         pattern = pattern_dict.get(nano_version, r".*\.root$")
         input_files = []
         inactive_files = []
+        empty_files = []
         for file in fs_nanoAOD.listdir(folder_name):
             if not re.match(pattern, file):
                 continue
             file_path = os.path.join(folder_name, file) if include_folder_name else file
-            if hasattr(fs_nanoAOD, "file_interface") and hasattr(
-                fs_nanoAOD.file_interface, "is_available"
-            ):
-                if not fs_nanoAOD.file_interface.is_available(
-                    folder_name, file, verbose=1
-                ):
-                    if ignore_missing:
-                        print(
-                            f"{file_path}: will be ignored because no sites are found."
-                        )
-                        inactive_files.append(file_path)
+            if hasattr(fs_nanoAOD, "file_interface"):
+
+                if hasattr(fs_nanoAOD.file_interface, "is_available"):
+                    if not fs_nanoAOD.file_interface.is_available(
+                        folder_name, file, verbose=1
+                    ):
+                        if ignore_missing:
+                            print(
+                                f"{file_path}: will be ignored because no sites are found."
+                            )
+                            inactive_files.append(file_path)
+                            continue
+                        else:
+                            raise RuntimeError(f"No sites found for {file_path}")
+                if hasattr(fs_nanoAOD.file_interface, "n_events"):
+                    n_events = fs_nanoAOD.file_interface.n_events(folder_name, file)
+                    if n_events == 0:
+                        print(f"{file_path}: will be ignored because it has 0 events.")
+                        empty_files.append(file_path)
                         continue
-                    else:
-                        raise RuntimeError(f"No sites found for {file_path}")
             input_files.append(file_path)
 
         if len(input_files) == 0:
@@ -76,6 +83,7 @@ class InputFileTask(Task, law.LocalWorkflow):
         output = {
             "input_files": input_files,
             "inactive_files": inactive_files,
+            "empty_files": empty_files,
         }
         with self.output().localize("w") as out_local_file:
             with open(out_local_file.abspath, "w") as f:

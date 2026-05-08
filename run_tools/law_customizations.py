@@ -263,7 +263,21 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         ana_path = os.getenv("ANALYSIS_PATH")
         # render_variables are rendered into all files sent with a job
         config.render_variables["analysis_path"] = ana_path
-        # force to run on CC7, https://batchdocs.web.cern.ch/local/submit.html
+
+        # token server for rate-limiting job starts to avoid AFS overload
+        runTokenServer = self.global_params.get("runTokenServer", None)
+        if runTokenServer:
+            config.render_variables["run_token_server_host"] = runTokenServer["host"]
+            config.render_variables["run_token_server_port"] = runTokenServer["port"]
+            # ship get_token.py with the job so it is available before AFS is accessed
+            config.input_files["get_token_script"] = os.path.join(
+                ana_path, "FLAF", "run_tools", "get_run_token.py"
+            )
+        else:
+            config.render_variables["run_token_server_host"] = ""
+            config.render_variables["run_token_server_port"] = ""
+
+        # force to run on AlmaLinux9, https://batchdocs.web.cern.ch/local/submit.html
         config.custom_content.append(
             ("requirements", 'TARGET.OpSysAndVer =?= "AlmaLinux9"')
         )

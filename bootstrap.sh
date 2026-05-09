@@ -7,9 +7,9 @@ action() {
 
     if [ -n "${run_token_server_host}" ] && [ -n "${run_token_server_port}" ]; then
         local get_run_token_script
-        get_run_token_script=$(ls "${LAW_JOB_INIT_DIR}"/get_token*.py 2>/dev/null | head -1)
+        get_run_token_script=$(ls "${LAW_JOB_INIT_DIR}"/get_run_token*.py 2>/dev/null | head -1)
         if [ -z "${get_run_token_script}" ]; then
-            echo "ERROR: get_token.py not found in ${LAW_JOB_INIT_DIR}"
+            echo "ERROR: get_run_token.py not found in ${LAW_JOB_INIT_DIR}"
             return 1
         fi
         python3 "${get_run_token_script}" \

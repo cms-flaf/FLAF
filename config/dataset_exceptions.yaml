@@ -29,6 +29,7 @@
 
 ^DYto2L_MLL_10to50_madgraphMLM:
   - Run3_2024
+  - Run3_2025
 ^DYto2(E|Mu|Tau)_MLL_10to50_madgraphMLM:
   - Run3_2022
   - Run3_2022EE

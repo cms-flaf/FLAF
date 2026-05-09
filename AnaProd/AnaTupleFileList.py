@@ -3,6 +3,7 @@ import os
 import json
 import math
 
+
 class InputFile:
     """An input anaTuple file with its lumi sections expanded into per-run lumi sets."""
 
@@ -60,7 +61,9 @@ class RunCluster:
             file_runs_in_cluster = self._file_runs.get(file, set())
             total_file_lumis = sum(len(lumis) for lumis in file.run_lumi.values())
             cluster_file_lumis = sum(
-                len(file.run_lumi[r]) for r in file_runs_in_cluster if r in file.run_lumi
+                len(file.run_lumi[r])
+                for r in file_runs_in_cluster
+                if r in file.run_lumi
             )
             if total_file_lumis > 0:
                 total += int(file.nEvents * cluster_file_lumis / total_file_lumis)
@@ -112,7 +115,9 @@ class RunCluster:
                     if lumi not in lumi_to_files:
                         lumi_to_files[lumi] = f  # store first file
                     else:
-                        union(lumi_to_files[lumi], f)  # union with first file seen for this lumi
+                        union(
+                            lumi_to_files[lumi], f
+                        )  # union with first file seen for this lumi
 
             groups = {}
             for f in files_with_run:
@@ -201,8 +206,15 @@ class Output:
 
 
 def CreateMergeSchema(
-    *, input_sizes, target_output_size, allow_multiple_outputs_per_block, max_steps,
-    cluster_files=None, cluster_runs=None, cluster_owned=None, file_all_runs=None
+    *,
+    input_sizes,
+    target_output_size,
+    allow_multiple_outputs_per_block,
+    max_steps,
+    cluster_files=None,
+    cluster_runs=None,
+    cluster_owned=None,
+    file_all_runs=None,
 ):
     """Assign inputs to output groups so that each group's total size is close to target_output_size.
 
@@ -239,7 +251,7 @@ def CreateMergeSchema(
             return (0, 0, 0)
         split_size = math.ceil(size / n_splits)
         delta = n_splits * abs(split_size - target_output_size)
-        return (delta, 1, delta ** 2)
+        return (delta, 1, delta**2)
 
     def add_metrics(a, b):
         return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
@@ -302,7 +314,11 @@ def CreateMergeSchema(
                         return True
             for r in cluster_runs[input_idx]:
                 for f, cnt in out_file_cnt[out_idx].items():
-                    if cnt > 0 and r in file_all_runs.get(f, frozenset()) and (f, r) not in new_owned:
+                    if (
+                        cnt > 0
+                        and r in file_all_runs.get(f, frozenset())
+                        and (f, r) not in new_owned
+                    ):
                         return True
             return False
 
@@ -313,8 +329,11 @@ def CreateMergeSchema(
             would remain referenced by both a remaining file and a remaining run in the output
             (meaning both that file and that run are contributed by other clusters too).
             """
-            for (f, r) in cluster_owned[input_idx]:
-                if out_file_cnt[out_idx].get(f, 0) > 1 and out_run_cnt[out_idx].get(r, 0) > 1:
+            for f, r in cluster_owned[input_idx]:
+                if (
+                    out_file_cnt[out_idx].get(f, 0) > 1
+                    and out_run_cnt[out_idx].get(r, 0) > 1
+                ):
                     return True
             return False
 
@@ -322,9 +341,12 @@ def CreateMergeSchema(
         # that does not create contamination. If no existing output is compatible, open a new one.
         for input_idx in inputs:
             best_out_idx = None
-            best_size = float('inf')
+            best_size = float("inf")
             for out_idx, output in enumerate(outputs):
-                if not _contaminated_add(input_idx, out_idx) and output.size < best_size:
+                if (
+                    not _contaminated_add(input_idx, out_idx)
+                    and output.size < best_size
+                ):
                     best_out_idx = out_idx
                     best_size = output.size
             if best_out_idx is None:
@@ -352,15 +374,21 @@ def CreateMergeSchema(
         for output in outputs:
             if len(output.inputs) != 1:
                 continue
-            prev_metric = output_metric(output.size, output.n_splits, len(output.inputs))
+            prev_metric = output_metric(
+                output.size, output.n_splits, len(output.inputs)
+            )
             while True:
-                new_metric = output_metric(output.size, output.n_splits + 1, len(output.inputs))
+                new_metric = output_metric(
+                    output.size, output.n_splits + 1, len(output.inputs)
+                )
                 if new_metric >= prev_metric:
                     break
                 output.n_splits += 1
                 prev_metric = new_metric
 
-    flexible_inputs = {idx for output in outputs for idx in output.inputs if output.n_splits == 1}
+    flexible_inputs = {
+        idx for output in outputs for idx in output.inputs if output.n_splits == 1
+    }
     input_to_output = {idx: out for out in outputs for idx in out.inputs}
 
     def optimization_step():
@@ -416,7 +444,9 @@ def CreateMergeSchema(
         return any_move
 
     prev_metric = combined_metric()
-    print(f"CreateMergeSchema: metric for the initial merge solution: {metric_to_str(prev_metric)}")
+    print(
+        f"CreateMergeSchema: metric for the initial merge solution: {metric_to_str(prev_metric)}"
+    )
     step = 0
     while optimization_step():
         new_metric = combined_metric()
@@ -428,17 +458,28 @@ def CreateMergeSchema(
         step += 1
         print(f"CreateMergeSchema: step {step}. metric: {metric_to_str(new_metric)}")
         if step >= max_steps:
-            print(f"CreateMergeSchema: reached the maximum number of steps ({max_steps}).")
+            print(
+                f"CreateMergeSchema: reached the maximum number of steps ({max_steps})."
+            )
             break
-    print(f"CreateMergeSchema: optimization finished after {step} steps. Final metric: {metric_to_str(prev_metric)}")
+    print(
+        f"CreateMergeSchema: optimization finished after {step} steps. Final metric: {metric_to_str(prev_metric)}"
+    )
     merge_schema = [
         (output.inputs, output.n_splits) for output in outputs if len(output.inputs) > 0
     ]
     return merge_schema
 
 
-def CreateMergePlan(*, n_events_per_file, is_data, setup=None, local_inputs=None, combined_report_path=None,
-                    max_steps=1000):
+def CreateMergePlan(
+    *,
+    n_events_per_file,
+    is_data,
+    setup=None,
+    local_inputs=None,
+    combined_report_path=None,
+    max_steps=1000,
+):
     """Create a merge plan for either data or MC.
 
     Args:
@@ -456,12 +497,16 @@ def CreateMergePlan(*, n_events_per_file, is_data, setup=None, local_inputs=None
 
     if local_inputs is None:
         if combined_report_path is None:
-            raise ValueError("Either local_inputs or combined_report_path must be provided.")
+            raise ValueError(
+                "Either local_inputs or combined_report_path must be provided."
+            )
         with open(combined_report_path, "r") as file:
             combined_reports = json.load(file)
     else:
         if combined_report_path is not None:
-            raise ValueError("Only one of local_inputs or combined_report_path can be provided.")
+            raise ValueError(
+                "Only one of local_inputs or combined_report_path can be provided."
+            )
         if setup is None:
             raise ValueError("Setup must be provided when local_inputs is used.")
 
@@ -496,7 +541,6 @@ def CreateMergePlan(*, n_events_per_file, is_data, setup=None, local_inputs=None
         )
         input_files.add(file)
 
-
     run_clusters = RunCluster.create(input_files)
     cluster_groups = {}
     for cluster in run_clusters:
@@ -519,7 +563,11 @@ def CreateMergePlan(*, n_events_per_file, is_data, setup=None, local_inputs=None
     processed_file_runs = set()
     for (eraLetter, eraVersion), clusters in cluster_groups.items():
         cluster_sizes = [cluster.nEvents for cluster in clusters]
-        report_suffix = f" for era {eraLetter}{eraVersion}" if eraLetter != "" or eraVersion != "" else ""
+        report_suffix = (
+            f" for era {eraLetter}{eraVersion}"
+            if eraLetter != "" or eraVersion != ""
+            else ""
+        )
         print(f"Creating merge schema{report_suffix}")
         if is_data:
             # Build per-cluster metadata so CreateMergeSchema can enforce the contamination
@@ -598,8 +646,10 @@ def CreateMergePlan(*, n_events_per_file, is_data, setup=None, local_inputs=None
 
     return {"plan": merge_plan, "reports": combined_reports}
 
+
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--combined-reports", required=True, type=str)
     parser.add_argument("--n-events-per-file", required=True, type=int)
@@ -608,7 +658,12 @@ if __name__ == "__main__":
     parser.add_argument("--is-data", action="store_true")
     args = parser.parse_args()
 
-    result = CreateMergePlan(n_events_per_file=args.n_events_per_file, is_data=args.is_data, combined_report_path=args.combined_reports, max_steps=args.max_steps)
+    result = CreateMergePlan(
+        n_events_per_file=args.n_events_per_file,
+        is_data=args.is_data,
+        combined_report_path=args.combined_reports,
+        max_steps=args.max_steps,
+    )
 
     with open(args.output, "w") as file:
         json.dump(result["plan"], file, indent=2)

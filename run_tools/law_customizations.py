@@ -268,7 +268,9 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         runTokenServer = self.global_params.get("runTokenServer", None)
         if runTokenServer:
             config.render_variables["run_token_server_host"] = runTokenServer["host"]
-            config.render_variables["run_token_server_port"] = str(runTokenServer["port"])
+            config.render_variables["run_token_server_port"] = str(
+                runTokenServer["port"]
+            )
             # ship get_token.py with the job so it is available before AFS is accessed
             config.input_files["get_token_script"] = os.path.join(
                 ana_path, "FLAF", "run_tools", "get_run_token.py"

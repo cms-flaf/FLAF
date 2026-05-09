@@ -16,12 +16,13 @@ import socket
 import threading
 import time
 
+
 def timestamp_str():
-    return time.strftime('%Y-%m-%d %H:%M:%S')
+    return time.strftime("%Y-%m-%d %H:%M:%S")
 
 
 class PathState:
-    __slots__ = ('lock', 'last_token_time', 'queue_size')
+    __slots__ = ("lock", "last_token_time", "queue_size")
 
     def __init__(self):
         self.lock = threading.Lock()
@@ -30,8 +31,16 @@ class PathState:
 
 
 class TokenServer:
-    def __init__(self, interval, max_connections, wait_threshold, min_sleep_interval=0.2, recv_chunk_size=4096,
-                 max_request_length=1024*1024, backlog=512):
+    def __init__(
+        self,
+        interval,
+        max_connections,
+        wait_threshold,
+        min_sleep_interval=0.2,
+        recv_chunk_size=4096,
+        max_request_length=1024 * 1024,
+        backlog=512,
+    ):
         self.interval = interval
         self.max_connections = max_connections
         self.wait_threshold = wait_threshold
@@ -82,41 +91,41 @@ class TokenServer:
 
     def _handle_client(self, conn, addr):
         try:
-            data = b''
-            while b'\n' not in data and len(data) < self.max_request_length:
+            data = b""
+            while b"\n" not in data and len(data) < self.max_request_length:
                 chunk = conn.recv(self.recv_chunk_size)
                 if not chunk:
-                    conn.sendall(b'ERROR: no data received\n')
+                    conn.sendall(b"ERROR: no data received\n")
                     return
                 data += chunk
             if len(data) >= self.max_request_length:
-                conn.sendall(b'ERROR: request too long\n')
+                conn.sendall(b"ERROR: request too long\n")
                 return
             ref_path = data.decode().strip()
             if not ref_path:
-                conn.sendall(b'ERROR: empty path\n')
+                conn.sendall(b"ERROR: empty path\n")
                 return
 
             ts = timestamp_str()
-            print(f'[{ts}] request  {addr[0]}:{addr[1]}  {ref_path}')
+            print(f"[{ts}] request  {addr[0]}:{addr[1]}  {ref_path}")
 
             state = self._get_path_state(ref_path)
             result = self._acquire_token(state)
 
             if result > 0:
-                conn.sendall(f'WAIT {result}\n'.encode())
+                conn.sendall(f"WAIT {result}\n".encode())
                 ts = timestamp_str()
                 print(
-                    f'[{ts}] redirect {addr[0]}:{addr[1]}  {ref_path}  '
-                    f'queue={state.queue_size}  wait={result}s'
+                    f"[{ts}] redirect {addr[0]}:{addr[1]}  {ref_path}  "
+                    f"queue={state.queue_size}  wait={result}s"
                 )
             else:
-                conn.sendall(b'OK\n')
+                conn.sendall(b"OK\n")
                 ts = timestamp_str()
-                print(f'[{ts}] issued   {addr[0]}:{addr[1]}  {ref_path}')
+                print(f"[{ts}] issued   {addr[0]}:{addr[1]}  {ref_path}")
 
         except Exception as e:
-            print(f'Error handling {addr}: {e}')
+            print(f"Error handling {addr}: {e}")
         finally:
             with self.conn_lock:
                 self.active_connections -= 1
@@ -130,23 +139,23 @@ class TokenServer:
             ts = timestamp_str()
             print(
                 f'[{ts}] Token server listening on {host or "*"}:{port}  '
-                f'interval={self.interval}s  '
-                f'max_connections={self.max_connections}  '
-                f'wait_threshold={self.wait_threshold}',
+                f"interval={self.interval}s  "
+                f"max_connections={self.max_connections}  "
+                f"wait_threshold={self.wait_threshold}",
             )
             while True:
                 conn, addr = server.accept()
                 with self.conn_lock:
                     if self.active_connections >= self.max_connections:
                         try:
-                            conn.sendall(b'ERROR: server at max capacity\n')
+                            conn.sendall(b"ERROR: server at max capacity\n")
                         except Exception:
                             pass
                         conn.close()
                         ts = timestamp_str()
                         print(
-                            f'[{ts}] rejected {addr[0]}:{addr[1]} '
-                            f'(connections={self.active_connections}/{self.max_connections})',
+                            f"[{ts}] rejected {addr[0]}:{addr[1]} "
+                            f"(connections={self.active_connections}/{self.max_connections})",
                         )
                         continue
                     self.active_connections += 1
@@ -157,22 +166,35 @@ class TokenServer:
                 t.start()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(
-        description='Token server for rate-limiting distributed job starts per a reference path'
+        description="Token server for rate-limiting distributed job starts per a reference path"
     )
-    parser.add_argument('--host', default='',
-                        help='interface to bind to (default: all interfaces)')
-    parser.add_argument('--port', type=int, default=5007,
-                        help='TCP port to listen on')
-    parser.add_argument('--interval', type=float, default=1.0,
-                        help='minimum seconds between tokens per a reference path')
-    parser.add_argument('--max-connections', type=int, default=10000,
-                        help='maximum simultaneous open connections')
-    parser.add_argument('--wait-threshold', type=int, default=100,
-                        help='queue depth above which a WAIT redirect is sent instead of '
-                             'holding the connection open')
+    parser.add_argument(
+        "--host", default="", help="interface to bind to (default: all interfaces)"
+    )
+    parser.add_argument("--port", type=int, default=5007, help="TCP port to listen on")
+    parser.add_argument(
+        "--interval",
+        type=float,
+        default=1.0,
+        help="minimum seconds between tokens per a reference path",
+    )
+    parser.add_argument(
+        "--max-connections",
+        type=int,
+        default=10000,
+        help="maximum simultaneous open connections",
+    )
+    parser.add_argument(
+        "--wait-threshold",
+        type=int,
+        default=100,
+        help="queue depth above which a WAIT redirect is sent instead of "
+        "holding the connection open",
+    )
     args = parser.parse_args()
 
     server = TokenServer(args.interval, args.max_connections, args.wait_threshold)

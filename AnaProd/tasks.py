@@ -435,7 +435,12 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 nEventsPerFile = nEventsPerFile.get(process_group, 100_000)
             is_data = process_group == "data"
 
-            result = CreateMergePlan(setup=self.setup, local_inputs=local_inputs, n_events_per_file=nEventsPerFile, is_data=is_data)
+            result = CreateMergePlan(
+                setup=self.setup,
+                local_inputs=local_inputs,
+                n_events_per_file=nEventsPerFile,
+                is_data=is_data,
+            )
 
             for output_name, output_remote in self.output().items():
                 output_path_tmp = os.path.join(job_home, f"{output_name}_tmp.json")

@@ -435,7 +435,7 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 nEventsPerFile = nEventsPerFile.get(process_group, 100_000)
             is_data = process_group == "data"
 
-            result = CreateMergePlan(self.setup, local_inputs, nEventsPerFile, is_data)
+            result = CreateMergePlan(setup=self.setup, local_inputs=local_inputs, n_events_per_file=nEventsPerFile, is_data=is_data)
 
             for output_name, output_remote in self.output().items():
                 output_path_tmp = os.path.join(job_home, f"{output_name}_tmp.json")
@@ -457,7 +457,7 @@ class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
 
     def output(self):
         dataset_name, process_group = self.branch_data
-        return self.local_target(self.get_output_path(dataset_name, "plan"))
+        return self.local_target(f"{dataset_name}.json")
 
     def run(self):
         with self.input()["plan"].localize("r") as input_local:
@@ -493,6 +493,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             _,
             _,
             _,
+            _,
         ) in self.branch_map.items():
             branch_set.add(ds_branch)
             branch_set.update(dataset_dependencies.values())
@@ -516,6 +517,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             input_file_list,
             _,
             skip_future_tasks,
+            runs,
         ) = self.branch_data
         anaTuple_branch_map = AnaTupleFileTask.req(
             self, branch=-1, branches=()
@@ -605,6 +607,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 input_file_list = this_dict["inputs"]
                 output_file_list = this_dict["outputs"]
                 skip_future_tasks = this_dict["n_events"] == 0
+                runs = this_dict.get("runs", [])
                 branches[nBranch] = (
                     dataset_name,
                     process_group,
@@ -613,6 +616,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     input_file_list,
                     output_file_list,
                     skip_future_tasks,
+                    runs,
                 )
                 nBranch += 1
         return branches
@@ -645,6 +649,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             input_file_list,
             output_file_list,
             skip_future_tasks,
+            runs,
         ) = self.branch_data
         output_dir = os.path.join(self.version, "AnaTuples", self.period, dataset_name)
         outputs = [os.path.join(output_dir, out_file) for out_file in output_file_list]
@@ -661,6 +666,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             input_file_list,
             output_file_list,
             skip_future_tasks,
+            runs,
         ) = self.branch_data
         is_data = process_group == "data"
         job_home, remove_job_home = self.law_job_home()
@@ -700,6 +706,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 input_reports=reports,
                 input_roots=local_root_inputs,
                 root_outputs=tmpFiles,
+                runs=runs,
             )
 
         for outFile, tmpFile in zip(self.output(), tmpFiles):

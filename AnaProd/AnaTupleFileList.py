@@ -1,10 +1,11 @@
+import heapq
 import os
 import json
 import math
-import numpy as np
-
 
 class InputFile:
+    """An input anaTuple file with its lumi sections expanded into per-run lumi sets."""
+
     def __init__(self, name, nEvents, eraLetter, eraVersion, run_lumi_ranges):
         self.name = name
         self.nEvents = nEvents
@@ -19,109 +20,146 @@ class InputFile:
                     self.run_lumi[run].add(lumi)
 
 
-class InputBlock:
+class RunCluster:
+    """Groups (file, run) pairs where files have lumi overlap for the same run.
+    A file can belong to multiple clusters (with different runs per cluster)."""
+
     def __init__(self):
         self.files = set()
         self.eraLetter = None
         self.eraVersion = None
         self.run_lumi = {}
+        self._file_runs = {}  # InputFile -> set of run numbers in this cluster
 
-    def add(self, file):
+    def add_file_run(self, file, run):
+        """Register (file, run) in this cluster, accumulating lumi sections."""
         if self.eraLetter is None and self.eraVersion is None:
             self.eraLetter = file.eraLetter
             self.eraVersion = file.eraVersion
         elif self.eraLetter != file.eraLetter or self.eraVersion != file.eraVersion:
             raise RuntimeError(
-                f'Input file "{file.name}" has a different era than the other files in the block.'
+                f'Input file "{file.name}" has a different era than the other files in the cluster.'
             )
         self.files.add(file)
-        for run, lumis in file.run_lumi.items():
-            if run not in self.run_lumi:
-                self.run_lumi[run] = set()
-            self.run_lumi[run].update(lumis)
+        if file not in self._file_runs:
+            self._file_runs[file] = set()
+        self._file_runs[file].add(run)
+        if run not in self.run_lumi:
+            self.run_lumi[run] = set()
+        self.run_lumi[run].update(file.run_lumi[run])
+
+    def runs_for_file(self, file):
+        """Return the set of run numbers that file contributes to this cluster."""
+        return self._file_runs.get(file, set())
 
     @property
     def nEvents(self):
-        return sum([f.nEvents for f in self.files])
-
-    def hasOverlap(self, other):
-        for run, lumis in other.run_lumi.items():
-            if run not in self.run_lumi:
-                continue
-            if len(lumis & self.run_lumi[run]) > 0:
-                return True
-        return False
-
-    def canMerge(self, other):
-        return self.eraLetter == other.eraLetter and self.eraVersion == other.eraVersion
+        """Estimated event count: each file's events weighted by its lumi fraction in this cluster."""
+        total = 0
+        for file in self.files:
+            file_runs_in_cluster = self._file_runs.get(file, set())
+            total_file_lumis = sum(len(lumis) for lumis in file.run_lumi.values())
+            cluster_file_lumis = sum(
+                len(file.run_lumi[r]) for r in file_runs_in_cluster if r in file.run_lumi
+            )
+            if total_file_lumis > 0:
+                total += int(file.nEvents * cluster_file_lumis / total_file_lumis)
+        return total
 
     @staticmethod
-    def merge(*blocks):
-        merged_block = InputBlock()
-        for block in blocks:
-            for file in block.files:
-                merged_block.add(file)
-        return merged_block
+    def merge(*clusters):
+        """Return a new cluster containing all (file, run) pairs from the given clusters."""
+        merged = RunCluster()
+        for cluster in clusters:
+            for file in cluster.files:
+                for run in cluster.runs_for_file(file):
+                    merged.add_file_run(file, run)
+        return merged
 
     @staticmethod
     def create(input_files):
-        blocks = []
+        """For each run, group files by lumi overlap within that run.
+        Files that overlap for a given run go into the same cluster for that run.
+        Clusters with identical file sets are merged (accumulating runs).
+        A file can appear in multiple clusters with different runs."""
+        all_runs = set()
         for file in input_files:
-            block = InputBlock()
-            block.add(file)
-            blocks.append(block)
+            all_runs.update(file.run_lumi.keys())
 
-        had_merge = True
-        while had_merge:
-            new_blocks = []
-            processed_indices = set()
-            had_merge = False
-            for block_idx, block in enumerate(blocks):
-                if block_idx in processed_indices:
-                    continue
-                overlap_idx = []
-                overlap_blocks = []
-                for other_idx in range(block_idx + 1, len(blocks)):
-                    if other_idx in processed_indices:
-                        continue
-                    other = blocks[other_idx]
-                    if block.hasOverlap(other):
-                        overlap_blocks.append(other)
-                        overlap_idx.append(other_idx)
-                processed_indices.add(block_idx)
-                if len(overlap_blocks) == 0:
-                    new_blocks.append(block)
-                else:
-                    merged_block = InputBlock.merge(block, *overlap_blocks)
-                    new_blocks.append(merged_block)
-                    processed_indices.update(overlap_idx)
-                    had_merge = True
-            blocks = new_blocks
+        cluster_map = {}  # frozenset(files) -> RunCluster
 
-        print(f"Created {len(blocks)} input blocks:")
-        processed_inputs = set()
-        has_overlaps = False
-        for block_idx, block in enumerate(blocks):
+        for run in sorted(all_runs):
+            files_with_run = [f for f in input_files if run in f.run_lumi]
+            if not files_with_run:
+                continue
+
+            parent = {f: f for f in files_with_run}
+
+            def find(x):
+                while parent[x] != x:
+                    x = parent[x]
+                return x
+
+            def union(x, y):
+                rx, ry = find(x), find(y)
+                if rx != ry:
+                    parent[rx] = ry
+
+            # Build lumi->files map: O(total_lumis) instead of O(n_files^2 * lumi_set_size)
+            lumi_to_files = {}
+            for f in files_with_run:
+                for lumi in f.run_lumi[run]:
+                    if lumi not in lumi_to_files:
+                        lumi_to_files[lumi] = f  # store first file
+                    else:
+                        union(lumi_to_files[lumi], f)  # union with first file seen for this lumi
+
+            groups = {}
+            for f in files_with_run:
+                root = find(f)
+                if root not in groups:
+                    groups[root] = []
+                groups[root].append(f)
+
+            for file_group in groups.values():
+                key = frozenset(file_group)
+                if key not in cluster_map:
+                    cluster_map[key] = RunCluster()
+                cluster = cluster_map[key]
+                for file in file_group:
+                    cluster.add_file_run(file, run)
+
+        clusters = list(cluster_map.values())
+
+        seen_file_runs = set()
+        for cluster in clusters:
+            for file in cluster.files:
+                for run in cluster.runs_for_file(file):
+                    pair = (file.name, run)
+                    if pair in seen_file_runs:
+                        raise RuntimeError(
+                            f'(file, run) pair "{pair}" appears in multiple clusters.'
+                        )
+                    seen_file_runs.add(pair)
+
+        for file in input_files:
+            for run in file.run_lumi:
+                if (file.name, run) not in seen_file_runs:
+                    raise RuntimeError(
+                        f'(file, run) pair ("{file.name}", "{run}") is missing from clusters.'
+                    )
+
+        print(f"Created {len(clusters)} run clusters:")
+        for cluster_idx, cluster in enumerate(clusters):
             print(
-                f"  block #{block_idx}: {len(block.files)} files, {block.nEvents} events total"
+                f"  cluster #{cluster_idx}: {len(cluster.files)} files, "
+                f"{len(cluster.run_lumi)} runs, {cluster.nEvents} events (estimated)"
             )
-            for file in block.files:
-                print(f"    {file.name} ({file.nEvents} events)")
-                if file in processed_inputs:
-                    has_overlaps = True
-                processed_inputs.add(file)
-        if has_overlaps:
-            raise RuntimeError(
-                "Error while creating input blocks. Some input files are shared between blocks."
-            )
-        if processed_inputs != input_files:
-            raise RuntimeError(
-                "Error while creating input blocks. Some input files are missing."
-            )
-        return blocks
+        return clusters
 
 
 def ToRunLumiRanges(run_lumi):
+    """Convert {run: set_of_lumis} to the [[start, end], ...] range format used in JSON output."""
     run_lumi_ranges = {}
     for run, lumis in run_lumi.items():
         if len(lumis) == 0:
@@ -141,6 +179,9 @@ def ToRunLumiRanges(run_lumi):
 
 
 class Output:
+    """One output group in a merge schema: a set of input indices, their combined size,
+    and the number of output files this group will be split into."""
+
     def __init__(self):
         self.inputs = set()
         self.size = 0
@@ -160,144 +201,292 @@ class Output:
 
 
 def CreateMergeSchema(
-    input_sizes, target_output_size, allow_multiple_outputs_per_block, max_steps=10_000
+    *, input_sizes, target_output_size, allow_multiple_outputs_per_block, max_steps,
+    cluster_files=None, cluster_runs=None, cluster_owned=None, file_all_runs=None
 ):
+    """Assign inputs to output groups so that each group's total size is close to target_output_size.
+
+    Both data and MC use LPT (Longest Processing Time First) for initial placement: inputs are
+    sorted largest-first and each is assigned to the currently lightest output, producing a
+    near-optimal balanced solution in O(n log n).
+
+    When allow_multiple_outputs_per_block=True (data): after LPT, any single-input output whose
+    size already exceeds target_output_size may be assigned n_splits > 1 if that improves the
+    metric. Multi-input outputs always keep n_splits = 1 — splitting is never used as a way to
+    handle combined outputs that happen to be large. n_splits > 1 outputs are excluded from
+    coordinate-descent optimization.
+
+    When allow_multiple_outputs_per_block=False (MC): n_splits is always 1; all inputs are
+    eligible for optimization.
+
+    The metric minimized is (sum(|delta|), n_groups, sum(delta^2)) where
+    delta = n_splits * |ceil(size/n_splits) - target_output_size| for each output group.
+
+    Contamination (data only): when cluster_files/cluster_runs/cluster_owned/file_all_runs are
+    provided, both LPT placement and coordinate-descent moves are constrained so that no output
+    group can end up with a file F and a run R in its assignments unless (F, R) is owned by one
+    of its clusters. This prevents the flat "run == R" filter in MergeAnaTuples from pulling
+    extra events from a file that happens to be shared across output groups.
+
+    Returns a list of (input_index_set, n_splits) pairs.
+    """
+    contamination_aware = cluster_files is not None
+
     inputs = sorted(range(len(input_sizes)), key=lambda i: -input_sizes[i])
-    outputs = []
-    processed_inputs = set()
-    flexible_inputs = set()
 
     def output_metric(size, n_splits, n_inputs):
-        active = 1 if n_inputs > 0 else 0
-        if size == 0:
-            delta = 0
-        else:
-            split_size = int(math.ceil(size / n_splits))
-            delta = n_splits * abs(split_size - target_output_size)
-        return np.array([delta, delta**2, active], dtype=np.int64)
+        if n_inputs == 0:
+            return (0, 0, 0)
+        split_size = math.ceil(size / n_splits)
+        delta = n_splits * abs(split_size - target_output_size)
+        return (delta, 1, delta ** 2)
+
+    def add_metrics(a, b):
+        return (a[0] + b[0], a[1] + b[1], a[2] + b[2])
 
     def combined_metric():
-        cmb = np.array([0, 0, 0], dtype=np.int64)
+        d, act, d2 = 0, 0, 0
         for output in outputs:
-            cmb += output_metric(output.size, output.n_splits, len(output.inputs))
-        return cmb
+            m = output_metric(output.size, output.n_splits, len(output.inputs))
+            d += m[0]
+            act += m[1]
+            d2 += m[2]
+        return (d, act, d2)
 
     def metric_to_str(metric):
-        delta, delta2, groups = metric[0], metric[1], metric[2]
-        return f"sum(delta)={delta}, sum(delta^2)={delta2}, n_groups={groups}"
+        delta, groups, delta2 = metric[0], metric[1], metric[2]
+        return f"sum(delta)={delta}, n_groups={groups}, sum(delta^2)={delta2}"
 
-    while len(processed_inputs) != len(input_sizes):
-        output = Output()
+    total_size = sum(input_sizes)
+    n_out = max(1, math.ceil(total_size / target_output_size))
+    outputs = [Output() for _ in range(n_out)]
+
+    if contamination_aware:
+        # Per-output tracking for contamination enforcement.
+        # out_owned[i]: (file_name, run) pairs whose events are assigned to output i.
+        # out_file_cnt[i]: {file_name: cluster_count} — how many clusters in i reference this file.
+        # out_run_cnt[i]: {run: cluster_count} — how many clusters in i reference this run.
+        out_owned = [set() for _ in range(n_out)]
+        out_file_cnt = [{} for _ in range(n_out)]
+        out_run_cnt = [{} for _ in range(n_out)]
+
+        def _register(input_idx, out_idx):
+            out_owned[out_idx].update(cluster_owned[input_idx])
+            for f in cluster_files[input_idx]:
+                out_file_cnt[out_idx][f] = out_file_cnt[out_idx].get(f, 0) + 1
+            for r in cluster_runs[input_idx]:
+                out_run_cnt[out_idx][r] = out_run_cnt[out_idx].get(r, 0) + 1
+
+        def _unregister(input_idx, out_idx):
+            out_owned[out_idx].difference_update(cluster_owned[input_idx])
+            for f in cluster_files[input_idx]:
+                out_file_cnt[out_idx][f] -= 1
+            for r in cluster_runs[input_idx]:
+                out_run_cnt[out_idx][r] -= 1
+
+        def _contaminated_add(input_idx, out_idx):
+            """Return True if adding cluster input_idx to output out_idx would create contamination.
+
+            Contamination arises when the output would contain both file F and run R but not own
+            the (F, R) pair — so the "run == R" filter would incorrectly include F's R events.
+            We check two directions:
+              (a) new files (from the cluster) against runs already present in the output, and
+              (b) new runs (from the cluster) against files already present in the output.
+            The new_owned set covers all (file, run) pairs that would be owned after the add.
+            """
+            new_owned = out_owned[out_idx] | cluster_owned[input_idx]
+            for f in cluster_files[input_idx]:
+                f_runs = file_all_runs.get(f, frozenset())
+                for r, cnt in out_run_cnt[out_idx].items():
+                    if cnt > 0 and r in f_runs and (f, r) not in new_owned:
+                        return True
+            for r in cluster_runs[input_idx]:
+                for f, cnt in out_file_cnt[out_idx].items():
+                    if cnt > 0 and r in file_all_runs.get(f, frozenset()) and (f, r) not in new_owned:
+                        return True
+            return False
+
+        def _contaminated_remove(input_idx, out_idx):
+            """Return True if removing cluster input_idx from output out_idx would create contamination.
+
+            Removal exposes contamination when a (file, run) pair currently owned by this cluster
+            would remain referenced by both a remaining file and a remaining run in the output
+            (meaning both that file and that run are contributed by other clusters too).
+            """
+            for (f, r) in cluster_owned[input_idx]:
+                if out_file_cnt[out_idx].get(f, 0) > 1 and out_run_cnt[out_idx].get(r, 0) > 1:
+                    return True
+            return False
+
+        # Contamination-aware LPT: assign each cluster (largest first) to the lightest output
+        # that does not create contamination. If no existing output is compatible, open a new one.
         for input_idx in inputs:
-            if input_idx in processed_inputs:
+            best_out_idx = None
+            best_size = float('inf')
+            for out_idx, output in enumerate(outputs):
+                if not _contaminated_add(input_idx, out_idx) and output.size < best_size:
+                    best_out_idx = out_idx
+                    best_size = output.size
+            if best_out_idx is None:
+                best_out_idx = len(outputs)
+                outputs.append(Output())
+                out_owned.append(set())
+                out_file_cnt.append({})
+                out_run_cnt.append({})
+            outputs[best_out_idx].add(input_idx, input_sizes[input_idx])
+            _register(input_idx, best_out_idx)
+    else:
+        # Standard heap-based LPT for MC.
+        heap = [(0, i) for i in range(n_out)]
+        for input_idx in inputs:
+            _, out_idx = heapq.heappop(heap)
+            outputs[out_idx].add(input_idx, input_sizes[input_idx])
+            heapq.heappush(heap, (outputs[out_idx].size, out_idx))
+
+    # Build a stable output-index map (outputs list does not change during optimization).
+    output_to_idx = {id(o): i for i, o in enumerate(outputs)}
+
+    # For data: a single oversized cluster may be split (n_splits > 1) if that improves the
+    # metric. Multi-input outputs always keep n_splits = 1.
+    if allow_multiple_outputs_per_block:
+        for output in outputs:
+            if len(output.inputs) != 1:
                 continue
-            input_size = input_sizes[input_idx]
-            if (
-                len(output.inputs) == 0
-                or output.size + input_size <= target_output_size
-            ):
-                output.add(input_idx, input_size)
-        if allow_multiple_outputs_per_block:
-            prev_metric = output_metric(
-                output.size, output.n_splits, len(output.inputs)
-            )
+            prev_metric = output_metric(output.size, output.n_splits, len(output.inputs))
             while True:
-                new_metric = output_metric(
-                    output.size, output.n_splits + 1, len(output.inputs)
-                )
-                if tuple(new_metric) >= tuple(prev_metric):
+                new_metric = output_metric(output.size, output.n_splits + 1, len(output.inputs))
+                if new_metric >= prev_metric:
                     break
                 output.n_splits += 1
                 prev_metric = new_metric
-        if output.n_splits == 1:
-            flexible_inputs.update(output.inputs)
-        outputs.append(output)
-        processed_inputs.update(output.inputs)
+
+    flexible_inputs = {idx for output in outputs for idx in output.inputs if output.n_splits == 1}
+    input_to_output = {idx: out for out in outputs for idx in out.inputs}
 
     def optimization_step():
-        for input_idx in flexible_inputs:
-            original_output = next(
-                output for output in outputs if input_idx in output.inputs
-            )
+        """Full coordinate-descent pass: for every flexible input find and make the best move."""
+        any_move = False
+        for input_idx in sorted(flexible_inputs, key=lambda i: -input_sizes[i]):
+            current_output = input_to_output[input_idx]
+            cur_idx = output_to_idx[id(current_output)]
             input_size = input_sizes[input_idx]
+            # Skip if removing this cluster from its current output would expose contamination.
+            if contamination_aware and _contaminated_remove(input_idx, cur_idx):
+                continue
             old_origin_metric = output_metric(
-                original_output.size,
-                original_output.n_splits,
-                len(original_output.inputs),
+                current_output.size, current_output.n_splits, len(current_output.inputs)
             )
             new_origin_metric = output_metric(
-                original_output.size - input_size,
-                original_output.n_splits,
-                len(original_output.inputs) - 1,
+                current_output.size - input_size,
+                current_output.n_splits,
+                len(current_output.inputs) - 1,
             )
-            for output in outputs:
-                if output == original_output or output.n_splits > 1:
+            best_target = None
+            best_target_idx = None
+            best_new_combined = None
+            for candidate in outputs:
+                if candidate is current_output or candidate.n_splits > 1:
+                    continue
+                cand_idx = output_to_idx[id(candidate)]
+                if contamination_aware and _contaminated_add(input_idx, cand_idx):
                     continue
                 old_target_metric = output_metric(
-                    output.size, output.n_splits, len(output.inputs)
+                    candidate.size, candidate.n_splits, len(candidate.inputs)
                 )
                 new_target_metric = output_metric(
-                    output.size + input_size, output.n_splits, len(output.inputs) + 1
+                    candidate.size + input_size,
+                    candidate.n_splits,
+                    len(candidate.inputs) + 1,
                 )
-                if tuple(new_origin_metric + new_target_metric) < tuple(
-                    old_origin_metric + old_target_metric
-                ):
-                    original_output.remove(input_idx, input_size)
-                    output.add(input_idx, input_size)
-                    return True
-        return False
+                old_combined = add_metrics(old_origin_metric, old_target_metric)
+                new_combined = add_metrics(new_origin_metric, new_target_metric)
+                if new_combined < old_combined:
+                    if best_new_combined is None or new_combined < best_new_combined:
+                        best_target = candidate
+                        best_target_idx = cand_idx
+                        best_new_combined = new_combined
+            if best_target is not None:
+                current_output.remove(input_idx, input_size)
+                best_target.add(input_idx, input_size)
+                input_to_output[input_idx] = best_target
+                if contamination_aware:
+                    _unregister(input_idx, cur_idx)
+                    _register(input_idx, best_target_idx)
+                any_move = True
+        return any_move
 
     prev_metric = combined_metric()
     print(f"CreateMergeSchema: metric for the initial merge solution: {metric_to_str(prev_metric)}")
     step = 0
     while optimization_step():
         new_metric = combined_metric()
-        if tuple(new_metric) >= tuple(prev_metric):
+        if new_metric >= prev_metric:
             raise RuntimeError(
                 "Error in merge schema optimization. Metric did not improve after modification."
             )
         prev_metric = new_metric
-        if step % 100 == 0:
-            print(f"CreateMergeSchema: step {step+1}. metric: {metric_to_str(new_metric)}")
-        if step + 1 >= max_steps:
-            print(
-                f"CreateMergeSchema: reached the maximum number of steps ({max_steps}). "
-            )
-            break
         step += 1
-    print(f"CreateMergeSchema: optimization finished after {step+1} steps. Final metric: {metric_to_str(prev_metric)}")
+        print(f"CreateMergeSchema: step {step}. metric: {metric_to_str(new_metric)}")
+        if step >= max_steps:
+            print(f"CreateMergeSchema: reached the maximum number of steps ({max_steps}).")
+            break
+    print(f"CreateMergeSchema: optimization finished after {step} steps. Final metric: {metric_to_str(prev_metric)}")
     merge_schema = [
         (output.inputs, output.n_splits) for output in outputs if len(output.inputs) > 0
     ]
     return merge_schema
 
 
-def CreateMergePlan(setup, local_inputs, n_events_per_file, is_data):
+def CreateMergePlan(*, n_events_per_file, is_data, setup=None, local_inputs=None, combined_report_path=None,
+                    max_steps=1000):
     """Create a merge plan for either data or MC.
 
     Args:
-        setup (Setup): FLAF setup object
-        local_inputs (list[str]): list of input report file paths
-        n_events_per_file (int): an aproximate number of events per output file. The goal is to have output files with a number of events close to this value, so it is not guaranteed that the actual number of events is less or equal to this value.
-        is_data (bool): data or MC
+        n_events_per_file (int): target event count per output file (approximate).
+        is_data (bool): True for collision data, False for MC.
+        setup: FLAF setup object (required when local_inputs is used).
+        local_inputs (list[str]): paths to per-file anaTuple report JSONs.
+        combined_report_path (str): path to a pre-merged combined report JSON.
+            Exactly one of local_inputs or combined_report_path must be supplied.
+        max_steps (int): maximum coordinate-descent steps in CreateMergeSchema.
 
     Returns:
-        dict: merge plan and combined reports
+        dict with keys "plan" (list of merge items) and "reports" (combined report dict).
     """
 
-    combined_reports = {}
+    if local_inputs is None:
+        if combined_report_path is None:
+            raise ValueError("Either local_inputs or combined_report_path must be provided.")
+        with open(combined_report_path, "r") as file:
+            combined_reports = json.load(file)
+    else:
+        if combined_report_path is not None:
+            raise ValueError("Only one of local_inputs or combined_report_path can be provided.")
+        if setup is None:
+            raise ValueError("Setup must be provided when local_inputs is used.")
+
+        combined_reports = {}
+        for report in local_inputs:
+            with open(report, "r") as file:
+                data = json.load(file)
+            key = os.path.join(data["dataset_name"], data["anaTuple_file_name"])
+            dataset = setup.datasets[data["dataset_name"]]
+            eraLetter = dataset.get("eraLetter", "")
+            if len(eraLetter) > 0:
+                data["eraLetter"] = eraLetter
+            eraVersion = dataset.get("eraVersion", "")
+            if len(eraVersion) > 0:
+                data["eraVersion"] = eraVersion
+            is_valid = data.get("valid", True)
+            if not is_valid:
+                print(f"{key}: is marked as invalid, skipping", file=os.sys.stderr)
+                continue
+            if key in combined_reports:
+                raise ValueError(f"Duplicate report for file {key}")
+            combined_reports[key] = data
+
     input_files = set()
-    for report in local_inputs:
-        with open(report, "r") as file:
-            data = json.load(file)
-        key = os.path.join(data["dataset_name"], data["anaTuple_file_name"])
-        is_valid = data.get("valid", True)
-        if not is_valid:
-            print(f"{key}: is marked as invalid, skipping", file=os.sys.stderr)
-            continue
-        if key in combined_reports:
-            raise ValueError(f"Duplicate report for file {key}")
-        combined_reports[key] = data
+    for key, data in combined_reports.items():
         file = InputFile(
             key,
             data["n_events"],
@@ -307,58 +496,119 @@ def CreateMergePlan(setup, local_inputs, n_events_per_file, is_data):
         )
         input_files.add(file)
 
-    input_blocks = InputBlock.create(input_files)
-    block_groups = {}
-    for block in input_blocks:
-        eraLetter = block.eraLetter
-        eraVersion = block.eraVersion
-        if (eraLetter, eraVersion) not in block_groups:
-            block_groups[(eraLetter, eraVersion)] = []
-        block_groups[(eraLetter, eraVersion)].append(block)
+
+    run_clusters = RunCluster.create(input_files)
+    cluster_groups = {}
+    for cluster in run_clusters:
+        eraLetter = cluster.eraLetter
+        eraVersion = cluster.eraVersion
+        if (eraLetter, eraVersion) not in cluster_groups:
+            cluster_groups[(eraLetter, eraVersion)] = []
+        cluster_groups[(eraLetter, eraVersion)].append(cluster)
+
+    # For data, precompute each file's complete run set so the contamination check in
+    # CreateMergeSchema can determine which (file, run) combinations must be owned together.
+    if is_data:
+        file_all_runs_map = {f.name: frozenset(f.run_lumi.keys()) for f in input_files}
 
     merge_plan = []
-    input_file_names = set([file.name for file in input_files])
-    processed_input_file_names = set()
-    for (eraLetter, eraVersion), blocks in block_groups.items():
-        block_sizes = [block.nEvents for block in blocks]
+    input_file_runs = set()
+    for file in input_files:
+        for run in file.run_lumi:
+            input_file_runs.add((file.name, run))
+    processed_file_runs = set()
+    for (eraLetter, eraVersion), clusters in cluster_groups.items():
+        cluster_sizes = [cluster.nEvents for cluster in clusters]
         report_suffix = f" for era {eraLetter}{eraVersion}" if eraLetter != "" or eraVersion != "" else ""
         print(f"Creating merge schema{report_suffix}")
-        merge_schema = CreateMergeSchema(
-            block_sizes, n_events_per_file, allow_multiple_outputs_per_block=is_data
-        )
+        if is_data:
+            # Build per-cluster metadata so CreateMergeSchema can enforce the contamination
+            # constraint: no output group may contain both file F and run R unless it owns (F, R).
+            cf = [frozenset(f.name for f in c.files) for c in clusters]
+            cr = [frozenset(c.run_lumi.keys()) for c in clusters]
+            co = [
+                frozenset((f.name, r) for f in c.files for r in c.runs_for_file(f))
+                for c in clusters
+            ]
+            merge_schema = CreateMergeSchema(
+                input_sizes=cluster_sizes,
+                target_output_size=n_events_per_file,
+                allow_multiple_outputs_per_block=True,
+                max_steps=max_steps,
+                cluster_files=cf,
+                cluster_runs=cr,
+                cluster_owned=co,
+                file_all_runs=file_all_runs_map,
+            )
+        else:
+            merge_schema = CreateMergeSchema(
+                input_sizes=cluster_sizes,
+                target_output_size=n_events_per_file,
+                allow_multiple_outputs_per_block=False,
+                max_steps=max_steps,
+            )
         print(f"Merge schema{report_suffix} created")
         output_idx = 0
         output_format = "anaTuple_"
         if eraLetter != "" or eraVersion != "":
             output_format += f"{eraLetter}{eraVersion}_"
         output_format += "{}.root"
-        for block_indices, n_outputs in merge_schema:
+        for cluster_indices, n_outputs in merge_schema:
             assert n_outputs > 0
-            assert len(block_indices) > 0
-            blocks_to_merge = [blocks[i] for i in block_indices]
-            block = InputBlock.merge(*blocks_to_merge)
+            assert len(cluster_indices) > 0
+            clusters_to_merge = [clusters[i] for i in cluster_indices]
+            merged_cluster = RunCluster.merge(*clusters_to_merge)
+            item_runs = set()
+            item_owned = set()
+            for file in merged_cluster.files:
+                for run in merged_cluster.runs_for_file(file):
+                    pair = (file.name, run)
+                    if pair in processed_file_runs:
+                        raise RuntimeError(
+                            f'(file, run) pair "{pair}" is duplicated in the merge plan.'
+                        )
+                    processed_file_runs.add(pair)
+                    item_runs.add(run)
+                    item_owned.add(pair)
+            if is_data:
+                for file in merged_cluster.files:
+                    for run in item_runs:
+                        if run in file.run_lumi and (file.name, run) not in item_owned:
+                            raise RuntimeError(
+                                f"Run contamination in merge plan: file {file.name!r} has data "
+                                f"for run {run!r} which is in this plan item but not owned by it."
+                            )
             merge = {
-                "inputs": [],
+                "inputs": sorted(file.name for file in merged_cluster.files),
+                "runs": sorted(item_runs),
                 "outputs": [],
-                "n_events": block.nEvents,
-                "run_lumi_ranges": ToRunLumiRanges(block.run_lumi),
+                "n_events": merged_cluster.nEvents,
+                "run_lumi_ranges": ToRunLumiRanges(merged_cluster.run_lumi),
             }
-            for file in block.files:
-                if file.name in processed_input_file_names:
-                    raise RuntimeError(
-                        f'File "{file.name}" is duplicated in the input files.'
-                    )
-                merge["inputs"].append(file.name)
-                processed_input_file_names.add(file.name)
             for i in range(n_outputs):
                 output_name = output_format.format(output_idx)
                 merge["outputs"].append(output_name)
                 output_idx += 1
             merge_plan.append(merge)
-    if processed_input_file_names != input_file_names:
-        missing_files = input_file_names - processed_input_file_names
+    if processed_file_runs != input_file_runs:
+        missing = input_file_runs - processed_file_runs
         raise RuntimeError(
-            f"Some input files were not scheduled for merging: {missing_files}"
+            f"Some (file, run) pairs were not scheduled for merging: {missing}"
         )
 
     return {"plan": merge_plan, "reports": combined_reports}
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--combined-reports", required=True, type=str)
+    parser.add_argument("--n-events-per-file", required=True, type=int)
+    parser.add_argument("--output", required=True, type=str)
+    parser.add_argument("--max-steps", required=False, type=int, default=1000)
+    parser.add_argument("--is-data", action="store_true")
+    args = parser.parse_args()
+
+    result = CreateMergePlan(n_events_per_file=args.n_events_per_file, is_data=args.is_data, combined_report_path=args.combined_reports, max_steps=args.max_steps)
+
+    with open(args.output, "w") as file:
+        json.dump(result["plan"], file, indent=2)

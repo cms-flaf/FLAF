@@ -6,7 +6,7 @@ Server responses:
   ERROR <msg>   — server error; retry after retry_interval
 
 Usage (called from bootstrap.sh):
-    python3 get_token.py --server HOST --port PORT --path PATH
+    python3 get_run_token.py --server HOST --port PORT --path PATH
 """
 
 import socket

@@ -55,13 +55,13 @@ class TokenServer:
         self.paths_lock = threading.Lock()
         self.path_states = {}
 
-    def _get_path_state(self, path):
+    def get_path_state(self, path):
         with self.paths_lock:
             if path not in self.path_states:
                 self.path_states[path] = PathState()
             return self.path_states[path]
 
-    def _acquire_token(self, state):
+    def acquire_token(self, state):
         """Block until a token is issued for *state*.
 
         Returns 0 on success, or a positive int (expected wait seconds) when
@@ -89,28 +89,28 @@ class TokenServer:
                 with state.lock:
                     state.queue_size -= 1
 
-    def _handle_client(self, conn, addr):
+    def handle_client(self, conn, addr):
         try:
             data = b""
             while b"\n" not in data and len(data) < self.max_request_length:
                 chunk = conn.recv(self.recv_chunk_size)
                 if not chunk:
-                    conn.sendall(b"ERROR: no data received\n")
+                    conn.sendall(b"ERROR no data received\n")
                     return
                 data += chunk
             if len(data) >= self.max_request_length:
-                conn.sendall(b"ERROR: request too long\n")
+                conn.sendall(b"ERROR request too long\n")
                 return
             ref_path = data.decode().strip()
             if not ref_path:
-                conn.sendall(b"ERROR: empty path\n")
+                conn.sendall(b"ERROR empty path\n")
                 return
 
             ts = timestamp_str()
             print(f"[{ts}] request  {addr[0]}:{addr[1]}  {ref_path}")
 
-            state = self._get_path_state(ref_path)
-            result = self._acquire_token(state)
+            state = self.get_path_state(ref_path)
+            result = self.acquire_token(state)
 
             if result > 0:
                 conn.sendall(f"WAIT {result}\n".encode())
@@ -148,7 +148,7 @@ class TokenServer:
                 with self.conn_lock:
                     if self.active_connections >= self.max_connections:
                         try:
-                            conn.sendall(b"ERROR: server at max capacity\n")
+                            conn.sendall(b"ERROR server at max capacity\n")
                         except Exception:
                             pass
                         conn.close()

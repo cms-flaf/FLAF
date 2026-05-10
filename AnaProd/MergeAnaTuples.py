@@ -141,6 +141,7 @@ def mergeAnaTuples(
     input_reports,
     input_roots,
     root_outputs,
+    runs,
     compression_algo="LZMA",
     compression_level=9,
 ):
@@ -216,6 +217,9 @@ def mergeAnaTuples(
         columns, _ = getColumns(df)
         if unc_source == central:
             if is_data:
+                if len(runs) > 0:
+                    filter_str = " || ".join([f"run == {r}" for r in runs])
+                    df = df.Filter(filter_str, "RunFilter")
                 event_filter = ROOT.EventDuplicateFilter()
                 df = event_filter.apply(
                     ROOT.RDF.AsRNode(df),
@@ -288,6 +292,7 @@ if __name__ == "__main__":
     parser.add_argument("--compression-algo", type=str, default="LZMA")
     parser.add_argument("--is-data", action="store_true")
     parser.add_argument("--LAWrunVersion", required=True, type=str)
+    parser.add_argument("--runs", required=False, nargs="+", type=int, default=[])
     args = parser.parse_args()
 
     setup = Setup.getGlobal(
@@ -313,6 +318,7 @@ if __name__ == "__main__":
         input_reports=reports,
         input_roots=args.input_roots,
         root_outputs=args.root_outputs,
+        runs=args.runs,
         compression_algo=args.compression_algo,
         compression_level=args.compression_level,
     )

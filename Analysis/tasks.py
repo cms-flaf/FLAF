@@ -245,6 +245,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             input_file_list,
             output_file_list,
             skip_future_tasks,
+            runs,
         ) in anaProd_branch_map.items():
             if skip_future_tasks:
                 continue

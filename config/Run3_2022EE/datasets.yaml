@@ -1622,7 +1622,7 @@ ZZ:
   generator: pythia8
   miniAOD: /ZZ_TuneCP5_13p6TeV_pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
   nanoAOD:
-    v12: /ZZ_TuneCP5_13p6TeV_pythia8/Run3Summer22EENanoAODv12-JMENano12p5_132X_mcRun3_2022_realistic_postEE_v4-v2/NANOAODSIM
+    v12: /ZZ_TuneCP5_13p6TeV_pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
     v13: /ZZ_TuneCP5_13p6TeV_pythia8/Run3Summer22EENanoAODv13-133X_mcRun3_2022_realistic_postEE_ForNanov13_v1-v1/NANOAODSIM
 
 ZZto2L2Nu_powheg:

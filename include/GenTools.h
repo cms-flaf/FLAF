@@ -336,7 +336,7 @@ int MatchGenLepton(const LorentzVectorM &obj_p4,
     for (int genLep_idx = 0; genLep_idx < genLeptons.size(); genLep_idx++) {
         auto dR_objGenLep = ROOT::Math::VectorUtil::DeltaR(obj_p4, genLeptons.at(genLep_idx).visibleP4());
         if (dR_objGenLep < dR_min) {
-            dR_objGenLep = dR_min;
+            dR_min = dR_objGenLep;
             best_idx = genLep_idx;
         }
     }

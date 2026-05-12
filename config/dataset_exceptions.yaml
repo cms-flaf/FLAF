@@ -26,6 +26,16 @@
 ^DYto2Tau_M_50_(0|1|2)J_Filtered_amcatnloFXFX:
   - Run3_2024
   - Run3_2025
+
+^DYto2L_MLL_10to50_madgraphMLM:
+  - Run3_2024
+  - Run3_2025
+^DYto2(E|Mu|Tau)_MLL_10to50_madgraphMLM:
+  - Run3_2022
+  - Run3_2022EE
+  - Run3_2023
+  - Run3_2023BPix
+
 # H
 ^GluGluH*.:
   - Run3_2025

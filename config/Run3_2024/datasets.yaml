@@ -1008,6 +1008,26 @@ DYto2Tau_MLL_800to1500_powheg:
   nanoAOD:
     v15: /DYto2Tau_Bin-MLL-800to1500_TuneCP5_13p6TeV_powheg-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 
+#### DY LO ####
+DYto2E_MLL_10to50_madgraphMLM:
+  crossSection: DYto2L_M_10to50_amcatnloFXFX_singleFlavor
+  generator: madgraphMLM
+  nanoAOD:
+    v12: /DYto2E-4Jets_Bin-MLL-10to50_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+
+DYto2Mu_MLL_10to50_madgraphMLM:
+  crossSection: DYto2L_M_10to50_amcatnloFXFX_singleFlavor
+  generator: madgraphMLM
+  nanoAOD:
+    v12: /DYto2Mu-4Jets_Bin-MLL-10to50_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+
+DYto2Tau_MLL_10to50_madgraphMLM:
+  crossSection: DYto2L_M_10to50_amcatnloFXFX_singleFlavor
+  generator: madgraphMLM
+  nanoAOD:
+    v12: /DYto2Tau-4Jets_Bin-MLL-10to50_TuneCP5_13p6TeV_madgraphMLM-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+
+
 ############## GGH ##############
 ############## HtoMuMu ##############
 ggZH_Hto2B_Zto2Q:

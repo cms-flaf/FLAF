@@ -148,12 +148,23 @@ if __name__ == "__main__":
     # Controlregions = list(global_cfg_dict['ControlRegions']) #Later maybe we want to separate Controls from QCDs
 
     # Regions def
-    regions_name = global_cfg_dict.get(
-        "regions", None
-    )  # can be extended to list of names, if for example adding QCD regions + other control regions
+    regions_dict = global_cfg_dict.get("regions", None)
     regions = []
-    if regions_name:
-        regions = list(global_cfg_dict.get(regions_name, []))
+    if isinstance(regions_dict, dict):
+        regions_name = list(regions_dict.keys()) if regions_dict else []  # can be extended to list of names, if for example adding QCD regions + other control regions
+        if regions_name:
+            for r in regions_name:
+                subregions = regions_dict[r].keys()
+                regions.extend(list())
+    elif isinstance(regions_dict,str):
+        regions_name = regions_dict.split(",")
+        if regions_name:
+            regions.extend(list(global_cfg_dict.get(regions_name, [])))
+    elif isinstance(regions_dict, list):
+        regions_name = regions_dict
+        if regions_name:
+            regions.extend(list(global_cfg_dict.get(regions_name, [])))
+
         if not regions:
             print("No custom regions found")
 

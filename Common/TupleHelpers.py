@@ -229,17 +229,14 @@ def copyFileContent(
             current = d
         return current
 
-    if appendIfExists and os.path.exists(outputFile):
-        comp_settings = ROOT.ROOT.CompressionSettings(
-            getattr(
-                ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + compression_algorithm
-            ),
-            compression_level,
-        )
-        open_args = ("UPDATE", "", comp_settings)
-    else:
-        open_args = ("RECREATE",)
-    output_file = ROOT.TFile.Open(outputFile, *open_args)
+    comp_settings = ROOT.ROOT.CompressionSettings(
+        getattr(ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + compression_algorithm),
+        compression_level,
+    )
+    open_mode = (
+        "UPDATE" if appendIfExists and os.path.exists(outputFile) else "RECREATE"
+    )
+    output_file = ROOT.TFile.Open(outputFile, open_mode, "", comp_settings)
     if not output_file or output_file.IsZombie():
         raise RuntimeError(f"Cannot open output file: {outputFile}")
     try:

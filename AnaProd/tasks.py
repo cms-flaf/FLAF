@@ -726,7 +726,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 print(
                     f"  {ds_name}: selected {len(selected_ds_reports)} out of {len(ds_reports)} reports"
                 )
-                reports[ds_name] = list(ds_reports.values())
+                reports[ds_name] = selected_ds_reports
             print(f"Localized reports from {len(reports)} datasets")
 
             mergeAnaTuples(

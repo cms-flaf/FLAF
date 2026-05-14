@@ -294,9 +294,14 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
 
     def htcondor_job_file(self):
         from law.job.base import JobInputFile
+
         original = law.util.law_src_path("job", "law_job.sh")
-        custom = os.path.join(os.getenv("ANALYSIS_DATA_PATH"), "law_job_no_print_deps.sh")
-        if not os.path.exists(custom) or os.path.getmtime(original) > os.path.getmtime(custom):
+        custom = os.path.join(
+            os.getenv("ANALYSIS_DATA_PATH"), "law_job_no_print_deps.sh"
+        )
+        if not os.path.exists(custom) or os.path.getmtime(original) > os.path.getmtime(
+            custom
+        ):
             with open(original) as f:
                 content = f.read()
             content = re.sub(r'\bdeps_depth="[0-9]+"', 'deps_depth="0"', content)

@@ -163,6 +163,148 @@ class RunCluster:
         return clusters
 
 
+def mwis_branch_and_bound(nodes, adj, weights):
+    """Maximum weight independent set (MWIS) via branch-and-bound.
+
+    Finds the subset of nodes with maximum total weight such that no two nodes
+    share a conflict edge. Uses a greedy solution as the initial lower bound and
+    prunes branches whose upper bound (sum of all candidate weights) cannot
+    improve on the best solution found.
+
+    nodes   : frozenset of nodes to consider.
+    adj     : dict {node -> frozenset of neighbors} restricted to this node set.
+    weights : dict {node -> int event count}.
+
+    Returns a frozenset of nodes forming the optimal independent set.
+    """
+    best = [0, frozenset()]  # [best_weight, best_set]
+
+    # Greedy initialisation: add highest-weight non-conflicting nodes in order.
+    excluded = set()
+    greedy_set = set()
+    for v in sorted(nodes, key=lambda n: (-weights[n], n.name)):
+        if v not in excluded:
+            greedy_set.add(v)
+            excluded.update(adj[v])
+    best[0] = sum(weights[v] for v in greedy_set)
+    best[1] = frozenset(greedy_set)
+
+    def bb(cands, cur_w, incl):
+        # Upper-bound check: even keeping all candidates cannot beat best.
+        ub = cur_w + sum(weights[v] for v in cands)
+        if ub <= best[0]:
+            return
+
+        # Find all candidates that still conflict with another candidate.
+        conflicted = [v for v in cands if adj[v] & cands]
+
+        if not conflicted:
+            # Conflict-free residual: include everything and record.
+            if ub > best[0]:
+                best[0] = ub
+                best[1] = incl | cands
+            return
+
+        # Branch on the highest-weight conflicted node (finds heavy solutions
+        # early, improving the lower bound and enabling aggressive pruning).
+        v = max(conflicted, key=lambda n: (weights[n], n.name))
+
+        # Branch 1: include v — exclude v and all its neighbours.
+        bb(cands - {v} - adj[v], cur_w + weights[v], incl | frozenset({v}))
+        # Branch 2: exclude v.
+        bb(cands - {v}, cur_w, incl)
+
+    bb(frozenset(nodes), 0, frozenset())
+    return best[1]
+
+
+def RemoveOverlappingMCFiles(input_files):
+    """For MC, drop the minimum events needed to eliminate (run,lumi) overlaps.
+
+    Builds the conflict graph (files as nodes, edges between any two files
+    sharing a lumi section), decomposes it into connected components, and solves
+    the maximum-weight independent set (MWIS) problem on each component via
+    branch-and-bound, where node weights are file event counts.  Files with no
+    overlaps are kept unconditionally.
+
+    Returns (remaining_files, ignored_file_names) where ignored_file_names is a
+    sorted list of file names.
+    """
+    lumi_to_files = {}
+    for file in input_files:
+        for run, lumis in file.run_lumi.items():
+            for lumi in lumis:
+                key = (run, lumi)
+                if key not in lumi_to_files:
+                    lumi_to_files[key] = set()
+                lumi_to_files[key].add(file)
+
+    conflict_adj = {}
+    for files in lumi_to_files.values():
+        if len(files) > 1:
+            for a in files:
+                if a not in conflict_adj:
+                    conflict_adj[a] = set()
+                for b in files:
+                    if b is not a:
+                        conflict_adj[a].add(b)
+
+    if not conflict_adj:
+        return set(input_files), []
+
+    conflicting_files = frozenset(conflict_adj.keys())
+
+    # Decompose into connected components (deterministic: sorted by name).
+    visited = set()
+    components = []
+    for start in sorted(conflicting_files, key=lambda f: f.name):
+        if start in visited:
+            continue
+        component = set()
+        stack = [start]
+        while stack:
+            node = stack.pop()
+            if node in visited:
+                continue
+            visited.add(node)
+            component.add(node)
+            for nb in conflict_adj[node]:
+                if nb not in visited:
+                    stack.append(nb)
+        components.append(frozenset(component))
+
+    n_comp = len(components)
+    print(
+        f"RemoveOverlappingMCFiles: {len(conflicting_files)} files form "
+        f"{n_comp} conflict component(s). Solving MWIS to maximise kept events..."
+    )
+
+    # Files with no conflicts are always kept.
+    kept_files = set(f for f in input_files if f not in conflicting_files)
+
+    for comp_idx, component in enumerate(components):
+        adj = {f: conflict_adj[f] & component for f in component}
+        weights = {f: f.nEvents for f in component}
+        kept = mwis_branch_and_bound(component, adj, weights)
+        kept_files.update(kept)
+        n_kept_ev = sum(weights[f] for f in kept)
+        n_total_ev = sum(weights[f] for f in component)
+        print(
+            f"  Component {comp_idx + 1}/{n_comp}: {len(component)} files, "
+            f"kept {len(kept)} files ({n_kept_ev:,}/{n_total_ev:,} events)"
+        )
+
+    ignored_set = frozenset(f for f in input_files if f not in kept_files)
+    ignored_file_names = sorted(f.name for f in ignored_set)
+    n_ignored_ev = sum(f.nEvents for f in ignored_set)
+    print(
+        f"RemoveOverlappingMCFiles: removed {len(ignored_set)} files "
+        f"({n_ignored_ev:,} events dropped). {len(kept_files)} files remaining."
+    )
+    return set(kept_files), ignored_file_names
+
+
+
 def ToRunLumiRanges(run_lumi):
     """Convert {run: set_of_lumis} to the [[start, end], ...] range format used in JSON output."""
     run_lumi_ranges = {}
@@ -541,6 +683,10 @@ def CreateMergePlan(
         )
         input_files.add(file)
 
+    ignored_file_names = []
+    if not is_data:
+        input_files, ignored_file_names = RemoveOverlappingMCFiles(input_files)
+
     run_clusters = RunCluster.create(input_files)
     cluster_groups = {}
     for cluster in run_clusters:
@@ -644,7 +790,17 @@ def CreateMergePlan(
             f"Some (file, run) pairs were not scheduled for merging: {missing}"
         )
 
-    return {"plan": merge_plan, "reports": combined_reports}
+    n_events_plan = sum(item["n_events"] for item in merge_plan)
+    n_events_ignored = sum(
+        combined_reports[name]["n_events"] for name in ignored_file_names
+    )
+    return {
+        "plan": merge_plan,
+        "ignored_files": ignored_file_names,
+        "n_events_plan": n_events_plan,
+        "n_events_ignored": n_events_ignored,
+        "reports": combined_reports,
+    }
 
 
 if __name__ == "__main__":
@@ -656,6 +812,7 @@ if __name__ == "__main__":
     parser.add_argument("--output", required=True, type=str)
     parser.add_argument("--max-steps", required=False, type=int, default=1000)
     parser.add_argument("--is-data", action="store_true")
+    parser.add_argument("--output-plan-only", action="store_true")
     args = parser.parse_args()
 
     result = CreateMergePlan(
@@ -665,5 +822,16 @@ if __name__ == "__main__":
         max_steps=args.max_steps,
     )
 
+    if args.output_plan_only:
+        output = result["plan"]
+    else:
+        output = {
+            "n_events_plan": result["n_events_plan"],
+            "n_events_ignored": result["n_events_ignored"],
+            "plan": result["plan"],
+            "ignored_files": result.get("ignored_files", []),
+        }
+
+
     with open(args.output, "w") as file:
-        json.dump(result["plan"], file, indent=2)
+        json.dump(output, file, indent=2)

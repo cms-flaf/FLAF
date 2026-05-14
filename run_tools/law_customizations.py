@@ -3,6 +3,7 @@ import law
 import luigi
 import math
 import os
+import re
 import tempfile
 
 from FLAF.RunKit.run_tools import natural_sort
@@ -274,3 +275,16 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         )
         config.custom_content.append(("RequestCpus", self.n_cpus))
         return config
+
+    def htcondor_job_file(self):
+        from law.job.base import JobInputFile
+        original = law.util.law_src_path("job", "law_job.sh")
+        custom = os.path.join(os.getenv("ANALYSIS_DATA_PATH"), "law_job_no_print_deps.sh")
+        if not os.path.exists(custom) or os.path.getmtime(original) > os.path.getmtime(custom):
+            with open(original) as f:
+                content = f.read()
+            content = re.sub(r'\bdeps_depth="[0-9]+"', 'deps_depth="0"', content)
+            with open(custom, "w") as f:
+                f.write(content)
+            os.chmod(custom, 0o755)
+        return JobInputFile(path=custom, copy=True, share=True, render_job=True)

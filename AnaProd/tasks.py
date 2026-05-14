@@ -360,6 +360,8 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     def requires(self):
         dataset_name, process_group = self.branch_data
+        if not InputFileTask.WF_complete(self):
+            return []
         AnaTuple_map = AnaTupleFileTask.req(
             self, branch=-1, branches=()
         ).create_branch_map()
@@ -524,6 +526,8 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             skip_future_tasks,
             runs,
         ) = self.branch_data
+        if not InputFileTask.WF_complete(self):
+            return {"root": {}, "json": {}}
         anaTuple_branch_map = AnaTupleFileTask.req(
             self, branch=-1, branches=()
         ).create_branch_map()

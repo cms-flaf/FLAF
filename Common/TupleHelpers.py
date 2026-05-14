@@ -3,6 +3,7 @@ import os
 import re
 import ROOT
 
+
 def parseColumnName(column_name):
     if len(column_name) == 0:
         raise RuntimeError("Empty column name")
@@ -185,13 +186,17 @@ def copyFileContent(
             # Prefix/suffix apply to the leaf name only; directory path is preserved.
             out_path = f"{dir_prefix}{inp['name_prefix']}{obj_name}{inp['name_suffix']}"
 
-            if not ((inp["copyTrees"] and is_tree) or (inp["copyHistograms"] and is_hist)):
+            if not (
+                (inp["copyTrees"] and is_tree) or (inp["copyHistograms"] and is_hist)
+            ):
                 if verbose > 1:
                     print(f'Skipping object "{internal_path}" of type "{classname}"')
                 continue
 
             if verbose > 0:
-                print(f"{inp['file']}/{internal_path} -> {out_path} (type='{classname}')")
+                print(
+                    f"{inp['file']}/{internal_path} -> {out_path} (type='{classname}')"
+                )
 
             if is_hist:
                 obj = key.ReadObj()
@@ -226,7 +231,9 @@ def copyFileContent(
 
     if appendIfExists and os.path.exists(outputFile):
         comp_settings = ROOT.ROOT.CompressionSettings(
-            getattr(ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + compression_algorithm),
+            getattr(
+                ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + compression_algorithm
+            ),
             compression_level,
         )
         open_args = ("UPDATE", "", comp_settings)

@@ -449,7 +449,7 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     "ignored_files": raw_result["ignored_files"],
                     "n_events_plan": raw_result["n_events_plan"],
                     "n_events_ignored": raw_result["n_events_ignored"],
-                }
+                },
             }
 
             for output_name, output_remote in self.output().items():
@@ -723,7 +723,9 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     for key, report in ds_reports.items()
                     if key not in ignored_files
                 ]
-                print(f"  {ds_name}: selected {len(selected_ds_reports)} out of {len(ds_reports)} reports")
+                print(
+                    f"  {ds_name}: selected {len(selected_ds_reports)} out of {len(ds_reports)} reports"
+                )
                 reports[ds_name] = list(ds_reports.values())
             print(f"Localized reports from {len(reports)} datasets")
 

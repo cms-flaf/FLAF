@@ -304,7 +304,6 @@ def RemoveOverlappingMCFiles(input_files):
     return set(kept_files), ignored_file_names
 
 
-
 def ToRunLumiRanges(run_lumi):
     """Convert {run: set_of_lumis} to the [[start, end], ...] range format used in JSON output."""
     run_lumi_ranges = {}
@@ -831,7 +830,6 @@ if __name__ == "__main__":
             "plan": result["plan"],
             "ignored_files": result.get("ignored_files", []),
         }
-
 
     with open(args.output, "w") as file:
         json.dump(output, file, indent=2)

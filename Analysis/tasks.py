@@ -493,6 +493,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             histTuple_dataset_name,
             histTuple_prod_br,
             producer_list,
+            aggregate_list,
             input_index,
         ) in HistTupleBranchMap.items():
             dataset_to_branches.setdefault(histTuple_dataset_name, []).append(prod_br)

@@ -1,6 +1,7 @@
 import awkward as ak
 import os
 import re
+import uproot
 import ROOT
 
 
@@ -97,6 +98,7 @@ def copyFileContent(
     copyHistograms=True,
     appendIfExists=False,
     verbose=1,
+    step_size="100MB",
     compression_algorithm="LZMA",
     compression_level=9,
 ):
@@ -105,7 +107,7 @@ def copyFileContent(
         print(
             f"copyFileContent: copyTrees={copyTrees}, copyHistograms={copyHistograms}, "
             f"appendIfExists={appendIfExists}, "
-            f"compression={compression_algorithm}({compression_level})"
+            f"compression={compression_algorithm}({compression_level}), step_size={step_size}"
         )
 
     def processInputs(original_inputs):
@@ -229,47 +231,80 @@ def copyFileContent(
             current = d
         return current
 
-    comp_settings = ROOT.ROOT.CompressionSettings(
+    uproot_comp = getattr(uproot, compression_algorithm)(compression_level)
+    root_comp = ROOT.ROOT.CompressionSettings(
         getattr(ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + compression_algorithm),
         compression_level,
     )
-    open_mode = (
-        "UPDATE" if appendIfExists and os.path.exists(outputFile) else "RECREATE"
-    )
-    output_file = ROOT.TFile.Open(outputFile, open_mode, "", comp_settings)
-    if not output_file or output_file.IsZombie():
-        raise RuntimeError(f"Cannot open output file: {outputFile}")
-    try:
-        for out_path, sources in trees.items():
-            parts = out_path.split("/")
-            target_dir = get_or_create_dir(output_file, parts[:-1])
-            leaf = parts[-1]
-            chain = ROOT.TChain(sources[0][1])
-            for file_path, _ in sources:
-                chain.Add(file_path)
-            target_dir.cd()
-            existing = target_dir.Get(leaf)
-            if existing:
-                existing.CopyEntries(chain)
-                existing.Write("", ROOT.TObject.kOverwrite)
-            else:
-                new_tree = chain.CloneTree(-1, "fast")
-                new_tree.SetName(leaf)
-                new_tree.Write("", ROOT.TObject.kOverwrite)
 
-        for out_path, hist in histograms.items():
-            parts = out_path.split("/")
-            target_dir = get_or_create_dir(output_file, parts[:-1])
-            leaf = parts[-1]
-            target_dir.cd()
-            existing = target_dir.Get(leaf)
-            if existing:
-                existing.Add(hist)
-                existing.Write(leaf, ROOT.TObject.kOverwrite)
+    try:
+        # Phase 1: trees → uproot.
+        # Each source is read by its own internal_path and the result is grouped
+        # with defineColumnGrouping before writing, preserving the zipped layout.
+        written_with_uproot = set()
+        empty_tree_sources = {}  # out_path -> (file_path, internal_path) for schema
+
+        if trees:
+            append_exists = appendIfExists and os.path.exists(outputFile)
+            uproot_open_fn = uproot.update if append_exists else uproot.recreate
+            uproot_open_kwargs = {} if append_exists else {"compression": uproot_comp}
+            with uproot_open_fn(outputFile, **uproot_open_kwargs) as uproot_out:
+                for out_path, sources in trees.items():
+                    for file_path, internal_path in sources:
+                        with uproot.open(f"{file_path}:{internal_path}") as src_tree:
+                            if src_tree.num_entries == 0:
+                                if out_path not in written_with_uproot:
+                                    empty_tree_sources.setdefault(out_path, (file_path, internal_path))
+                                continue
+                            written_with_uproot.add(out_path)
+                            empty_tree_sources.pop(out_path, None)
+                            for arrays in src_tree.iterate(step_size=step_size):
+                                grouped = defineColumnGrouping(arrays, src_tree.keys())
+                                if out_path in uproot_out:
+                                    uproot_out[out_path].extend(grouped)
+                                else:
+                                    uproot_out[out_path] = grouped
+
+        # Phase 2: empty trees + histograms → ROOT.
+        if empty_tree_sources or histograms:
+            root_open_mode = "UPDATE" if os.path.exists(outputFile) else "RECREATE"
+            if root_open_mode == "RECREATE":
+                root_out = ROOT.TFile.Open(outputFile, "RECREATE", "", root_comp)
             else:
-                hist.Write(leaf, ROOT.TObject.kOverwrite)
+                root_out = ROOT.TFile.Open(outputFile, "UPDATE")
+            if not root_out or root_out.IsZombie():
+                raise RuntimeError(f"Cannot open output file: {outputFile}")
+            try:
+                for out_path, (fp, ip) in empty_tree_sources.items():
+                    parts = out_path.split("/")
+                    target_dir = get_or_create_dir(root_out, parts[:-1])
+                    leaf = parts[-1]
+                    target_dir.cd()
+                    if not target_dir.Get(leaf):
+                        src_file = ROOT.TFile.Open(fp, "READ")
+                        if not src_file or src_file.IsZombie():
+                            raise RuntimeError(f"Cannot open source file: {fp}")
+                        try:
+                            cloned = src_file.Get(ip).CloneTree(0)
+                            cloned.SetName(leaf)
+                            cloned.Write("", ROOT.TObject.kOverwrite)
+                        finally:
+                            src_file.Close()
+
+                for out_path, hist in histograms.items():
+                    parts = out_path.split("/")
+                    target_dir = get_or_create_dir(root_out, parts[:-1])
+                    leaf = parts[-1]
+                    target_dir.cd()
+                    existing = target_dir.Get(leaf)
+                    if existing:
+                        existing.Add(hist)
+                        existing.Write(leaf, ROOT.TObject.kOverwrite)
+                    else:
+                        hist.Write(leaf, ROOT.TObject.kOverwrite)
+            finally:
+                root_out.Close()
     finally:
-        output_file.Close()
         if saved_dir:
             saved_dir.cd()
 
@@ -303,6 +338,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--compression-level", type=int, default=9, help="Compression level"
     )
+    parser.add_argument(
+        "--step-size", type=str, default="100MB", help="Step size for reading TTrees"
+    )
     parser.add_argument("--verbose", type=int, default=1, help="Verbosity level")
     parser.add_argument("inFile", nargs="+", type=str, help="Input ROOT files")
     args = parser.parse_args()
@@ -314,6 +352,7 @@ if __name__ == "__main__":
         copyHistograms=not args.no_copyHistograms,
         appendIfExists=args.appendIfExists,
         verbose=args.verbose,
+        step_size=args.step_size,
         compression_algorithm=args.compression_algorithm,
         compression_level=args.compression_level,
     )

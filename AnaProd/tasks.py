@@ -437,12 +437,22 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 nEventsPerFile = nEventsPerFile.get(process_group, 100_000)
             is_data = process_group == "data"
 
-            result = CreateMergePlan(
+            raw_result = CreateMergePlan(
                 setup=self.setup,
                 local_inputs=local_inputs,
                 n_events_per_file=nEventsPerFile,
                 is_data=is_data,
             )
+
+            result = {
+                "plan": raw_result["plan"],
+                "reports": {
+                    "reports": raw_result["reports"],
+                    "ignored_files": raw_result["ignored_files"],
+                    "n_events_plan": raw_result["n_events_plan"],
+                    "n_events_ignored": raw_result["n_events_ignored"],
+                },
+            }
 
             for output_name, output_remote in self.output().items():
                 output_path_tmp = os.path.join(job_home, f"{output_name}_tmp.json")
@@ -703,9 +713,25 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     file_list["reports"].localize("r")
                 ).abspath
                 with open(report_file, "r") as f:
-                    ds_reports = yaml.safe_load(f)
-                reports[ds_name] = list(ds_reports.values())
-            print(f"Localized {len(reports)} reports")
+                    ds_details = yaml.safe_load(f)
+
+                if "reports" in ds_details:
+                    ignored_files = set(ds_details["ignored_files"])
+                    ds_reports = ds_details["reports"]
+                else:
+                    # workaround for a backward compatibility with the old report format
+                    ignored_files = set()
+                    ds_reports = ds_details
+                selected_ds_reports = [
+                    report
+                    for key, report in ds_reports.items()
+                    if key not in ignored_files
+                ]
+                print(
+                    f"  {ds_name}: selected {len(selected_ds_reports)} out of {len(ds_reports)} reports"
+                )
+                reports[ds_name] = selected_ds_reports
+            print(f"Localized reports from {len(reports)} datasets")
 
             mergeAnaTuples(
                 setup=self.setup,

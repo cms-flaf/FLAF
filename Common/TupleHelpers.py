@@ -238,6 +238,9 @@ def copyFileContent(
     )
 
     try:
+        if not appendIfExists and os.path.exists(outputFile):
+            os.remove(outputFile)
+
         # Phase 1: trees → uproot.
         # Each source is read by its own internal_path and the result is grouped
         # with defineColumnGrouping before writing, preserving the zipped layout.
@@ -270,10 +273,7 @@ def copyFileContent(
         # Phase 2: empty trees + histograms → ROOT.
         if empty_tree_sources or histograms:
             root_open_mode = "UPDATE" if os.path.exists(outputFile) else "RECREATE"
-            if root_open_mode == "RECREATE":
-                root_out = ROOT.TFile.Open(outputFile, "RECREATE", "", root_comp)
-            else:
-                root_out = ROOT.TFile.Open(outputFile, "UPDATE")
+            root_out = ROOT.TFile.Open(outputFile, root_open_mode, "", root_comp)
             if not root_out or root_out.IsZombie():
                 raise RuntimeError(f"Cannot open output file: {outputFile}")
             try:

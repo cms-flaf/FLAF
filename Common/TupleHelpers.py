@@ -254,7 +254,9 @@ def copyFileContent(
                         with uproot.open(f"{file_path}:{internal_path}") as src_tree:
                             if src_tree.num_entries == 0:
                                 if out_path not in written_with_uproot:
-                                    empty_tree_sources.setdefault(out_path, (file_path, internal_path))
+                                    empty_tree_sources.setdefault(
+                                        out_path, (file_path, internal_path)
+                                    )
                                 continue
                             written_with_uproot.add(out_path)
                             empty_tree_sources.pop(out_path, None)

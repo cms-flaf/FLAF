@@ -281,12 +281,12 @@ def copyFileContent(
                     parts = out_path.split("/")
                     target_dir = get_or_create_dir(root_out, parts[:-1])
                     leaf = parts[-1]
-                    target_dir.cd()
                     if not target_dir.Get(leaf):
                         src_file = ROOT.TFile.Open(fp, "READ")
                         if not src_file or src_file.IsZombie():
                             raise RuntimeError(f"Cannot open source file: {fp}")
                         try:
+                            target_dir.cd()
                             cloned = src_file.Get(ip).CloneTree(0)
                             cloned.SetName(leaf)
                             cloned.Write("", ROOT.TObject.kOverwrite)

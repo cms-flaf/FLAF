@@ -1,7 +1,7 @@
-import uproot
 import awkward as ak
 import os
 import re
+import uproot
 import ROOT
 
 
@@ -102,19 +102,12 @@ def copyFileContent(
     compression_algorithm="LZMA",
     compression_level=9,
 ):
-    compression = getattr(uproot, compression_algorithm)(compression_level)
-    snapshotOptions = ROOT.RDF.RSnapshotOptions()
-    snapshotOptions.fOverwriteIfExists = False
-    snapshotOptions.fLazy = False
-    snapshotOptions.fMode = "UPDATE"
-    snapshotOptions.fCompressionAlgorithm = getattr(
-        ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + compression_algorithm
-    )
-    snapshotOptions.fCompressionLevel = compression_level
     if verbose > 0:
         print(f"copyFileContent: {inputs} -> {outputFile}")
         print(
-            f"copyFileContent: copyTrees={copyTrees}, copyHistograms={copyHistograms}, appendIfExists={appendIfExists}, compression={compression}, step_size={step_size}"
+            f"copyFileContent: copyTrees={copyTrees}, copyHistograms={copyHistograms}, "
+            f"appendIfExists={appendIfExists}, "
+            f"compression={compression_algorithm}({compression_level}), step_size={step_size}"
         )
 
     def processInputs(original_inputs):
@@ -158,83 +151,164 @@ def copyFileContent(
                 return obj_type
         return None
 
-    if appendIfExists and os.path.exists(outputFile):
-        open_fn = uproot.update
-        open_args = {}
-    else:
-        open_fn = uproot.recreate
-        open_args = {"compression": compression}
-    histograms = {}
-    to_store_with_rdf = {}
-    stored_with_uproot = set()
-    with open_fn(outputFile, **open_args) as output_file:
-        for input in inputs:
-            copyInputTrees = input["copyTrees"]
-            copyInputHistograms = input["copyHistograms"]
-            with uproot.open(input["file"]) as input_file:
-                for input_object_name in input_file.keys():
-                    obj = input_file[input_object_name]
-                    obj_type = get_obj_type(obj.classname)
-                    if obj_type is None:
-                        raise RuntimeError(
-                            f"{input['file']}/{input_object_name}: unknown object type='{obj.classname}'"
-                        )
+    saved_dir = ROOT.gDirectory
 
-                    is_tree = obj_type == "tree"
-                    is_hist = obj_type == "histogram"
-                    if not (
-                        (copyInputTrees and is_tree)
-                        or (copyInputHistograms and is_hist)
-                    ):
-                        if verbose > 1:
-                            print(
-                                f'Skipping object "{input_object_name}" of type "{obj.classname}"'
-                            )
-                        continue
+    # First pass: read all input objects, recursing into TDirectoryFile.
+    # Histograms are accumulated (added) across inputs with the same out_path.
+    # Trees are collected as a list of (file_path, internal_path) sources for TChain.
+    histograms = {}  # out_path -> ROOT TH1
+    trees = {}  # out_path -> [(file_path, internal_path), ...]
 
-                    out_name = f"{input['name_prefix']}{obj.name}{input['name_suffix']}"
-                    if verbose > 0:
-                        print(
-                            f"{input['file']}/{input_object_name} -> {out_name} (type='{obj.classname}')"
-                        )
-                    if is_hist:
-                        if out_name in histograms:
-                            hist, is_converted = histograms[out_name]
-                            if not is_converted:
-                                hist = hist.to_hist()
-                            new_hist = hist + obj.to_hist()
-                            histograms[out_name] = (new_hist, True)
-                        else:
-                            histograms[out_name] = (obj, False)
-                    else:
-                        if obj.num_entries > 0:
-                            for arrays in obj.iterate(step_size=step_size):
-                                groupped_arrays = defineColumnGrouping(
-                                    arrays, obj.keys(), verbose=min(0, verbose - 1)
-                                )
-                                if out_name in output_file:
-                                    output_file[out_name].extend(groupped_arrays)
+    def collect_objects(directory, inp, dir_prefix=""):
+        # Build a map of name -> latest-cycle key to avoid processing stale cycles.
+        latest_keys = {}
+        for key in directory.GetListOfKeys():
+            name = key.GetName()
+            if name not in latest_keys or key.GetCycle() > latest_keys[name].GetCycle():
+                latest_keys[name] = key
+
+        for obj_name, key in latest_keys.items():
+            classname = key.GetClassName()
+            internal_path = f"{dir_prefix}{obj_name}"
+
+            if classname in ("TDirectory", "TDirectoryFile"):
+                subdir = directory.Get(obj_name)
+                if subdir:
+                    collect_objects(subdir, inp, f"{internal_path}/")
+                continue
+
+            obj_type = get_obj_type(classname)
+            if obj_type is None:
+                raise RuntimeError(
+                    f"{inp['file']}/{internal_path}: unknown object type='{classname}'"
+                )
+            is_tree = obj_type == "tree"
+            is_hist = obj_type == "histogram"
+
+            # Prefix/suffix apply to the leaf name only; directory path is preserved.
+            out_path = f"{dir_prefix}{inp['name_prefix']}{obj_name}{inp['name_suffix']}"
+
+            if not (
+                (inp["copyTrees"] and is_tree) or (inp["copyHistograms"] and is_hist)
+            ):
+                if verbose > 1:
+                    print(f'Skipping object "{internal_path}" of type "{classname}"')
+                continue
+
+            if verbose > 0:
+                print(
+                    f"{inp['file']}/{internal_path} -> {out_path} (type='{classname}')"
+                )
+
+            if is_hist:
+                obj = key.ReadObj()
+                obj.SetDirectory(ROOT.nullptr)
+                if out_path in histograms:
+                    histograms[out_path].Add(obj)
+                else:
+                    histograms[out_path] = obj
+            else:
+                if out_path not in trees:
+                    trees[out_path] = []
+                trees[out_path].append((inp["file"], internal_path))
+
+    for inp in inputs:
+        input_file = ROOT.TFile.Open(inp["file"], "READ")
+        if not input_file or input_file.IsZombie():
+            raise RuntimeError(f"Cannot open input file: {inp['file']}")
+        try:
+            collect_objects(input_file, inp)
+        finally:
+            input_file.Close()
+
+    def get_or_create_dir(root_file, path_parts):
+        current = root_file
+        for part in path_parts:
+            d = current.Get(part)
+            if not d:
+                current.mkdir(part)
+                d = current.Get(part)
+            current = d
+        return current
+
+    uproot_comp = getattr(uproot, compression_algorithm)(compression_level)
+    root_comp = ROOT.ROOT.CompressionSettings(
+        getattr(ROOT.ROOT.RCompressionSetting.EAlgorithm, "k" + compression_algorithm),
+        compression_level,
+    )
+
+    try:
+        if not appendIfExists and os.path.exists(outputFile):
+            os.remove(outputFile)
+
+        # Phase 1: trees → uproot.
+        # Each source is read by its own internal_path and the result is grouped
+        # with defineColumnGrouping before writing, preserving the zipped layout.
+        written_with_uproot = set()
+        empty_tree_sources = {}  # out_path -> (file_path, internal_path) for schema
+
+        if trees:
+            append_exists = appendIfExists and os.path.exists(outputFile)
+            uproot_open_fn = uproot.update if append_exists else uproot.recreate
+            uproot_open_kwargs = {} if append_exists else {"compression": uproot_comp}
+            with uproot_open_fn(outputFile, **uproot_open_kwargs) as uproot_out:
+                for out_path, sources in trees.items():
+                    for file_path, internal_path in sources:
+                        with uproot.open(f"{file_path}:{internal_path}") as src_tree:
+                            if src_tree.num_entries == 0:
+                                if out_path not in written_with_uproot:
+                                    empty_tree_sources.setdefault(
+                                        out_path, (file_path, internal_path)
+                                    )
+                                continue
+                            written_with_uproot.add(out_path)
+                            empty_tree_sources.pop(out_path, None)
+                            for arrays in src_tree.iterate(step_size=step_size):
+                                grouped = defineColumnGrouping(arrays, src_tree.keys())
+                                if out_path in uproot_out:
+                                    uproot_out[out_path].extend(grouped)
                                 else:
-                                    output_file[out_name] = groupped_arrays
-                            stored_with_uproot.add(out_name)
-                        else:
-                            to_store_with_rdf[out_name] = (
-                                input["file"],
-                                input_object_name,
-                            )
+                                    uproot_out[out_path] = grouped
 
-        for hist_name, (hist, _) in histograms.items():
-            output_file[hist_name] = hist
+        # Phase 2: empty trees + histograms → ROOT.
+        if empty_tree_sources or histograms:
+            root_open_mode = "UPDATE" if os.path.exists(outputFile) else "RECREATE"
+            root_out = ROOT.TFile.Open(outputFile, root_open_mode, "", root_comp)
+            if not root_out or root_out.IsZombie():
+                raise RuntimeError(f"Cannot open output file: {outputFile}")
+            try:
+                for out_path, (fp, ip) in empty_tree_sources.items():
+                    parts = out_path.split("/")
+                    target_dir = get_or_create_dir(root_out, parts[:-1])
+                    leaf = parts[-1]
+                    if not target_dir.Get(leaf):
+                        src_file = ROOT.TFile.Open(fp, "READ")
+                        if not src_file or src_file.IsZombie():
+                            raise RuntimeError(f"Cannot open source file: {fp}")
+                        try:
+                            target_dir.cd()
+                            cloned = src_file.Get(ip).CloneTree(0)
+                            cloned.SetName(leaf)
+                            cloned.Write("", ROOT.TObject.kOverwrite)
+                        finally:
+                            src_file.Close()
 
-    # If the file doesn't exist yet, change snapshot to RECREATE
-    if not os.path.exists(outputFile):
-        snapshotOptions.fMode = "RECREATE"
-    for out_name, (input_file_name, input_name) in to_store_with_rdf.items():
-        if out_name in stored_with_uproot:
-            # Check if the empty tree was already handled by another file
-            continue
-        df = ROOT.RDataFrame(input_name, input_file_name)
-        df.Snapshot(out_name, outputFile, ".*", snapshotOptions)
+                for out_path, hist in histograms.items():
+                    parts = out_path.split("/")
+                    target_dir = get_or_create_dir(root_out, parts[:-1])
+                    leaf = parts[-1]
+                    target_dir.cd()
+                    existing = target_dir.Get(leaf)
+                    if existing:
+                        existing.Add(hist)
+                        existing.Write(leaf, ROOT.TObject.kOverwrite)
+                    else:
+                        hist.Write(leaf, ROOT.TObject.kOverwrite)
+            finally:
+                root_out.Close()
+    finally:
+        if saved_dir:
+            saved_dir.cd()
 
 
 if __name__ == "__main__":

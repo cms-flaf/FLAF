@@ -85,7 +85,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
             if len(aggregate_list) > 0:
                 for agg_name in aggregate_list:
-                    agg_dict[agg_name] = set()
+                    if agg_name not in agg_dict.keys():
+                        agg_dict[agg_name] = set()
                     aggr_task_branch_map = AnalysisCacheAggregationTask.req(
                         self,
                         branch=-1,

@@ -164,53 +164,39 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if len(anaCaches) > 0:
                 deps["anaCaches"] = anaCaches
 
-        producers_to_aggregate = []
-        process_group = (
-            self.datasets[dataset_name]["process_group"]
-            if dataset_name != "data"
-            else "data"
-        )
-        for producer_name in producer_list:
-            if producer_name:
-                payload_producers = self.global_params.get("payload_producers")
-                if not payload_producers:
-                    continue
-                producer_cfg = payload_producers[producer_name]
-                needs_aggregation = producer_cfg.get("needs_aggregation", False)
-                target_groups = producer_cfg.get("target_groups", None)
-                applies_for_group = (
-                    target_groups is None or process_group in target_groups
-                )
-                if needs_aggregation:
-                    if applies_for_group:
-                        producers_to_aggregate.append(producer_name)
-
-        if producers_to_aggregate:
-            aggrAnaCaches = {}
-            for producer_name in producers_to_aggregate:
+        agg_dict = {}
+        if len(aggregate_list) > 0:
+            anaAggs = {}
+            for agg_name in aggregate_list:
+                if agg_name not in agg_dict.keys():
+                    agg_dict[agg_name] = set()
                 aggr_task_branch_map = AnalysisCacheAggregationTask.req(
                     self,
                     branch=-1,
-                    producer_to_aggregate=producer_name,
+                    producer_to_aggregate=agg_name,
                 ).create_branch_map()
 
-                # find which branch of AnalysisCacheAggregationTask is needed for this producer and dataset
-                branch_idx = -1
-                for aggr_br_idx, (aggr_dataset_name, _) in aggr_task_branch_map.items():
+                for aggr_br_idx, (
+                    aggr_dataset_name,
+                    _,
+                ) in aggr_task_branch_map.items():
                     if aggr_dataset_name == dataset_name:
-                        branch_idx = aggr_br_idx
-                        break
+                        agg_dict[agg_name].add(aggr_br_idx)
 
-                assert branch_idx >= 0, "Must find correct branch"
-
-                aggrAnaCaches[producer_name] = AnalysisCacheAggregationTask.req(
-                    self,
-                    branch=branch_idx,
-                    producer_to_aggregate=producer_name,
-                )
-
-            if aggrAnaCaches:
-                deps["aggrAnaCaches"] = aggrAnaCaches
+                # The aggregates COULD multiple inputs, handle appropriately
+                if agg_name not in anaAggs:
+                    anaAggs[agg_name] = []
+                    for br in agg_dict[agg_name]:
+                        anaAggs[agg_name].append(
+                            AnalysisCacheAggregationTask.req(
+                                self,
+                                branch=br,
+                                customisations=self.customisations,
+                                producer_to_aggregate=agg_name,
+                            )
+                        )
+            if len(anaAggs) > 0:
+                deps["anaAggs"] = anaAggs
 
         return deps
 
@@ -987,7 +973,6 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 else:
                     local_anacaches_str = ""
 
-                output_file = self.output()
                 print(
                     f"considering dataset {dataset_name}, and file {input_file.abspath}"
                 )
@@ -1045,7 +1030,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 print(
                     f"Finished producing payload for producer={self.producer_to_run} with name={dataset_name}, file={input_file.abspath}"
                 )
-                with output_file.localize("w") as tmp_local_file:
+                with self.output().localize("w") as tmp_local_file:
                     out_local_path = tmp_local_file.abspath
                     shutil.move(tmpFile, out_local_path)
             if remove_job_home:

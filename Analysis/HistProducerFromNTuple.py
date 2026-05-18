@@ -19,6 +19,7 @@ num_threads = ROOT.GetThreadPoolSize()
 
 print(f"ROOT is currently using {num_threads} threads.")
 
+
 def find_keys(inFiles_list):
     unique_keys = set()
     for infile in inFiles_list:
@@ -34,9 +35,7 @@ def find_keys(inFiles_list):
 def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     model, unit_hist = hist_list[0]
     if verbose > 0:
-        print(
-            f"Saving hist for key: {key_tuple}, unc: {unc}, scale: {scale}"
-        )
+        print(f"Saving hist for key: {key_tuple}, unc: {unc}, scale: {scale}")
     dir_name = "/".join(key_tuple)
     dir_ptr = Utilities.mkdir(outFile, dir_name)
 
@@ -75,11 +74,13 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
 
 def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
     import ast
+
     var_is_list = False
     var_list = None
     injected_entry = None
     var_entry = var
-    if isinstance(var, list): var_is_list = True
+    if isinstance(var, list):
+        var_is_list = True
     if isinstance(var, str) and var.startswith("[") and var.endswith("]"):
         var_list = ast.literal_eval(var)
         if isinstance(var_list, list) and len(var_list) >= 2:
@@ -98,7 +99,9 @@ def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
         for i, v in enumerate(var_list):
             var_entry_v = HistHelper.findBinEntry(hist_cfg_dict, v)
             bin_key = f"{v}_bins"
-            hist_cfg_dict[injected_entry][bin_key] = hist_cfg_dict[var_entry_v]["x_bins"]
+            hist_cfg_dict[injected_entry][bin_key] = hist_cfg_dict[var_entry_v][
+                "x_bins"
+            ]
 
         var_entry = injected_entry
 
@@ -118,11 +121,7 @@ def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
     if injected_entry:
         del hist_cfg_dict[injected_entry]
 
-    var_bin_list = (
-        [f"{v}_bin" for v in var_list]
-        if dims > 1
-        else [f"{var}_bin"]
-    )
+    var_bin_list = [f"{v}_bin" for v in var_list] if dims > 1 else [f"{var}_bin"]
 
     rdf_filtered = rdf.Filter(filter_to_apply)
     if dims >= 1 and dims <= 3:
@@ -187,11 +186,12 @@ def SaveTmpFileUnc(
     tmp_file = f"tmp_{var}.root"
     var_list = []
     import ast
+
     if isinstance(var, str) and var.startswith("[") and var.endswith("]"):
         var_list = ast.literal_eval(var)
     tmp_file = "tmp_"
-    tmp_file+="_".join(v for v in var_list)
-    tmp_file+=".root"
+    tmp_file += "_".join(v for v in var_list)
+    tmp_file += ".root"
 
     tmp_file_root = ROOT.TFile(tmp_file, "RECREATE")
     for unc, scales in uncs_to_compute.items():
@@ -201,7 +201,9 @@ def SaveTmpFileUnc(
             for key, filter_to_apply_base in key_filter_dict.items():
                 if further_cuts:
                     for further_cut_name in further_cuts.keys():
-                        filter_to_apply_final = f"{filter_to_apply_base} && {further_cut_name}"
+                        filter_to_apply_final = (
+                            f"{filter_to_apply_base} && {further_cut_name}"
+                        )
                         key_tuple = key + (further_cut_name,)
                         # Determine base RDF and weight name
                         if is_shift_unc:
@@ -209,10 +211,19 @@ def SaveTmpFileUnc(
                             rdf_base = all_trees[tree_prefix]
                             weight_name = "weight_Central"
                         else:
-                            weight_name = f"weight_{unc}_{scale}" if unc != "Central" else "weight_Central"
+                            weight_name = (
+                                f"weight_{unc}_{scale}"
+                                if unc != "Central"
+                                else "weight_Central"
+                            )
                             rdf_base = all_trees[treeName]
                         model, unit_hist = GetUnitBinHist(
-                            rdf_base, var, filter_to_apply_final, weight_name, unc, scale
+                            rdf_base,
+                            var,
+                            filter_to_apply_final,
+                            weight_name,
+                            unc,
+                            scale,
                         )
                         hist_list = [(model, unit_hist)]
                         SaveHist(key_tuple, tmp_file_root, hist_list, var, unc, scale)
@@ -224,7 +235,11 @@ def SaveTmpFileUnc(
                         rdf_base = all_trees[tree_prefix]
                         weight_name = "weight_Central"
                     else:
-                        weight_name = f"weight_{unc}_{scale}" if unc != "Central" else "weight_Central"
+                        weight_name = (
+                            f"weight_{unc}_{scale}"
+                            if unc != "Central"
+                            else "weight_Central"
+                        )
                         rdf_base = all_trees[treeName]
                     model, unit_hist = GetUnitBinHist(
                         rdf_base, var, filter_to_apply_final, weight_name, unc, scale
@@ -243,8 +258,12 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_name", required=True, type=str)
     parser.add_argument("--customisations", type=str, default=None)
     parser.add_argument("--channels", type=str, default=None)
-    parser.add_argument("--var", type=str, default=None,
-                        help="Variable to plot. For 2D histograms, use format '[var_x,var_y]'")
+    parser.add_argument(
+        "--var",
+        type=str,
+        default=None,
+        help="Variable to plot. For 2D histograms, use format '[var_x,var_y]'",
+    )
     parser.add_argument("--compute_unc_variations", type=bool, default=False)
     parser.add_argument("--compute_rel_weights", type=bool, default=False)
     parser.add_argument("--furtherCut", type=str, default=None)
@@ -306,15 +325,36 @@ if __name__ == "__main__":
         elif isinstance(var, dict):
             if "vars" in var:
                 for v in var["vars"]:
-                    if "(" in v or ")" in v or "?" in v or "*" in v or "[" in v or "{" in v:
+                    if (
+                        "(" in v
+                        or ")" in v
+                        or "?" in v
+                        or "*" in v
+                        or "[" in v
+                        or "{" in v
+                    ):
                         continue
                     vars_needed.add(v)
             elif "name" in var:
                 v = var["name"]
-                if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                if (
+                    "(" not in v
+                    and ")" not in v
+                    and "?" not in v
+                    and "*" not in v
+                    and "[" not in v
+                    and "{" not in v
+                ):
                     vars_needed.add(v)
         else:
-            if "(" not in var and ")" not in var and "?" not in var and "*" not in var and "[" not in var and "{" not in var:
+            if (
+                "(" not in var
+                and ")" not in var
+                and "?" not in var
+                and "*" not in var
+                and "[" not in var
+                and "{" not in var
+            ):
                 vars_needed.add(var)
     for further_cut_name, (vars_for_cut, _) in further_cuts.items():
         for var_for_cut in vars_for_cut:

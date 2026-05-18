@@ -48,19 +48,47 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             for var in self.global_params["variables"]:
                 if isinstance(var, (list, tuple)):
                     for v in var:
-                        if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                        if (
+                            "(" not in v
+                            and ")" not in v
+                            and "?" not in v
+                            and "*" not in v
+                            and "[" not in v
+                            and "{" not in v
+                        ):
                             flatten_vars.add(v)
                 elif isinstance(var, dict):
                     if "vars" in var:
                         for v in var["vars"]:
-                            if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                            if (
+                                "(" not in v
+                                and ")" not in v
+                                and "?" not in v
+                                and "*" not in v
+                                and "[" not in v
+                                and "{" not in v
+                            ):
                                 flatten_vars.add(v)
                     elif "name" in var:
                         v = var["name"]
-                        if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                        if (
+                            "(" not in v
+                            and ")" not in v
+                            and "?" not in v
+                            and "*" not in v
+                            and "[" not in v
+                            and "{" not in v
+                        ):
                             flatten_vars.add(v)
                 else:
-                    if "(" not in var and ")" not in var and "?" not in var and "*" not in var and "[" not in var and "{" not in var:
+                    if (
+                        "(" not in var
+                        and ")" not in var
+                        and "?" not in var
+                        and "*" not in var
+                        and "[" not in var
+                        and "{" not in var
+                    ):
                         flatten_vars.add(var)
 
             for var_name in flatten_vars:
@@ -236,19 +264,47 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         for var in self.global_params["variables"]:
             if isinstance(var, (list, tuple)):
                 for v in var:
-                    if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                    if (
+                        "(" not in v
+                        and ")" not in v
+                        and "?" not in v
+                        and "*" not in v
+                        and "[" not in v
+                        and "{" not in v
+                    ):
                         flatten_vars.add(v)
             elif isinstance(var, dict):
                 if "vars" in var:
                     for v in var["vars"]:
-                        if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                        if (
+                            "(" not in v
+                            and ")" not in v
+                            and "?" not in v
+                            and "*" not in v
+                            and "[" not in v
+                            and "{" not in v
+                        ):
                             flatten_vars.add(v)
                 elif "name" in var:
                     v = var["name"]
-                    if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                    if (
+                        "(" not in v
+                        and ")" not in v
+                        and "?" not in v
+                        and "*" not in v
+                        and "[" not in v
+                        and "{" not in v
+                    ):
                         flatten_vars.add(v)
             else:
-                if "(" not in var and ")" not in var and "?" not in var and "*" not in var and "[" not in var and "{" not in var:
+                if (
+                    "(" not in var
+                    and ")" not in var
+                    and "?" not in var
+                    and "*" not in var
+                    and "[" not in var
+                    and "{" not in var
+                ):
                     flatten_vars.add(var)
 
         producer_list = []

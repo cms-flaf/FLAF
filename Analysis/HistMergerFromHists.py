@@ -151,12 +151,14 @@ if __name__ == "__main__":
     regions_dict = global_cfg_dict.get("regions", None)
     regions = []
     if isinstance(regions_dict, dict):
-        regions_name = list(regions_dict.keys()) if regions_dict else []  # can be extended to list of names, if for example adding QCD regions + other control regions
+        regions_name = (
+            list(regions_dict.keys()) if regions_dict else []
+        )  # can be extended to list of names, if for example adding QCD regions + other control regions
         if regions_name:
             for r in regions_name:
                 subregions = regions_dict[r].keys()
                 regions.extend(list())
-    elif isinstance(regions_dict,str):
+    elif isinstance(regions_dict, str):
         regions_name = regions_dict.split(",")
         if regions_name:
             regions.extend(list(global_cfg_dict.get(regions_name, [])))

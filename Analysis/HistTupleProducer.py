@@ -103,15 +103,36 @@ def createHistTuple(
         elif isinstance(var, dict):
             if "vars" in var:
                 for v in var["vars"]:
-                    if "(" in v or ")" in v or "?" in v or "*" in v or "[" in v or "{" in v:
+                    if (
+                        "(" in v
+                        or ")" in v
+                        or "?" in v
+                        or "*" in v
+                        or "[" in v
+                        or "{" in v
+                    ):
                         continue
                     flatten_vars.add(v)
             elif "name" in var:
                 v = var["name"]
-                if "(" not in v and ")" not in v and "?" not in v and "*" not in v and "[" not in v and "{" not in v:
+                if (
+                    "(" not in v
+                    and ")" not in v
+                    and "?" not in v
+                    and "*" not in v
+                    and "[" not in v
+                    and "{" not in v
+                ):
                     flatten_vars.add(v)
         else:
-            if "(" not in var and ")" not in var and "?" not in var and "*" not in var and "[" not in var and "{" not in var:
+            if (
+                "(" not in var
+                and ")" not in var
+                and "?" not in var
+                and "*" not in var
+                and "[" not in var
+                and "{" not in var
+            ):
                 flatten_vars.add(var)
 
     for var in flatten_vars:

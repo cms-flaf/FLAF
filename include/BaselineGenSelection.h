@@ -129,8 +129,8 @@ HVVCand GetGenHVVCandidate(int evt,
         std::set<int> HVV_indices;
         for (int i = 0; i < sz; ++i) {
             const GenStatusFlags status(GenPart_statusFlags.at(i));
-            bool is_higgs = GenPart_pdgId[i] == PdG::Higgs();
-            if (!(is_higgs && status.isLastCopy())) {
+            bool is_higgs_or_Y = (GenPart_pdgId[i] == PdG::Higgs()) || (GenPart_pdgId[i] == PdG::HeavyHiggs());
+            if (!(is_higgs_or_Y && status.isLastCopy())) {
                 continue;
             }
             auto const &daughters = GenPart_daughters.at(i);
@@ -326,7 +326,7 @@ int GetGenHBBIndex(int evt,
         std::set<int> hbb_indices;
         for (int n = 0; n < GenPart_pdgId.size(); ++n) {
             const GenStatusFlags status(GenPart_statusFlags.at(n));
-            if (!(GenPart_pdgId[n] == PdG::Higgs() && status.isLastCopy()))
+            if (!((GenPart_pdgId[n] == PdG::Higgs() || GenPart_pdgId[n] == PdG::HeavyHiggs()) && status.isLastCopy()))
                 continue;
             const auto &daughters = GenPart_daughters.at(n);
             int n_b_daughters = std::count_if(daughters.begin(), daughters.end(), [&](int idx) {

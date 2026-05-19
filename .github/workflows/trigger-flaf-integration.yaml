@@ -123,8 +123,8 @@ jobs:
             let packages = Object.keys(variables).filter(key => key.endsWith('_version')).map(key => key.slice(0, -8));
             let rootPackages = Object.keys(variables).filter(key => key.endsWith('_active')).map(key => key.slice(0, -7));
 
-            if(repo != "FLAF" && !rootPackages.includes(repo)) {
-              console.log(`Repository ${repo} neither FLAF nor a known root package. Skipping.`);
+            if(repo != "FLAF" && !rootPackages.includes(repo) && !packages.includes(repo)) {
+              console.log(`Repository ${repo} is neither FLAF, a root package, nor a known package. Skipping.`);
               return;
             }
             variables[`${repo}_version`] = `PR_${prNumber}`;

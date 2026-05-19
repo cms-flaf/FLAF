@@ -32,10 +32,13 @@ def test_setup_loading(eras):
             assert len(setup.global_params.keys()) > 0, "global_params is empty"
             assert setup.phys_model is not None, "phys_model is None"
 
-            print(f"  OK: {era} — {setup.phys_model.name}, {len(list(setup.global_params.keys()))} params")
+            print(
+                f"  OK: {era} — {setup.phys_model.name}, {len(list(setup.global_params.keys()))} params"
+            )
         except Exception as e:
             print(f"  FAILED: {era} — {e}")
             import traceback
+
             traceback.print_exc()
             failed_eras.append((era, str(e)))
 

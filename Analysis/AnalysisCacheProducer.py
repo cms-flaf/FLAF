@@ -144,7 +144,7 @@ def createAnalysisCache(
     producer_name = producer_config["producer_name"]
     producers_module = importlib.import_module(producers_module_name)
     producer_class = getattr(producers_module, producer_name)
-    producer = producer_class(producer_config, producer_to_run, period)
+    producer = producer_class(producer_config, producer_to_run, period, setup.global_params)
     saveAs = producer_config.get("save_as", "root")
 
     tmp_fileNames = []
@@ -196,7 +196,6 @@ def createAnalysisCache(
                 )
             else:
                 raise NotImplementedError(f"Unsupported output format `{saveAs}`.")
-
             run_producer(
                 producer,
                 dfw,

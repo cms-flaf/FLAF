@@ -13,7 +13,7 @@ jobs:
   process-trigger-request:
     runs-on: ubuntu-latest
     steps:
-    
+
       - name: Get PR number
         id: get_pr_number
         uses: actions/github-script@v6

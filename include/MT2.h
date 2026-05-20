@@ -49,5 +49,28 @@ namespace analysis {
         double MT2 = asymm_mt2_lester_bisect::get_mT2(mVisA, pxA, pyA, mVisB, pxB, pyB, pxMiss, pyMiss, chiA, chiB, 0);
         return MT2;
     }
+    // Returns MT2 plus the invisible momentum splitting that achieves it.
+    // ben_findsols scans the tangent-ellipse boundary to recover (px,py) of each invisible particle.
+    template <typename LVector1, typename LVector2, typename LVector3>
+    MT2Result Calculate_MT2_func_withSolution(const LVector1 &visible1,
+                                              const LVector2 &visible2,
+                                              const LVector3 &invisible,
+                                              const double massHypo1,
+                                              const double massHypo2) {
+        asymm_mt2_lester_bisect::disableCopyrightMessage();
+        const double mVisA = visible1.mass();
+        const double pxA = visible1.px();
+        const double pyA = visible1.py();
+        const double mVisB = visible2.mass();
+        const double pxB = visible2.px();
+        const double pyB = visible2.py();
+        const double pxMiss = invisible.px();
+        const double pyMiss = invisible.py();
+        const double chiA = massHypo1;
+        const double chiB = massHypo2;
+        const double mt2 = asymm_mt2_lester_bisect::get_mT2(mVisA, pxA, pyA, mVisB, pxB, pyB, pxMiss, pyMiss, chiA, chiB, 0);
+        const auto sol = asymm_mt2_lester_bisect::ben_findsols(mt2, pxA, pyA, mVisA, chiA, pxB, pyB, pxMiss, pyMiss, mVisB, chiB);
+        return {mt2, sol.first, sol.second, pxMiss - sol.first, pyMiss - sol.second};
+    }
 
 }  // namespace analysis

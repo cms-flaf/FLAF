@@ -379,15 +379,62 @@ class Setup:
                 self.base_processes[b_process_name] = b_process
                 self.parent_processes[process_name] = processes[process_name]
 
-        all_datasets = Config("datasets", self.config_path_order, ["datasets.yaml"])
+        dataset_paths = list(self.config_path_order)
+        dataset_file_names = ["datasets.yaml"]
+        additional_dataset_files = self.global_params.get(
+            "datasets_additional_files", []
+        )
+        if isinstance(additional_dataset_files, str):
+            additional_dataset_files = [additional_dataset_files]
+        dataset_file_names.extend(additional_dataset_files)
+
+        main_datasets = Config("datasets", dataset_paths, dataset_file_names)
+        linked_datasets = None
+        linked_dataset_era = self.global_params.get("datasets_link_to_era", "")
+
+        if linked_dataset_era:
+            if type(linked_dataset_era) != str:
+                raise RuntimeError("global.datasets_link_to_era must be a string")
+            linked_dataset_path = os.path.join(
+                self.ana_path,
+                "FLAF",
+                "config",
+                linked_dataset_era,
+            )
+            if not os.path.isdir(linked_dataset_path):
+                raise RuntimeError(
+                    f"Linked dataset era path '{linked_dataset_path}' does not exist."
+                )
+            linked_file_name = self.global_params.get(
+                "datasets_link_file_name", "datasets.yaml"
+            )
+            linked_config_path_order = [
+                self.config_path_order[0],
+                linked_dataset_path,
+                self.config_path_order[2],
+                os.path.join(self.ana_path, "config", linked_dataset_era),
+            ]
+            linked_datasets = Config(
+                "datasets_linked",
+                linked_config_path_order,
+                [linked_file_name],
+            )
+
         active_datasets = {}
         for process_name, process in self.base_processes.items():
             for dataset_name in process.get("datasets", []):
-                if dataset_name not in all_datasets.keys():
+                if dataset_name in main_datasets.keys():
+                    dataset_entry = main_datasets[dataset_name]
+                elif (
+                    linked_datasets is not None
+                    and dataset_name in linked_datasets.keys()
+                ):
+                    dataset_entry = linked_datasets[dataset_name]
+                else:
                     raise RuntimeError(
                         f"Dataset '{dataset_name}' for process '{process_name}' not found in datasets configuration."
                     )
-                active_datasets[dataset_name] = all_datasets[dataset_name]
+                active_datasets[dataset_name] = dataset_entry
                 active_datasets[dataset_name]["process_name"] = process_name
                 active_datasets[dataset_name]["process_group"] = (
                     self.phys_model.process_type(process["parent_process"])

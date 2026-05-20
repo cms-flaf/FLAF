@@ -238,6 +238,10 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         significant=False,
         description="transfer job logs to the output directory",
     )
+    priority = luigi.IntParameter(
+        default=0,
+        description="job priority among your HTCondor jobs. Accepted values from -20 (lowest) to 20 (highest). Default 0.",
+    )
 
     def htcondor_check_job_completeness(self):
         return False
@@ -290,6 +294,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
             ("+MaxRuntime", int(math.floor(self.max_runtime * 3600)) - 1)
         )
         config.custom_content.append(("RequestCpus", self.n_cpus))
+        config.custom_content.append(("priority", self.priority))
         return config
 
     def htcondor_job_file(self):

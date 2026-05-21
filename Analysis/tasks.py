@@ -1234,17 +1234,41 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         outputs = {}
         customisation_dict = getCustomisationSplit(self.customisations)
 
+        ### channels
+        channels_base = []
+        if "channels" in self.global_params.keys():
+            channels_base = global_params["channels"].get("selection",[])
+        else:
+            channels_base = self.global_params["channelSelection"]
         channels = customisation_dict.get(
-            "channels", self.global_params["channelSelection"]
-        )
+                "channels", channels_base
+            )
         if isinstance(channels, str):
             channels = channels.split(",")
 
-        base_cats = self.global_params.get("categories") or []
+        ### categories + subcategories
+        base_cats = []
+        cat_key = "categories" if "categories_to_select" not in self.global_params.keys() else "categories_to_select"
+        if isinstance(self.global_params.get(cat_key), dict):
+            base_cats = list(self.global_params.get(cat_key).keys())
+        elif isinstance(self.global_params.get(cat_key), list):
+            base_cats = self.global_params.get(cat_key)
+
         boosted_cats = self.global_params.get("boosted_categories") or []
-        categories = base_cats + boosted_cats
-        if isinstance(categories, str):
-            categories = categories.split(",")
+
+        custom_categories = global_params.get("custom_categories", [])
+        if isinstance(custom_categories, str):
+            custom_categories = global_params.get(custom_categories, [])
+
+        categories = base_cats + boosted_cats + custom_categories
+
+        custom_subcategories = global_params.get("custom_subcategories", [])
+
+
+        #### regions
+        regions_block = global_params.get("regions", {})
+        regions_name = list(regions_block.keys())[0] if regions_block else None
+        regions = regions_block.get(regions_name, {}) if regions_name else {}
 
         custom_region_name = self.global_params.get("custom_regions")
 
@@ -1252,9 +1276,10 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             custom_region_name, self.global_params[custom_region_name]
         )
 
+        all_regions = regions + custom_regions
         for ch in channels:
             for cat in categories:
-                for custom_region in custom_regions:
+                for custom_region in all_regions:
                     rel_path = os.path.join(
                         self.version,
                         "Plots",

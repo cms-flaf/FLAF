@@ -171,24 +171,37 @@ if __name__ == "__main__":
             print("No custom regions found")
 
     # Categories def
-    categories = list(global_cfg_dict["categories"])
-    # custom_categories_name = global_cfg_dict.get(
-    #     "custom_categories", None
-    # )  # can be extended to list of names
-    # custom_categories = []
-    # if custom_categories_name:
-    #     custom_categories = list(global_cfg_dict.get(custom_categories_name, []))
-    #     if not custom_categories:
-    #         print("No custom categories found")
-    all_categories = categories  # + custom_categories
+    categories = []
+
+    base_cats = []
+    cat_key = (
+        "categories"
+        if "categories_to_select" not in self.global_params.keys()
+        else "categories_to_select"
+    )
+    if isinstance(self.global_params.get(cat_key), dict):
+        base_cats = list(self.global_params.get(cat_key).keys())
+    elif isinstance(self.global_params.get(cat_key), list):
+        base_cats = self.global_params.get(cat_key)
+
+    boosted_cats = self.global_params.get("boosted_categories") or []
+
+    custom_categories = global_params.get("custom_categories", [])
+    if isinstance(custom_categories, str):
+        custom_categories = global_params.get(custom_categories, [])
+
+    all_categories = base_cats + boosted_cats + custom_categories
 
     # Channels def
-    setup.global_params["channels_to_consider"] = (
-        args.channels.split(",")
-        if args.channels
-        else setup.global_params["channelSelection"]
-    )
-    channels = setup.global_params["channels_to_consider"]
+
+    channels_base = []
+    if "channels" in self.global_params.keys():
+        channels_base = global_params["channels"].get("selection", [])
+    else:
+        channels_base = self.global_params["channelSelection"]
+    channels = customisation_dict.get("channels", channels_base)
+    if isinstance(channels, str):
+        channels = channels.split(",")
 
     # Variables exception def
     custom_variables = global_cfg_dict.get(

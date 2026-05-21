@@ -1237,18 +1237,20 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ### channels
         channels_base = []
         if "channels" in self.global_params.keys():
-            channels_base = global_params["channels"].get("selection",[])
+            channels_base = global_params["channels"].get("selection", [])
         else:
             channels_base = self.global_params["channelSelection"]
-        channels = customisation_dict.get(
-                "channels", channels_base
-            )
+        channels = customisation_dict.get("channels", channels_base)
         if isinstance(channels, str):
             channels = channels.split(",")
 
         ### categories + subcategories
         base_cats = []
-        cat_key = "categories" if "categories_to_select" not in self.global_params.keys() else "categories_to_select"
+        cat_key = (
+            "categories"
+            if "categories_to_select" not in self.global_params.keys()
+            else "categories_to_select"
+        )
         if isinstance(self.global_params.get(cat_key), dict):
             base_cats = list(self.global_params.get(cat_key).keys())
         elif isinstance(self.global_params.get(cat_key), list):
@@ -1263,7 +1265,6 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         categories = base_cats + boosted_cats + custom_categories
 
         custom_subcategories = global_params.get("custom_subcategories", [])
-
 
         #### regions
         regions_block = global_params.get("regions", {})

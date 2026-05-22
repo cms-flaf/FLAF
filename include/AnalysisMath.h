@@ -32,4 +32,25 @@ namespace analysis {
         const double cosDTheta = cos(dTheta);
         return cosDTheta;
     }
+
+    template <typename It>
+    using ValueType = typename std::iterator_traits<It>::value_type;
+
+    template <typename It, typename BinaryPred = std::greater<ValueType<It>>>
+    std::vector<size_t> argsort(It begin, It end, BinaryPred pred = std::greater<ValueType<It>>{})
+    {
+        size_t sz = std::distance(begin, end);
+        std::vector<size_t> res(sz);
+        std::iota(res.begin(), res.end(), 0);
+        auto cmp = [begin, &pred](size_t i1, size_t i2) mutable
+        {
+            auto it1 = begin;
+            auto it2 = begin;
+            std::advance(it1, i1);
+            std::advance(it2, i2);
+            return pred(*it1, *it2);
+        };
+        std::stable_sort(res.begin(), res.end(), cmp);
+        return res;
+    }
 }  // namespace analysis

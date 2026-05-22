@@ -1274,11 +1274,13 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         elif isinstance(regions_dict, str):
             regions_list = regions_dict.split(",")
         elif isinstance(regions_dict, dict):
-            for macro_region,macro_region_dict in regions_dict.items():
+            for macro_region, macro_region_dict in regions_dict.items():
                 regions_list.append(list(macro_region_dict.keys()))
 
         if customisation_dict.get("custom_regions", None):
-            regions_list.append(r for r in customisation_dict['custom_regions'].split(","))
+            regions_list.append(
+                r for r in customisation_dict["custom_regions"].split(",")
+            )
 
         for ch in channels:
             for cat in categories:

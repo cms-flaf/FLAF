@@ -15,6 +15,8 @@ using RVecB = ROOT::VecOps::RVec<bool>;
 using RVecVecI = ROOT::VecOps::RVec<RVecI>;
 using RVecLV = ROOT::VecOps::RVec<LorentzVectorM>;
 using RVecSetInt = ROOT::VecOps::RVec<std::set<int>>;
+template <typename T> 
+using RvecV = ROOT::VecOps::RVec<ROOT::VecOps::RVec<T>>;
 
 enum class Leg : int {
     none = 0,

@@ -15,4 +15,4 @@ AlwaysBreakTemplateDeclarations: Yes
 ReflowComments: false
 BinPackArguments: false
 BinPackParameters: false
-PointerAlignment: Right
+PointerAlignment: Left

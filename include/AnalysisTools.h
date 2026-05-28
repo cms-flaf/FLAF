@@ -17,6 +17,8 @@ using RVecLV = ROOT::VecOps::RVec<LorentzVectorM>;
 using RVecSetInt = ROOT::VecOps::RVec<std::set<int>>;
 template <typename T> 
 using RvecV = ROOT::VecOps::RVec<ROOT::VecOps::RVec<T>>;
+template <typename T>
+using VectorXY = ROOT::Math::DisplacementVector2D<ROOT::Math::Cartesian2D<T>>;
 
 enum class Leg : int {
     none = 0,

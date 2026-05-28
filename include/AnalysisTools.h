@@ -15,7 +15,7 @@ using RVecB = ROOT::VecOps::RVec<bool>;
 using RVecVecI = ROOT::VecOps::RVec<RVecI>;
 using RVecLV = ROOT::VecOps::RVec<LorentzVectorM>;
 using RVecSetInt = ROOT::VecOps::RVec<std::set<int>>;
-template <typename T> 
+template <typename T>
 using RvecV = ROOT::VecOps::RVec<ROOT::VecOps::RVec<T>>;
 template <typename T>
 using VectorXY = ROOT::Math::DisplacementVector2D<ROOT::Math::Cartesian2D<T>>;
@@ -162,7 +162,7 @@ RVecS CreateIndexes(size_t vecSize) {
 }
 
 template <typename V>
-RVecI ReorderObjects(const V &varToOrder, const RVecI &indices, size_t nMax = std::numeric_limits<size_t>::max()) {
+RVecI ReorderObjects(const V& varToOrder, const RVecI& indices, size_t nMax = std::numeric_limits<size_t>::max()) {
     RVecI ordered_indices = indices;
     std::sort(ordered_indices.begin(), ordered_indices.end(), [&](int a, int b) {
         return varToOrder.at(a) > varToOrder.at(b);
@@ -182,15 +182,15 @@ std::string GetBinaryString(T x) {
 
 inline bool Any(bool x) { return x; }
 
-inline LorentzVectorM GetP4(const RVecF &pt, const RVecF &eta, const RVecF &phi, const RVecF &mass, int idx) {
+inline LorentzVectorM GetP4(const RVecF& pt, const RVecF& eta, const RVecF& phi, const RVecF& mass, int idx) {
     return LorentzVectorM(pt[idx], eta[idx], phi[idx], mass[idx]);
 }
 
-inline LorentzVectorM GetP4(const RVecF &pt, const RVecF &eta, const RVecF &phi, double mass, int idx) {
+inline LorentzVectorM GetP4(const RVecF& pt, const RVecF& eta, const RVecF& phi, double mass, int idx) {
     return LorentzVectorM(pt[idx], eta[idx], phi[idx], mass);
 }
 
-RVecLV GetP4(const RVecF &pt, const RVecF &eta, const RVecF &phi, const RVecF &mass) {
+RVecLV GetP4(const RVecF& pt, const RVecF& eta, const RVecF& phi, const RVecF& mass) {
     RVecLV p4;
     p4.reserve(pt.size());
     for (size_t idx = 0; idx < pt.size(); idx++)
@@ -198,26 +198,26 @@ RVecLV GetP4(const RVecF &pt, const RVecF &eta, const RVecF &phi, const RVecF &m
     return p4;
 }
 
-RVecLV GetP4(const RVecF &pt, const RVecF &eta, const RVecF &phi, const RVecF &mass, const RVecS &indices) {
+RVecLV GetP4(const RVecF& pt, const RVecF& eta, const RVecF& phi, const RVecF& mass, const RVecS& indices) {
     RVecLV p4;
     p4.reserve(indices.size());
-    for (auto &idx : indices)
+    for (auto& idx : indices)
         p4.emplace_back(pt[idx], eta[idx], phi[idx], mass[idx]);
     return p4;
 }
 
-RVecB RemoveOverlaps(const RVecLV &obj_p4,
-                     const RVecB &pre_sel,
-                     const std::vector<RVecLV> &other_objects,
+RVecB RemoveOverlaps(const RVecLV& obj_p4,
+                     const RVecB& pre_sel,
+                     const std::vector<RVecLV>& other_objects,
                      size_t min_number_of_non_overlaps,
                      double min_deltaR) {
     RVecB result(pre_sel);
     const double min_deltaR2 = std::pow(min_deltaR, 2);
 
-    const auto hasMinNumberOfNonOverlaps = [&](const LorentzVectorM &p4) {
+    const auto hasMinNumberOfNonOverlaps = [&](const LorentzVectorM& p4) {
         size_t cnt = 0;
-        for (const auto &other_obj_col : other_objects) {
-            for (const auto &other_obj_p4 : other_obj_col) {
+        for (const auto& other_obj_col : other_objects) {
+            for (const auto& other_obj_p4 : other_obj_col) {
                 const double dR2 = ROOT::Math::VectorUtil::DeltaR2(p4, other_obj_p4);
                 if (dR2 > min_deltaR2) {
                     ++cnt;
@@ -235,12 +235,12 @@ RVecB RemoveOverlaps(const RVecLV &obj_p4,
     return result;
 }
 
-RVecB RemoveOverlaps(const RVecLV &obj_p4, const RVecB &pre_sel, const RVecLV &other_objects, double min_deltaR) {
+RVecB RemoveOverlaps(const RVecLV& obj_p4, const RVecB& pre_sel, const RVecLV& other_objects, double min_deltaR) {
     RVecB result(pre_sel);
     const double min_deltaR2 = std::pow(min_deltaR, 2);
 
-    const auto hasOverlaps = [&](const LorentzVectorM &p4) {
-        for (const auto &other_obj_p4 : other_objects) {
+    const auto hasOverlaps = [&](const LorentzVectorM& p4) {
+        for (const auto& other_obj_p4 : other_objects) {
             const double dR2 = ROOT::Math::VectorUtil::DeltaR2(p4, other_obj_p4);
             if (dR2 <= min_deltaR2)
                 return true;
@@ -255,9 +255,9 @@ RVecB RemoveOverlaps(const RVecLV &obj_p4, const RVecB &pre_sel, const RVecLV &o
 }
 
 template <typename LVec, typename LVecCollection>
-double MinDeltaR(const LVec &obj_p4, const LVecCollection &other_objects) {
+double MinDeltaR(const LVec& obj_p4, const LVecCollection& other_objects) {
     double min_dR = std::numeric_limits<double>::infinity();
-    for (const auto &other_obj_p4 : other_objects) {
+    for (const auto& other_obj_p4 : other_objects) {
         const double dR = ROOT::Math::VectorUtil::DeltaR(obj_p4, other_obj_p4);
         if (dR < min_dR) {
             min_dR = dR;
@@ -266,7 +266,7 @@ double MinDeltaR(const LVec &obj_p4, const LVecCollection &other_objects) {
     return min_dR;
 }
 
-int FindMatching(const LorentzVectorM &target_p4, const RVecLV &ref_p4, const float deltaR_thr) {
+int FindMatching(const LorentzVectorM& target_p4, const RVecLV& ref_p4, const float deltaR_thr) {
     double deltaR_min = deltaR_thr;
     int current_idx = -1;
     for (int refIdx = 0; refIdx < ref_p4.size(); refIdx++) {
@@ -279,7 +279,7 @@ int FindMatching(const LorentzVectorM &target_p4, const RVecLV &ref_p4, const fl
     return current_idx;
 }
 
-RVecI FindMatching(const RVecLV &target_p4, const RVecLV &ref_p4, const float deltaR_thr) {
+RVecI FindMatching(const RVecLV& target_p4, const RVecLV& ref_p4, const float deltaR_thr) {
     RVecI targetIndices(target_p4.size(), -1);
     for (int targetIdx = 0; targetIdx < target_p4.size(); targetIdx++) {
         int refIdxFound = FindMatching(target_p4[targetIdx], ref_p4, deltaR_thr);
@@ -289,9 +289,9 @@ RVecI FindMatching(const RVecLV &target_p4, const RVecLV &ref_p4, const float de
 }
 
 int FindMatching(const bool pre_sel_target,
-                 const RVecB &pre_sel_ref,
-                 const LorentzVectorM &target_p4,
-                 const RVecLV &ref_p4,
+                 const RVecB& pre_sel_ref,
+                 const LorentzVectorM& target_p4,
+                 const RVecLV& ref_p4,
                  const float dR_thr) {
     // RVecI matched(1,-1); // Only one target, so size is 1 and initialized with
     // false
@@ -311,10 +311,10 @@ int FindMatching(const bool pre_sel_target,
     return current_idx;
 }
 
-RVecI FindMatching(const RVecB &pre_sel_target,
-                   const RVecB &pre_sel_ref,
-                   const RVecLV &target_p4,
-                   const RVecLV &ref_p4,
+RVecI FindMatching(const RVecB& pre_sel_target,
+                   const RVecB& pre_sel_ref,
+                   const RVecLV& target_p4,
+                   const RVecLV& ref_p4,
                    const float deltaR_thr) {
     RVecI targetIndices(target_p4.size(), -1);
     for (int targetIdx = 0; targetIdx < target_p4.size(); targetIdx++) {
@@ -324,10 +324,10 @@ RVecI FindMatching(const RVecB &pre_sel_target,
     return targetIndices;
 }
 
-RVecSetInt FindMatchingSet(const RVecB &pre_sel_target,
-                           const RVecB &pre_sel_ref,
-                           const RVecLV &target_p4,
-                           const RVecLV &ref_p4,
+RVecSetInt FindMatchingSet(const RVecB& pre_sel_target,
+                           const RVecB& pre_sel_ref,
+                           const RVecLV& target_p4,
+                           const RVecLV& ref_p4,
                            const float dR_thr) {
     RVecSetInt findMatching(pre_sel_target.size());
     for (size_t ref_idx = 0; ref_idx < pre_sel_ref.size(); ref_idx++) {
@@ -348,8 +348,8 @@ RVecSetInt FindMatchingSet(const RVecB &pre_sel_target,
 namespace ROOT {
     namespace VecOps {
         template <typename TIn, typename TOut>
-        RVec<TOut> TakeAndCast(const RVec<TIn> &v,
-                               const RVec<typename RVec<TIn>::size_type> &i,
+        RVec<TOut> TakeAndCast(const RVec<TIn>& v,
+                               const RVec<typename RVec<TIn>::size_type>& i,
                                const TOut default_val) {
             RVec<TOut> result(i.size());
             for (typename RVec<TIn>::size_type pos = 0; pos < i.size(); ++pos) {
@@ -363,13 +363,13 @@ namespace ROOT {
 
 namespace v_ops {
     template <typename VecIn, typename OutT, auto MemPtr>
-    ROOT::VecOps::RVec<OutT> extract(const VecIn &p4) {
-        return ROOT::VecOps::Map(p4, [](const auto &v) -> OutT { return static_cast<OutT>((v.*MemPtr)()); });
+    ROOT::VecOps::RVec<OutT> extract(const VecIn& p4) {
+        return ROOT::VecOps::Map(p4, [](const auto& v) -> OutT { return static_cast<OutT>((v.*MemPtr)()); });
     }
 
 #define DEFINE_EXTRACTOR(fn_name, method_name)                      \
     template <typename LV, typename OutT = float>                   \
-    ROOT::VecOps::RVec<OutT> fn_name(const LV &p4) {                \
+    ROOT::VecOps::RVec<OutT> fn_name(const LV& p4) {                \
         return extract<LV, OutT, &LV::value_type::method_name>(p4); \
     }
 

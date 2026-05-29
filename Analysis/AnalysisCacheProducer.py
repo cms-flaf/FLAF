@@ -76,7 +76,13 @@ def run_producer(
                 for col in expected_columns:
                     if col != "FullEventId":
                         data_dict[col] = empty_array
-                outfile[treeName] = data_dict
+
+                if save_as == "root":
+                    outfile[treeName] = data_dict
+                elif save_as == "json":
+                    final_dict = {}
+                    with open(outFileName, "w") as f:
+                        json.dump(final_dict, f, indent=4)
             return
         final_array = None
         final_dict = None
@@ -143,6 +149,8 @@ def createAnalysisCache(
 ):
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
+    if histTupleDef is None:
+        raise ValueError("`histTupleDef` must be provided to createAnalysisCache.")
     histTupleDef.Initialize()
     histTupleDef.analysis_setup(setup)
     isData = dataset_name == "data"

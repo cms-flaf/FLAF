@@ -16,7 +16,7 @@ using RVecVecI = ROOT::VecOps::RVec<RVecI>;
 using RVecLV = ROOT::VecOps::RVec<LorentzVectorM>;
 using RVecSetInt = ROOT::VecOps::RVec<std::set<int>>;
 template <typename T>
-using RvecV = ROOT::VecOps::RVec<ROOT::VecOps::RVec<T>>;
+using RVecVec = ROOT::VecOps::RVec<ROOT::VecOps::RVec<T>>;
 template <typename T>
 using VectorXY = ROOT::Math::DisplacementVector2D<ROOT::Math::Cartesian2D<T>>;
 

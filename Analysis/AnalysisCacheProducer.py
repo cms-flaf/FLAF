@@ -132,6 +132,8 @@ def createAnalysisCache(
 ):
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
+    histTupleDef.Initialize()
+    histTupleDef.analysis_setup(setup)
     isData = dataset_name == "data"
 
     Utilities.InitializeCorrections(setup, dataset_name, stage="AnalysisCache")
@@ -181,7 +183,8 @@ def createAnalysisCache(
             ROOT.RDF.Experimental.AddProgressBar(df_orig)
 
             if saveAs == "root":
-                dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
+                dfw = histTupleDef.GetDfw(df, setup, dataset_name)
+                # dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
                 tmp_fileName = f"{fullTreeName}.root"
             elif saveAs == "json":
                 if hasattr(producer, "create_dfw"):

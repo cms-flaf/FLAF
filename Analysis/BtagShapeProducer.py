@@ -11,6 +11,7 @@ class BtagShapeProducer:
         self.payload_name = payload_name
         self.cfg = cfg
         self.weight_module = importlib.import_module(cfg["weight_module"])
+        self.isData = False
 
     def prepare_dfw(self, dfw, dataset):
         self.vars_to_save = [
@@ -18,7 +19,9 @@ class BtagShapeProducer:
         ]
         self.vars_to_save.extend(self.cfg["bins"].keys())
 
-        total_weight = self.weight_module.GetWeight(None, None, None)
+        total_weight = (
+            self.weight_module.GetWeight(None, None, None) if not self.isData else "1"
+        )
         dfw.df = dfw.df.Define("weight_total", f"return {total_weight}")
 
         cols = dfw.df.GetColumnNames()
@@ -80,6 +83,7 @@ class BtagShapeProducer:
         df_is_central,
         isData,
     ):
+        self.isData = isData
         histTupleDef.Initialize()
         histTupleDef.analysis_setup(setup)
 

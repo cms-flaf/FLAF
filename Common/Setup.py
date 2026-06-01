@@ -53,7 +53,9 @@ def select_items(all_items, filters):
 
 
 class Config:
-    def __init__(self, name, paths, file_names, special_items_prefix=".", extra_file=None):
+    def __init__(
+        self, name, paths, file_names, special_items_prefix=".", extra_file=None
+    ):
         self.name = name
         yaml_str = ""
         self.considered_paths = []
@@ -268,7 +270,9 @@ class Setup:
         ]
 
         self.global_params = Config(
-            "global", self.config_path_order, ["global.yaml", "user_custom.yaml"],
+            "global",
+            self.config_path_order,
+            ["global.yaml", "user_custom.yaml"],
             extra_file=user_custom_file,
         )
 

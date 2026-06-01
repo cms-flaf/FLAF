@@ -50,7 +50,9 @@ class Task(law.Task):
         if self.user_custom:
             user_custom_file = self.user_custom
             if not os.path.isabs(user_custom_file):
-                user_custom_file = os.path.join(os.getenv("ANALYSIS_PATH"), user_custom_file)
+                user_custom_file = os.path.join(
+                    os.getenv("ANALYSIS_PATH"), user_custom_file
+                )
         self.setup = Setup.getGlobal(
             os.getenv("ANALYSIS_PATH"),
             self.period,

@@ -34,6 +34,7 @@ install() {
     run_cmd pip install bayesian-optimization
     run_cmd pip install yamllint
     run_cmd pip install black
+    run_cmd pip install gh
 }
 
 join_by() {

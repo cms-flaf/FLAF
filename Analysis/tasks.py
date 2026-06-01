@@ -436,9 +436,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
             return req_dict
         branch_set = set()
-        for br_idx, (var, prod_br_list, dataset_names) in self.branch_map.items():
-            if var in self.global_params["variables"]:
-                branch_set.update(prod_br_list)
+        for br_idx, (dataset_name, prod_br_list) in self.branch_map.items():
+            branch_set.update(prod_br_list)
         branches = tuple(branch_set)
         req_dict = {
             "HistTupleProducerTask": HistTupleProducerTask.req(
@@ -448,9 +447,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return req_dict
 
     def requires(self):
-        var, prod_br_list, dataset_name = self.branch_data
-        reqs = []
-        reqs.append(
+        dataset_name, prod_br_list = self.branch_data
+        return [
             HistTupleProducerTask.req(
                 self,
                 max_runtime=HistTupleProducerTask.max_runtime._default,
@@ -458,8 +456,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 customisations=self.customisations,
             )
             for prod_br in prod_br_list
-        )
-        return reqs
+        ]
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
@@ -468,8 +465,6 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     @workflow_condition.create_branch_map
     def create_branch_map(self):
         branches = {}
-        prod_br_list = []
-        current_dataset = None
         n = 0
 
         dataset_to_branches = {}
@@ -486,24 +481,29 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             dataset_to_branches.setdefault(histTuple_dataset_name, []).append(prod_br)
 
         for dataset_name, prod_br_list in dataset_to_branches.items():
-            for var_name in self.global_params["variables"]:
-                branches[n] = (var_name, prod_br_list, dataset_name)
-                n += 1
+            branches[n] = (dataset_name, prod_br_list)
+            n += 1
 
         return branches
 
     @workflow_condition.output
     def output(self):
-        var, prod_br, dataset_name = self.branch_data
-        if isinstance(var, dict):
-            var = var["name"]
-        output_path = os.path.join(
-            self.version, "Hists_split", self.period, var, f"{dataset_name}.root"
-        )
-        return self.remote_target(output_path, fs=self.fs_HistTuple)
+        dataset_name, prod_br_list = self.branch_data
+        outputs = {}
+        for var in self.global_params["variables"]:
+            var_name = var["name"] if isinstance(var, dict) else var
+            output_path = os.path.join(
+                self.version,
+                "Hists_split",
+                self.period,
+                var_name,
+                f"{dataset_name}.root",
+            )
+            outputs[var_name] = self.remote_target(output_path, fs=self.fs_HistTuple)
+        return outputs
 
     def run(self):
-        var, prod_br, dataset_name = self.branch_data
+        dataset_name, prod_br_list = self.branch_data
         job_home, remove_job_home = self.law_job_home()
         customisation_dict = getCustomisationSplit(self.customisations)
         channels = (
@@ -511,7 +511,6 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if "channels" in customisation_dict.keys()
             else self.global_params["channelSelection"]
         )
-        # Channels from the yaml are a list, but the format we need for the ps_call later is 'ch1,ch2,ch3', basically join into a string separated by comma
         if type(channels) == list:
             channels = ",".join(channels)
         compute_unc_histograms = (
@@ -522,60 +521,46 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         HistFromNtupleProducer = os.path.join(
             self.ana_path(), "FLAF", "Analysis", "HistProducerFromNTuple.py"
         )
-        input_list_remote_target = [inp for inp in self.input()[0]]
         with contextlib.ExitStack() as stack:
             local_inputs = [
-                stack.enter_context((inp).localize("r")).abspath
-                for inp in self.input()[0]
+                stack.enter_context(inp.localize("r")).abspath for inp in self.input()
             ]
-
-            var = var if type(var) != dict else var["name"]
-            tmpFile = os.path.join(job_home, f"HistFromNtuple_{var}.root")
-
-            HistFromNtupleProducer_cmd = [
-                "python3",
-                HistFromNtupleProducer,
-                "--period",
-                self.period,
-                "--outFile",
-                tmpFile,
-                "--channels",
-                channels,
-                "--var",
-                var,
-                "--dataset_name",
-                dataset_name,
-                "--LAWrunVersion",
-                self.version,
-            ]
-            if compute_unc_histograms:
-                HistFromNtupleProducer_cmd.extend(
-                    [
-                        "--compute_rel_weights",
-                        "True",
-                        "--compute_unc_variations",
-                        "True",
-                    ]
-                )
-            if self.customisations:
-                HistFromNtupleProducer_cmd.extend(
-                    [f"--customisations", self.customisations]
-                )
-
-            HistFromNtupleProducer_cmd.extend(local_inputs)
-            ps_call(HistFromNtupleProducer_cmd, verbose=1)
-
-        with (self.output()).localize("w") as tmp_local_file:
-            out_local_path = tmp_local_file.abspath
-            shutil.move(tmpFile, out_local_path)
-
-        delete_after_merge = False  # var == self.global_config["variables"][-1] --> find more robust condition
-        if delete_after_merge:
-            print(f"Finished HistogramProducer, lets delete remote targets")
-            for remote_target in input_list_remote_target:
-                remote_target.remove()
-                with remote_target.localize("w") as tmp_local_file:
-                    tmp_local_file.touch()  # Create a dummy to avoid dependency crashes
+            for var in self.global_params["variables"]:
+                var_name = var["name"] if isinstance(var, dict) else var
+                tmpFile = os.path.join(job_home, f"HistFromNtuple_{var_name}.root")
+                HistFromNtupleProducer_cmd = [
+                    "python3",
+                    HistFromNtupleProducer,
+                    "--period",
+                    self.period,
+                    "--outFile",
+                    tmpFile,
+                    "--channels",
+                    channels,
+                    "--var",
+                    var_name,
+                    "--dataset_name",
+                    dataset_name,
+                    "--LAWrunVersion",
+                    self.version,
+                ]
+                if compute_unc_histograms:
+                    HistFromNtupleProducer_cmd.extend(
+                        [
+                            "--compute_rel_weights",
+                            "True",
+                            "--compute_unc_variations",
+                            "True",
+                        ]
+                    )
+                if self.customisations:
+                    HistFromNtupleProducer_cmd.extend(
+                        ["--customisations", self.customisations]
+                    )
+                HistFromNtupleProducer_cmd.extend(local_inputs)
+                ps_call(HistFromNtupleProducer_cmd, verbose=1)
+                with self.output()[var_name].localize("w") as tmp_local_file:
+                    shutil.move(tmpFile, tmp_local_file.abspath)
 
         if remove_job_home:
             shutil.rmtree(job_home)
@@ -605,14 +590,9 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 ),
             }
 
-        branch_set = set()
-        all_datasets = {}
-        for br_idx, (var, prod_br_list, dataset_names) in self.branch_map.items():
-            all_datasets[var] = prod_br_list
-
         new_branchset = set()
-        for var in all_datasets.keys():
-            new_branchset.update(all_datasets[var])
+        for br_idx, (var_name, hfn_br_list, dataset_names) in self.branch_map.items():
+            new_branchset.update(hfn_br_list)
 
         return {
             "HistFromNtupleProducerTask": HistFromNtupleProducerTask.req(
@@ -622,17 +602,15 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     def requires(self):
         var_name, br_indices, datasets = self.branch_data
-        reqs = [
+        return [
             HistFromNtupleProducerTask.req(
                 self,
                 max_runtime=HistFromNtupleProducerTask.max_runtime._default,
-                branch=prod_br,
+                branch=br_idx,
                 customisations=self.customisations,
             )
-            for prod_br in tuple(set(br_indices))
+            for br_idx in br_indices
         ]
-
-        return reqs
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
@@ -640,34 +618,21 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
-        HistFromNtupleProducerTask_branch_map = HistFromNtupleProducerTask.req(
+        hfn_branch_map = HistFromNtupleProducerTask.req(
             self, branches=()
         ).create_branch_map()
-        all_datasets = {}
+        # Each HFN branch covers one dataset and all variables.
+        # Build parallel lists of HFN branch indices and dataset names.
+        hfn_br_indices = []
+        dataset_names = []
+        for br_idx, (dataset_name, _) in hfn_branch_map.items():
+            hfn_br_indices.append(br_idx)
+            dataset_names.append(dataset_name)
+        # One HistMerger branch per variable.
         branches = {}
-        k = 0
-        for br_idx, (
-            var_name,
-            prod_br_list,
-            current_dataset,
-        ) in HistFromNtupleProducerTask_branch_map.items():
-            var_name = (
-                var_name.get("name", var_name)
-                if isinstance(var_name, dict)
-                else var_name
-            )
-            if var_name not in all_datasets.keys():
-                all_datasets[var_name] = []
-            all_datasets[var_name].append((br_idx, current_dataset))
-        for var_name, br_list in all_datasets.items():
-            br_indices = []
-            datasets = []
-            for key in br_list:
-                idx, dataset_name = key
-                br_indices.append(idx)
-                datasets.append(dataset_name)
-            branches[k] = (var_name, br_indices, datasets)
-            k += 1
+        for k, var in enumerate(self.global_params["variables"]):
+            var_name = var["name"] if isinstance(var, dict) else var
+            branches[k] = (var_name, hfn_br_indices, dataset_names)
         return branches
 
     @workflow_condition.output
@@ -721,9 +686,11 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         local_inputs = []
         with contextlib.ExitStack() as stack:
             for inp in self.input():
-                dataset_name = os.path.basename(inp.abspath)
-                all_datasets.append(dataset_name.split(".")[0])
-                local_inputs.append(stack.enter_context(inp.localize("r")).abspath)
+                # Each inp is a dict {var_name: FileTarget} from HistFromNtupleProducerTask.
+                var_file = inp[var_name]
+                dataset_name = os.path.basename(var_file.abspath).split(".")[0]
+                all_datasets.append(dataset_name)
+                local_inputs.append(stack.enter_context(var_file.localize("r")).abspath)
             dataset_names = ",".join(smpl for smpl in all_datasets)
             all_outputs_merged = []
             if len(uncNames) == 1:

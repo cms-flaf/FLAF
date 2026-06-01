@@ -621,6 +621,8 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         hfn_branch_map = HistFromNtupleProducerTask.req(
             self, branches=()
         ).create_branch_map()
+        if not hfn_branch_map:
+            return {}
         # Each HFN branch covers one dataset and all variables.
         # Build parallel lists of HFN branch indices and dataset names.
         hfn_br_indices = []

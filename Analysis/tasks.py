@@ -438,7 +438,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         branch_set = set()
         for br_idx, (dataset_name, prod_br_list) in self.branch_map.items():
             branch_set.update(prod_br_list)
-        branches = tuple(branch_set)
+        branches = tuple(sorted(branch_set))
         req_dict = {
             "HistTupleProducerTask": HistTupleProducerTask.req(
                 self, branches=branches, customisations=self.customisations
@@ -480,7 +480,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ) in HistTupleBranchMap.items():
             dataset_to_branches.setdefault(histTuple_dataset_name, []).append(prod_br)
 
-        for dataset_name, prod_br_list in dataset_to_branches.items():
+        for dataset_name, prod_br_list in sorted(dataset_to_branches.items()):
             branches[n] = (dataset_name, prod_br_list)
             n += 1
 
@@ -596,7 +596,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         return {
             "HistFromNtupleProducerTask": HistFromNtupleProducerTask.req(
-                self, branches=list(new_branchset)
+                self, branches=sorted(new_branchset)
             )
         }
 
@@ -625,7 +625,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         # Build parallel lists of HFN branch indices and dataset names.
         hfn_br_indices = []
         dataset_names = []
-        for br_idx, (dataset_name, _) in hfn_branch_map.items():
+        for br_idx, (dataset_name, _) in sorted(hfn_branch_map.items()):
             hfn_br_indices.append(br_idx)
             dataset_names.append(dataset_name)
         # One HistMerger branch per variable.

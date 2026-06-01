@@ -42,9 +42,15 @@ class Task(law.Task):
     dataset = luigi.Parameter(default="")
     process = luigi.Parameter(default="")
     model = luigi.Parameter(default="")
+    user_custom = luigi.Parameter(default="")
 
     def __init__(self, *args, **kwargs):
         super(Task, self).__init__(*args, **kwargs)
+        user_custom_file = None
+        if self.user_custom:
+            user_custom_file = self.user_custom
+            if not os.path.isabs(user_custom_file):
+                user_custom_file = os.path.join(os.getenv("ANALYSIS_PATH"), user_custom_file)
         self.setup = Setup.getGlobal(
             os.getenv("ANALYSIS_PATH"),
             self.period,
@@ -53,6 +59,7 @@ class Task(law.Task):
             custom_dataset_selection=self.dataset if len(self.dataset) > 0 else None,
             custom_model_selection=self.model if len(self.model) > 0 else None,
             customisations=self.customisations,
+            user_custom_file=user_custom_file,
         )
         self._dataset_id_name_list = None
         self._dataset_id_name_dict = None

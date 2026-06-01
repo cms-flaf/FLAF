@@ -53,7 +53,7 @@ def select_items(all_items, filters):
 
 
 class Config:
-    def __init__(self, name, paths, file_names, special_items_prefix="."):
+    def __init__(self, name, paths, file_names, special_items_prefix=".", extra_file=None):
         self.name = name
         yaml_str = ""
         self.considered_paths = []
@@ -64,6 +64,12 @@ class Config:
                 if os.path.exists(full_path):
                     with open(full_path, "r") as f:
                         yaml_str += f.read() + "\n"
+        if extra_file is not None:
+            if not os.path.exists(extra_file):
+                raise RuntimeError(f"extra_file not found: {extra_file}")
+            self.considered_paths.append(extra_file)
+            with open(extra_file, "r") as f:
+                yaml_str += f.read() + "\n"
         if len(yaml_str) == 0:
             raise RuntimeError(
                 f"No configuration files {file_names} found in paths {paths}."
@@ -248,6 +254,7 @@ class Setup:
         custom_dataset_selection=None,
         custom_model_selection=None,
         customisations=None,
+        user_custom_file=None,
     ):
         self.ana_path = ana_path
         self.period = period
@@ -261,7 +268,8 @@ class Setup:
         ]
 
         self.global_params = Config(
-            "global", self.config_path_order, ["global.yaml", "user_custom.yaml"]
+            "global", self.config_path_order, ["global.yaml", "user_custom.yaml"],
+            extra_file=user_custom_file,
         )
 
         apply_customisations(self.global_params, customisations)
@@ -574,6 +582,7 @@ class Setup:
         custom_dataset_selection=None,
         custom_model_selection=None,
         customisations=None,
+        user_custom_file=None,
     ):
         key = (
             ana_path,
@@ -583,6 +592,7 @@ class Setup:
             custom_dataset_selection,
             custom_model_selection,
             customisations,
+            user_custom_file,
         )
         if key not in Setup._global_instances:
             Setup._global_instances[key] = Setup(
@@ -593,6 +603,7 @@ class Setup:
                 custom_dataset_selection=custom_dataset_selection,
                 custom_model_selection=custom_model_selection,
                 customisations=customisations,
+                user_custom_file=user_custom_file,
             )
         return Setup._global_instances[key]
 

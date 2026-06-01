@@ -34,7 +34,22 @@ install() {
     run_cmd pip install bayesian-optimization
     run_cmd pip install yamllint
     run_cmd pip install black
-    run_cmd pip install gh
+}
+
+install_gh_cli() {
+    local env_base=$1
+    local gh_version="2.93.0"
+    local gh_tarball="gh_${gh_version}_linux_amd64.tar.gz"
+    local gh_url="https://github.com/cli/cli/releases/download/v${gh_version}/${gh_tarball}"
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+    echo "Downloading GitHub CLI v${gh_version}..."
+    run_cmd curl -fsSL -o "${tmp_dir}/${gh_tarball}" "${gh_url}"
+    run_cmd tar -xzf "${tmp_dir}/${gh_tarball}" -C "${tmp_dir}"
+    run_cmd cp "${tmp_dir}/gh_${gh_version}_linux_amd64/bin/gh" "${env_base}/bin/gh"
+    run_cmd chmod +x "${env_base}/bin/gh"
+    run_cmd rm -rf "${tmp_dir}"
+    echo "GitHub CLI installed: $(${env_base}/bin/gh --version)"
 }
 
 join_by() {
@@ -98,6 +113,7 @@ action() {
     # currently tuned for LCG_108a x86_64-el9-gcc15-opt
     run_cmd "$this_file" create "$env_base" "$lcg_version" "$lcg_arch"
     run_cmd "$this_file" install "$env_base"
+    run_cmd "$this_file" install_gh_cli "$env_base"
     run_cmd touch "$env_base/.${lcg_version}_${lcg_arch}"
 }
 
@@ -105,6 +121,8 @@ if [[ "$1" == "create" ]]; then
     create "${@:2}"
 elif [[ "$1" == "install" ]]; then
     install "${@:2}"
+elif [[ "$1" == "install_gh_cli" ]]; then
+    install_gh_cli "${@:2}"
 else
     action "${@:1}"
 fi

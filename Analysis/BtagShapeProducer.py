@@ -19,9 +19,10 @@ class BtagShapeProducer:
         ]
         self.vars_to_save.extend(self.cfg["bins"].keys())
 
-        total_weight = (
-            self.weight_module.GetWeight(None, None, None) if not self.isData else "1"
-        )
+        # total_weight = (
+        #     self.weight_module.GetWeight(None, None, None) if not self.isData else "1"
+        # )
+        total_weight = "final_weight"
         dfw.df = dfw.df.Define("weight_total", f"return {total_weight}")
 
         cols = dfw.df.GetColumnNames()

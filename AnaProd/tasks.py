@@ -328,6 +328,16 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     bundle_flavours = ["core", "inputFileList"]
 
+    _anaTuple_map_cache = None
+
+    @classmethod
+    def _get_anaTuple_map(cls, ref_task):
+        if cls._anaTuple_map_cache is None:
+            cls._anaTuple_map_cache = AnaTupleFileTask.req(
+                ref_task, branch=-1, branches=()
+            ).create_branch_map()
+        return cls._anaTuple_map_cache
+
     def task_workflow_requires(self):
         input_file_task_complete = InputFileTask.WF_complete(self)
         if not input_file_task_complete:
@@ -336,9 +346,7 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 "inputFile": InputFileTask.req(self, branches=()),
             }
 
-        AnaTuple_map = AnaTupleFileTask.req(
-            self, branch=-1, branches=()
-        ).create_branch_map()
+        AnaTuple_map = self._get_anaTuple_map(self)
         if not isinstance(AnaTuple_map, dict):
             return []
         branch_set = set()
@@ -366,9 +374,7 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         dataset_name, process_group = self.branch_data
         if not InputFileTask.WF_complete(self):
             return []
-        AnaTuple_map = AnaTupleFileTask.req(
-            self, branch=-1, branches=()
-        ).create_branch_map()
+        AnaTuple_map = self._get_anaTuple_map(self)
         branch_set = set()
         for br_idx, (anaTuple_dataset_name, _, _) in AnaTuple_map.items():
             match = dataset_name == anaTuple_dataset_name

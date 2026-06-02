@@ -122,6 +122,11 @@ install() {
     return 0
   fi
 
+  if [[ "${FLAF_NO_INSTALL:-0}" == "1" ]]; then
+    echo "ERROR: $installed_flag not found and FLAF_NO_INSTALL=1"
+    kill -INT $$
+  fi
+
   if [[ $node_os == $target_os ]]; then
     local env_cmd=""
     local env_cmd_args=""
@@ -178,6 +183,10 @@ load_flaf_env() {
   local FLAF_LCG_VERSION="LCG_108a"
   local FLAF_LCG_ARCH="x86_64-el9-gcc15-opt"
   if [[ ! -f "$FLAF_ENVIRONMENT_PATH/.${FLAF_LCG_VERSION}_${FLAF_LCG_ARCH}" ]]; then
+    if [[ "${FLAF_NO_INSTALL:-0}" == "1" ]]; then
+      echo "ERROR: FLAF environment not found at $FLAF_ENVIRONMENT_PATH and FLAF_NO_INSTALL=1"
+      kill -INT $$
+    fi
     if [[ -d "$FLAF_ENVIRONMENT_PATH" ]]; then
       echo "Removing old FLAF environment installation in $FLAF_ENVIRONMENT_PATH ..."
       run_cmd rm -rf "$FLAF_ENVIRONMENT_PATH"
@@ -200,23 +209,26 @@ load_flaf_env() {
   [ -z "$FLAF_COMBINE_VERSION" ] && export FLAF_COMBINE_VERSION="v10.4.2"
   export FLAF_CMSSW_BASE="$ANALYSIS_SOFT_PATH/$FLAF_CMSSW_VERSION"
   export FLAF_CMSSW_ARCH="${target_os_gt_prefix}${FLAF_CMSSW_OS_VERSION}_amd64_${FLAF_CMSSW_COMPILER}"
-  install_cmssw "$env_file" $node_os $target_os $FLAF_CMSSW_ARCH $FLAF_CMSSW_VERSION $FLAF_COMBINE_VERSION
-
   export PYTHONPATH="$ANALYSIS_PATH:$PYTHONPATH"
-  if [ "$FLAF_COMBINE_VERSION" != "none" ]; then
-    local cmb_os_version=9
-    local cmb_os_prefix=$(get_os_prefix $cmb_os_version)
-    local cmb_os=$cmb_os_prefix$cmb_os_version
-    export FLAF_COMBINE_PATH="$FLAF_CMSSW_BASE/src/HiggsAnalysis/CombinedLimit"
-    install_combine "$env_file" $node_os $cmb_os "$FLAF_COMBINE_PATH"
+  # When FLAF_NO_INSTALL=1 (bundle mode) skip CMSSW/combine/inference entirely if
+  # CMSSW is not present in the bundle; tasks that need it declare the cmssw bundle flavour.
+  if [[ "${FLAF_NO_INSTALL:-0}" == "0" ]] || [[ -d "$FLAF_CMSSW_BASE" ]]; then
+    install_cmssw "$env_file" $node_os $target_os $FLAF_CMSSW_ARCH $FLAF_CMSSW_VERSION $FLAF_COMBINE_VERSION
+    if [ "$FLAF_COMBINE_VERSION" != "none" ]; then
+      local cmb_os_version=9
+      local cmb_os_prefix=$(get_os_prefix $cmb_os_version)
+      local cmb_os=$cmb_os_prefix$cmb_os_version
+      export FLAF_COMBINE_PATH="$FLAF_CMSSW_BASE/src/HiggsAnalysis/CombinedLimit"
+      install_combine "$env_file" $node_os $cmb_os "$FLAF_COMBINE_PATH"
 
-    export PATH="$FLAF_COMBINE_PATH/build/bin:$PATH"
-    export LD_LIBRARY_PATH="$FLAF_COMBINE_PATH/build/lib:$LD_LIBRARY_PATH"
-    export PYTHONPATH="$FLAF_COMBINE_PATH/build/python:$PYTHONPATH"
-    if [ -d "$HH_INFERENCE_PATH" ]; then
-      install_inference "$env_file" $node_os $cmb_os $FLAF_COMBINE_VERSION
-      export PYTHONPATH="$HH_INFERENCE_PATH:$PYTHONPATH"
-      source $HH_INFERENCE_PATH/.setups/flaf.sh
+      export PATH="$FLAF_COMBINE_PATH/build/bin:$PATH"
+      export LD_LIBRARY_PATH="$FLAF_COMBINE_PATH/build/lib:$LD_LIBRARY_PATH"
+      export PYTHONPATH="$FLAF_COMBINE_PATH/build/python:$PYTHONPATH"
+      if [ -d "$HH_INFERENCE_PATH" ]; then
+        install_inference "$env_file" $node_os $cmb_os $FLAF_COMBINE_VERSION
+        export PYTHONPATH="$HH_INFERENCE_PATH:$PYTHONPATH"
+        source $HH_INFERENCE_PATH/.setups/flaf.sh
+      fi
     fi
   fi
 
@@ -225,7 +237,7 @@ load_flaf_env() {
     bashcompinit
   fi
 
-  source "$( law completion )"
+  source "$( law completion )" 2>/dev/null
   current_args=( "$@" )
   set --
   source /cvmfs/cms.cern.ch/rucio/setup-py3.sh &> /dev/null

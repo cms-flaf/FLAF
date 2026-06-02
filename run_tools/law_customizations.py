@@ -1,14 +1,17 @@
 import copy
+import importlib
 import law
 import luigi
 import math
 import os
 import re
+import shutil
+import subprocess
 import tempfile
 
 from FLAF.RunKit.run_tools import natural_sort
 from FLAF.RunKit.crabLaw import update_kinit
-from FLAF.RunKit.law_wlcg import WLCGFileTarget, WLCGDirectoryTarget
+from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget, WLCGDirectoryTarget
 from FLAF.Common.Setup import Setup
 
 law.contrib.load("htcondor")
@@ -225,6 +228,143 @@ class Task(law.Task):
         )
 
 
+class BundleTask(Task):
+    flavour = luigi.Parameter(
+        description="bundle flavour (core, cmssw, inputFileList, AnaTupleFileList)"
+    )
+
+    def requires(self):
+        bundle_cfg = self.global_params.get("bundles", {}).get(self.flavour, {})
+        task_req_cfg = bundle_cfg.get("task_requires")
+        if task_req_cfg is None:
+            return {}
+        mod = importlib.import_module(task_req_cfg["module"])
+        task_cls = getattr(mod, task_req_cfg["class"])
+        return {"source": task_cls.req(self, branches=())}
+
+    def output(self):
+        return self.remote_target(
+            self.version, "bundles", self.period, f"{self.flavour}.tar.bz2"
+        )
+
+    def run(self):
+        bundle_cfg = self.global_params.get("bundles", {}).get(self.flavour)
+        if not bundle_cfg:
+            raise RuntimeError(
+                f"Bundle flavour '{self.flavour}' not configured in bundles section of global.yaml"
+            )
+
+        patterns = bundle_cfg.get("patterns", [])
+        ana_path = os.getenv("ANALYSIS_PATH")
+
+        formatted_patterns = [
+            p.format(version=self.version, period=self.period) for p in patterns
+        ]
+
+        include_args = []
+        for pattern in formatted_patterns:
+            full_path = os.path.join(ana_path, pattern)
+            if os.path.exists(full_path):
+                include_args.append(f"./{pattern}")
+            else:
+                print(
+                    f"bundle[{self.flavour}]: warning: '{pattern}' not found, skipping"
+                )
+
+        if not include_args:
+            raise RuntimeError(f"No files found for bundle flavour '{self.flavour}'")
+
+        os.makedirs(self.local_path(), exist_ok=True)
+
+        print(f"bundle[{self.flavour}]: creating archive from {ana_path}")
+        with self.output().localize("w") as tmp:
+            subprocess.run(
+                [
+                    "tar",
+                    "--exclude=*/__pycache__",
+                    "--exclude=*.pyc",
+                    "--exclude=*.pyo",
+                    "-cjf",
+                    tmp.abspath,
+                    "-C",
+                    ana_path,
+                ]
+                + include_args,
+                check=True,
+            )
+        print(f"bundle[{self.flavour}]: done")
+
+
+class CERNHTCondorJobFileFactory(law.htcondor.HTCondorJobFileFactory):
+    """HTCondor job file factory that stages transfer_input_files to EOS and uses protocol URLs.
+
+    When config._worker_files_remote_dir is set (a WLCGDirectoryTarget), every file listed in
+    transfer_input_files is uploaded to that remote directory and its path in the JDL is replaced
+    with the corresponding remote URL.  This lets CERN HTCondor fetch input files from EOS via the
+    protocol layer instead of trying to read /eos POSIX paths, which the batch system does not
+    support.
+    """
+
+    def create(self, **kwargs):
+        worker_files_dir = kwargs.get("_worker_files_remote_dir")
+        job_file, c = super().create(**kwargs)
+        self._stage_and_update_jdl(job_file, worker_files_dir)
+        return job_file, c
+
+    @staticmethod
+    def _stage_and_update_jdl(job_file, worker_files_dir=None):
+        with open(job_file) as f:
+            content = f.read()
+
+        lines = content.split("\n")
+        new_lines = []
+        updated = False
+
+        for line in lines:
+            line_key = line.lower().split("=")[0].strip() if "=" in line else ""
+
+            if line_key == "transfer_input_files" and worker_files_dir is not None:
+                key, _, value = line.partition(" = ")
+                value = value.strip()
+                quoted = value.startswith('"') and value.endswith('"')
+                if quoted:
+                    value = value[1:-1]
+                local_paths = [p.strip() for p in value.split(",") if p.strip()]
+                remote_urls = []
+                for local_path in local_paths:
+                    if "://" in local_path:
+                        remote_urls.append(local_path)
+                        continue
+                    basename = os.path.basename(local_path)
+                    remote_file = worker_files_dir.child(basename, type="f")
+                    if not remote_file.exists():
+                        print(f"worker_files: uploading {basename}")
+                        remote_file.copy_from_local(local_path)
+                    remote_urls.append(remote_file.uri())
+                line = f'{key} = {",".join(remote_urls)}'
+                updated = True
+
+            elif line_key == "initialdir":
+                updated = True
+                continue
+
+            elif line_key == "x509userproxy":
+                key, _, proxy_path = line.partition(" = ")
+                proxy_path = proxy_path.strip()
+                if "://" not in proxy_path and not proxy_path.startswith("/tmp/"):
+                    tmp_proxy = f"/tmp/{os.environ.get('USER', 'law')}_voms.proxy"
+                    shutil.copy2(proxy_path, tmp_proxy)
+                    os.chmod(tmp_proxy, 0o600)
+                    line = f"{key} = {tmp_proxy}"
+                    updated = True
+
+            new_lines.append(line)
+
+        if updated:
+            with open(job_file, "w") as f:
+                f.write("\n".join(new_lines))
+
+
 class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     """
     Batch systems are typically very heterogeneous by design, and so is HTCondor. Law does not aim
@@ -251,6 +391,38 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         default=0,
         description="job priority among your HTCondor jobs. Accepted values from -20 (lowest) to 20 (highest). Default 0.",
     )
+    bundle = luigi.BoolParameter(
+        default=False,
+        significant=False,
+        description="download pre-built bundle archives on workers instead of accessing AFS; "
+        "tasks declare which flavours they need via bundle_flavours",
+    )
+    htcondor_spool = luigi.BoolParameter(
+        default=True,
+        significant=False,
+        description="pass -spool to condor_submit so input files (including the x509 proxy) are "
+        "read locally on the submit host and transferred to the schedd, avoiding any "
+        "shared-filesystem dependency for the proxy path",
+    )
+
+    htcondor_job_kwargs_submit = [
+        "htcondor_pool",
+        "htcondor_scheduler",
+        "htcondor_spool",
+    ]
+    bundle_flavours = []
+
+    def task_workflow_requires(self):
+        return {}
+
+    def workflow_requires(self):
+        reqs = self.task_workflow_requires()
+        if self.bundle and self.bundle_flavours:
+            reqs = dict(reqs)
+            reqs["bundles"] = [
+                BundleTask.req(self, flavour=f) for f in self.bundle_flavours
+            ]
+        return reqs
 
     def htcondor_check_job_completeness(self):
         return False
@@ -263,24 +435,36 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         # the directory where submission meta data should be stored
         return law.LocalDirectoryTarget(self.local_path())
 
-    # def htcondor_log_directory(self):
-    #     # the directory where HTCondor should store job logs, it can be the same as the output directory
-    #     path = ("logs",) + self.store_parts()
-    #     return self.remote_dir_target(*path)
+    def htcondor_log_directory(self):
+        return None
+
+    def htcondor_stageout_file(self):
+        return os.path.join(
+            os.getenv("ANALYSIS_PATH"), "FLAF", "run_tools", "stageout_logs.sh"
+        )
 
     def htcondor_bootstrap_file(self):
         # each job can define a bootstrap file that is executed prior to the actual job
         # in order to setup software and environment variables
         return os.path.join(os.getenv("ANALYSIS_PATH"), "FLAF", "bootstrap.sh")
 
+    def htcondor_job_file_factory_cls(self):
+        return CERNHTCondorJobFileFactory
+
     def htcondor_job_config(self, config, job_num, branches):
         ana_path = os.getenv("ANALYSIS_PATH")
-        # render_variables are rendered into all files sent with a job
-        config.render_variables["analysis_path"] = ana_path
+        # When using bundles, set analysis_path to NONE so the worker cannot
+        # accidentally fall back to the original AFS path.  The bootstrap will
+        # detect this and fail loudly if bundle_list is somehow empty.
+        if self.bundle and self.bundle_flavours:
+            config.render_variables["analysis_path"] = "NONE"
+        else:
+            config.render_variables["analysis_path"] = ana_path
 
-        # token server for rate-limiting job starts to avoid AFS overload
+        # token server for rate-limiting job starts to avoid AFS overload.
+        # Not needed in bundle mode: workers never touch AFS, so there is no load concern.
         runTokenServer = self.global_params.get("runTokenServer", None)
-        if runTokenServer:
+        if runTokenServer and not (self.bundle and self.bundle_flavours):
             config.render_variables["run_token_server_host"] = runTokenServer["host"]
             config.render_variables["run_token_server_port"] = str(
                 runTokenServer["port"]
@@ -304,6 +488,50 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         )
         config.custom_content.append(("RequestCpus", self.n_cpus))
         config.custom_content.append(("priority", self.priority))
+
+        # Forward the x509 proxy so HTCondor can delegate credentials to the execution node.
+        proxy_path = os.environ.get("X509_USER_PROXY", "")
+        if proxy_path and os.path.isfile(proxy_path):
+            config.custom_content.append(("x509userproxy", proxy_path))
+
+        # Expose the per-job postfix so the stageout script can build the log filename dynamically.
+        config.custom_content.append(
+            ("environment", '"LAW_HTCONDOR_JOB_POSTFIX=$(law_job_postfix)"')
+        )
+
+        # Redirect the log file HTCondor transfer to /dev/null so the sandbox
+        # copy is discarded rather than written to AFS.
+        config.output_files["stdall.txt"] = "/dev/null"
+
+        # Compute the remote destination directory for the stageout script.
+        log_remote_base_url = ""
+        if isinstance(self.fs_default, WLCGFileSystem):
+            log_remote_base_url = self.remote_dir_target(
+                self.version, "logs", self.__class__.__name__, self.period
+            ).uri()
+        config.render_variables["log_remote_base_url"] = log_remote_base_url
+
+        # bundle: build a space-separated list of "flavour:url" pairs for bootstrap.sh.
+        if self.bundle and self.bundle_flavours:
+            if not isinstance(self.fs_default, WLCGFileSystem):
+                raise RuntimeError(
+                    "--bundle requires fs_default to be a remote filesystem (davs://, root://, …)"
+                )
+            bundle_parts = []
+            for flavour in self.bundle_flavours:
+                bundle_url = self.remote_target(
+                    self.version, "bundles", self.period, f"{flavour}.tar.bz2"
+                ).uri()
+                bundle_parts.append(f"{flavour}:{bundle_url}")
+            config.render_variables["bundle_list"] = " ".join(bundle_parts)
+
+            if not self.htcondor_spool:
+                config._worker_files_remote_dir = self.remote_dir_target(
+                    self.version, "worker_files", self.period
+                )
+        else:
+            config.render_variables["bundle_list"] = ""
+
         return config
 
     def htcondor_job_file(self):

@@ -281,6 +281,7 @@ class BundleTask(Task):
             subprocess.run(
                 [
                     "tar",
+                    "--dereference",
                     "--exclude=*/__pycache__",
                     "--exclude=*.pyc",
                     "--exclude=*.pyo",

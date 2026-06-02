@@ -121,7 +121,13 @@ class InputFileTask(Task, law.LocalWorkflow):
 class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 40.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
-    bundle_flavours = ["core", "inputFileList", "cmssw"]
+
+    @property
+    def bundle_flavours(self):
+        flavours = ["core", "inputFileList"]
+        if self.global_params.get("use_cmssw_env_AnaTupleProduction", False):
+            flavours.append("cmssw")
+        return flavours
 
     def task_workflow_requires(self):
         return {

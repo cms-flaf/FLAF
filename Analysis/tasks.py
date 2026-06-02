@@ -796,7 +796,17 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     producer_to_run = luigi.Parameter()
-    bundle_flavours = ["core", "AnaTupleFileList"]
+
+    @property
+    def bundle_flavours(self):
+        flavours = ["core", "AnaTupleFileList"]
+        if (
+            self.global_params.get("payload_producers", {})
+            .get(self.producer_to_run, {})
+            .get("cmssw_env", False)
+        ):
+            flavours.append("cmssw")
+        return flavours
 
     # Need to override this from HTCondorWorkflow to have separate data pathways for different cache tasks
     def htcondor_output_directory(self):

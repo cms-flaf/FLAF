@@ -261,38 +261,50 @@ class BundleTask(Task):
             p.format(version=self.version, period=self.period) for p in patterns
         ]
 
-        include_args = []
-        for pattern in formatted_patterns:
-            full_path = os.path.join(ana_path, pattern)
-            if os.path.exists(full_path):
-                include_args.append(f"./{pattern}")
-            else:
-                print(
-                    f"bundle[{self.flavour}]: warning: '{pattern}' not found, skipping"
-                )
-
-        if not include_args:
-            raise RuntimeError(f"No files found for bundle flavour '{self.flavour}'")
-
         os.makedirs(self.local_path(), exist_ok=True)
 
         print(f"bundle[{self.flavour}]: creating archive from {ana_path}")
         with self.output().localize("w") as tmp:
-            subprocess.run(
-                [
-                    "tar",
-                    "--dereference",
-                    "--exclude=*/__pycache__",
-                    "--exclude=*.pyc",
-                    "--exclude=*.pyo",
-                    "-cjf",
-                    tmp.abspath,
-                    "-C",
-                    ana_path,
-                ]
-                + include_args,
-                check=True,
-            )
+            with tempfile.TemporaryDirectory() as staging:
+                found_any = False
+                for pattern in formatted_patterns:
+                    full_path = os.path.join(ana_path, pattern)
+                    # Resolve top-level symlinks so the staging copy uses real content,
+                    # but symlinks *within* the directory are preserved as symlinks.
+                    # This prevents --dereference from following CVMFS symlinks inside flaf_env.
+                    real_path = os.path.realpath(full_path)
+                    if not os.path.exists(real_path):
+                        print(
+                            f"bundle[{self.flavour}]: warning: '{pattern}' not found, skipping"
+                        )
+                        continue
+                    found_any = True
+                    dest = os.path.join(staging, pattern)
+                    os.makedirs(os.path.dirname(dest), exist_ok=True)
+                    if os.path.isdir(real_path):
+                        shutil.copytree(real_path, dest, symlinks=True)
+                    else:
+                        shutil.copy2(real_path, dest)
+
+                if not found_any:
+                    raise RuntimeError(
+                        f"No files found for bundle flavour '{self.flavour}'"
+                    )
+
+                subprocess.run(
+                    [
+                        "tar",
+                        "--exclude=*/__pycache__",
+                        "--exclude=*.pyc",
+                        "--exclude=*.pyo",
+                        "-cjf",
+                        tmp.abspath,
+                        "-C",
+                        staging,
+                        ".",
+                    ],
+                    check=True,
+                )
         print(f"bundle[{self.flavour}]: done")
 
 

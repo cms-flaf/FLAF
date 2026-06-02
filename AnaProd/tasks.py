@@ -385,16 +385,12 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if match:
                 branch_set.add(br_idx)
 
-        reqs = [
-            AnaTupleFileTask.req(
-                self,
-                max_runtime=AnaTupleFileTask.max_runtime._default,
-                branch=prod_br,
-                branches=(prod_br,),
-            )
-            for prod_br in tuple(branch_set)
-        ]
-        return reqs
+        return AnaTupleFileTask.req(
+            self,
+            max_runtime=AnaTupleFileTask.max_runtime._default,
+            n_cpus=AnaTupleFileTask.n_cpus._default,
+            branches=tuple(branch_set),
+        )
 
     def create_branch_map(self):
         branches = {}

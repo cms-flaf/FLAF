@@ -425,17 +425,14 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     ]
     bundle_flavours = []
 
-    def task_workflow_requires(self):
-        return {}
-
     def workflow_requires(self):
-        reqs = self.task_workflow_requires()
         if self.bundle and self.bundle_flavours:
-            reqs = dict(reqs)
-            reqs["bundles"] = [
-                BundleTask.req(self, flavour=f) for f in self.bundle_flavours
-            ]
-        return reqs
+            return {
+                "bundles": [
+                    BundleTask.req(self, flavour=f) for f in self.bundle_flavours
+                ]
+            }
+        return {}
 
     def htcondor_check_job_completeness(self):
         return False

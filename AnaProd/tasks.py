@@ -353,7 +353,7 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             return reqs
 
         if not isinstance(self._get_anaTuple_map(self), dict):
-            return []
+            return reqs
         branch_set = set()
         for idx, (dataset_name, process_group) in self.branch_map.items():
             branch_set |= self._get_branch_set_for_dataset(dataset_name, process_group)

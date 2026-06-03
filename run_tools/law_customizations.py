@@ -509,10 +509,6 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
             ("environment", '"LAW_HTCONDOR_JOB_POSTFIX=$(law_job_postfix)"')
         )
 
-        # Redirect the log file HTCondor transfer to /dev/null so the sandbox
-        # copy is discarded rather than written to AFS.
-        config.output_files["stdall.txt"] = "/dev/null"
-
         # Compute the remote destination directory for the stageout script.
         log_remote_base_url = ""
         if isinstance(self.fs_default, WLCGFileSystem):
@@ -520,6 +516,12 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
                 self.version, "logs", self.__class__.__name__, self.period
             ).uri()
         config.render_variables["log_remote_base_url"] = log_remote_base_url
+
+        # Redirect the sandbox log copy to /dev/null only when stageout will
+        # actually upload it; otherwise keep the file so HTCondor transfers it
+        # back to the submit node for local debugging.
+        if log_remote_base_url:
+            config.output_files["stdall.txt"] = "/dev/null"
 
         # bundle: build a space-separated list of "flavour:url" pairs for bootstrap.sh.
         if self.bundle and self.bundle_flavours:

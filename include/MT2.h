@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Lester_mt2_bisect.h"
-#include <cmath>
 
 // implementation as LLR and as article
 namespace analysis {

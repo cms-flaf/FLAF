@@ -353,7 +353,7 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             return reqs
 
         if not isinstance(self._get_anaTuple_map(self), dict):
-            return reqs
+            return []
         branch_set = set()
         for idx, (dataset_name, process_group) in self.branch_map.items():
             branch_set |= self._get_branch_set_for_dataset(dataset_name, process_group)
@@ -380,9 +380,19 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return branch_set
 
     def requires(self):
-        # workflow_requires() ensures all AnaTupleFileTask outputs are complete
-        # before any branch runs, so no per-branch scheduling overhead is needed.
-        return []
+        dataset_name, process_group = self.branch_data
+        if not InputFileTask.WF_complete(self):
+            return []
+        branch_set = self._get_branch_set_for_dataset(dataset_name, process_group)
+        return [
+            AnaTupleFileTask.req(
+                self,
+                max_runtime=AnaTupleFileTask.max_runtime._default,
+                branch=prod_br,
+                branches=(prod_br,),
+            )
+            for prod_br in tuple(branch_set)
+        ]
 
     def create_branch_map(self):
         branches = {}
@@ -420,19 +430,9 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         with contextlib.ExitStack() as stack:
 
             print("Localizing inputs")
-            branch_set = self._get_branch_set_for_dataset(dataset_name, process_group)
             local_inputs = [
-                stack.enter_context(
-                    AnaTupleFileTask.req(
-                        self,
-                        max_runtime=AnaTupleFileTask.max_runtime._default,
-                        branch=prod_br,
-                        branches=(prod_br,),
-                    )
-                    .output()["report"]
-                    .localize("r")
-                ).abspath
-                for prod_br in sorted(branch_set)
+                stack.enter_context(inp["report"].localize("r")).abspath
+                for inp in self.input()
             ]
             print(f"Localized {len(local_inputs)} inputs")
 

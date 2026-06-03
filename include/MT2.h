@@ -51,24 +51,4 @@ namespace analysis {
         return MT2;
     }
 
-        // Safe wrapper that validates inputs before calling the MT2 routine.
-        // Returns the sentinel value -100.0 when inputs are not finite.
-        template <typename LVector1, typename LVector2, typename LVector3>
-        double Calculate_MT2_safe(const LVector1 &visible1,
-                                  const LVector2 &visible2,
-                                  const LVector3 &invisible,
-                                  const double massHypo1,
-                                  const double massHypo2) {
-            auto finite = [](double x) { return std::isfinite(x); };
-            if (!finite(visible1.mass()) || !finite(visible1.px()) || !finite(visible1.py()))
-                return -100.;
-            if (!finite(visible2.mass()) || !finite(visible2.px()) || !finite(visible2.py()))
-                return -100.;
-            if (!finite(invisible.px()) || !finite(invisible.py()))
-                return -100.;
-            if (!finite(massHypo1) || !finite(massHypo2))
-                return -100.;
-            return Calculate_MT2_func(visible1, visible2, invisible, massHypo1, massHypo2);
-        }
-
 }  // namespace analysis

@@ -200,7 +200,10 @@ if __name__ == "__main__":
     parser.add_argument("--compute_rel_weights", type=bool, default=False)
     parser.add_argument("--furtherCut", type=str, default=None)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
+    parser.add_argument("--nMT", type=int, default=8)
     args = parser.parse_args()
+
+    ROOT.EnableImplicitMT(args.nMT)
 
     start = time.time()
 

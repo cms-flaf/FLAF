@@ -523,6 +523,10 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self.ana_path(), "FLAF", "Analysis", "HistProducerFromNTuple.py"
         )
         input_list_remote_target = [inp for inp in self.input()[0]]
+        nMT = f"{self.n_cpus * 2}" if self.effective_workflow == "htcondor" else "8"
+        print(
+            f"Running HistFromNtupleProducer for dataset {dataset_name} on workflow {self.effective_workflow} with nMT={nMT}"
+        )
         with contextlib.ExitStack() as stack:
             local_inputs = [
                 stack.enter_context((inp).localize("r")).abspath
@@ -547,6 +551,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 dataset_name,
                 "--LAWrunVersion",
                 self.version,
+                "--nMT",
+                nMT,
             ]
             if compute_unc_histograms:
                 HistFromNtupleProducer_cmd.extend(

@@ -122,10 +122,17 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 40.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
 
+    @property
+    def bundle_flavours(self):
+        flavours = ["core", "inputFileList"]
+        if self.global_params.get("use_cmssw_env_AnaTupleProduction", False):
+            flavours.append("cmssw")
+        return flavours
+
     def workflow_requires(self):
-        return {
-            "inputFile": InputFileTask.req(self, branches=()),
-        }
+        reqs = super().workflow_requires()
+        reqs["inputFile"] = InputFileTask.req(self, branches=())
+        return reqs
 
     def requires(self):
         return []
@@ -325,46 +332,42 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 24.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
+    bundle_flavours = ["core", "inputFileList"]
+
+    _anaTuple_map_cache = None
+
+    @classmethod
+    def _get_anaTuple_map(cls, ref_task):
+        if cls._anaTuple_map_cache is None:
+            cls._anaTuple_map_cache = AnaTupleFileTask.req(
+                ref_task, branch=-1, branches=()
+            ).create_branch_map()
+        return cls._anaTuple_map_cache
 
     def workflow_requires(self):
+        reqs = super().workflow_requires()
         input_file_task_complete = InputFileTask.WF_complete(self)
         if not input_file_task_complete:
-            return {
-                "anaTuple": AnaTupleFileTask.req(self, branches=()),
-                "inputFile": InputFileTask.req(self, branches=()),
-            }
+            reqs["anaTuple"] = AnaTupleFileTask.req(self, branches=())
+            reqs["inputFile"] = InputFileTask.req(self, branches=())
+            return reqs
 
-        AnaTuple_map = AnaTupleFileTask.req(
-            self, branch=-1, branches=()
-        ).create_branch_map()
+        if not isinstance(self._get_anaTuple_map(self), dict):
+            return reqs
         branch_set = set()
         for idx, (dataset_name, process_group) in self.branch_map.items():
-            for br_idx, (anaTuple_dataset_name, _, _) in AnaTuple_map.items():
-                match = dataset_name == anaTuple_dataset_name
-                if not match and process_group == "data":
-                    anaTuple_dataset = self.datasets[anaTuple_dataset_name]
-                    anaTuple_process_group = anaTuple_dataset["process_group"]
-                    match = anaTuple_process_group == "data"
-                if match:
-                    branch_set.add(br_idx)
+            branch_set |= self._get_branch_set_for_dataset(dataset_name, process_group)
 
-        deps = {
-            "AnaTupleFileTask": AnaTupleFileTask.req(
-                self,
-                branches=tuple(branch_set),
-                max_runtime=AnaTupleFileTask.max_runtime._default,
-                n_cpus=AnaTupleFileTask.n_cpus._default,
-            )
-        }
-        return deps
+        reqs["AnaTupleFileTask"] = AnaTupleFileTask.req(
+            self,
+            branches=tuple(branch_set),
+            max_runtime=AnaTupleFileTask.max_runtime._default,
+            n_cpus=AnaTupleFileTask.n_cpus._default,
+        )
+        return reqs
 
-    def requires(self):
-        dataset_name, process_group = self.branch_data
-        if not InputFileTask.WF_complete(self):
-            return []
-        AnaTuple_map = AnaTupleFileTask.req(
-            self, branch=-1, branches=()
-        ).create_branch_map()
+    def _get_branch_set_for_dataset(self, dataset_name, process_group):
+        AnaTuple_map = self._get_anaTuple_map(self)
         branch_set = set()
         for br_idx, (anaTuple_dataset_name, _, _) in AnaTuple_map.items():
             match = dataset_name == anaTuple_dataset_name
@@ -374,8 +377,14 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 match = anaTuple_process_group == "data"
             if match:
                 branch_set.add(br_idx)
+        return branch_set
 
-        reqs = [
+    def requires(self):
+        dataset_name, process_group = self.branch_data
+        if not InputFileTask.WF_complete(self):
+            return []
+        branch_set = self._get_branch_set_for_dataset(dataset_name, process_group)
+        return [
             AnaTupleFileTask.req(
                 self,
                 max_runtime=AnaTupleFileTask.max_runtime._default,
@@ -384,7 +393,6 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
             for prod_br in tuple(branch_set)
         ]
-        return reqs
 
     def create_branch_map(self):
         branches = {}
@@ -466,8 +474,16 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
 
 class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
+    bundle_flavours = []
+
+    def __init__(self, *args, **kwargs):
+        kwargs["workflow"] = "local"
+        super(AnaTupleFileListTask, self).__init__(*args, **kwargs)
+
     def workflow_requires(self):
-        return {"AnaTupleFileListBuilderTask": AnaTupleFileListBuilderTask.req(self)}
+        reqs = super().workflow_requires()
+        reqs["AnaTupleFileListBuilderTask"] = AnaTupleFileListBuilderTask.req(self)
+        return reqs
 
     def requires(self):
         return AnaTupleFileListBuilderTask.req(self)
@@ -486,20 +502,21 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 48.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     delete_inputs_after_merge = luigi.BoolParameter(default=False)
+    bundle_flavours = ["core", "inputFileList", "AnaTupleFileList"]
 
     def workflow_requires(self):
+        reqs = super().workflow_requires()
         merge_organization_complete = AnaTupleFileListTask.req(
             self, branches=()
         ).complete()
         if not merge_organization_complete:
-            return {
-                "AnaTupleFileListTask": AnaTupleFileListTask.req(
-                    self,
-                    branches=(),
-                    max_runtime=AnaTupleFileListTask.max_runtime._default,
-                    n_cpus=AnaTupleFileListTask.n_cpus._default,
-                ),
-            }
+            reqs["AnaTupleFileListTask"] = AnaTupleFileListTask.req(
+                self,
+                branches=(),
+                max_runtime=AnaTupleFileListTask.max_runtime._default,
+                n_cpus=AnaTupleFileListTask.n_cpus._default,
+            )
+            return reqs
 
         branch_set = set()
         for _, (
@@ -515,14 +532,13 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             branch_set.add(ds_branch)
             branch_set.update(dataset_dependencies.values())
 
-        return {
-            "AnaTupleFileListTask": AnaTupleFileListTask.req(
-                self,
-                branches=tuple(branch_set),
-                max_runtime=AnaTupleFileListTask.max_runtime._default,
-                n_cpus=AnaTupleFileListTask.n_cpus._default,
-            )
-        }
+        reqs["AnaTupleFileListTask"] = AnaTupleFileListTask.req(
+            self,
+            branches=tuple(branch_set),
+            max_runtime=AnaTupleFileListTask.max_runtime._default,
+            n_cpus=AnaTupleFileListTask.n_cpus._default,
+        )
+        return reqs
 
     def requires(self):
         # Need both the AnaTupleFileTask for the input ROOT file, and the AnaTupleFileListTask for the json structure
@@ -542,6 +558,8 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self, branch=-1, branches=()
         ).create_branch_map()
         required_branches = {"root": {}}
+        if not isinstance(anaTuple_branch_map, dict):
+            return required_branches
         for prod_br, (
             anaTuple_dataset_name,
             anaTuple_input_file,

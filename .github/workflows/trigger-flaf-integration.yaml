@@ -51,6 +51,27 @@ jobs:
           FLAF_INTEGRATION_TOKEN: ${{ secrets.FLAF_INTEGRATION_TOKEN }}
         with:
           script: |
+            function parsePullRequestUrl(entry) {
+              const match = entry.match(/^[-*]\s+https:\/\/github\.com\/[^/]+\/([^/]+)\/pull\/(\d+)\/?$/);
+              if (!match) return null;
+              return {
+                repo: match[1],
+                prNumber: match[2],
+              };
+            }
+
+            function normalizeVersionValue(key, value) {
+              if (!key.endsWith('_version')) return value;
+
+              const prValueMatch = value.match(/^PR_(\d+)$/);
+              if (prValueMatch) return `PR_${prValueMatch[1]}`;
+
+              const parsedUrl = parsePullRequestUrl(`- ${value}`);
+              if (parsedUrl) return `PR_${parsedUrl.prNumber}`;
+
+              return value;
+            }
+
             const prNumber = context.payload.issue?.pull_request ? context.payload.issue.number : null;
             if (!prNumber) {
               console.log('Not a PR event. Skipping.');
@@ -122,6 +143,7 @@ jobs:
             var variables = cfg["variables"];
             let packages = Object.keys(variables).filter(key => key.endsWith('_version')).map(key => key.slice(0, -8));
             let rootPackages = Object.keys(variables).filter(key => key.endsWith('_active')).map(key => key.slice(0, -7));
+            let gitlabBranch = cfg["gitlab_branch"];
 
             if(repo != "FLAF" && !rootPackages.includes(repo) && !packages.includes(repo)) {
               console.log(`Repository ${repo} is neither FLAF, a root package, nor a known package. Skipping.`);
@@ -134,12 +156,27 @@ jobs:
               var entry = relevantLines[i];
               var parsed = false;
               if(entry.startsWith('- ') || entry.startsWith('* ')) {
+                const parsedUrl = parsePullRequestUrl(entry);
+                if (parsedUrl) {
+                  const key = `${parsedUrl.repo}_version`;
+                  if (key in variables) {
+                    variables[key] = `PR_${parsedUrl.prNumber}`;
+                    parsed = true;
+                  } else {
+                    console.log(`Unknown repository in PR URL: ${parsedUrl.repo}`);
+                  }
+                }
+              }
+              if(!parsed && (entry.startsWith('- ') || entry.startsWith('* '))) {
                 var parts = entry.substring(2).split('=');
                 if(parts.length == 2) {
                   var key = parts[0].trim();
                   var value = parts[1].trim();
-                  if(key in variables) {
-                    variables[key] = value;
+                  if(key == 'gitlab_branch' || key == 'gitlab_ref') {
+                    gitlabBranch = value;
+                    parsed = true;
+                  } else if(key in variables) {
+                    variables[key] = normalizeVersionValue(key, value);
                     parsed = true;
                   } else {
                     console.log(`Unknown variable: ${key}`);

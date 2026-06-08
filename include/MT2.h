@@ -49,6 +49,14 @@ namespace analysis {
         double MT2 = asymm_mt2_lester_bisect::get_mT2(mVisA, pxA, pyA, mVisB, pxB, pyB, pxMiss, pyMiss, chiA, chiB, 0);
         return MT2;
     }
+    struct MT2Result {
+        double mt2;
+        double pxInvisible1;
+        double pyInvisible1;
+        double pxInvisible2;
+        double pyInvisible2;
+    };
+
     // Returns MT2 plus the invisible momentum splitting that achieves it.
     // ben_findsols scans the tangent-ellipse boundary to recover (px,py) of each invisible particle.
     template <typename LVector1, typename LVector2, typename LVector3>

@@ -51,13 +51,25 @@ jobs:
           FLAF_INTEGRATION_TOKEN: ${{ secrets.FLAF_INTEGRATION_TOKEN }}
         with:
           script: |
-            function parsePullRequestUrl(entry) {
-              const match = entry.match(/^[-*]\s+https:\/\/github\.com\/[^/]+\/([^/]+)\/pull\/(\d+)\/?$/);
-              if (!match) return null;
-              return {
-                repo: match[1],
-                prNumber: match[2],
-              };
+            function parseGitHubVersionUrl(entry) {
+              const normalizedEntry = entry.trim();
+              const pullMatch = normalizedEntry.match(/^[-*]\s+https:\/\/github\.com\/[^/]+\/([^/]+)\/pull\/(\d+)\/?$/);
+              if (pullMatch) {
+                return {
+                  repo: pullMatch[1],
+                  version: `PR_${pullMatch[2]}`,
+                };
+              }
+
+              const treeMatch = normalizedEntry.match(/^[-*]\s+https:\/\/github\.com\/[^/]+\/([^/]+)\/tree\/(.+?)\/?$/);
+              if (treeMatch) {
+                return {
+                  repo: treeMatch[1],
+                  version: decodeURIComponent(treeMatch[2].replace(/\/$/, '')),
+                };
+              }
+
+              return null;
             }
 
             function normalizeVersionValue(key, value) {
@@ -66,8 +78,8 @@ jobs:
               const prValueMatch = value.match(/^PR_(\d+)$/);
               if (prValueMatch) return `PR_${prValueMatch[1]}`;
 
-              const parsedUrl = parsePullRequestUrl(`- ${value}`);
-              if (parsedUrl) return `PR_${parsedUrl.prNumber}`;
+              const parsedUrl = parseGitHubVersionUrl(`- ${value}`);
+              if (parsedUrl) return parsedUrl.version;
 
               return value;
             }
@@ -156,14 +168,14 @@ jobs:
               var entry = relevantLines[i];
               var parsed = false;
               if(entry.startsWith('- ') || entry.startsWith('* ')) {
-                const parsedUrl = parsePullRequestUrl(entry);
+                const parsedUrl = parseGitHubVersionUrl(entry);
                 if (parsedUrl) {
                   const key = `${parsedUrl.repo}_version`;
                   if (key in variables) {
-                    variables[key] = `PR_${parsedUrl.prNumber}`;
+                    variables[key] = parsedUrl.version;
                     parsed = true;
                   } else {
-                    console.log(`Unknown repository in PR URL: ${parsedUrl.repo}`);
+                    console.log(`Unknown repository in GitHub URL: ${parsedUrl.repo}`);
                   }
                 }
               }

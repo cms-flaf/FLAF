@@ -148,7 +148,7 @@ jobs:
             -d '{"body": "${{ steps.trigger_flaf_integration_pipeline.outputs.message }}"}'
 
       - name: React with thumbs down on failure to start pipeline
-        if: ${{ always() && steps.parse_comment.outputs.command_recognized == 'true' && steps.trigger_flaf_integration_pipeline.outputs.send_message != 'true' }}
+        if: ${{ always() && steps.parse_comment.outputs.bot_mentioned == 'true' && steps.trigger_flaf_integration_pipeline.outputs.send_message != 'true' }}
         uses: actions/github-script@v6
         with:
           script: |

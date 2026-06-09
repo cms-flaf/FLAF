@@ -1,4 +1,8 @@
 module.exports = async ({ github, context, core, process, require }) => {
+  function mentionsBot(message) {
+    return /@cms-flaf-bot|\[@cms-flaf-bot\]\(https:\/\/github\.com\/cms-flaf-bot\)/.test(message);
+  }
+
   function parseGitHubVersionUrl(entry) {
     const normalizedEntry = entry.trim();
     const pullMatch = normalizedEntry.match(/^[-*]\s+https:\/\/github\.com\/[^/]+\/([^/]+)\/pull\/(\d+)\/?$/);
@@ -43,6 +47,7 @@ module.exports = async ({ github, context, core, process, require }) => {
 
   const commentBody = context.payload.comment.body;
   const commentAuthor = context.payload.comment.user.login;
+  core.setOutput('bot_mentioned', mentionsBot(commentBody) ? 'true' : 'false');
 
   console.log(`Comment body: ${commentBody}`);
   console.log(`Comment author: ${commentAuthor}`);
@@ -50,7 +55,7 @@ module.exports = async ({ github, context, core, process, require }) => {
   const commentBodyLines = commentBody.split('\n');
   const relevantLines = [];
   for (const lineRaw of commentBodyLines) {
-    const line = lineRaw.trim().replaceAll('\\', '');
+    const line = lineRaw.trim().replace(/\\/g, '');
     if (!line || line.startsWith('#') || line.startsWith('<!--') || line.startsWith('```')) {
       continue;
     }

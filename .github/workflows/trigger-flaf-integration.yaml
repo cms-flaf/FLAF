@@ -31,20 +31,42 @@ jobs:
         if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}
         uses: actions/checkout@v4
 
-      - name: Checkout shared FLAF workflow repository
-        if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}
-        uses: actions/checkout@v4
-        with:
-          repository: cms-flaf/FLAF
-          ref: main
-          path: _shared_flaf_workflow
-
       - name: Checkout PR branch
         if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh pr checkout ${{ github.event.issue.number }}
+
+      - name: Detect workflow override files
+        if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}
+        id: detect_workflow_files
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const workflowFiles = new Set([
+              '.github/workflows/trigger-flaf-integration.yaml',
+              '.github/scripts/trigger-flaf-integration-parse.js',
+              '.github/scripts/trigger-flaf-integration-trigger.js',
+            ]);
+            const modifiedFiles = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.payload.issue.number,
+            });
+            const useLocalWorkflowCode =
+              context.repo.repo === 'FLAF' &&
+              modifiedFiles.some(file => workflowFiles.has(file.filename));
+            core.setOutput('use_local_workflow_code', useLocalWorkflowCode ? 'true' : 'false');
+            core.setOutput('needs_shared_workflow_repo', useLocalWorkflowCode ? 'false' : 'true');
+
+      - name: Checkout shared FLAF workflow repository
+        if: ${{ steps.get_pr_number.outputs.is_pr == 'true' && steps.detect_workflow_files.outputs.needs_shared_workflow_repo == 'true' }}
+        uses: actions/checkout@v4
+        with:
+          repository: cms-flaf/FLAF
+          ref: main
+          path: _shared_flaf_workflow
 
       - name: Install js-yaml
         if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}
@@ -57,6 +79,7 @@ jobs:
         env:
           CONFIG_PATH: .github/integration_cfg.yaml
           SHARED_WORKFLOW_PATH: _shared_flaf_workflow
+          USE_LOCAL_WORKFLOW_CODE: ${{ steps.detect_workflow_files.outputs.use_local_workflow_code }}
         with:
           script: |
             const fs = require('fs');
@@ -64,7 +87,8 @@ jobs:
 
             const localScriptPath = path.join(process.env.GITHUB_WORKSPACE, '.github', 'scripts', 'trigger-flaf-integration-parse.js');
             const sharedScriptPath = path.join(process.env.GITHUB_WORKSPACE, process.env.SHARED_WORKFLOW_PATH, '.github', 'scripts', 'trigger-flaf-integration-parse.js');
-            const scriptPath = fs.existsSync(localScriptPath) ? localScriptPath : sharedScriptPath;
+            const useLocalWorkflowCode = process.env.USE_LOCAL_WORKFLOW_CODE === 'true';
+            const scriptPath = useLocalWorkflowCode && fs.existsSync(localScriptPath) ? localScriptPath : sharedScriptPath;
 
             console.log(`Using parse script: ${scriptPath}`);
             const run = require(scriptPath);
@@ -80,6 +104,7 @@ jobs:
           GITLAB_URL: ${{ steps.parse_comment.outputs.gitlab_url }}
           GITLAB_BRANCH: ${{ steps.parse_comment.outputs.gitlab_branch }}
           SHARED_WORKFLOW_PATH: _shared_flaf_workflow
+          USE_LOCAL_WORKFLOW_CODE: ${{ steps.detect_workflow_files.outputs.use_local_workflow_code }}
         with:
           script: |
             const fs = require('fs');
@@ -87,7 +112,8 @@ jobs:
 
             const localScriptPath = path.join(process.env.GITHUB_WORKSPACE, '.github', 'scripts', 'trigger-flaf-integration-trigger.js');
             const sharedScriptPath = path.join(process.env.GITHUB_WORKSPACE, process.env.SHARED_WORKFLOW_PATH, '.github', 'scripts', 'trigger-flaf-integration-trigger.js');
-            const scriptPath = fs.existsSync(localScriptPath) ? localScriptPath : sharedScriptPath;
+            const useLocalWorkflowCode = process.env.USE_LOCAL_WORKFLOW_CODE === 'true';
+            const scriptPath = useLocalWorkflowCode && fs.existsSync(localScriptPath) ? localScriptPath : sharedScriptPath;
 
             console.log(`Using trigger script: ${scriptPath}`);
             const run = require(scriptPath);

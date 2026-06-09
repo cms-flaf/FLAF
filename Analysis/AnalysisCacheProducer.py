@@ -69,21 +69,21 @@ def run_producer(
         n_orig = n_orig.GetValue()
         if n_orig == 0:
             print(f"No events to process. Create a fake tree with correct columns.")
-            # Make fake tree with just the right columns but no events to avoid crashing later on
-            with uproot.recreate(outFileName, compression=uprootCompression) as outfile:
-                empty_array = np.array([], dtype=np.float32)
-                empty_full_event_id = np.array([], dtype=np.int64)
-                data_dict = {"FullEventId": empty_full_event_id}
-                for col in expected_columns:
-                    if col != "FullEventId":
-                        data_dict[col] = empty_array
-
-                if save_as == "root":
+            if save_as == "root":
+                # Make fake tree with just the right columns but no events to avoid crashing later on
+                with uproot.recreate(
+                    outFileName, compression=uprootCompression
+                ) as outfile:
+                    empty_array = np.array([], dtype=np.float32)
+                    empty_full_event_id = np.array([], dtype=np.int64)
+                    data_dict = {"FullEventId": empty_full_event_id}
+                    for col in expected_columns:
+                        if col != "FullEventId":
+                            data_dict[col] = empty_array
                     outfile[treeName] = data_dict
-                elif save_as == "json":
-                    final_dict = {}
-                    with open(outFileName, "w") as f:
-                        json.dump(final_dict, f, indent=4)
+            elif save_as == "json":
+                with open(outFileName, "w") as f:
+                    json.dump({}, f, indent=4)
             return
         final_array = None
         final_dict = None

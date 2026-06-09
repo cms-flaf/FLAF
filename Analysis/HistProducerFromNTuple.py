@@ -198,6 +198,7 @@ if __name__ == "__main__":
     parser.add_argument("--furtherCut", type=str, default=None)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
     parser.add_argument("--nMT", type=int, default=8)
+    parser.add_argument("--user-custom", type=str, default=None)
     args = parser.parse_args()
 
     ROOT.EnableImplicitMT(args.nMT)
@@ -209,6 +210,7 @@ if __name__ == "__main__":
         args.period,
         args.LAWrunVersion,
         customisations=args.customisations,
+        user_custom_file=args.user_custom,
     )
     unc_cfg_dict = setup.weights_config
     analysis_import = setup.global_params["analysis_import"]

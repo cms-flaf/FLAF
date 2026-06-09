@@ -395,6 +395,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 )
             if self.customisations:
                 HistTupleProducer_cmd.extend([f"--customisations", self.customisations])
+            if self.user_custom:
+                HistTupleProducer_cmd.extend(["--user-custom", self.user_custom])
             if len(producer_list) > 0:
                 local_anacaches = {}
                 for producer_name, cache_file in self.input()["anaCaches"].items():
@@ -639,6 +641,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     )
                 if self.customisations:
                     cmd.extend(["--customisations", self.customisations])
+                if self.user_custom:
+                    cmd.extend(["--user-custom", self.user_custom])
                 cmd.extend(curr["files"])
                 ps_call(cmd, verbose=1)
 

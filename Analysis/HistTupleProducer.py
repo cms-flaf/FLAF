@@ -221,6 +221,7 @@ if __name__ == "__main__":
     parser.add_argument("--nEvents", type=int, default=None)
     parser.add_argument("--evtIds", type=str, default=None)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
+    parser.add_argument("--user-custom", type=str, default=None)
 
     args = parser.parse_args()
     startTime = time.time()
@@ -229,7 +230,10 @@ if __name__ == "__main__":
     ROOT.gROOT.ProcessLine('#include "include/Utilities.h"')
 
     setup = Setup.getGlobal(
-        os.environ["ANALYSIS_PATH"], args.period, args.LAWrunVersion
+        os.environ["ANALYSIS_PATH"],
+        args.period,
+        args.LAWrunVersion,
+        user_custom_file=args.user_custom,
     )
 
     setup.global_params["channels_to_consider"] = (

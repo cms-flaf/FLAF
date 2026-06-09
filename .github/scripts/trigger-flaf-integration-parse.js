@@ -82,6 +82,7 @@ module.exports = async ({ github, context, core, process, require }) => {
     console.log('Comment is not a cms-flaf-bot command. Skipping.');
     return;
   }
+  core.setOutput('command_recognized', 'true');
 
   const modifiedFiles = await github.paginate(github.rest.pulls.listFiles, {
     owner: context.repo.owner,

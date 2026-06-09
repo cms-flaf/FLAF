@@ -150,7 +150,10 @@ jobs:
       - name: React with thumbs down on failure to start pipeline
         if: ${{ always() && steps.parse_comment.outputs.bot_mentioned == 'true' && steps.trigger_flaf_integration_pipeline.outputs.send_message != 'true' }}
         uses: actions/github-script@v6
+        env:
+          FLAF_GITHUB_TOKEN: ${{ secrets.FLAF_GITHUB_TOKEN }}
         with:
+          github-token: ${{ secrets.FLAF_GITHUB_TOKEN }}
           script: |
             await github.rest.reactions.createForIssueComment({
               owner: context.repo.owner,

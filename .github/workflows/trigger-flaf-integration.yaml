@@ -19,7 +19,7 @@ jobs:
         uses: actions/github-script@v6
         with:
           script: |
-            const prNumber = context.payload.issue?.pull_request ? context.payload.issue.number : null;
+            const prNumber = context.payload.issue && context.payload.issue.pull_request ? context.payload.issue.number : null;
             if (!prNumber) {
               console.log('Not a PR event. Skipping.');
               core.setOutput('is_pr', 'false');
@@ -30,6 +30,14 @@ jobs:
       - name: Checkout repository
         if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}
         uses: actions/checkout@v4
+
+      - name: Checkout shared FLAF workflow repository
+        if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}
+        uses: actions/checkout@v4
+        with:
+          repository: cms-flaf/FLAF
+          ref: main
+          path: _shared_flaf_workflow
 
       - name: Checkout PR branch
         if: ${{ steps.get_pr_number.outputs.is_pr == 'true' }}
@@ -48,187 +56,19 @@ jobs:
         uses: actions/github-script@v6
         env:
           CONFIG_PATH: .github/integration_cfg.yaml
-          FLAF_INTEGRATION_TOKEN: ${{ secrets.FLAF_INTEGRATION_TOKEN }}
+          SHARED_WORKFLOW_PATH: _shared_flaf_workflow
         with:
           script: |
-            function parseGitHubVersionUrl(entry) {
-              const normalizedEntry = entry.trim();
-              const pullMatch = normalizedEntry.match(/^[-*]\s+https:\/\/github\.com\/[^/]+\/([^/]+)\/pull\/(\d+)\/?$/);
-              if (pullMatch) {
-                return {
-                  repo: pullMatch[1],
-                  version: `PR_${pullMatch[2]}`,
-                };
-              }
-
-              const treeMatch = normalizedEntry.match(/^[-*]\s+https:\/\/github\.com\/[^/]+\/([^/]+)\/tree\/(.+?)\/?$/);
-              if (treeMatch) {
-                return {
-                  repo: treeMatch[1],
-                  version: decodeURIComponent(treeMatch[2].replace(/\/$/, '')),
-                };
-              }
-
-              return null;
-            }
-
-            function normalizeVersionValue(key, value) {
-              if (!key.endsWith('_version')) return value;
-
-              const prValueMatch = value.match(/^PR_(\d+)$/);
-              if (prValueMatch) return `PR_${prValueMatch[1]}`;
-
-              const parsedUrl = parseGitHubVersionUrl(`- ${value}`);
-              if (parsedUrl) return parsedUrl.version;
-
-              return value;
-            }
-
-            const prNumber = context.payload.issue?.pull_request ? context.payload.issue.number : null;
-            if (!prNumber) {
-              console.log('Not a PR event. Skipping.');
-              return;
-            }
-
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-
-            const commentBody = context.payload.comment.body;
-            const commentAuthor = context.payload.comment.user.login;
-
-            console.log(`Comment body: ${commentBody}`);
-            console.log(`Comment author: ${commentAuthor}`);
-
-            const commentBodyLines = commentBody.split('\n');
-            var relevantLines = [];
-            for (const line_raw of commentBodyLines) {
-              let line = line_raw.trim().replaceAll('\\', '');
-              if (!line || line.length == 0 || line.startsWith('#') || line.startsWith('<!--')
-                  || line.startsWith('```')) continue;
-              relevantLines.push(line);
-            }
-
-            if(relevantLines.length == 0) {
-              console.log('Comment is empty. Skipping.');
-              return;
-            }
-
             const fs = require('fs');
-            const yaml = require('js-yaml');
-            cfgFile = fs.readFileSync(process.env.CONFIG_PATH, 'utf8');
-            const cfg = yaml.load(cfgFile);
-            console.log(`Loaded configuration: ${JSON.stringify(cfg)}`);
+            const path = require('path');
 
-            const commentHeader = relevantLines[0];
-            const expectedHeaders = cfg["expected_headers"];
-            let isCommandHeader = false;
-            for (const expectedHeader of expectedHeaders) {
-              if (commentHeader.startsWith(expectedHeader)) {
-                isCommandHeader = true;
-                break;
-              }
-            }
+            const localScriptPath = path.join(process.env.GITHUB_WORKSPACE, '.github', 'scripts', 'trigger-flaf-integration-parse.js');
+            const sharedScriptPath = path.join(process.env.GITHUB_WORKSPACE, process.env.SHARED_WORKFLOW_PATH, '.github', 'scripts', 'trigger-flaf-integration-parse.js');
+            const scriptPath = fs.existsSync(localScriptPath) ? localScriptPath : sharedScriptPath;
 
-            if (!isCommandHeader) {
-              console.log('Comment is not a cms-flaf-bot command. Skipping.');
-              return;
-            }
-
-            const modifiedFiles = await github.paginate(github.rest.pulls.listFiles, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: prNumber,
-            });
-
-            let authorizedUsers = cfg["authorized_users"];
-            let githubAreaModified = modifiedFiles.some(file => file.filename.startsWith('.github/'));
-            if (githubAreaModified) {
-              const rootUser = "kandrosov";
-              authorizedUsers = [ rootUser ];
-              console.log(`.github area is modified. Only ${rootUser} is authorized to trigger the pipeline.`);
-            }
-            if (!authorizedUsers.includes(commentAuthor)) {
-              console.log(`User ${commentAuthor} is not authorized to trigger the pipeline. Skipping.`);
-              return;
-            }
-
-            var variables = cfg["variables"];
-            let packages = Object.keys(variables).filter(key => key.endsWith('_version')).map(key => key.slice(0, -8));
-            let rootPackages = Object.keys(variables).filter(key => key.endsWith('_active')).map(key => key.slice(0, -7));
-            let gitlabBranch = cfg["gitlab_branch"];
-
-            if(repo != "FLAF" && !rootPackages.includes(repo) && !packages.includes(repo)) {
-              console.log(`Repository ${repo} is neither FLAF, a root package, nor a known package. Skipping.`);
-              return;
-            }
-            variables[`${repo}_version`] = `PR_${prNumber}`;
-
-            var all_ok = true;
-            for(let i = 1; i < relevantLines.length; i++) {
-              var entry = relevantLines[i];
-              var parsed = false;
-              if(entry.startsWith('- ') || entry.startsWith('* ')) {
-                const parsedUrl = parseGitHubVersionUrl(entry);
-                if (parsedUrl) {
-                  const key = `${parsedUrl.repo}_version`;
-                  if (key in variables) {
-                    variables[key] = parsedUrl.version;
-                    parsed = true;
-                  } else {
-                    console.log(`Unknown repository in GitHub URL: ${parsedUrl.repo}`);
-                  }
-                }
-              }
-              if(!parsed && (entry.startsWith('- ') || entry.startsWith('* '))) {
-                var parts = entry.substring(2).split('=');
-                if(parts.length == 2) {
-                  var key = parts[0].trim();
-                  var value = parts[1].trim();
-                  if(key == 'gitlab_branch' || key == 'gitlab_ref') {
-                    gitlabBranch = value;
-                    parsed = true;
-                  } else if(key in variables) {
-                    variables[key] = normalizeVersionValue(key, value);
-                    parsed = true;
-                  } else {
-                    console.log(`Unknown variable: ${key}`);
-                  }
-                }
-              }
-              if(!parsed) {
-                console.log(`Invalid entry: ${entry}`);
-                all_ok = false;
-                break;
-              }
-            }
-
-            if(!all_ok) {
-              console.log('Invalid comment format. Skipping.');
-              return;
-            }
-
-            console.log('Comment parsed.');
-
-            let workflowNameItems = [];
-            let sortedRootPackages = [...rootPackages].sort();
-            for (let pkg of sortedRootPackages) {
-              if (variables[`${pkg}_active`] === '1') {
-                workflowNameItems.push(`${pkg}=${variables[`${pkg}_version`]}`);
-              }
-            }
-            let sortedPackages = [...packages].sort();
-            for (let pkg of sortedPackages) {
-              if (!rootPackages.includes(pkg)) {
-                workflowNameItems.push(`${pkg}=${variables[`${pkg}_version`]}`);
-              }
-            }
-            variables['WORKFLOW_NAME'] = workflowNameItems.join(' ');
-            variables['github_notify_url'] = `https://api.github.com/repos/${owner}/${repo}/issues/${prNumber}/comments`;
-
-            core.setOutput("gitlab_url", cfg["gitlab_url"]);
-            core.setOutput("gitlab_branch", cfg["gitlab_branch"]);
-            core.setOutput("variables", JSON.stringify(variables));
-            core.setOutput("trigger_pipeline", "true");
+            console.log(`Using parse script: ${scriptPath}`);
+            const run = require(scriptPath);
+            await run({ github, context, core, process, require });
 
       - name: Trigger FLAF integration pipeline
         if: ${{ steps.parse_comment.outputs.trigger_pipeline == 'true' }}
@@ -239,51 +79,19 @@ jobs:
           VARIABLES: ${{ steps.parse_comment.outputs.variables }}
           GITLAB_URL: ${{ steps.parse_comment.outputs.gitlab_url }}
           GITLAB_BRANCH: ${{ steps.parse_comment.outputs.gitlab_branch }}
+          SHARED_WORKFLOW_PATH: _shared_flaf_workflow
         with:
           script: |
-            const variables = JSON.parse(process.env.VARIABLES);
+            const fs = require('fs');
+            const path = require('path');
 
-            let data = {
-              'token': '****',
-              'ref': process.env.GITLAB_BRANCH
-            };
-            for (const [key, value] of Object.entries(variables)) {
-              data[`variables[${key}]`] = value;
-            }
+            const localScriptPath = path.join(process.env.GITHUB_WORKSPACE, '.github', 'scripts', 'trigger-flaf-integration-trigger.js');
+            const sharedScriptPath = path.join(process.env.GITHUB_WORKSPACE, process.env.SHARED_WORKFLOW_PATH, '.github', 'scripts', 'trigger-flaf-integration-trigger.js');
+            const scriptPath = fs.existsSync(localScriptPath) ? localScriptPath : sharedScriptPath;
 
-            console.log("Triggering the FLAF integration pipeline with the following data:");
-            for (let key in data) {
-              console.log(`\t${key}: ${data[key]}`);
-            }
-
-            data['token'] = process.env.FLAF_INTEGRATION_TOKEN;
-            let formData = new URLSearchParams();
-            for (let key in data) {
-              formData.append(key, data[key]);
-            }
-
-            const response = await fetch(process.env.GITLAB_URL, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-              body: formData
-            });
-
-            if (response.status === 201) {
-              console.log("Pipeline triggered successfully.");
-              const responseData = await response.json();
-              console.log(responseData);
-
-              pipelineId = responseData['id'];
-              pipelineUrl = responseData['web_url']
-              message = `[pipeline#${pipelineId}](${pipelineUrl}) started`;
-              core.setOutput('send_message', 'true');
-              core.setOutput('message', message);
-            } else {
-              console.log(`Failed to trigger pipeline: ${response.status}`);
-              const responseText = await response.text();
-              console.log(responseText);
-              throw new Error(`Failed to trigger pipeline: ${response.status} - ${responseText}`);
-            }
+            console.log(`Using trigger script: ${scriptPath}`);
+            const run = require(scriptPath);
+            await run({ core, process, fetch, JSON, URLSearchParams, console });
 
       - name: Post comment
         if: ${{ steps.trigger_flaf_integration_pipeline.outputs.send_message == 'true' }}

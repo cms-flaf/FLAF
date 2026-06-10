@@ -432,7 +432,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         all_vars = self.global_params["variables"]
         if not self.variables:
             return all_vars
-        selected = set(self.variables.split(","))
+        selected = {v.strip() for v in self.variables.split(",") if v.strip()}
         result = [
             v for v in all_vars if (v["name"] if isinstance(v, dict) else v) in selected
         ]
@@ -611,53 +611,54 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             chunk_dir = os.path.join(job_home, "chunks", str(ci))
             os.makedirs(chunk_dir, exist_ok=True)
 
-            for var_batch in var_batches:
-                cmd = [
-                    "python3",
-                    HistFromNtupleProducer,
-                    "--period",
-                    self.period,
-                    "--outDir",
-                    chunk_dir,
-                    "--channels",
-                    channels,
-                    "--vars",
-                    ",".join(var_batch),
-                    "--dataset_name",
-                    dataset_name,
-                    "--LAWrunVersion",
-                    self.version,
-                    "--nMT",
-                    str(nMT),
-                ]
-                if compute_unc_histograms:
-                    cmd.extend(
-                        [
-                            "--compute_rel_weights",
-                            "True",
-                            "--compute_unc_variations",
-                            "True",
-                        ]
-                    )
-                if self.customisations:
-                    cmd.extend(["--customisations", self.customisations])
-                if self.user_custom:
-                    cmd.extend(["--user-custom", self.user_custom])
-                cmd.extend(curr["files"])
-                ps_call(cmd, verbose=1)
+            try:
+                for var_batch in var_batches:
+                    cmd = [
+                        "python3",
+                        HistFromNtupleProducer,
+                        "--period",
+                        self.period,
+                        "--outDir",
+                        chunk_dir,
+                        "--channels",
+                        channels,
+                        "--vars",
+                        ",".join(var_batch),
+                        "--dataset_name",
+                        dataset_name,
+                        "--LAWrunVersion",
+                        self.version,
+                        "--nMT",
+                        str(nMT),
+                    ]
+                    if compute_unc_histograms:
+                        cmd.extend(
+                            [
+                                "--compute_rel_weights",
+                                "True",
+                                "--compute_unc_variations",
+                                "True",
+                            ]
+                        )
+                    if self.customisations:
+                        cmd.extend(["--customisations", self.customisations])
+                    if self.user_custom:
+                        cmd.extend(["--user-custom", self.user_custom])
+                    cmd.extend(curr["files"])
+                    ps_call(cmd, verbose=1)
 
-            for var in vars_to_run:
-                chunk_outputs[var].append(os.path.join(chunk_dir, f"{var}.root"))
+                for var in vars_to_run:
+                    chunk_outputs[var].append(os.path.join(chunk_dir, f"{var}.root"))
+            finally:
+                # Release local copies of the current chunk and join the
+                # background download thread even if processing raised.
+                curr["stack"].close()
+                if nxt_thread is not None:
+                    nxt_thread.join()
 
-            # Release local copies of the current chunk to free disk space.
-            curr["stack"].close()
-
-            # Wait for the next chunk download before continuing.
-            if nxt_thread is not None:
-                nxt_thread.join()
-                if "error" in nxt:
-                    raise nxt["error"]
-                curr = nxt
+            if "error" in nxt:
+                raise nxt["error"]
+            curr = nxt
 
         # Merge per-chunk outputs per variable and upload.
         for var in vars_to_run:
@@ -687,7 +688,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         all_vars = self.global_params["variables"]
         if not self.variables:
             return all_vars
-        selected = set(self.variables.split(","))
+        selected = {v.strip() for v in self.variables.split(",") if v.strip()}
         result = [
             v for v in all_vars if (v["name"] if isinstance(v, dict) else v) in selected
         ]
@@ -722,7 +723,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             new_branchset.update(hfn_br_list)
 
         reqs["HistFromNtupleProducerTask"] = HistFromNtupleProducerTask.req(
-            self, branches=list(new_branchset)
+            self, branches=sorted(new_branchset)
         )
         return reqs
 
@@ -1157,7 +1158,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         all_vars = self.global_params["variables"]
         if not self.variables:
             return all_vars
-        selected = set(self.variables.split(","))
+        selected = {v.strip() for v in self.variables.split(",") if v.strip()}
         result = [
             v for v in all_vars if (v["name"] if isinstance(v, dict) else v) in selected
         ]

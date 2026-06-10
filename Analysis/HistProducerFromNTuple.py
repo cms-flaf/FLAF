@@ -273,7 +273,7 @@ if __name__ == "__main__":
             )
     print(uncs_to_compute)
 
-    vars_to_process = [v.strip() for v in args.vars.split(",")]
+    vars_to_process = [v.strip() for v in args.vars.split(",") if v.strip()]
     os.makedirs(args.outDir, exist_ok=True)
 
     if all_trees:

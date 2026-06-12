@@ -581,7 +581,9 @@ class _BundleAwareHTCondorWorkflowProxy(law.htcondor.HTCondorWorkflowProxy):
             if cfg is None:
                 continue
             rvars = getattr(cfg, "render_variables", {}) or {}
-            base = rvars.get("log_remote_base_url", "") if isinstance(rvars, dict) else ""
+            base = (
+                rvars.get("log_remote_base_url", "") if isinstance(rvars, dict) else ""
+            )
             if base:
                 log = data.get("log")
                 if log:

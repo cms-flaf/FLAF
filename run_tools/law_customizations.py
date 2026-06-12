@@ -571,7 +571,14 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
 # bundle runs instead of the local AFS path under ANALYSIS_DATA_PATH.
 # The basename computation (stdall, stdall_Cluster_Proc, or stdall<postfix>) is
 # the same one used by stageout_logs.sh, so the URI will match the uploaded file.
-class _BundleAwareHTCondorWorkflowProxy(law.htcondor.HTCondorWorkflowProxy):
+#
+# Use the stable extension point: obtain the base proxy class from whatever
+# the current law version has configured on HTCondorWorkflow.workflow_proxy_cls.
+
+BundleAwareHTCondorWorkflowProxyBase = HTCondorWorkflow.workflow_proxy_cls
+
+
+class _BundleAwareHTCondorWorkflowProxy(BundleAwareHTCondorWorkflowProxyBase):
     def _submit_group(self, *args, **kwargs):
         job_ids, submission_data = super()._submit_group(*args, **kwargs)
         for job_num, data in list(submission_data.items()):

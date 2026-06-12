@@ -563,3 +563,34 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
                 f.write(content)
             os.chmod(custom, 0o755)
         return JobInputFile(path=custom, copy=True, share=True, render_job=True)
+
+
+# Custom proxy subclass so that the "log" location recorded in job submission data
+# (used by law for "first log file: ..." messages at submit time, stored job json,
+# and "task failed" diagnostics) points at the *remote* staged logs location for
+# bundle runs instead of the local AFS path under ANALYSIS_DATA_PATH.
+# The basename computation (stdall, stdall_Cluster_Proc, or stdall<postfix>) is
+# the same one used by stageout_logs.sh, so the URI will match the uploaded file.
+class _BundleAwareHTCondorWorkflowProxy(law.htcondor.HTCondorWorkflowProxy):
+    def _submit_group(self, *args, **kwargs):
+        job_ids, submission_data = super()._submit_group(*args, **kwargs)
+        for job_num, data in list(submission_data.items()):
+            if isinstance(job_num, Exception) or not isinstance(data, dict):
+                continue
+            cfg = data.get("config")
+            if cfg is None:
+                continue
+            rvars = getattr(cfg, "render_variables", {}) or {}
+            base = rvars.get("log_remote_base_url", "") if isinstance(rvars, dict) else ""
+            if base:
+                log = data.get("log")
+                if log:
+                    basename = os.path.basename(str(log))
+                    remote_log = base.rstrip("/") + "/" + basename
+                    data = dict(data)
+                    data["log"] = remote_log
+                    submission_data[job_num] = data
+        return job_ids, submission_data
+
+
+HTCondorWorkflow.workflow_proxy_cls = _BundleAwareHTCondorWorkflowProxy

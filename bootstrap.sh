@@ -105,6 +105,16 @@ action() {
             echo "ERROR: analysis_path is NONE but no bundle_list was provided"
             return 1
         fi
+
+        # Forward FLAF_PATH / CORRECTIONS_PATH from the submit side so this (non-bundle)
+        # job uses the same FLAF / Corrections as the submitter — the submodule copies in
+        # production, or the edited top-level copies in a FLAF_all workspace when the dev
+        # overlay (flaf_dev.sh) was active. env.sh respects them when set (and defaults to
+        # the submodule copies otherwise), so this is transparent in production.
+        local flaf_path="{{flaf_path}}"
+        local corrections_path="{{corrections_path}}"
+        [ -n "${flaf_path}" ] && export FLAF_PATH="${flaf_path}"
+        [ -n "${corrections_path}" ] && export CORRECTIONS_PATH="${corrections_path}"
         source "${analysis_path}/env.sh"
     fi
 }

@@ -21,12 +21,17 @@ from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
-    bundle_flavours = ["core", "AnaTupleFileList"]
+
+    @property
+    def bundle_flavours(self):
+        fl = AnaTupleFileListTask.req(self, branches=())
+        return ["core", ("AnaTupleFileList", fl.version)]
 
     def workflow_requires(self):
         reqs = super().workflow_requires()
         merge_organization_complete = AnaTupleFileListTask.req(
-            self, branches=()
+            self,
+            branches=(),
         ).complete()
         if not merge_organization_complete:
             req_dict = {
@@ -141,6 +146,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         dataset_name, prod_br, producer_list, aggregate_list, input_index = (
             self.branch_data
         )
+        # subs take care of their version; forward ana params, no version=
         deps = {
             "anaTuple": AnaTupleMergeTask.req(
                 self,
@@ -212,8 +218,12 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         n = 0
         branches = {}
         anaProd_branch_map = AnaTupleMergeTask.req(
-            self, branch=-1, branches=()
+            self,
+            branch=-1,
+            branches=(),
         ).create_branch_map()
+        if not isinstance(anaProd_branch_map, dict):
+            anaProd_branch_map = {}
 
         datasets_to_consider = [
             key
@@ -419,12 +429,17 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 10.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
-    bundle_flavours = ["core", "AnaTupleFileList"]
+
+    @property
+    def bundle_flavours(self):
+        fl = AnaTupleFileListTask.req(self, branches=())
+        return ["core", ("AnaTupleFileList", fl.version)]
 
     def workflow_requires(self):
         reqs = super().workflow_requires()
         merge_organization_complete = AnaTupleFileListTask.req(
-            self, branches=()
+            self,
+            branches=(),
         ).complete()
         if not merge_organization_complete:
             reqs["AnaTupleFileListTask"] = AnaTupleFileListTask.req(
@@ -434,7 +449,9 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 n_cpus=AnaTupleFileListTask.n_cpus._default,
             )
             reqs["HistTupleProducerTask"] = HistTupleProducerTask.req(
-                self, branches=(), customisations=self.customisations
+                self,
+                branches=(),
+                customisations=self.customisations,
             )
             return reqs
         branch_set = set()
@@ -443,7 +460,9 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 branch_set.update(prod_br_list)
         branches = tuple(branch_set)
         reqs["HistTupleProducerTask"] = HistTupleProducerTask.req(
-            self, branches=branches, customisations=self.customisations
+            self,
+            branches=branches,
+            customisations=self.customisations,
         )
         return reqs
 
@@ -463,7 +482,11 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
-        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
+        return AnaTupleFileListTask.req(
+            self,
+            branch=-1,
+            branches=(),
+        ).complete()
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
@@ -590,14 +613,18 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
-    bundle_flavours = ["core", "AnaTupleFileList"]
+
+    @property
+    def bundle_flavours(self):
+        fl = AnaTupleFileListTask.req(self, branches=())
+        return ["core", ("AnaTupleFileList", fl.version)]
 
     def workflow_requires(self):
         reqs = super().workflow_requires()
         branch_map = self.create_branch_map()
-
         merge_organization_complete = AnaTupleFileListTask.req(
-            self, branches=()
+            self,
+            branches=(),
         ).complete()
         if not merge_organization_complete:
             reqs["AnaTupleFileListTask"] = AnaTupleFileListTask.req(
@@ -642,7 +669,11 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
-        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
+        return AnaTupleFileListTask.req(
+            self,
+            branch=-1,
+            branches=(),
+        ).complete()
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
@@ -802,7 +833,8 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @property
     def bundle_flavours(self):
-        flavours = ["core", "AnaTupleFileList"]
+        fl = AnaTupleFileListTask.req(self, branches=())
+        flavours = ["core", ("AnaTupleFileList", fl.version)]
         if (
             self.global_params.get("payload_producers", {})
             .get(self.producer_to_run, {})
@@ -816,6 +848,9 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return law.LocalDirectoryTarget(self.local_path(self.producer_to_run))
 
     def __init__(self, *args, **kwargs):
+        ana_v = kwargs.get("ana_version") or kwargs.get("anaCache_version")
+        if ana_v:
+            kwargs["version"] = ana_v
         # Needed to get the config and ht_condor_pathways figured out
         super(AnalysisCacheTask, self).__init__(*args, **kwargs)
         self.n_cpus = self.global_params["payload_producers"][self.producer_to_run].get(
@@ -831,7 +866,8 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     def workflow_requires(self):
         reqs = super().workflow_requires()
         merge_organization_complete = AnaTupleFileListTask.req(
-            self, branches=()
+            self,
+            branches=(),
         ).complete()
         if not merge_organization_complete:
             req_dict = {
@@ -911,6 +947,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         producer_dependencies = self.global_params["payload_producers"][
             self.producer_to_run
         ]["dependencies"]
+        # version for anaTuple handled inside AnaTupleMergeTask (from ana* copied by req or its per-task CLI); simplify no if/version.
         requirements = {
             "anaTuple": AnaTupleMergeTask.req(
                 self,
@@ -923,7 +960,8 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         if producer_dependencies:
             for dependency in producer_dependencies:
                 anaCaches[dependency] = AnalysisCacheTask.req(
-                    self, producer_to_run=dependency
+                    self,
+                    producer_to_run=dependency,
                 )
         requirements["anaCaches"] = anaCaches
 
@@ -931,7 +969,11 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
-        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
+        return AnaTupleFileListTask.req(
+            self,
+            branch=-1,
+            branches=(),
+        ).complete()
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
@@ -1060,17 +1102,25 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
-    bundle_flavours = ["core", "AnaTupleFileList"]
+
+    @property
+    def bundle_flavours(self):
+        fl = AnaTupleFileListTask.req(self, branches=())
+        return ["core", ("AnaTupleFileList", fl.version)]
 
     def workflow_requires(self):
         reqs = super().workflow_requires()
         merge_organization_complete = AnaTupleFileListTask.req(
-            self, branches=()
+            self,
+            branches=(),
         ).complete()
         if not merge_organization_complete:
             reqs["HistMergerTask"] = HistMergerTask.req(
-                self, branches=(), customisations=self.customisations
+                self,
+                branches=(),
+                customisations=self.customisations,
             )
+            # rely on req auto-copy for ana* so FileList __init__ manages version; no if/version for org list
             reqs["AnaTupleFileListTask"] = AnaTupleFileListTask.req(
                 self,
                 branches=(),
@@ -1079,7 +1129,10 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
             return reqs
         merge_map = HistMergerTask.req(
-            self, branch=-1, branches=(), customisations=self.customisations
+            self,
+            branch=-1,
+            branches=(),
+            customisations=self.customisations,
         ).create_branch_map()
 
         branch_set = set()
@@ -1099,7 +1152,10 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         var = self.branch_data
 
         merge_map = HistMergerTask.req(
-            self, branch=-1, branches=(), customisations=self.customisations
+            self,
+            branch=-1,
+            branches=(),
+            customisations=self.customisations,
         ).create_branch_map()
         merge_branch = next(br for br, (v, _, _) in merge_map.items() if v == var)
 
@@ -1112,13 +1168,20 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
-        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
+        return AnaTupleFileListTask.req(
+            self,
+            branch=-1,
+            branches=(),
+        ).complete()
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
         branches = {}
         merge_map = HistMergerTask.req(
-            self, branch=-1, branches=(), customisations=self.customisations
+            self,
+            branch=-1,
+            branches=(),
+            customisations=self.customisations,
         ).create_branch_map()
         var_dict = {}
         for var in self.global_params["variables"]:
@@ -1262,19 +1325,31 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     producer_to_aggregate = luigi.Parameter()
-    bundle_flavours = ["core", "AnaTupleFileList"]
+
+    @property
+    def bundle_flavours(self):
+        fl = AnaTupleFileListTask.req(self, branches=())
+        return ["core", ("AnaTupleFileList", fl.version)]
 
     def __init__(self, *args, **kwargs):
+        ana_v = kwargs.get("ana_version") or kwargs.get("anaCache_version")
+        if ana_v:
+            kwargs["version"] = ana_v
         super(AnalysisCacheAggregationTask, self).__init__(*args, **kwargs)
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
-        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
+        return AnaTupleFileListTask.req(
+            self,
+            branch=-1,
+            branches=(),
+        ).complete()
 
     def workflow_requires(self):
         reqs = super().workflow_requires()
         merge_organization_complete = AnaTupleFileListTask.req(
-            self, branches=()
+            self,
+            branches=(),
         ).complete()
         payload_producers = self.global_params["payload_producers"]
         if not merge_organization_complete:
@@ -1339,8 +1414,13 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         payload_producers = self.global_params["payload_producers"]
         producer_cfg = payload_producers[self.producer_to_aggregate]
+        # AnalysisCacheTask manages its version from anaCache_version/ana_version copied by req or per-task CLI.
+        # No version forcing if here.
         producer_cache_branch_map = AnalysisCacheTask.req(
-            self, branch=-1, branches=(), producer_to_run=self.producer_to_aggregate
+            self,
+            branch=-1,
+            branches=(),
+            producer_to_run=self.producer_to_aggregate,
         ).create_branch_map()
 
         # find which branches of this producer correspond to each sample

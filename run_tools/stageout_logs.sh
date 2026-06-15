@@ -44,6 +44,17 @@ if [ -z "${X509_USER_PROXY:-}" ] && [ -f "${LAW_JOB_INIT_DIR}/voms.proxy" ]; the
     export X509_USER_PROXY="${LAW_JOB_INIT_DIR}/voms.proxy"
 fi
 
+# Pre-create the remote parent directory.  Without this, gfal-copy to a path whose
+# parent does not yet exist can create the *leaf* (the log filename) as a directory
+# and place the file inside it, producing ".../stdall_0To1.txt/stdall_0To1.txt".
+# That mismatches the single-file URL recorded for failure reports, so the log
+# appears "missing" at the reported location.  Creating the parent first makes
+# gfal-copy write the file at exactly the intended path.
+GFAL_MKDIR=$(which gfal-mkdir 2>/dev/null)
+if [ -n "${GFAL_MKDIR}" ]; then
+    env -i X509_USER_PROXY="${X509_USER_PROXY}" "${GFAL_MKDIR}" -p "${log_remote_base_url%/}" >/dev/null 2>&1
+fi
+
 local_url="file://$(realpath "${log_path}")"
 echo "stageout_logs: uploading '${log_path}' to '${log_remote_url}'"
 env -i X509_USER_PROXY="${X509_USER_PROXY}" "${GFAL_COPY}" -p -f "${local_url}" "${log_remote_url}"

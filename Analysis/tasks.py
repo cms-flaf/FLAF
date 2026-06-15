@@ -2,8 +2,9 @@ import law
 import os
 import contextlib
 import luigi
+import queue
 import shutil
-import threading
+from concurrent.futures import ThreadPoolExecutor
 
 
 from FLAF.RunKit.run_tools import ps_call
@@ -22,6 +23,8 @@ from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
+    # issue #264: many branches (~nTotalFiles) -> group several per HTCondor job by default.
+    tasks_per_job = copy_param(HTCondorWorkflow.tasks_per_job, 10)
 
     @property
     def bundle_flavours(self):
@@ -432,6 +435,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 10.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
+    # issue #264: many branches (nDatasets x nVariableBatches) -> group per HTCondor job.
+    tasks_per_job = copy_param(HTCondorWorkflow.tasks_per_job, 10)
     variables = luigi.Parameter(default="")
     vars_per_batch = luigi.IntParameter(default=20)
     files_chunk_size = luigi.IntParameter(default=10)
@@ -476,7 +481,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
             return reqs
         branch_set = set()
-        for br_idx, (dataset_name, prod_br_list) in self.branch_map.items():
+        for br_idx, (dataset_name, prod_br_list, var_batch) in self.branch_map.items():
             branch_set.update(prod_br_list)
         branches = tuple(sorted(branch_set))
         reqs["HistTupleProducerTask"] = HistTupleProducerTask.req(
@@ -487,7 +492,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return reqs
 
     def requires(self):
-        dataset_name, prod_br_list = self.branch_data
+        dataset_name, prod_br_list, var_batch = self.branch_data
         return [
             HistTupleProducerTask.req(
                 self,
@@ -524,18 +529,35 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ) in HistTupleBranchMap.items():
             dataset_to_branches.setdefault(histTuple_dataset_name, []).append(prod_br)
 
+        # Variable batching happens here (issue #257): each (dataset, variable-batch)
+        # is its own branch/job, so a job localizes the dataset inputs once and produces
+        # the histograms for just its batch of variables — avoiding the old
+        # (nDatasets x nVariables) re-localization while still parallelizing across
+        # batches. vars_per_batch <= 0 means "all variables in one batch" (one job
+        # per dataset, the extreme of issue #257).
+        all_var_names = [
+            v["name"] if isinstance(v, dict) else v for v in self.active_variables
+        ]
+        batch_size = (
+            self.vars_per_batch if self.vars_per_batch > 0 else len(all_var_names)
+        )
+        var_batches = [
+            all_var_names[i : i + batch_size]
+            for i in range(0, len(all_var_names), max(1, batch_size))
+        ]
+
         for dataset_name, prod_br_list in sorted(dataset_to_branches.items()):
-            branches[n] = (dataset_name, prod_br_list)
-            n += 1
+            for var_batch in var_batches:
+                branches[n] = (dataset_name, sorted(prod_br_list), var_batch)
+                n += 1
 
         return branches
 
     @workflow_condition.output
     def output(self):
-        dataset_name, prod_br_list = self.branch_data
+        dataset_name, prod_br_list, var_batch = self.branch_data
         outputs = {}
-        for var in self.active_variables:
-            var_name = var["name"] if isinstance(var, dict) else var
+        for var_name in var_batch:
             output_path = os.path.join(
                 self.version,
                 "Hists_split",
@@ -547,7 +569,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return outputs
 
     def run(self):
-        dataset_name, prod_br_list = self.branch_data
+        dataset_name, prod_br_list, var_batch = self.branch_data
         job_home, remove_job_home = self.law_job_home()
         customisation_dict = getCustomisationSplit(self.customisations)
         channels = (
@@ -567,133 +589,152 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         )
         nMT = self.n_cpus * 2 if self.effective_workflow == "htcondor" else 8
 
-        # Determine which variables still need to be produced.
-        vars_to_run = [
-            var["name"] if isinstance(var, dict) else var
-            for var in self.active_variables
-            if not self.output()[var["name"] if isinstance(var, dict) else var].exists()
-        ]
+        # Determine which variables of this batch still need to be produced.
+        outputs = self.output()
+        vars_to_run = [v for v in var_batch if not outputs[v].exists()]
         if not vars_to_run:
-            print(f"All outputs already exist for dataset {dataset_name}, skipping")
+            print(
+                f"All outputs already exist for dataset {dataset_name} "
+                f"batch {var_batch}, skipping"
+            )
             if remove_job_home:
                 shutil.rmtree(job_home)
             return
 
-        # Split variables into batches so HistProducerFromNTuple processes
-        # vars_per_batch variables per invocation (limits peak memory usage).
-        batch_size = (
-            self.vars_per_batch if self.vars_per_batch > 0 else len(vars_to_run)
-        )
-        var_batches = [
-            vars_to_run[i : i + batch_size]
-            for i in range(0, len(vars_to_run), batch_size)
-        ]
+        inputs = list(self.input())
+        n_inputs = len(inputs)
 
-        # Split input files into chunks so local disk usage is bounded.
-        # While HistProducerFromNTuple processes chunk N, chunk N+1 is
-        # downloaded in a background thread.
-        all_inputs = self.input()
-        chunk_size = (
-            self.files_chunk_size if self.files_chunk_size > 0 else len(all_inputs)
-        )
-        file_chunks = [
-            all_inputs[i : i + chunk_size]
-            for i in range(0, len(all_inputs), chunk_size)
-        ]
-
-        chunk_outputs = {var: [] for var in vars_to_run}
-
-        def _download(chunk_inputs, result):
-            stack = contextlib.ExitStack()
-            try:
-                result["files"] = [
-                    stack.enter_context(inp.localize("r")).abspath
-                    for inp in chunk_inputs
-                ]
-                result["stack"] = stack
-            except Exception as e:
-                stack.close()
-                result["error"] = e
-
-        # Download the first chunk synchronously before entering the loop.
-        curr = {}
-        _download(file_chunks[0], curr)
-        if "error" in curr:
-            raise curr["error"]
-
-        for ci in range(len(file_chunks)):
-            # Start downloading the next chunk while we process the current one.
-            nxt = {}
-            nxt_thread = None
-            if ci + 1 < len(file_chunks):
-                nxt_thread = threading.Thread(
-                    target=_download, args=(file_chunks[ci + 1], nxt)
-                )
-                nxt_thread.start()
-
-            chunk_dir = os.path.join(job_home, "chunks", str(ci))
-            os.makedirs(chunk_dir, exist_ok=True)
-
-            try:
-                for var_batch in var_batches:
-                    cmd = [
-                        "python3",
-                        HistFromNtupleProducer,
-                        "--period",
-                        self.period,
-                        "--outDir",
-                        chunk_dir,
-                        "--channels",
-                        channels,
-                        "--vars",
-                        ",".join(var_batch),
-                        "--dataset_name",
-                        dataset_name,
-                        "--LAWrunVersion",
-                        self.version,
-                        "--nMT",
-                        str(nMT),
+        def _run_producer(out_dir, files):
+            cmd = [
+                "python3",
+                HistFromNtupleProducer,
+                "--period",
+                self.period,
+                "--outDir",
+                out_dir,
+                "--channels",
+                channels,
+                "--vars",
+                ",".join(vars_to_run),
+                "--dataset_name",
+                dataset_name,
+                "--LAWrunVersion",
+                self.version,
+                "--nMT",
+                str(nMT),
+            ]
+            if compute_unc_histograms:
+                cmd.extend(
+                    [
+                        "--compute_rel_weights",
+                        "True",
+                        "--compute_unc_variations",
+                        "True",
                     ]
-                    if compute_unc_histograms:
-                        cmd.extend(
-                            [
-                                "--compute_rel_weights",
-                                "True",
-                                "--compute_unc_variations",
-                                "True",
-                            ]
-                        )
-                    if self.customisations:
-                        cmd.extend(["--customisations", self.customisations])
-                    if self.user_custom:
-                        cmd.extend(["--user-custom", self.user_custom])
-                    cmd.extend(curr["files"])
-                    ps_call(cmd, verbose=1)
+                )
+            if self.customisations:
+                cmd.extend(["--customisations", self.customisations])
+            if self.user_custom:
+                cmd.extend(["--user-custom", self.user_custom])
+            cmd.extend(files)
+            ps_call(cmd, verbose=1)
 
+        round_outputs = {var: [] for var in vars_to_run}
+
+        # ---- Queue-based download/process pipeline (issue #257 design) ----
+        # A pool of downloader threads localizes ALL input files concurrently and
+        # pushes each ready local path onto `ready_q`. Downloads are never gated by
+        # the consumer, so I/O fully overlaps processing. The (single, since the
+        # producer is itself multi-threaded via nMT) processing loop consumes files
+        # in waves: it starts as soon as `min_ready` files are available, and each
+        # subsequent wave grabs every file downloaded while the previous wave ran.
+        # Each wave produces partial per-variable histograms that are hadd-ed at the
+        # end. (Disk peak is the dataset size, by design: downloading does not stop.)
+        ready_q = queue.Queue()
+        errors = []
+
+        def _download_one(inp):
+            try:
+                stack = contextlib.ExitStack()
+                abspath = stack.enter_context(inp.localize("r")).abspath
+                ready_q.put((abspath, stack))
+            except Exception as e:  # noqa: BLE001 - surfaced to the main thread
+                errors.append(e)
+                ready_q.put(("__error__", None))
+
+        # Bound the number of simultaneous transfers (network politeness) without
+        # ever pausing the overall download progress.
+        max_parallel_dl = (
+            min(self.files_chunk_size, n_inputs)
+            if self.files_chunk_size > 0
+            else n_inputs
+        )
+        max_parallel_dl = max(1, max_parallel_dl)
+        # Minimum files ready before the first processing wave starts.
+        min_ready = max_parallel_dl
+
+        executor = ThreadPoolExecutor(max_workers=max_parallel_dl)
+        for inp in inputs:
+            executor.submit(_download_one, inp)
+
+        try:
+            remaining = n_inputs
+            round_idx = 0
+            while remaining > 0:
+                wave = []
+                # Block until we have the threshold for this wave (capped at what is
+                # left): min_ready for the first wave, at least one afterwards.
+                need = min(min_ready if round_idx == 0 else 1, remaining)
+                while len(wave) < need:
+                    item = ready_q.get()
+                    if item[0] == "__error__":
+                        raise errors[0]
+                    wave.append(item)
+                # Opportunistically take everything else already downloaded.
+                while len(wave) < remaining:
+                    try:
+                        item = ready_q.get_nowait()
+                    except queue.Empty:
+                        break
+                    if item[0] == "__error__":
+                        raise errors[0]
+                    wave.append(item)
+
+                remaining -= len(wave)
+                round_dir = os.path.join(job_home, "rounds", str(round_idx))
+                os.makedirs(round_dir, exist_ok=True)
+                _run_producer(round_dir, [abspath for abspath, _ in wave])
                 for var in vars_to_run:
-                    chunk_outputs[var].append(os.path.join(chunk_dir, f"{var}.root"))
-            finally:
-                # Release local copies of the current chunk and join the
-                # background download thread even if processing raised.
-                curr["stack"].close()
-                if nxt_thread is not None:
-                    nxt_thread.join()
+                    round_outputs[var].append(os.path.join(round_dir, f"{var}.root"))
+                round_idx += 1
+                # Release the local copies of this wave's inputs.
+                for _, stack in wave:
+                    stack.close()
+        finally:
+            executor.shutdown(wait=True)
+            # Drain and release any files that were downloaded after an exception.
+            while True:
+                try:
+                    _, stack = ready_q.get_nowait()
+                except queue.Empty:
+                    break
+                if stack is not None:
+                    stack.close()
 
-            if "error" in nxt:
-                raise nxt["error"]
-            curr = nxt
+        if errors:
+            raise errors[0]
 
-        # Merge per-chunk outputs per variable and upload.
+        # Merge per-wave partial outputs per variable and upload.
         for var in vars_to_run:
-            files = chunk_outputs[var]
+            files = round_outputs[var]
             if len(files) == 1:
-                with self.output()[var].localize("w") as tmp_out:
+                with outputs[var].localize("w") as tmp_out:
                     shutil.move(files[0], tmp_out.abspath)
             else:
                 merged = os.path.join(job_home, f"merged_{var}.root")
                 hadd_cmd = f"hadd -f209 -j -O {merged} " + " ".join(files)
                 ps_call([hadd_cmd], True)
-                with self.output()[var].localize("w") as tmp_out:
+                with outputs[var].localize("w") as tmp_out:
                     shutil.move(merged, tmp_out.abspath)
 
         if remove_job_home:
@@ -781,17 +822,22 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ).create_branch_map()
         if not hfn_branch_map:
             return {}
-        # Each HFN branch covers one dataset and all variables.
-        # Build parallel lists of HFN branch indices and dataset names.
-        hfn_br_indices = []
-        dataset_names = []
-        for br_idx, (dataset_name, _) in sorted(hfn_branch_map.items()):
-            hfn_br_indices.append(br_idx)
-            dataset_names.append(dataset_name)
+        # HFN now branches per (dataset, variable-batch). Map each variable to the HFN
+        # branch (one per dataset) whose batch produced it, so this merger branch only
+        # depends on the HFN jobs that actually wrote its variable.
+        var_to_dataset_branch = {}  # var_name -> {dataset_name: hfn_br_idx}
+        for br_idx, (dataset_name, _prod_br_list, var_batch) in sorted(
+            hfn_branch_map.items()
+        ):
+            for v in var_batch:
+                var_to_dataset_branch.setdefault(v, {})[dataset_name] = br_idx
         # One HistMerger branch per active variable.
         branches = {}
         for k, var in enumerate(self.active_variables):
             var_name = var["name"] if isinstance(var, dict) else var
+            ds_to_br = var_to_dataset_branch.get(var_name, {})
+            dataset_names = sorted(ds_to_br)
+            hfn_br_indices = [ds_to_br[ds] for ds in dataset_names]
             branches[k] = (var_name, hfn_br_indices, dataset_names)
         return branches
 
@@ -919,6 +965,8 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
+    # issue #264: many branches (~nTotalFiles) -> group several per HTCondor job by default.
+    tasks_per_job = copy_param(HTCondorWorkflow.tasks_per_job, 10)
     producer_to_run = luigi.Parameter()
 
     @property
@@ -1430,6 +1478,8 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
+    # issue #264: group several branches per HTCondor job by default.
+    tasks_per_job = copy_param(HTCondorWorkflow.tasks_per_job, 10)
     producer_to_aggregate = luigi.Parameter()
 
     @property

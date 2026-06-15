@@ -164,6 +164,44 @@ module.exports = async ({ github, context, core, process, require }) => {
 
   console.log('Comment parsed.');
 
+  // Resolve the commit SHA for each requested version so the integration test can
+  // detect a stale/broken build area (e.g. a reused cache not updated to the
+  // requested revision). PR_<n> resolves to the PR head; 'default' is skipped.
+  async function resolveExpectedSha(repoName, version) {
+    if (!version || version === 'default') return null;
+    const prMatch = version.match(/^PR_(\d+)$/);
+    try {
+      if (prMatch) {
+        const { data } = await github.rest.pulls.get({
+          owner, repo: repoName, pull_number: Number(prMatch[1]),
+        });
+        return data.head.sha;
+      }
+      const { data } = await github.rest.repos.getCommit({
+        owner, repo: repoName, ref: version,
+      });
+      return data.sha;
+    } catch (err) {
+      console.log(`Failed to resolve SHA for ${repoName}@${version}: ${err.message}`);
+      return null;
+    }
+  }
+
+  const shaPackages = [];
+  for (const pkg of packages) {
+    if (!rootPackages.includes(pkg)) shaPackages.push(pkg);
+  }
+  for (const pkg of rootPackages) {
+    if (variables[`${pkg}_active`] === '1') shaPackages.push(pkg);
+  }
+  for (const pkg of shaPackages) {
+    const sha = await resolveExpectedSha(pkg, variables[`${pkg}_version`]);
+    if (sha) {
+      variables[`${pkg}_expected_sha`] = sha;
+      console.log(`Resolved ${pkg}_expected_sha = ${sha}`);
+    }
+  }
+
   const workflowNameItems = [];
   const sortedRootPackages = [...rootPackages].sort();
   for (const pkg of sortedRootPackages) {

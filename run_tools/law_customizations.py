@@ -38,7 +38,13 @@ class Task(law.Task):
     """
 
     version = luigi.Parameter()
-    prefer_params_cli = ["version", "tasks_per_job"]
+    prefer_params_cli = [
+        "version",
+        "anaTuple_version",
+        "anaCache_version",
+        "ana_version",
+        "tasks_per_job",
+    ]
     period = luigi.Parameter()
     customisations = luigi.Parameter(default="")
     test = luigi.IntParameter(default=-1)
@@ -46,6 +52,26 @@ class Task(law.Task):
     process = luigi.Parameter(default="")
     model = luigi.Parameter(default="")
     user_custom = luigi.Parameter(default="")
+
+    # Convenience parameters for using centrally produced AnaTuples/AnaCaches.
+    anaTuple_version = luigi.Parameter(
+        default="",
+        significant=False,
+        description="If set, forces version for upstream AnaTuple/AnaProd tasks "
+        "(InputFileTask, AnaTuple*List*, AnaTupleMerge, ...).",
+    )
+
+    anaCache_version = luigi.Parameter(
+        default="",
+        significant=False,
+        description="If set, forces version for AnalysisCacheTask/AnalysisCacheAggregationTask (central BtagShape etc.).",
+    )
+
+    ana_version = luigi.Parameter(
+        default="",
+        significant=False,
+        description="If set, combines --anaTuple-version and --anaCache-version (single flag for both).",
+    )
 
     def __init__(self, *args, **kwargs):
         super(Task, self).__init__(*args, **kwargs)
@@ -263,12 +289,32 @@ class BundleTask(Task):
 
         os.makedirs(self.local_path(), exist_ok=True)
 
+        # Source the "FLAF" and "Corrections" patterns from FLAF_PATH / CORRECTIONS_PATH.
+        # env.sh always sets these (to the submodule copies in production, or to the edited
+        # top-level copies in a FLAF_all workspace when flaf_dev.sh is used), so dev edits
+        # are packaged into the tarballs transparently. The layout *inside* the tarball
+        # stays canonical (FLAF/, Corrections/ at the top) so worker bootstrap is unaffected.
+        flaf_base = os.getenv("FLAF_PATH") or os.path.join(ana_path, "FLAF")
+        corr_base = os.getenv("CORRECTIONS_PATH") or os.path.join(
+            ana_path, "Corrections"
+        )
+
+        def _get_bundle_source(pat: str) -> str:
+            p = pat.replace("\\", "/")
+            if p == "FLAF" or p.startswith("FLAF/"):
+                rel = p[5:] if p.startswith("FLAF/") else ""
+                return os.path.join(flaf_base, rel) if rel else flaf_base
+            if p == "Corrections" or p.startswith("Corrections/"):
+                rel = p[12:] if p.startswith("Corrections/") else ""
+                return os.path.join(corr_base, rel) if rel else corr_base
+            return os.path.join(ana_path, pat)
+
         print(f"bundle[{self.flavour}]: creating archive from {ana_path}")
         with self.output().localize("w") as tmp:
             with tempfile.TemporaryDirectory() as staging:
                 found_any = False
                 for pattern in formatted_patterns:
-                    full_path = os.path.join(ana_path, pattern)
+                    full_path = _get_bundle_source(pattern)
                     # Resolve top-level symlinks so the staging copy uses real content,
                     # but symlinks *within* the directory are preserved as symlinks.
                     # This prevents --dereference from following CVMFS symlinks inside flaf_env.
@@ -427,11 +473,17 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
 
     def workflow_requires(self):
         if self.bundle and self.bundle_flavours:
-            return {
-                "bundles": [
-                    BundleTask.req(self, flavour=f) for f in self.bundle_flavours
-                ]
-            }
+            bundles = []
+            for item in self.bundle_flavours:
+                if isinstance(item, (list, tuple)) and len(item) == 2:
+                    flavour, bversion = item
+                    bundles.append(
+                        BundleTask.req(self, flavour=flavour, version=bversion)
+                    )
+                else:
+                    flavour = item
+                    bundles.append(BundleTask.req(self, flavour=flavour))
+            return {"bundles": bundles}
         return {}
 
     def htcondor_check_job_completeness(self):
@@ -448,28 +500,50 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     def htcondor_log_directory(self):
         return None
 
-    def htcondor_stageout_file(self):
-        return os.path.join(
-            os.getenv("ANALYSIS_PATH"), "FLAF", "run_tools", "stageout_logs.sh"
+    def _flaf_root(self):
+        # FLAF source root, respecting the dev overlay: flaf_dev.sh sets FLAF_PATH to
+        # the top-level FLAF_all/FLAF, while the analysis env.sh sets it to the pinned
+        # submodule (ANALYSIS_PATH/FLAF).  Job-input scripts shipped to workers must
+        # come from here so that, in overlay mode, non-bundle jobs run the edited
+        # bootstrap/stageout scripts (and, via them, the edited FLAF) rather than the
+        # stale submodule copies.  Falls back to ANALYSIS_PATH/FLAF if FLAF_PATH unset.
+        return os.getenv("FLAF_PATH") or os.path.join(
+            os.getenv("ANALYSIS_PATH"), "FLAF"
         )
+
+    def htcondor_stageout_file(self):
+        return os.path.join(self._flaf_root(), "run_tools", "stageout_logs.sh")
 
     def htcondor_bootstrap_file(self):
         # each job can define a bootstrap file that is executed prior to the actual job
         # in order to setup software and environment variables
-        return os.path.join(os.getenv("ANALYSIS_PATH"), "FLAF", "bootstrap.sh")
+        return os.path.join(self._flaf_root(), "bootstrap.sh")
 
     def htcondor_job_file_factory_cls(self):
         return CERNHTCondorJobFileFactory
 
     def htcondor_job_config(self, config, job_num, branches):
         ana_path = os.getenv("ANALYSIS_PATH")
-        # When using bundles, set analysis_path to NONE so the worker cannot
-        # accidentally fall back to the original AFS path.  The bootstrap will
-        # detect this and fail loudly if bundle_list is somehow empty.
+        # NON-bundle jobs run on the shared AFS workspace and source the analysis env.sh
+        # there.  Forward FLAF_PATH / CORRECTIONS_PATH so the worker uses the same FLAF /
+        # Corrections as the submit side (the submodule copies in production, or the edited
+        # top-level copies when flaf_dev.sh is active) — bootstrap.sh exports them before
+        # sourcing env.sh.  In production these equal $ANALYSIS_PATH/FLAF(/Corrections), so
+        # forwarding them is transparent.
+        #
+        # BUNDLE jobs instead set analysis_path=NONE and ship FLAF / Corrections inside the
+        # tarball; they must NOT receive FLAF_PATH / CORRECTIONS_PATH, otherwise the in-bundle
+        # env.sh would point them back at the AFS workspace and the worker would access AFS.
+        flaf_path = ""
+        corrections_path = ""
         if self.bundle and self.bundle_flavours:
             config.render_variables["analysis_path"] = "NONE"
         else:
             config.render_variables["analysis_path"] = ana_path
+            flaf_path = os.getenv("FLAF_PATH", "") or ""
+            corrections_path = os.getenv("CORRECTIONS_PATH", "") or ""
+        config.render_variables["flaf_path"] = flaf_path
+        config.render_variables["corrections_path"] = corrections_path
 
         # token server for rate-limiting job starts to avoid AFS overload.
         # Not needed in bundle mode: workers never touch AFS, so there is no load concern.
@@ -527,12 +601,17 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         if self.bundle and self.bundle_flavours:
             if not isinstance(self.fs_default, WLCGFileSystem):
                 raise RuntimeError(
-                    "--bundle requires fs_default to be a remote filesystem (davs://, root://, …)"
+                    "--bundle requires fs_default to be a remote filesystem (davs://, root://, ...)"
                 )
             bundle_parts = []
-            for flavour in self.bundle_flavours:
+            for item in self.bundle_flavours:
+                if isinstance(item, (list, tuple)) and len(item) == 2:
+                    flavour, bversion = item
+                else:
+                    flavour = item
+                    bversion = self.version
                 bundle_url = self.remote_target(
-                    self.version, "bundles", self.period, f"{flavour}.tar.bz2"
+                    bversion, "bundles", self.period, f"{flavour}.tar.bz2"
                 ).uri()
                 bundle_parts.append(f"{flavour}:{bundle_url}")
             config.render_variables["bundle_list"] = " ".join(bundle_parts)
@@ -563,3 +642,69 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
                 f.write(content)
             os.chmod(custom, 0o755)
         return JobInputFile(path=custom, copy=True, share=True, render_job=True)
+
+
+# Custom proxy subclass so that the "log" location recorded in job submission data
+# (used by law for "first log file: ..." messages at submit time, stored job json,
+# and "task failed" diagnostics) points at the *remote* staged logs location for
+# bundle runs instead of the local AFS path under ANALYSIS_DATA_PATH.
+# The basename computation (stdall, stdall_Cluster_Proc, or stdall<postfix>) is
+# the same one used by stageout_logs.sh, so the URI will match the uploaded file.
+#
+# Use the stable extension point: obtain the base proxy class from whatever
+# the current law version has configured on HTCondorWorkflow.workflow_proxy_cls.
+
+BundleAwareHTCondorWorkflowProxyBase = HTCondorWorkflow.workflow_proxy_cls
+
+
+class _BundleAwareHTCondorWorkflowProxy(BundleAwareHTCondorWorkflowProxyBase):
+    def _submit_group(self, *args, **kwargs):
+        job_ids, submission_data = super()._submit_group(*args, **kwargs)
+
+        # Compute the remote log base directly from the *task*.  Note that `self`
+        # here is the workflow *proxy*, which does not carry fs_default / version /
+        # period / remote_dir_target — those live on `self.task`.  (PR #267 instead
+        # read the `log_remote_base_url` render variable off each job config; that
+        # never produced a value the line below doesn't, since the render variable
+        # is set under the identical WLCG-fs_default condition with the identical
+        # computation — so it was removed.)  We stage logs remotely precisely when
+        # stdall.txt is redirected, i.e. for a WLCG fs_default.
+        task = getattr(self, "task", None)
+        base = ""
+        try:
+            if task is not None and isinstance(
+                getattr(task, "fs_default", None), WLCGFileSystem
+            ):
+                base = task.remote_dir_target(
+                    task.version, "logs", task.__class__.__name__, task.period
+                ).uri()
+        except Exception:
+            base = ""
+
+        if not base:
+            return job_ids, submission_data
+
+        for job_num, data in list(submission_data.items()):
+            if isinstance(job_num, Exception) or not isinstance(data, dict):
+                continue
+            log = data.get("log")
+            if log:
+                basename = os.path.basename(str(log))
+                remote_log = base.rstrip("/") + "/" + basename
+                data = dict(data)
+                data["log"] = remote_log
+                submission_data[job_num] = data
+        return job_ids, submission_data
+
+
+HTCondorWorkflow.workflow_proxy_cls = _BundleAwareHTCondorWorkflowProxy
+# law's workflow metaclass records, at *class creation* time, whether a class set
+# `workflow_proxy_cls` in its body (stored as `_defined_workflow_proxy`).  Only
+# such classes are considered by `find_workflow_cls()` when a task resolves which
+# workflow (and therefore which proxy) to use.  Because we patch
+# `workflow_proxy_cls` here — *after* the class was created — the flag is still
+# False, so multi-workflow tasks (e.g. HelloWorldTask(Task, HTCondorWorkflow,
+# LocalWorkflow)) would silently fall back to law's base HTCondorWorkflowProxy and
+# our `_submit_group` override (remote log path rewrite) would never run.  Flip the
+# flag so this class is recognised as the "htcondor" workflow provider.
+HTCondorWorkflow._defined_workflow_proxy = True

@@ -210,6 +210,20 @@ load_flaf_env() {
   export FLAF_CMSSW_BASE="$ANALYSIS_SOFT_PATH/$FLAF_CMSSW_VERSION"
   export FLAF_CMSSW_ARCH="${target_os_gt_prefix}${FLAF_CMSSW_OS_VERSION}_amd64_${FLAF_CMSSW_COMPILER}"
   export PYTHONPATH="$ANALYSIS_PATH:$PYTHONPATH"
+  # Make `import FLAF` / `import Corrections` resolve to the configured locations.
+  # In production FLAF_PATH/CORRECTIONS_PATH equal $ANALYSIS_PATH/FLAF(/Corrections),
+  # so this is a no-op. When overridden (dev overlay) prepend their parent dirs so the
+  # edited copies win, and enable PYTHONSAFEPATH so an implicit cwd/script-dir entry
+  # cannot pull the submodule copy ahead of the overlay for `python -m` / `python -c`
+  # (FLAF and Corrections are namespace packages, merged across all sys.path entries).
+  if [ "$FLAF_PATH" != "$ANALYSIS_PATH/FLAF" ]; then
+    export PYTHONPATH="$(dirname "$FLAF_PATH"):$PYTHONPATH"
+    export PYTHONSAFEPATH=1
+  fi
+  if [ "$CORRECTIONS_PATH" != "$ANALYSIS_PATH/Corrections" ]; then
+    export PYTHONPATH="$(dirname "$CORRECTIONS_PATH"):$PYTHONPATH"
+    export PYTHONSAFEPATH=1
+  fi
   # When FLAF_NO_INSTALL=1 (bundle mode) skip CMSSW/combine/inference entirely if
   # CMSSW is not present in the bundle; tasks that need it declare the cmssw bundle flavour.
   if [[ "${FLAF_NO_INSTALL:-0}" == "0" ]] || [[ -d "$FLAF_CMSSW_BASE" ]]; then
@@ -262,7 +276,13 @@ source_env_fn() {
 
   [ -z "$ANALYSIS_SOFT_PATH" ] && export ANALYSIS_SOFT_PATH="$ANALYSIS_PATH/soft"
   [ -z "$FLAF_ENVIRONMENT_PATH" ] && export FLAF_ENVIRONMENT_PATH="$ANALYSIS_SOFT_PATH/flaf_env"
-  export FLAF_PATH="$this_dir"
+  # FLAF_PATH and CORRECTIONS_PATH are *inputs* to env.sh: if already set (e.g. by
+  # flaf_dev.sh pointing at the edited top-level copies in a FLAF_all workspace) they
+  # are respected as-is; otherwise they default to the submodule copies under
+  # ANALYSIS_PATH. Everything downstream (PYTHONPATH, bundling, job bootstrap) derives
+  # from these, so the dev overlay is just "set FLAF_PATH before sourcing env.sh".
+  [ -z "$FLAF_PATH" ] && export FLAF_PATH="$this_dir"
+  [ -z "$CORRECTIONS_PATH" ] && export CORRECTIONS_PATH="$ANALYSIS_PATH/Corrections"
 
   if [ "$cmd" = "install_cmssw" ]; then
     do_install_cmssw "${@:3}"

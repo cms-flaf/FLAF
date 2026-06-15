@@ -25,8 +25,10 @@ class HelloWorldTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     def run(self):
         if self.force_fail:
-            raise RuntimeError("Forced failure for testing log transfer on crash")
-        print("hello world")
+            raise RuntimeError(
+                f"Forced failure for testing log transfer on crash. version = {self.version}"
+            )
+        print(f"hello world from {self.version}")
         with self.output().localize("w") as tmp:
             with open(tmp.path, "w") as f:
                 f.write("done\n")

@@ -5,6 +5,7 @@ import hashlib
 import luigi
 import queue
 import shutil
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -440,7 +441,6 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     # Fixed NUMBER of variable batches (not batch size): branch indices stay stable when
     # the set of variables changes. n_var_batches=1 => one job per dataset (the #257 extreme).
     n_var_batches = luigi.IntParameter(default=10)
-    files_chunk_size = luigi.IntParameter(default=10)
 
     @staticmethod
     def _var_batch_id(var_name, n_batches):
@@ -671,37 +671,54 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         round_outputs = {var: [] for var in vars_to_run}
 
-        # ---- Queue-based download/process pipeline (issue #257 design) ----
-        # A pool of downloader threads localizes ALL input files concurrently and
-        # pushes each ready local path onto `ready_q`. Downloads are never gated by
-        # the consumer, so I/O fully overlaps processing. The (single, since the
-        # producer is itself multi-threaded via nMT) processing loop consumes files
-        # in waves: it starts as soon as `min_ready` files are available, and each
-        # subsequent wave grabs every file downloaded while the previous wave ran.
-        # Each wave produces partial per-variable histograms that are hadd-ed at the
-        # end. (Disk peak is the dataset size, by design: downloading does not stop.)
+        # ---- Queue-based download/process pipeline ----
+        # A bounded pool of downloader threads localizes the input files concurrently and
+        # pushes each ready local path onto `ready_q`; the single processing loop (the producer
+        # is itself multi-threaded via nMT) consumes them in waves -- block for >=1 file, then
+        # take everything already downloaded -- and hadds the per-wave partials at the end, so
+        # download and processing overlap. Two limits from the global config bound resource use:
+        #   * max_simultaneous_downloads (default 4): concurrent transfers.
+        #   * max_total_download_size_gb (default 10): total size of localized-but-not-yet-
+        #     processed files. A downloader waits when the budget is exhausted and resumes once a
+        #     processed wave releases its files. At least one file is always admitted, so a single
+        #     file larger than the whole budget cannot deadlock (the cap is then soft).
+        max_parallel_dl = max(
+            1, int(self.global_params.get("max_simultaneous_downloads", 4))
+        )
+        max_download_bytes = (
+            float(self.global_params.get("max_total_download_size_gb", 10)) * 1024**3
+        )
+
         ready_q = queue.Queue()
         errors = []
+        budget_cond = threading.Condition()
+        downloaded_bytes = [0.0]
 
         def _download_one(inp):
             try:
+                with budget_cond:
+                    # Wait for budget, but always admit at least one file (downloaded_bytes==0).
+                    while (
+                        downloaded_bytes[0] >= max_download_bytes
+                        and downloaded_bytes[0] > 0
+                    ):
+                        budget_cond.wait()
                 stack = contextlib.ExitStack()
                 abspath = stack.enter_context(inp.localize("r")).abspath
-                ready_q.put((abspath, stack))
+                size = os.path.getsize(abspath)
+                with budget_cond:
+                    downloaded_bytes[0] += size
+                ready_q.put((abspath, stack, size))
             except Exception as e:  # noqa: BLE001 - surfaced to the main thread
                 errors.append(e)
-                ready_q.put(("__error__", None))
+                ready_q.put(("__error__", None, 0))
 
-        # Bound the number of simultaneous transfers (network politeness) without
-        # ever pausing the overall download progress.
-        max_parallel_dl = (
-            min(self.files_chunk_size, n_inputs)
-            if self.files_chunk_size > 0
-            else n_inputs
-        )
-        max_parallel_dl = max(1, max_parallel_dl)
-        # Minimum files ready before the first processing wave starts.
-        min_ready = max_parallel_dl
+        def _release(stack, size):
+            if stack is not None:
+                stack.close()
+            with budget_cond:
+                downloaded_bytes[0] -= size
+                budget_cond.notify_all()
 
         executor = ThreadPoolExecutor(max_workers=max_parallel_dl)
         for inp in inputs:
@@ -712,15 +729,11 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             round_idx = 0
             while remaining > 0:
                 wave = []
-                # Block until we have the threshold for this wave (capped at what is
-                # left): min_ready for the first wave, at least one afterwards.
-                need = min(min_ready if round_idx == 0 else 1, remaining)
-                while len(wave) < need:
-                    item = ready_q.get()
-                    if item[0] == "__error__":
-                        raise errors[0]
-                    wave.append(item)
-                # Opportunistically take everything else already downloaded.
+                # Block for the first ready file, then take everything already downloaded.
+                item = ready_q.get()
+                if item[0] == "__error__":
+                    raise errors[0]
+                wave.append(item)
                 while len(wave) < remaining:
                     try:
                         item = ready_q.get_nowait()
@@ -733,23 +746,22 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 remaining -= len(wave)
                 round_dir = os.path.join(job_home, "rounds", str(round_idx))
                 os.makedirs(round_dir, exist_ok=True)
-                _run_producer(round_dir, [abspath for abspath, _ in wave])
+                _run_producer(round_dir, [abspath for abspath, _, _ in wave])
                 for var in vars_to_run:
                     round_outputs[var].append(os.path.join(round_dir, f"{var}.root"))
                 round_idx += 1
-                # Release the local copies of this wave's inputs.
-                for _, stack in wave:
-                    stack.close()
+                # Release this wave's local copies and free their download budget.
+                for _, stack, size in wave:
+                    _release(stack, size)
         finally:
             executor.shutdown(wait=True)
-            # Drain and release any files that were downloaded after an exception.
+            # Drain and release anything downloaded after an exception.
             while True:
                 try:
-                    _, stack = ready_q.get_nowait()
+                    _, stack, size = ready_q.get_nowait()
                 except queue.Empty:
                     break
-                if stack is not None:
-                    stack.close()
+                _release(stack, size)
 
         if errors:
             raise errors[0]

@@ -1,6 +1,7 @@
 import law
 import os
 import contextlib
+import hashlib
 import luigi
 import queue
 import shutil
@@ -436,8 +437,17 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 10.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     variables = luigi.Parameter(default="")
-    vars_per_batch = luigi.IntParameter(default=20)
+    # Fixed NUMBER of variable batches (not batch size): branch indices stay stable when
+    # the set of variables changes. n_var_batches=1 => one job per dataset (the #257 extreme).
+    n_var_batches = luigi.IntParameter(default=10)
     files_chunk_size = luigi.IntParameter(default=10)
+
+    @staticmethod
+    def _var_batch_id(var_name, n_batches):
+        # Deterministic across processes (unlike the salted built-in hash()), so a given
+        # variable always lands in the same batch regardless of which other variables exist.
+        digest = hashlib.md5(var_name.encode("utf-8")).hexdigest()
+        return int(digest, 16) % n_batches
 
     @property
     def bundle_flavours(self):
@@ -512,7 +522,6 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     @workflow_condition.create_branch_map
     def create_branch_map(self):
         branches = {}
-        n = 0
 
         dataset_to_branches = {}
         HistTupleBranchMap = HistTupleProducerTask.req(
@@ -527,27 +536,35 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ) in HistTupleBranchMap.items():
             dataset_to_branches.setdefault(histTuple_dataset_name, []).append(prod_br)
 
-        # Variable batching happens here (issue #257): each (dataset, variable-batch)
-        # is its own branch/job, so a job localizes the dataset inputs once and produces
-        # the histograms for just its batch of variables — avoiding the old
-        # (nDatasets x nVariables) re-localization while still parallelizing across
-        # batches. vars_per_batch <= 0 means "all variables in one batch" (one job
-        # per dataset, the extreme of issue #257).
-        all_var_names = [
+        # Each (dataset, variable-batch) is its own branch/job: a job localizes the dataset
+        # inputs once and produces the histograms for just its batch of variables (avoids the
+        # old nDatasets x nVariables re-localization while keeping per-batch parallelism).
+        #
+        # The number of batches is FIXED (n_var_batches) and a variable's batch is a
+        # deterministic function of its name, so branch indices
+        #   index = dataset_position * n_var_batches + batch_id
+        # are stable when the set of variables changes: adding/removing a variable only
+        # makes the affected (dataset, batch) branches incomplete, without renumbering any
+        # other branch (so a running production's HTCondor job map stays aligned). Empty
+        # batches yield an empty output() and are trivially complete (never submitted).
+        n_batches = max(1, self.n_var_batches)
+        batched_vars = [[] for _ in range(n_batches)]
+        for var_name in (
             v["name"] if isinstance(v, dict) else v for v in self.active_variables
-        ]
-        batch_size = (
-            self.vars_per_batch if self.vars_per_batch > 0 else len(all_var_names)
-        )
-        var_batches = [
-            all_var_names[i : i + batch_size]
-            for i in range(0, len(all_var_names), max(1, batch_size))
-        ]
+        ):
+            batched_vars[self._var_batch_id(var_name, n_batches)].append(var_name)
+        batched_vars = [sorted(b) for b in batched_vars]
 
-        for dataset_name, prod_br_list in sorted(dataset_to_branches.items()):
-            for var_batch in var_batches:
-                branches[n] = (dataset_name, sorted(prod_br_list), var_batch)
-                n += 1
+        for ds_pos, (dataset_name, prod_br_list) in enumerate(
+            sorted(dataset_to_branches.items())
+        ):
+            for batch_id in range(n_batches):
+                idx = ds_pos * n_batches + batch_id
+                branches[idx] = (
+                    dataset_name,
+                    sorted(prod_br_list),
+                    batched_vars[batch_id],
+                )
 
         return branches
 

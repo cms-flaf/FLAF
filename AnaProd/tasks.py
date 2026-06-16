@@ -121,8 +121,6 @@ class InputFileTask(Task, law.LocalWorkflow):
 class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 40.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
-    # issue #264: many branches (~nTotalFiles) -> group several per HTCondor job by default.
-    tasks_per_job = copy_param(HTCondorWorkflow.tasks_per_job, 10)
 
     @property
     def bundle_flavours(self):
@@ -334,8 +332,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 24.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
-    # issue #264: group several branches per HTCondor job by default.
-    tasks_per_job = copy_param(HTCondorWorkflow.tasks_per_job, 10)
     bundle_flavours = ["core", "inputFileList"]
 
     def __init__(self, *args, **kwargs):
@@ -531,8 +527,6 @@ class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
 class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 48.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
-    # issue #264: many branches (~nTotalFiles) -> group several per HTCondor job by default.
-    tasks_per_job = copy_param(HTCondorWorkflow.tasks_per_job, 10)
     delete_inputs_after_merge = luigi.BoolParameter(default=False)
     bundle_flavours = ["core", "inputFileList", "AnaTupleFileList"]
 

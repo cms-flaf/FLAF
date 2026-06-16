@@ -23,7 +23,7 @@ from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
-    # issue #264: many branches (~nTotalFiles) -> group several per HTCondor job by default.
+    # many short per-file branches: group several per HTCondor job to bound nJobs.
     tasks_per_job = copy_param(HTCondorWorkflow.tasks_per_job, 10)
 
     @property
@@ -435,8 +435,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 10.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
-    # issue #264: many branches (nDatasets x nVariableBatches) -> group per HTCondor job.
-    tasks_per_job = copy_param(HTCondorWorkflow.tasks_per_job, 10)
     variables = luigi.Parameter(default="")
     vars_per_batch = luigi.IntParameter(default=20)
     files_chunk_size = luigi.IntParameter(default=10)
@@ -965,8 +963,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
-    # issue #264: many branches (~nTotalFiles) -> group several per HTCondor job by default.
-    tasks_per_job = copy_param(HTCondorWorkflow.tasks_per_job, 10)
     producer_to_run = luigi.Parameter()
 
     @property
@@ -1478,8 +1474,6 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
-    # issue #264: group several branches per HTCondor job by default.
-    tasks_per_job = copy_param(HTCondorWorkflow.tasks_per_job, 10)
     producer_to_aggregate = luigi.Parameter()
 
     @property

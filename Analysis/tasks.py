@@ -568,9 +568,21 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         return branches
 
+    def _empty_batch_placeholder(self):
+        # Existing local placeholder used as the output of an empty variable bucket, so the
+        # branch is always complete and is never submitted to HTCondor. Created idempotently
+        # (only ever evaluated on the submit side, where the data path is writable).
+        path = self.local_path("empty_batch.placeholder")
+        if not os.path.exists(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            open(path, "a").close()
+        return law.LocalFileTarget(path)
+
     @workflow_condition.output
     def output(self):
         dataset_name, prod_br_list, var_batch = self.branch_data
+        if not var_batch:
+            return self._empty_batch_placeholder()
         outputs = {}
         for var_name in var_batch:
             output_path = os.path.join(
@@ -585,6 +597,9 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     def run(self):
         dataset_name, prod_br_list, var_batch = self.branch_data
+        if not var_batch:
+            # Empty bucket: output is the placeholder (already complete); nothing to do.
+            return
         job_home, remove_job_home = self.law_job_home()
         customisation_dict = getCustomisationSplit(self.customisations)
         channels = (

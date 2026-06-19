@@ -8,6 +8,7 @@ authorized_users:
   - Sayan-Dhani
   - prabhatsolanki
   - akhter-towsifa
+  - thorntoa-tamu
 
 expected_headers:
   - "@cms-flaf-bot test"

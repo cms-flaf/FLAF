@@ -7,7 +7,8 @@
 - **Repository size**: ~2 MB
 - **Languages**: Python (~13,000 lines), C++ headers, Bash scripts, YAML configs
 - **Target environment**: CERN lxplus (AlmaLinux 9), requires CVMFS and CMSSW
-- **Submodules**: `RunKit`, `PlotKit` (must be cloned with `--recursive`)
+- **Submodules**: `PlotKit` (must be cloned with `--recursive`)
+- **Vendored**: `RunKit` (subset of workflow utilities, integrated directly — no longer a submodule)
 
 ## Project Structure
 
@@ -24,7 +25,7 @@ FLAF/
 ├── include/                    # C++ headers for ROOT analysis
 ├── run_tools/                  # Helper scripts (mk_flaf_env.sh, law_customizations.py)
 ├── test/                       # Test scripts (checkDatasetConfigConsistency.py)
-├── RunKit/                     # Git submodule for workflow utilities
+├── RunKit/                     # Vendored subset of RunKit workflow utilities
 ├── PlotKit/                    # Git submodule for plotting
 ├── env.sh                      # Main environment setup script
 ├── bootstrap.sh                # HTCondor bootstrap script

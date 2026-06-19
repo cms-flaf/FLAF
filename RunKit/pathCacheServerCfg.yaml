@@ -1,0 +1,6 @@
+host: "0.0.0.0"
+port: 5000
+max_connections: 10000
+cache_write_interval: 600  # interval in seconds to write the cache to disk
+validity_periods:
+  default: 24 * 60 * 60  # default validity period in seconds

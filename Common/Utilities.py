@@ -464,7 +464,7 @@ def InitializeCorrections(setup, dataset_name, stage):
 class ServiceThread:
     def __init__(self):
         import threading
-        from FLAF.RunKit.crabLaw import cond, update_kinit_thread
+        from FLAF.RunKit.kinit import cond, update_kinit_thread
 
         self.cond = cond
         self.thread = threading.Thread(target=update_kinit_thread)

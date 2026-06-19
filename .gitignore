@@ -7,3 +7,5 @@ __pycache__
 /.vscode
 /site
 /config/user_custom.yaml
+/RunKit/.dasmaps
+/RunKit/.gfal_copy_safe_tmp

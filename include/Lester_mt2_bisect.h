@@ -252,6 +252,18 @@ class asymm_mt2_lester_bisect {
                                                     // (true) by default, but can be turned off by setting to false.
     );
 
+    static std::pair<double, double> ben_findsols(double MT2,
+                                                  double px,
+                                                  double py,
+                                                  double visM,
+                                                  double Ma,
+                                                  double pxb,
+                                                  double pyb,
+                                                  double metx,
+                                                  double mety,
+                                                  double visMb,
+                                                  double Mb);
+
   private:
     static double lestermax(const double x, const double y);
     static const Lester::EllipseParams helper(const double mSq,  // The test parent-mass value (squared)
@@ -265,18 +277,6 @@ class asymm_mt2_lester_bisect {
     static void myversion();
 
     static double MT(double px1, double px2, double py1, double py2, double m1, double m2);
-
-    static std::pair<double, double> ben_findsols(double MT2,
-                                                  double px,
-                                                  double py,
-                                                  double visM,
-                                                  double Ma,
-                                                  double pxb,
-                                                  double pyb,
-                                                  double metx,
-                                                  double mety,
-                                                  double visMb,
-                                                  double Mb);
 };
 
 #endif

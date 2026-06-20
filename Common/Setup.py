@@ -135,6 +135,7 @@ class PhysicsModel:
                     )
                 self._processes[item] = key
         self._base_processes = {}
+        self.meta_processes = {}
 
     def processes(self, process_type=None):
         if process_type is None:
@@ -346,6 +347,7 @@ class Setup:
                 self.phys_model.replace_process(
                     key, new_process_names_for_model, ignore_missing=True
                 )
+                self.phys_model.meta_processes[key] = new_process_names_for_model
             else:
                 processes[key] = item
 
@@ -375,8 +377,14 @@ class Setup:
         if custom_process_selection is not None:
             if type(custom_process_selection) == str:
                 custom_process_selection = custom_process_selection.split(",")
+            expanded_selection = []
+            for pattern in custom_process_selection:
+                if hasattr(self.phys_model, "meta_processes") and pattern in self.phys_model.meta_processes:
+                    expanded_selection.extend(self.phys_model.meta_processes[pattern])
+                else:
+                    expanded_selection.append(pattern)
             filters = ["drop ^.*"] + [
-                f"keep {pattern}" for pattern in custom_process_selection
+                f"keep {pattern}" for pattern in expanded_selection
             ]
             self.phys_model.select_processes(filters)
         self.base_processes = {}

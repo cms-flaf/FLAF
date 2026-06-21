@@ -43,6 +43,7 @@
  *
  */
 
+#pragma once
 #include "Lester_mt2_bisect.h"
 #include <cassert>
 #include <cmath>

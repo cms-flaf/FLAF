@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 
 from FLAF.RunKit.run_tools import natural_sort
-from FLAF.RunKit.crabLaw import update_kinit
+from FLAF.RunKit.kinit import update_kinit
 from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget, WLCGDirectoryTarget
 from FLAF.Common.Setup import Setup
 

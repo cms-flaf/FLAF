@@ -67,9 +67,15 @@ consume.
 - **Parameter:** `--producer-to-aggregate`.
 
 ### `HistPlotTask`
-Produces the final **plots**. **Branches over variables** (one branch per variable).
+Produces the final **plots** via the [PlotKit](https://github.com/cms-flaf/PlotKit) submodule
+(matplotlib + mplhep by default; optional ROOT + cmsstyle). **Branches over variables** (one branch
+per variable).
 
 - **Parameter:** `--variables` (string; restrict which variables).
+
+Plot styling comes from the analysis `config/plot/*.yaml` files (`cms_stacked.yaml`,
+`histograms.yaml`, `<era>.yaml`) — unchanged from the legacy renderer. PlotKit can also render
+outside FLAF; see its README for the standalone `python -m PlotKit.cli` entry point.
 
 ## Statistical-inference tasks
 

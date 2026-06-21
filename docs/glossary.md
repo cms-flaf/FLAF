@@ -85,7 +85,10 @@ Framework and CMS-computing vocabulary, in plain terms. For the quick on-ramp ve
   testing set; production uses the full model. Defined in `phys_models.yaml`.
 
 **PlotKit**
-: FLAF's plotting-helpers submodule.
+: FLAF's plotting toolkit (a submodule of FLAF, [cms-flaf/PlotKit](https://github.com/cms-flaf/PlotKit)).
+  Renders the stacked CMS plots with **matplotlib + mplhep** by default (no ROOT required) and can
+  optionally render through **ROOT + cmsstyle**. It reads the analysis `config/plot/*.yaml` files and
+  can also run standalone (`python -m PlotKit.cli`).
 
 **Process**
 : A physics object built from one or more datasets (e.g. "TT", "DY", "signal") — what you plot and

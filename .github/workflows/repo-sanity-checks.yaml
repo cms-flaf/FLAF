@@ -59,6 +59,8 @@ jobs:
         run: echo "size=$(du -sb .git/objects/pack | cut -f1)" >> $GITHUB_OUTPUT
 
       - name: Calculate and report delta
+        env:
+          HAS_BIG_CHANGES_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'big changes') }}
         run: |
           delta=$(( ${{ steps.size_after.outputs.size }} - ${{ steps.size_before.outputs.size }} ))
           delta_kb=$(( delta / 1024 ))
@@ -66,6 +68,16 @@ jobs:
           echo "Size before: ${{ steps.size_before.outputs.size }} bytes" >> $GITHUB_STEP_SUMMARY
           echo "Size after: ${{ steps.size_after.outputs.size }} bytes" >> $GITHUB_STEP_SUMMARY
           echo "Repository size would increase by approximately $delta_kb KiB if this PR is squash merged." >> $GITHUB_STEP_SUMMARY
+
+          MAX_THR_KB=1024
+          if [ "$delta_kb" -gt "$MAX_THR_KB" ]; then
+            if [ "$HAS_BIG_CHANGES_LABEL" = "true" ]; then
+              echo "Size increase is over threshold ($MAX_THR_KB KiB), but PR has 'big changes' label. Proceeding." >> $GITHUB_STEP_SUMMARY
+            else
+              echo "::error::Repository size increase ($delta_kb KiB) exceeds threshold of $MAX_THR_KB KiB. Please use Git LFS for large files or add the 'big changes' label to this PR if the size increase is expected."
+              exit 1
+            fi
+          fi
 
   check-for-binary-files:
     runs-on: ubuntu-latest

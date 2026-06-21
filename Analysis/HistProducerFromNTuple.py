@@ -36,13 +36,11 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     dir_ptr = Utilities.mkdir(outFile, dir_name)
 
     merged_hist = model.GetHistogram().Clone()
-    # If we use the THnD then we have 'GetNbins' function, else use 'GetNcells'
     N_bins = (
         unit_hist.GetNbins()
         if hasattr(unit_hist, "GetNbins")
         else unit_hist.GetNcells()
     )
-    # This can be a loop over many bins, several times. Can be improved to be ran in c++ instead
     for i in range(0, N_bins):
         bin_content = unit_hist.GetBinContent(i)
         bin_error = unit_hist.GetBinError(i)
@@ -68,7 +66,7 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
 
 
 def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
-    var_entry = HistHelper.findBinEntry(hist_cfg_dict, args.var)
+    var_entry = HistHelper.findBinEntry(hist_cfg_dict, var)
     dims = (
         1
         if not hist_cfg_dict[var_entry].get("var_list", False)
@@ -79,7 +77,7 @@ def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
         hist_cfg_dict, var, dims, return_unit_bin_model=True
     )
     var_bin_list = (
-        [f"{var}_bin" for var in hist_cfg_dict[var_entry]["var_list"]]
+        [f"{v}_bin" for v in hist_cfg_dict[var_entry]["var_list"]]
         if dims > 1
         else [f"{var}_bin"]
     )
@@ -131,8 +129,8 @@ def SaveSingleHistSet(
     return save_fn
 
 
-def SaveTmpFileUnc(
-    tmp_files,
+def BuildHistActions(
+    tmp_file_root,
     uncs_to_compute,
     unc_cfg_dict,
     all_trees,
@@ -141,15 +139,17 @@ def SaveTmpFileUnc(
     further_cuts,
     treeName,
 ):
-    tmp_file = f"tmp_{var}.root"
-    tmp_file_root = ROOT.TFile(tmp_file, "RECREATE")
+    """Register all histogram actions for var against the open TFile.
+
+    Returns a list of save_fn callables without triggering the RDF event loop
+    or closing the file. Call all returned functions after collecting actions
+    for every variable so ROOT can execute them in a single event-loop pass.
+    """
     save_fns = []
     for unc, scales in uncs_to_compute.items():
         is_shift_unc = unc in unc_cfg_dict["shape"].keys()
-
         for scale in scales:
             for key, filter_to_apply_base in key_filter_dict.items():
-                filter_to_apply_final = filter_to_apply_base
                 if further_cuts:
                     for further_cut_name in further_cuts.keys():
                         filter_to_apply_final = (
@@ -172,7 +172,7 @@ def SaveTmpFileUnc(
                     save_fn = SaveSingleHistSet(
                         all_trees,
                         var,
-                        filter_to_apply_final,
+                        filter_to_apply_base,
                         unc,
                         scale,
                         key,
@@ -181,26 +181,24 @@ def SaveTmpFileUnc(
                         treeName,
                     )
                     save_fns.append(save_fn)
-    for fn in save_fns:
-        fn()
-    tmp_file_root.Close()
-    tmp_files.append(tmp_file)
+    return save_fns
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("inputFiles", nargs="+", type=str)
     parser.add_argument("--period", required=True, type=str)
-    parser.add_argument("--outFile", required=True, type=str)
+    parser.add_argument("--outDir", required=True, type=str)
     parser.add_argument("--dataset_name", required=True, type=str)
     parser.add_argument("--customisations", type=str, default=None)
     parser.add_argument("--channels", type=str, default=None)
-    parser.add_argument("--var", type=str, default=None)
+    parser.add_argument("--vars", required=True, type=str)
     parser.add_argument("--compute_unc_variations", type=bool, default=False)
     parser.add_argument("--compute_rel_weights", type=bool, default=False)
     parser.add_argument("--furtherCut", type=str, default=None)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
     parser.add_argument("--nMT", type=int, default=8)
+    parser.add_argument("--user-custom", type=str, default=None)
     args = parser.parse_args()
 
     ROOT.EnableImplicitMT(args.nMT)
@@ -212,6 +210,7 @@ if __name__ == "__main__":
         args.period,
         args.LAWrunVersion,
         customisations=args.customisations,
+        user_custom_file=args.user_custom,
     )
     unc_cfg_dict = setup.weights_config
     analysis_import = setup.global_params["analysis_import"]
@@ -220,8 +219,6 @@ if __name__ == "__main__":
     treeName = setup.global_params["treeName"]
     all_infiles = [fileName for fileName in args.inputFiles]
     unique_keys = find_keys(all_infiles)
-    inFiles = Utilities.ListToVector(all_infiles)
-    base_rdfs = {}
 
     hist_cfg_dict = setup.hists
 
@@ -232,10 +229,10 @@ if __name__ == "__main__":
     )
     setup.global_params["channels_to_consider"] = channels
 
+    base_rdfs = {}
     for key in unique_keys:
         if not key.startswith(treeName):
             continue
-
         base_rdfs[key] = ROOT.RDataFrame(key, Utilities.ListToVector(all_infiles))
         ROOT.RDF.Experimental.AddProgressBar(base_rdfs[key])
 
@@ -245,22 +242,10 @@ if __name__ == "__main__":
     if "further_cuts" in setup.global_params and setup.global_params["further_cuts"]:
         further_cuts.update(setup.global_params["further_cuts"])
     print(further_cuts)
+
     key_filter_dict = analysis.createKeyFilterDict(
         setup.global_params, setup.global_params["era"]
     )
-
-    variables = setup.global_params["variables"]
-    vars_needed = set()
-    for var in variables:
-        if isinstance(var, dict) and "vars" in var:
-            for v in var["vars"]:
-                vars_needed.add(v)
-        else:
-            vars_needed.add(var)
-    for further_cut_name, (vars_for_cut, _) in further_cuts.items():
-        for var_for_cut in vars_for_cut:
-            if var_for_cut:
-                vars_needed.add(var_for_cut)
 
     all_trees = {}
     for tree_name, rdf in base_rdfs.items():
@@ -288,25 +273,41 @@ if __name__ == "__main__":
             )
     print(uncs_to_compute)
 
-    tmp_files = []
+    vars_to_process = [v.strip() for v in args.vars.split(",") if v.strip()]
+    os.makedirs(args.outDir, exist_ok=True)
+
     if all_trees:
-        SaveTmpFileUnc(
-            tmp_files,
-            uncs_to_compute,
-            unc_cfg_dict,
-            all_trees,
-            args.var,
-            key_filter_dict,
-            further_cuts,
-            treeName,
-        )
+        # Open a tmp ROOT file per variable and register all histogram actions.
+        # Collecting actions for all variables before triggering lets ROOT execute
+        # them in a single event-loop pass over the input files.
+        var_tmp_files = {}
+        all_save_fns = []
+        for var in vars_to_process:
+            tmp_path = os.path.join(args.outDir, f"tmp_{var}.root")
+            tmp_root_file = ROOT.TFile(tmp_path, "RECREATE")
+            var_tmp_files[var] = (tmp_path, tmp_root_file)
+            fns = BuildHistActions(
+                tmp_root_file,
+                uncs_to_compute,
+                unc_cfg_dict,
+                all_trees,
+                var,
+                key_filter_dict,
+                further_cuts,
+                treeName,
+            )
+            all_save_fns.extend(fns)
 
-    if tmp_files:
-        hadd_str = f"hadd -f209 -j -O {args.outFile} " + " ".join(tmp_files)
-        ps_call([hadd_str], True)
+        for fn in all_save_fns:
+            fn()
 
-    for f in tmp_files:
-        if os.path.exists(f):
-            os.remove(f)
+        for var in vars_to_process:
+            tmp_path, tmp_root_file = var_tmp_files[var]
+            tmp_root_file.Close()
+            out_path = os.path.join(args.outDir, f"{var}.root")
+            hadd_str = f"hadd -f209 -j -O {out_path} {tmp_path}"
+            ps_call([hadd_str], True)
+            os.remove(tmp_path)
+
     time_elapsed = time.time() - start
     print(f"execution time = {time_elapsed} ")

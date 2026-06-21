@@ -1,8 +1,12 @@
 import law
 import os
 import contextlib
+import hashlib
 import luigi
+import queue
 import shutil
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 
 from FLAF.RunKit.run_tools import ps_call
@@ -21,6 +25,8 @@ from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
+    # many short per-file branches: group several per HTCondor job to bound nJobs.
+    tasks_per_job = copy_param(HTCondorWorkflow.tasks_per_job, 10)
 
     @property
     def bundle_flavours(self):
@@ -404,6 +410,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 )
             if self.customisations:
                 HistTupleProducer_cmd.extend([f"--customisations", self.customisations])
+            if self.user_custom:
+                HistTupleProducer_cmd.extend(["--user-custom", self.user_custom])
             if len(producer_list) > 0:
                 local_anacaches = {}
                 for producer_name, cache_file in self.input()["anaCaches"].items():
@@ -429,11 +437,37 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 10.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
+    variables = luigi.Parameter(default="")
+    # Fixed NUMBER of variable batches (not batch size): branch indices stay stable when
+    # the set of variables changes. n_var_batches=1 => one job per dataset (the #257 extreme).
+    n_var_batches = luigi.IntParameter(default=10)
+
+    @staticmethod
+    def _var_batch_id(var_name, n_batches):
+        # Deterministic across processes (unlike the salted built-in hash()), so a given
+        # variable always lands in the same batch regardless of which other variables exist.
+        digest = hashlib.md5(var_name.encode("utf-8")).hexdigest()
+        return int(digest, 16) % n_batches
 
     @property
     def bundle_flavours(self):
         fl = AnaTupleFileListTask.req(self, branches=())
         return ["core", ("AnaTupleFileList", fl.version)]
+
+    @property
+    def active_variables(self):
+        all_vars = self.global_params["variables"]
+        if not self.variables:
+            return all_vars
+        selected = {v.strip() for v in self.variables.split(",") if v.strip()}
+        result = [
+            v for v in all_vars if (v["name"] if isinstance(v, dict) else v) in selected
+        ]
+        found = {v["name"] if isinstance(v, dict) else v for v in result}
+        missing = selected - found
+        if missing:
+            print(f"Warning: variables not found in config: {sorted(missing)}")
+        return result
 
     def workflow_requires(self):
         reqs = super().workflow_requires()
@@ -455,10 +489,9 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
             return reqs
         branch_set = set()
-        for br_idx, (var, prod_br_list, dataset_names) in self.branch_map.items():
-            if var in self.global_params["variables"]:
-                branch_set.update(prod_br_list)
-        branches = tuple(branch_set)
+        for br_idx, (dataset_name, prod_br_list, var_batch) in self.branch_map.items():
+            branch_set.update(prod_br_list)
+        branches = tuple(sorted(branch_set))
         reqs["HistTupleProducerTask"] = HistTupleProducerTask.req(
             self,
             branches=branches,
@@ -467,9 +500,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         return reqs
 
     def requires(self):
-        var, prod_br_list, dataset_name = self.branch_data
-        reqs = []
-        reqs.append(
+        dataset_name, prod_br_list, var_batch = self.branch_data
+        return [
             HistTupleProducerTask.req(
                 self,
                 max_runtime=HistTupleProducerTask.max_runtime._default,
@@ -477,8 +509,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 customisations=self.customisations,
             )
             for prod_br in prod_br_list
-        )
-        return reqs
+        ]
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
@@ -491,9 +522,6 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     @workflow_condition.create_branch_map
     def create_branch_map(self):
         branches = {}
-        prod_br_list = []
-        current_dataset = None
-        n = 0
 
         dataset_to_branches = {}
         HistTupleBranchMap = HistTupleProducerTask.req(
@@ -508,25 +536,70 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ) in HistTupleBranchMap.items():
             dataset_to_branches.setdefault(histTuple_dataset_name, []).append(prod_br)
 
-        for dataset_name, prod_br_list in dataset_to_branches.items():
-            for var_name in self.global_params["variables"]:
-                branches[n] = (var_name, prod_br_list, dataset_name)
-                n += 1
+        # Each (dataset, variable-batch) is its own branch/job: a job localizes the dataset
+        # inputs once and produces the histograms for just its batch of variables (avoids the
+        # old nDatasets x nVariables re-localization while keeping per-batch parallelism).
+        #
+        # The number of batches is FIXED (n_var_batches) and a variable's batch is a
+        # deterministic function of its name, so branch indices
+        #   index = dataset_position * n_var_batches + batch_id
+        # are stable when the set of variables changes: adding/removing a variable only
+        # makes the affected (dataset, batch) branches incomplete, without renumbering any
+        # other branch (so a running production's HTCondor job map stays aligned). Empty
+        # batches yield an empty output() and are trivially complete (never submitted).
+        n_batches = max(1, self.n_var_batches)
+        batched_vars = [[] for _ in range(n_batches)]
+        for var_name in (
+            v["name"] if isinstance(v, dict) else v for v in self.active_variables
+        ):
+            batched_vars[self._var_batch_id(var_name, n_batches)].append(var_name)
+        batched_vars = [sorted(b) for b in batched_vars]
+
+        for ds_pos, (dataset_name, prod_br_list) in enumerate(
+            sorted(dataset_to_branches.items())
+        ):
+            for batch_id in range(n_batches):
+                idx = ds_pos * n_batches + batch_id
+                branches[idx] = (
+                    dataset_name,
+                    sorted(prod_br_list),
+                    batched_vars[batch_id],
+                )
 
         return branches
 
+    def _empty_batch_placeholder(self):
+        # Existing local placeholder used as the output of an empty variable bucket, so the
+        # branch is always complete and is never submitted to HTCondor. Created idempotently
+        # (only ever evaluated on the submit side, where the data path is writable).
+        path = self.local_path("empty_batch.placeholder")
+        if not os.path.exists(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            open(path, "a").close()
+        return law.LocalFileTarget(path)
+
     @workflow_condition.output
     def output(self):
-        var, prod_br, dataset_name = self.branch_data
-        if isinstance(var, dict):
-            var = var["name"]
-        output_path = os.path.join(
-            self.version, "Hists_split", self.period, var, f"{dataset_name}.root"
-        )
-        return self.remote_target(output_path, fs=self.fs_HistTuple)
+        dataset_name, prod_br_list, var_batch = self.branch_data
+        if not var_batch:
+            return self._empty_batch_placeholder()
+        outputs = {}
+        for var_name in var_batch:
+            output_path = os.path.join(
+                self.version,
+                "Hists_split",
+                self.period,
+                var_name,
+                f"{dataset_name}.root",
+            )
+            outputs[var_name] = self.remote_target(output_path, fs=self.fs_HistTuple)
+        return outputs
 
     def run(self):
-        var, prod_br, dataset_name = self.branch_data
+        dataset_name, prod_br_list, var_batch = self.branch_data
+        if not var_batch:
+            # Empty bucket: output is the placeholder (already complete); nothing to do.
+            return
         job_home, remove_job_home = self.law_job_home()
         customisation_dict = getCustomisationSplit(self.customisations)
         channels = (
@@ -534,7 +607,6 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             if "channels" in customisation_dict.keys()
             else self.global_params["channelSelection"]
         )
-        # Channels from the yaml are a list, but the format we need for the ps_call later is 'ch1,ch2,ch3', basically join into a string separated by comma
         if type(channels) == list:
             channels = ",".join(channels)
         compute_unc_histograms = (
@@ -545,40 +617,44 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         HistFromNtupleProducer = os.path.join(
             self.ana_path(), "FLAF", "Analysis", "HistProducerFromNTuple.py"
         )
-        input_list_remote_target = [inp for inp in self.input()[0]]
-        nMT = f"{self.n_cpus * 2}" if self.effective_workflow == "htcondor" else "8"
-        print(
-            f"Running HistFromNtupleProducer for dataset {dataset_name} on workflow {self.effective_workflow} with nMT={nMT}"
-        )
-        with contextlib.ExitStack() as stack:
-            local_inputs = [
-                stack.enter_context((inp).localize("r")).abspath
-                for inp in self.input()[0]
-            ]
+        nMT = self.n_cpus * 2 if self.effective_workflow == "htcondor" else 8
 
-            var = var if type(var) != dict else var["name"]
-            tmpFile = os.path.join(job_home, f"HistFromNtuple_{var}.root")
+        # Determine which variables of this batch still need to be produced.
+        outputs = self.output()
+        vars_to_run = [v for v in var_batch if not outputs[v].exists()]
+        if not vars_to_run:
+            print(
+                f"All outputs already exist for dataset {dataset_name} "
+                f"batch {var_batch}, skipping"
+            )
+            if remove_job_home:
+                shutil.rmtree(job_home)
+            return
 
-            HistFromNtupleProducer_cmd = [
+        inputs = list(self.input())
+        n_inputs = len(inputs)
+
+        def _run_producer(out_dir, files):
+            cmd = [
                 "python3",
                 HistFromNtupleProducer,
                 "--period",
                 self.period,
-                "--outFile",
-                tmpFile,
+                "--outDir",
+                out_dir,
                 "--channels",
                 channels,
-                "--var",
-                var,
+                "--vars",
+                ",".join(vars_to_run),
                 "--dataset_name",
                 dataset_name,
                 "--LAWrunVersion",
                 self.version,
                 "--nMT",
-                nMT,
+                str(nMT),
             ]
             if compute_unc_histograms:
-                HistFromNtupleProducer_cmd.extend(
+                cmd.extend(
                     [
                         "--compute_rel_weights",
                         "True",
@@ -587,24 +663,121 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     ]
                 )
             if self.customisations:
-                HistFromNtupleProducer_cmd.extend(
-                    [f"--customisations", self.customisations]
-                )
+                cmd.extend(["--customisations", self.customisations])
+            if self.user_custom:
+                cmd.extend(["--user-custom", self.user_custom])
+            cmd.extend(files)
+            ps_call(cmd, verbose=1)
 
-            HistFromNtupleProducer_cmd.extend(local_inputs)
-            ps_call(HistFromNtupleProducer_cmd, verbose=1)
+        round_outputs = {var: [] for var in vars_to_run}
 
-        with (self.output()).localize("w") as tmp_local_file:
-            out_local_path = tmp_local_file.abspath
-            shutil.move(tmpFile, out_local_path)
+        # ---- Queue-based download/process pipeline ----
+        # A bounded pool of downloader threads localizes the input files concurrently and
+        # pushes each ready local path onto `ready_q`; the single processing loop (the producer
+        # is itself multi-threaded via nMT) consumes them in waves -- block for >=1 file, then
+        # take everything already downloaded -- and hadds the per-wave partials at the end, so
+        # download and processing overlap. Two limits from the global config bound resource use:
+        #   * max_simultaneous_downloads (default 4): concurrent transfers.
+        #   * max_total_download_size_gb (default 10): total size of localized-but-not-yet-
+        #     processed files. A downloader waits when the budget is exhausted and resumes once a
+        #     processed wave releases its files. At least one file is always admitted, so a single
+        #     file larger than the whole budget cannot deadlock (the cap is then soft).
+        max_parallel_dl = max(
+            1, int(self.global_params.get("max_simultaneous_downloads", 4))
+        )
+        max_download_bytes = (
+            float(self.global_params.get("max_total_download_size_gb", 10)) * 1024**3
+        )
 
-        delete_after_merge = False  # var == self.global_config["variables"][-1] --> find more robust condition
-        if delete_after_merge:
-            print(f"Finished HistogramProducer, lets delete remote targets")
-            for remote_target in input_list_remote_target:
-                remote_target.remove()
-                with remote_target.localize("w") as tmp_local_file:
-                    tmp_local_file.touch()  # Create a dummy to avoid dependency crashes
+        ready_q = queue.Queue()
+        errors = []
+        budget_cond = threading.Condition()
+        downloaded_bytes = [0.0]
+
+        def _download_one(inp):
+            try:
+                with budget_cond:
+                    # Wait for budget, but always admit at least one file (downloaded_bytes==0).
+                    while (
+                        downloaded_bytes[0] >= max_download_bytes
+                        and downloaded_bytes[0] > 0
+                    ):
+                        budget_cond.wait()
+                stack = contextlib.ExitStack()
+                abspath = stack.enter_context(inp.localize("r")).abspath
+                size = os.path.getsize(abspath)
+                with budget_cond:
+                    downloaded_bytes[0] += size
+                ready_q.put((abspath, stack, size))
+            except Exception as e:  # noqa: BLE001 - surfaced to the main thread
+                errors.append(e)
+                ready_q.put(("__error__", None, 0))
+
+        def _release(stack, size):
+            if stack is not None:
+                stack.close()
+            with budget_cond:
+                downloaded_bytes[0] -= size
+                budget_cond.notify_all()
+
+        executor = ThreadPoolExecutor(max_workers=max_parallel_dl)
+        for inp in inputs:
+            executor.submit(_download_one, inp)
+
+        try:
+            remaining = n_inputs
+            round_idx = 0
+            while remaining > 0:
+                wave = []
+                # Block for the first ready file, then take everything already downloaded.
+                item = ready_q.get()
+                if item[0] == "__error__":
+                    raise errors[0]
+                wave.append(item)
+                while len(wave) < remaining:
+                    try:
+                        item = ready_q.get_nowait()
+                    except queue.Empty:
+                        break
+                    if item[0] == "__error__":
+                        raise errors[0]
+                    wave.append(item)
+
+                remaining -= len(wave)
+                round_dir = os.path.join(job_home, "rounds", str(round_idx))
+                os.makedirs(round_dir, exist_ok=True)
+                _run_producer(round_dir, [abspath for abspath, _, _ in wave])
+                for var in vars_to_run:
+                    round_outputs[var].append(os.path.join(round_dir, f"{var}.root"))
+                round_idx += 1
+                # Release this wave's local copies and free their download budget.
+                for _, stack, size in wave:
+                    _release(stack, size)
+        finally:
+            executor.shutdown(wait=True)
+            # Drain and release anything downloaded after an exception.
+            while True:
+                try:
+                    _, stack, size = ready_q.get_nowait()
+                except queue.Empty:
+                    break
+                _release(stack, size)
+
+        if errors:
+            raise errors[0]
+
+        # Merge per-wave partial outputs per variable and upload.
+        for var in vars_to_run:
+            files = round_outputs[var]
+            if len(files) == 1:
+                with outputs[var].localize("w") as tmp_out:
+                    shutil.move(files[0], tmp_out.abspath)
+            else:
+                merged = os.path.join(job_home, f"merged_{var}.root")
+                hadd_cmd = f"hadd -f209 -j -O {merged} " + " ".join(files)
+                ps_call([hadd_cmd], True)
+                with outputs[var].localize("w") as tmp_out:
+                    shutil.move(merged, tmp_out.abspath)
 
         if remove_job_home:
             shutil.rmtree(job_home)
@@ -613,11 +786,27 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
+    variables = luigi.Parameter(default="")
 
     @property
     def bundle_flavours(self):
         fl = AnaTupleFileListTask.req(self, branches=())
         return ["core", ("AnaTupleFileList", fl.version)]
+
+    @property
+    def active_variables(self):
+        all_vars = self.global_params["variables"]
+        if not self.variables:
+            return all_vars
+        selected = {v.strip() for v in self.variables.split(",") if v.strip()}
+        result = [
+            v for v in all_vars if (v["name"] if isinstance(v, dict) else v) in selected
+        ]
+        found = {v["name"] if isinstance(v, dict) else v for v in result}
+        missing = selected - found
+        if missing:
+            print(f"Warning: variables not found in config: {sorted(missing)}")
+        return result
 
     def workflow_requires(self):
         reqs = super().workflow_requires()
@@ -639,33 +828,26 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
             return reqs
 
-        branch_set = set()
-        all_datasets = {}
-        for br_idx, (var, prod_br_list, dataset_names) in self.branch_map.items():
-            all_datasets[var] = prod_br_list
-
         new_branchset = set()
-        for var in all_datasets.keys():
-            new_branchset.update(all_datasets[var])
+        for br_idx, (var_name, hfn_br_list, dataset_names) in self.branch_map.items():
+            new_branchset.update(hfn_br_list)
 
         reqs["HistFromNtupleProducerTask"] = HistFromNtupleProducerTask.req(
-            self, branches=list(new_branchset)
+            self, branches=sorted(new_branchset)
         )
         return reqs
 
     def requires(self):
         var_name, br_indices, datasets = self.branch_data
-        reqs = [
+        return [
             HistFromNtupleProducerTask.req(
                 self,
                 max_runtime=HistFromNtupleProducerTask.max_runtime._default,
-                branch=prod_br,
+                branch=br_idx,
                 customisations=self.customisations,
             )
-            for prod_br in tuple(set(br_indices))
+            for br_idx in br_indices
         ]
-
-        return reqs
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
@@ -677,34 +859,28 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
-        HistFromNtupleProducerTask_branch_map = HistFromNtupleProducerTask.req(
+        hfn_branch_map = HistFromNtupleProducerTask.req(
             self, branches=()
         ).create_branch_map()
-        all_datasets = {}
+        if not hfn_branch_map:
+            return {}
+        # HFN now branches per (dataset, variable-batch). Map each variable to the HFN
+        # branch (one per dataset) whose batch produced it, so this merger branch only
+        # depends on the HFN jobs that actually wrote its variable.
+        var_to_dataset_branch = {}  # var_name -> {dataset_name: hfn_br_idx}
+        for br_idx, (dataset_name, _prod_br_list, var_batch) in sorted(
+            hfn_branch_map.items()
+        ):
+            for v in var_batch:
+                var_to_dataset_branch.setdefault(v, {})[dataset_name] = br_idx
+        # One HistMerger branch per active variable.
         branches = {}
-        k = 0
-        for br_idx, (
-            var_name,
-            prod_br_list,
-            current_dataset,
-        ) in HistFromNtupleProducerTask_branch_map.items():
-            var_name = (
-                var_name.get("name", var_name)
-                if isinstance(var_name, dict)
-                else var_name
-            )
-            if var_name not in all_datasets.keys():
-                all_datasets[var_name] = []
-            all_datasets[var_name].append((br_idx, current_dataset))
-        for var_name, br_list in all_datasets.items():
-            br_indices = []
-            datasets = []
-            for key in br_list:
-                idx, dataset_name = key
-                br_indices.append(idx)
-                datasets.append(dataset_name)
-            branches[k] = (var_name, br_indices, datasets)
-            k += 1
+        for k, var in enumerate(self.active_variables):
+            var_name = var["name"] if isinstance(var, dict) else var
+            ds_to_br = var_to_dataset_branch.get(var_name, {})
+            dataset_names = sorted(ds_to_br)
+            hfn_br_indices = [ds_to_br[ds] for ds in dataset_names]
+            branches[k] = (var_name, hfn_br_indices, dataset_names)
         return branches
 
     @workflow_condition.output
@@ -758,9 +934,11 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         local_inputs = []
         with contextlib.ExitStack() as stack:
             for inp in self.input():
-                dataset_name = os.path.basename(inp.abspath)
-                all_datasets.append(dataset_name.split(".")[0])
-                local_inputs.append(stack.enter_context(inp.localize("r")).abspath)
+                # Each inp is a dict {var_name: FileTarget} from HistFromNtupleProducerTask.
+                var_file = inp[var_name]
+                dataset_name = os.path.basename(var_file.abspath).split(".")[0]
+                all_datasets.append(dataset_name)
+                local_inputs.append(stack.enter_context(var_file.localize("r")).abspath)
             dataset_names = ",".join(smpl for smpl in all_datasets)
             all_outputs_merged = []
             if len(uncNames) == 1:
@@ -1102,11 +1280,27 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
+    variables = luigi.Parameter(default="")
 
     @property
     def bundle_flavours(self):
         fl = AnaTupleFileListTask.req(self, branches=())
         return ["core", ("AnaTupleFileList", fl.version)]
+
+    @property
+    def active_variables(self):
+        all_vars = self.global_params["variables"]
+        if not self.variables:
+            return all_vars
+        selected = {v.strip() for v in self.variables.split(",") if v.strip()}
+        result = [
+            v for v in all_vars if (v["name"] if isinstance(v, dict) else v) in selected
+        ]
+        found = {v["name"] if isinstance(v, dict) else v for v in result}
+        missing = selected - found
+        if missing:
+            print(f"Warning: variables not found in config: {sorted(missing)}")
+        return result
 
     def workflow_requires(self):
         reqs = super().workflow_requires()

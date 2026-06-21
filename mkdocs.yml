@@ -1,13 +1,19 @@
 site_name: FLAF
-repo_name: GitHub
-repo_url: https://github.com/cms-flaf/Framework
+site_description: >-
+  FLAF — the Flexible LAW-based Analysis Framework. Documentation for the shared
+  CMS analysis framework used by HH->bbtautau, HH->bbWW and H->mumu.
+repo_name: cms-flaf/FLAF
+repo_url: https://github.com/cms-flaf/FLAF
+edit_uri: edit/main/docs/
+
 theme:
   name: material
   font: false
   features:
     - content.action.edit
     - content.action.view
-    - navigation.expand
+    - content.code.copy
+    - content.code.annotate
     - navigation.footer
     - navigation.indexes
     - navigation.sections
@@ -26,6 +32,8 @@ markdown_extensions:
   - def_list
   - footnotes
   - meta
+  - md_in_html
+  - tables
   - toc:
       permalink: true
   # Python Markdown Extensions
@@ -38,7 +46,8 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
-  - pymdownx.highlight
+  - pymdownx.highlight:
+      anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.keys
   - pymdownx.mark
@@ -53,26 +62,42 @@ markdown_extensions:
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
-  - pymdownx.blocks.admonition
-  - pymdownx.blocks.details
-  - pymdownx.blocks.tab
 
 plugins:
   - search
 
-extra_css:
-  - stylesheets/fonts.css
-
 extra_javascript:
   - https://unpkg.com/mermaid@9.3/dist/mermaid.min.js
-  - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
-
 
 nav:
   - Home: index.md
-  - Analysis: analysis.md
-  - HH->bbtautau: hh_bbtautau.md
-  - Statistical inference: stat_inference.md
-
-#theme: readthedocs
+  - Getting started:
+      - Prerequisites: getting-started/prerequisites.md
+      - Installation: getting-started/installation.md
+      - Your first run: getting-started/first-run.md
+      - Key terms: getting-started/key-terms.md
+  - Concepts:
+      - Architecture: concepts/architecture.md
+      - Tasks & LAW: concepts/tasks-and-law.md
+      - Data flow: concepts/data-flow.md
+      - Configuration system: concepts/configuration.md
+      - Eras & periods: concepts/eras.md
+      - Storage & filesystems: concepts/storage.md
+      - The environment: concepts/environment.md
+  - Full workflow:
+      - Walkthrough: workflow/walkthrough.md
+      - Running on HTCondor: workflow/htcondor.md
+      - Command arguments: workflow/arguments.md
+  - Configuration guide:
+      - user_custom.yaml: configuration/user-custom.md
+      - Datasets: configuration/datasets.md
+      - Processes & models: configuration/processes-and-models.md
+  - Task reference: reference/tasks.md
+  - CI / CD:
+      - GitHub Actions: ci/github-actions.md
+      - Integration pipeline: ci/integration-pipeline.md
+  - Troubleshooting: troubleshooting.md
+  - Glossary: glossary.md
+  - Contributing: contributing.md
+  - Analyses: analyses.md

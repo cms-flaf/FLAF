@@ -68,7 +68,6 @@ plugins:
 
 extra_javascript:
   - https://unpkg.com/mermaid@9.3/dist/mermaid.min.js
-  - https://polyfill.io/v3/polyfill.min.js?features=es6
   - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
 nav:

@@ -17,7 +17,10 @@ jobs:
       - name: Validate PR trigger request
         id: validate_trigger_request
         uses: actions/github-script@v6
+        env:
+          FLAF_GITHUB_TOKEN: ${{ secrets.FLAF_GITHUB_TOKEN }}
         with:
+          github-token: ${{ secrets.FLAF_GITHUB_TOKEN }}
           script: |
             const prNumber = context.payload.issue && context.payload.issue.pull_request ? context.payload.issue.number : null;
             if (!prNumber) {
@@ -35,6 +38,17 @@ jobs:
             const githubAreaModified = modifiedFiles.some(file => file.filename.startsWith('.github/'));
             if (githubAreaModified && commentAuthor !== 'kandrosov') {
               console.log(`.github area is modified and user ${commentAuthor} is not authorized to trigger the pipeline.`);
+              core.setOutput('should_continue', 'false');
+              return;
+            }
+
+            try {
+              await github.rest.orgs.checkMembershipForUser({
+                org: 'cms-flaf',
+                username: commentAuthor,
+              });
+            } catch (error) {
+              console.log(`User ${commentAuthor} is not a member of the cms-flaf organization. Skipping.`);
               core.setOutput('should_continue', 'false');
               return;
             }
@@ -82,6 +96,14 @@ jobs:
           ref: main
           path: _shared_flaf_workflow
 
+      - name: Checkout FLAF_ci repository
+        if: ${{ steps.validate_trigger_request.outputs.should_continue == 'true' }}
+        uses: actions/checkout@v4
+        with:
+          repository: cms-flaf/FLAF_ci
+          ref: main
+          path: _flaf_ci
+
       - name: Install js-yaml
         if: ${{ steps.validate_trigger_request.outputs.should_continue == 'true' }}
         run: npm install js-yaml
@@ -91,7 +113,7 @@ jobs:
         id: parse_comment
         uses: actions/github-script@v6
         env:
-          CONFIG_PATH: .github/integration_cfg.yaml
+          CONFIG_PATH: _flaf_ci/integration_cfg.yaml
           SHARED_WORKFLOW_PATH: _shared_flaf_workflow
           USE_LOCAL_WORKFLOW_CODE: ${{ steps.detect_workflow_files.outputs.use_local_workflow_code }}
         with:

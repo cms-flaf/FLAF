@@ -95,18 +95,6 @@ module.exports = async ({ github, context, core, process, require }) => {
     pull_number: prNumber,
   });
 
-  let authorizedUsers = cfg.authorized_users;
-  const githubAreaModified = modifiedFiles.some(file => file.filename.startsWith('.github/'));
-  if (githubAreaModified) {
-    const rootUser = 'kandrosov';
-    authorizedUsers = [rootUser];
-    console.log(`.github area is modified. Only ${rootUser} is authorized to trigger the pipeline.`);
-  }
-  if (!authorizedUsers.includes(commentAuthor)) {
-    console.log(`User ${commentAuthor} is not authorized to trigger the pipeline. Skipping.`);
-    return;
-  }
-
   const variables = cfg.variables;
   const packages = Object.keys(variables).filter(key => key.endsWith('_version')).map(key => key.slice(0, -8));
   const rootPackages = Object.keys(variables).filter(key => key.endsWith('_active')).map(key => key.slice(0, -7));
@@ -117,6 +105,14 @@ module.exports = async ({ github, context, core, process, require }) => {
     return;
   }
   variables[`${repo}_version`] = `PR_${prNumber}`;
+
+  if (repo !== 'FLAF') {
+    for (const pkg of rootPackages) {
+      if (pkg !== repo) {
+        variables[`${pkg}_active`] = "0";
+      }
+    }
+  }
 
   let allOk = true;
   for (let i = 1; i < relevantLines.length; i++) {

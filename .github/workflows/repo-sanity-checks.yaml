@@ -68,7 +68,7 @@ jobs:
           echo "Size before: ${{ steps.size_before.outputs.size }} bytes" >> $GITHUB_STEP_SUMMARY
           echo "Size after: ${{ steps.size_after.outputs.size }} bytes" >> $GITHUB_STEP_SUMMARY
           echo "Repository size would increase by approximately $delta_kb KiB if this PR is squash merged." >> $GITHUB_STEP_SUMMARY
-          
+
           MAX_THR_KB=1024
           if [ "$delta_kb" -gt "$MAX_THR_KB" ]; then
             if [ "$HAS_BIG_CHANGES_LABEL" = "true" ]; then

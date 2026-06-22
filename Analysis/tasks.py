@@ -21,6 +21,31 @@ from FLAF.AnaProd.tasks import (
 )
 from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 
+# Process-local cache of the upstream AnaTupleMergeTask outputs, keyed by the resolved
+# AnaTuple (version, period, customisations). HistTupleProducerTask.output() and
+# AnalysisCacheTask.output() derive their own output name from the anaTuple input file name;
+# resolving that per branch (instantiating AnaTupleMergeTask and building/reducing its branch
+# map each time) is O(nBranches) per branch, i.e. O(nBranches^2) when all outputs are queried
+# (e.g. --print-status). Building the {branch -> [targets]} map once and sharing it makes each
+# lookup O(1). Safe within a process: the map is fixed by the (already produced) merge plan.
+_anaTuple_outputs_cache = {}
+
+
+def _anaTuple_outputs(task):
+    wf = AnaTupleMergeTask.req(
+        task,
+        branch=-1,
+        branches=(),
+        customisations=task.customisations,
+        max_runtime=AnaTupleMergeTask.max_runtime._default,
+    )
+    key = (wf.version, wf.period, wf.customisations)
+    cache = _anaTuple_outputs_cache.get(key)
+    if cache is None:
+        cache = wf.all_branch_outputs()
+        _anaTuple_outputs_cache[key] = cache
+    return cache
+
 
 class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
@@ -346,7 +371,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         dataset_name, prod_br, producer_list, aggregate_list, input_index = (
             self.branch_data
         )
-        input = self.input()["anaTuple"][input_index]
+        # Derive the output name from the anaTuple input only (not the full requires graph:
+        # anaCaches/anaAggs are irrelevant here). The anaTuple outputs are resolved once per
+        # process and shared, so this is O(1) instead of O(nBranches) per branch.
+        input = _anaTuple_outputs(self)[prod_br][input_index]
         input_name = os.path.basename(input.abspath)
         outFileName = (
             f"histTuple_" + os.path.basename(input.abspath).split("_", 1)[1]
@@ -1179,8 +1207,11 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.output
     def output(self):
-        dataset_name, _, _, _, input_index = self.branch_data
-        inputFilePath = self.input()["anaTuple"][input_index].abspath
+        dataset_name, prod_br, _, _, input_index = self.branch_data
+        # Derive the output name from the anaTuple input only; the anaTuple outputs are
+        # resolved once per process and shared, so this is O(1) instead of building the
+        # anaTuple/anaCache requirements per branch (O(nBranches) each).
+        inputFilePath = _anaTuple_outputs(self)[prod_br][input_index].abspath
         outFileNameWithoutExtension = os.path.basename(inputFilePath).split(".")[0]
         outFileName = f"{outFileNameWithoutExtension}.{self.output_file_extension}"
         output_path = os.path.join(

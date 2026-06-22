@@ -140,12 +140,15 @@ class Task(law.Task):
         """
         key = self._branch_map_cache_key()
         cached = Task._branch_map_cache.get(key)
-        if cached is not None:
-            return cached
-        result = build_fn()
-        if result:
-            Task._branch_map_cache[key] = result
-        return result
+        if cached is None:
+            cached = build_fn()
+            if cached:
+                Task._branch_map_cache[key] = cached
+        # Return a shallow copy: law's get_branch_map() mutates the returned dict in place
+        # (`_reduce_branch_map` does `del branch_map[b]` to filter to the requested
+        # `branches`), which would otherwise corrupt the shared cached map for other
+        # instances. The branch-data values are immutable tuples, so a shallow copy is safe.
+        return dict(cached)
 
     def store_parts(self):
         return (self.version, self.__class__.__name__, self.period)

@@ -39,10 +39,19 @@ class PathCache:
             path, exists, time.time() + self.validity_period
         )
 
+    def set_local(self, path, exists):
+        # Local-only set; identical to set() for the in-memory cache (kept for parity
+        # with RemotePathCache, where set_local avoids a network round-trip).
+        self.set(path, exists)
+
     def set_exists(self, base_dir, items):
         for item in items:
             path = os.path.join(base_dir, item)
             self.set(path, True)
+        # Mark the directory itself as existing so that lookups of absent siblings can be
+        # answered from this cached listing without an extra round-trip (matches the
+        # behaviour of RemotePathCache.set_exists).
+        self.set(base_dir, True)
 
     def get(self, path):
         if path in self.cache:
@@ -80,6 +89,10 @@ class RemotePathCache:
             self.timeout,
             verbose=self.verbose,
         )
+        self.local_cache.set(path, exists)
+
+    def set_local(self, path, exists):
+        # Update only the in-process cache, without a round-trip to the cache server.
         self.local_cache.set(path, exists)
 
     def set_exists(self, base_dir, items):
@@ -160,6 +173,10 @@ class GFALFileInterface(RemoteFileInterface):
             cached_dir_result, from_local_cache = self.path_cache.get(dir_uri)
             if cached_dir_result is not None:
                 cached_result = False
+                # The directory is known but does not contain this entry: memoize the
+                # negative result locally so repeated checks of the same path do not query
+                # the cache server again (a fresh TCP round-trip per call otherwise).
+                self.path_cache.set_local(path_uri, False)
         use_cache = cached_result is not None
 
         if use_cache:

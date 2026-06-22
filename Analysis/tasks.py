@@ -84,6 +84,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         branch_set_cache = set()
         producer_set = set()
         agg_dict = {}
+        # An aggregation branch map depends only on the producer, not on the requesting
+        # branch, so resolve each producer's {dataset -> aggregation branches} once instead
+        # of rebuilding it for every branch (which was O(nBranches) full cascade rebuilds).
+        agg_dataset_branches = {}
         for idx, (
             dataset,
             br,
@@ -97,22 +101,23 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 for producer_name in (p for p in producer_list if p is not None):
                     producer_set.add(producer_name)
 
-            if len(aggregate_list) > 0:
-                for agg_name in aggregate_list:
-                    if agg_name not in agg_dict.keys():
-                        agg_dict[agg_name] = set()
+            for agg_name in aggregate_list:
+                if agg_name not in agg_dataset_branches:
+                    by_dataset = {}
                     aggr_task_branch_map = AnalysisCacheAggregationTask.req(
                         self,
                         branch=-1,
                         producer_to_aggregate=agg_name,
                     ).create_branch_map()
-
                     for aggr_br_idx, (
                         aggr_dataset_name,
                         _,
                     ) in aggr_task_branch_map.items():
-                        if aggr_dataset_name == dataset:
-                            agg_dict[agg_name].add(aggr_br_idx)
+                        by_dataset.setdefault(aggr_dataset_name, []).append(aggr_br_idx)
+                    agg_dataset_branches[agg_name] = by_dataset
+                agg_dict.setdefault(agg_name, set()).update(
+                    agg_dataset_branches[agg_name].get(dataset, ())
+                )
 
         if len(branch_set) > 0:
             reqs["anaTuple"] = AnaTupleMergeTask.req(
@@ -219,6 +224,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         var_produced_by = self.setup.var_producer_map
 
         n = 0
@@ -521,6 +529,9 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         branches = {}
 
         dataset_to_branches = {}
@@ -859,6 +870,9 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         hfn_branch_map = HistFromNtupleProducerTask.req(
             self, branches=()
         ).create_branch_map()
@@ -1155,6 +1169,9 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         branches = HistTupleProducerTask.req(
             self, branch=-1, branches=()
         ).create_branch_map()
@@ -1599,6 +1616,9 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         # structure of branch map
         # ---- name of sample,
         # ---- list of branch indices of the AnalysisCacheTask(producer_to_run=producer_name)

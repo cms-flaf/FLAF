@@ -418,6 +418,9 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ]
 
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         branches = {}
         k = 0
         data_done = False
@@ -663,6 +666,9 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         branches = {}
         nBranch = 0
         # Use req(self) for controlled FileList ds map; version via copy of ana* or per-task on FileList.

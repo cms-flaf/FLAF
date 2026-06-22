@@ -99,6 +99,54 @@ class Task(law.Task):
         self._dataset_id_name_dict = None
         self._dataset_name_id_dict = None
 
+    # Process-local memoization of create_branch_map results, shared across task
+    # instances. The same branch map is otherwise rebuilt many times during task
+    # initialization because every `X.req(...).create_branch_map()` constructs a fresh
+    # instance and so bypasses law's per-instance branch-map cache (`_branch_map`). The
+    # downstream maps form a cascade (e.g. AnalysisCacheAggregation -> AnalysisCacheTask
+    # -> HistTupleProducer -> AnaTupleMerge), and `workflow_requires`/`requires` rebuild
+    # it once per branch, which is O(nBranches) redundant full rebuilds and dominates the
+    # loading time of post-anaTuple tasks. Within a single law process the inputs that
+    # determine a branch map (config + merge plans + completed upstream outputs) are
+    # stable, so memoizing by the map-determining parameters is safe.
+    _branch_map_cache = {}
+
+    def _branch_map_cache_key(self):
+        return (
+            type(self).__name__,
+            self.version,
+            self.period,
+            self.customisations,
+            self.dataset,
+            self.process,
+            self.model,
+            self.test,
+            self.user_custom,
+            self.anaTuple_version,
+            self.anaCache_version,
+            self.ana_version,
+            getattr(self, "producer_to_run", None),
+            getattr(self, "producer_to_aggregate", None),
+            getattr(self, "variables", None),
+            getattr(self, "n_var_batches", None),
+        )
+
+    def cached_branch_map(self, build_fn):
+        """Return ``build_fn()`` memoized per map-determining parameter signature.
+
+        Only populated maps are cached: an empty result means an upstream task is not
+        ready yet (e.g. the merge plan does not exist), which must stay dynamic so the
+        map is rebuilt once the upstream completes.
+        """
+        key = self._branch_map_cache_key()
+        cached = Task._branch_map_cache.get(key)
+        if cached is not None:
+            return cached
+        result = build_fn()
+        if result:
+            Task._branch_map_cache[key] = result
+        return result
+
     def store_parts(self):
         return (self.version, self.__class__.__name__, self.period)
 

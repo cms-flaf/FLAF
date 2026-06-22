@@ -106,7 +106,7 @@ module.exports = async ({ github, context, core, process, require }) => {
   }
   variables[`${repo}_version`] = `PR_${prNumber}`;
 
-  if (repo !== 'FLAF') {
+  if (rootPackages.includes(repo)) {
     for (const pkg of rootPackages) {
       if (pkg !== repo) {
         variables[`${pkg}_active`] = "0";

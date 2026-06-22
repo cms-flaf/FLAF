@@ -137,17 +137,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     def requires(self):
         return []
 
-    _req_params = None
-
-    @classmethod
-    def req(cls, inst, **kwargs):
-        if cls._req_params is None:
-            cls._req_params = cls.req_params(inst, **kwargs)
-        for param_name in ["branch", "branches"]:
-            param_value = kwargs.get(param_name, getattr(inst, param_name))
-            cls._req_params[param_name] = param_value
-        return cls(**cls._req_params)
-
     @law.dynamic_workflow_condition
     def workflow_condition(self):
         return InputFileTask.WF_complete(self)

@@ -9,6 +9,8 @@ import shutil
 import subprocess
 import tempfile
 
+from law.parser import global_cmdline_values
+
 from FLAF.RunKit.run_tools import natural_sort
 from FLAF.RunKit.kinit import update_kinit
 from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget, WLCGDirectoryTarget
@@ -36,6 +38,73 @@ class Task(law.Task):
     Base task that we use to force a version parameter on all inheriting tasks, and that provides
     some convenience methods to create local file and directory targets at the default data path.
     """
+
+    # --- Per-class caches for luigi/law reflection. luigi.Task.get_params() rebuilds the
+    # parameter list with dir(cls) + isinstance on every call, and law's req_params() filters
+    # parameters with fnmatch on every .req() call. Both results are constant for a given
+    # class (and class pair), but recomputing them dominates CPU when building or printing
+    # large task graphs (thousands of .req()/instantiations). Memoizing them is transparent
+    # (the cached values are exactly what luigi/law would have produced).
+    _get_params_cache = {}
+    _req_copy_names_cache = {}
+    _req_prefer_cli_drop_cache = {}
+
+    @classmethod
+    def get_params(cls):
+        cached = Task._get_params_cache.get(cls)
+        if cached is None:
+            cached = super(Task, cls).get_params()
+            Task._get_params_cache[cls] = cached
+        return cached
+
+    @classmethod
+    def req(cls, inst, **kwargs):
+        # Law control kwargs (prefixed with "_", e.g. _exclude/_prefer_cli) change which
+        # parameters are copied; defer those rare calls to law's full implementation.
+        if any(key.startswith("_") for key in kwargs):
+            return super(Task, cls).req(inst, **kwargs)
+        params = {name: getattr(inst, name) for name in cls._req_copy_names(inst)}
+        params.update(kwargs)
+        for name in cls._req_prefer_cli_drop():
+            params.pop(name, None)
+        return cls(**params)
+
+    @classmethod
+    def _req_copy_names(cls, inst):
+        # Names of the parameters req_params() copies from inst (common parameters minus the
+        # excluded ones), constant per (cls, type(inst)). Derived from law's own req_params
+        # (with prefer-cli removal disabled, which we re-apply per call) so the exclusion is
+        # exactly law's; computed once and cached.
+        key = (cls, type(inst))
+        names = Task._req_copy_names_cache.get(key)
+        if names is None:
+            names = tuple(cls.req_params(inst, _prefer_cli=[]).keys())
+            Task._req_copy_names_cache[key] = names
+        return names
+
+    @classmethod
+    def _req_prefer_cli_drop(cls):
+        # Parameters that req_params() drops because they are preferably taken from the CLI.
+        # Keyed on the CLI parser identity so a None -> real-parser transition is picked up.
+        prefer = cls.prefer_params_cli
+        if not prefer:
+            return ()
+        parser = luigi.cmdline_parser.CmdlineParser.get_instance()
+        key = (cls, id(parser))
+        cached = Task._req_prefer_cli_drop_cache.get(key)
+        if cached is None:
+            drop = set()
+            if parser is not None:
+                prefix = cls.get_task_family() + "_"
+                present = {
+                    k[len(prefix) :]
+                    for k in global_cmdline_values().keys()
+                    if k.startswith(prefix)
+                }
+                drop = set(prefer) & present
+            cached = tuple(drop)
+            Task._req_prefer_cli_drop_cache[key] = cached
+        return cached
 
     version = luigi.Parameter()
     prefer_params_cli = [

@@ -16,6 +16,7 @@ from .run_tools import repeat_until_success
 from .pathCacheClient import (
     set_status as set_remote_cache_status,
     get_status as get_remote_cache_status,
+    get_status_many as get_remote_cache_status_many,
 )
 
 
@@ -34,10 +35,27 @@ class PathCache:
         self.validity_period = validity_period
         self.cache = {}
 
+    @staticmethod
+    def _iter_parents(path):
+        while True:
+            parent = os.path.dirname(path)
+            if not parent or parent == path:
+                break
+            path = parent
+            yield path
+
     def set(self, path, exists):
         self.cache[path] = PathCacheEntry(
             path, exists, time.time() + self.validity_period
         )
+        # If a path exists, every ancestor directory exists too: drop any stale negative
+        # ancestor entry that would otherwise (via directory-negative inference in get())
+        # wrongly imply this path is absent.
+        if exists:
+            for parent in self._iter_parents(path):
+                pentry = self.cache.get(parent)
+                if pentry is not None and pentry.exists is False:
+                    del self.cache[parent]
 
     def set_local(self, path, exists):
         # Local-only set; identical to set() for the in-memory cache (kept for parity
@@ -54,13 +72,27 @@ class PathCache:
         self.set(base_dir, True)
 
     def get(self, path):
-        if path in self.cache:
-            entry = self.cache[path]
+        entry = self.cache.get(path)
+        if entry is not None:
             if entry.is_valid():
                 return entry.exists, True
-            else:
-                del self.cache[path]
+            del self.cache[path]
+        # Directory-negative inference: if the nearest cached ancestor directory does not
+        # exist, then this path cannot exist either.
+        for parent in self._iter_parents(path):
+            pentry = self.cache.get(parent)
+            if pentry is None:
+                continue
+            if not pentry.is_valid():
+                del self.cache[parent]
+                continue
+            if pentry.exists is False:
+                return False, True
+            break
         return None, True
+
+    def get_many(self, paths):
+        return {path: self.get(path)[0] for path in paths}
 
     def invalidate(self, path):
         to_remove = []
@@ -116,6 +148,29 @@ class RemotePathCache:
         if remote_result is not None:
             self.local_cache.set(path, remote_result)
         return remote_result, False
+
+    def get_many(self, paths):
+        """Resolve many paths in one shot: serve what the local cache knows, then query the
+        remaining paths from the server in a single pipelined request. Returns {path: bool|None}.
+        """
+        results = {}
+        missing = []
+        for path in paths:
+            local_result, _ = self.local_cache.get(path)
+            if local_result is not None:
+                results[path] = local_result
+            else:
+                missing.append(path)
+        if missing:
+            remote = get_remote_cache_status_many(
+                missing, self.host, self.port, self.timeout, verbose=self.verbose
+            )
+            for path in missing:
+                remote_result = remote.get(path)
+                if remote_result is not None:
+                    self.local_cache.set(path, remote_result)
+                results[path] = remote_result
+        return results
 
     def invalidate(self, path):
         set_remote_cache_status(
@@ -284,10 +339,53 @@ class GFALFileInterface(RemoteFileInterface):
                 raise GfalError(f"GFALFileInterface: failed to list directory {path}")
             entry_names = []
             self.path_cache.set(path_uri, False)
+            # Walk up to record the highest absent ancestor as well, so the server can
+            # answer the whole missing subtree by inference and clients can skip the
+            # per-subdirectory gfal-ls on subsequent lookups.
+            self._mark_absent_ancestors(path_uri)
         else:
             entry_names = [entry.name for entry in entries]
             self.path_cache.set_exists(path_uri, entry_names)
         return entry_names
+
+    def _mark_absent_ancestors(self, dir_uri, max_climb=32):
+        # A directory was found absent. Walk upward to record the highest absent ancestor
+        # too, so the cache server can answer the whole missing subtree by directory-negative
+        # inference and clients can skip the per-subdirectory gfal-ls. A negative cached at a
+        # high level suppresses a large subtree, so each absent ancestor is confirmed with a
+        # second gfal-ls before caching it (a single failure may be transient).
+        current = dir_uri
+        for _ in range(max_climb):
+            parent = os.path.dirname(current)
+            if not parent or parent == current:
+                break
+            cached, _ = self.path_cache.get(parent)
+            if cached is not None:
+                # Already known: False => the subtree is already covered by inference;
+                # True => we reached an existing ancestor, stop.
+                break
+            entries = gfal_ls_safe(
+                parent, voms_token=self.voms_token, catch_stderr=True, verbose=0
+            )
+            if entries is None:
+                # Confirm the absence before caching a wide-reaching negative.
+                entries = gfal_ls_safe(
+                    parent, voms_token=self.voms_token, catch_stderr=True, verbose=0
+                )
+            if entries is None:
+                self.path_cache.set(parent, False)
+                current = parent
+            else:
+                self.path_cache.set_exists(parent, [entry.name for entry in entries])
+                break
+
+    def prefetch(self, paths, base=None):
+        """Warm the cache for many paths with a single pipelined request to the cache
+        server. Existence results are stored in the local cache so subsequent exists()
+        calls are served without further round-trips. Returns {path: bool|None}."""
+        uri_map = {path: self.uri(path, base=base) for path in paths}
+        uri_results = self.path_cache.get_many(list(uri_map.values()))
+        return {path: uri_results.get(uri) for path, uri in uri_map.items()}
 
     @staticmethod
     def _raise_not_implemented(method_name):

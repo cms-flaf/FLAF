@@ -507,9 +507,7 @@ class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
         super(AnaTupleFileListTask, self).__init__(*args, **kwargs)
 
     def workflow_requires(self):
-        reqs = super().workflow_requires()
-        reqs["AnaTupleFileListBuilderTask"] = AnaTupleFileListBuilderTask.req(self)
-        return reqs
+        return {"AnaTupleFileListBuilderTask": AnaTupleFileListBuilderTask.req(self)}
 
     def requires(self):
         return AnaTupleFileListBuilderTask.req(self)

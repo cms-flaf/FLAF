@@ -12,6 +12,7 @@ import FLAF.Common.HistHelper as HistHelper
 import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
 from FLAF.RunKit.run_tools import ps_call
+from FLAF.Analysis.HistTupleProducer import DefineBinnedColumn
 
 
 def find_keys(inFiles_list):
@@ -275,6 +276,25 @@ if __name__ == "__main__":
 
     vars_to_process = [v.strip() for v in args.vars.split(",") if v.strip()]
     os.makedirs(args.outDir, exist_ok=True)
+
+    flatten_vars = set()
+    for var in vars_to_process:
+        var_entry = HistHelper.findBinEntry(hist_cfg_dict, var)
+        if hist_cfg_dict[var_entry].get("var_list"):
+            for v in hist_cfg_dict[var_entry]["var_list"]:
+                flatten_vars.add(v)
+        else:
+            flatten_vars.add(var)
+
+    for var in flatten_vars:
+        DefineBinnedColumn(hist_cfg_dict, var)
+
+    for tree_name, rdf in list(all_trees.items()):
+        for var in flatten_vars:
+            col_name = f"{var}_bin"
+            if col_name not in list(rdf.GetColumnNames()):
+                rdf = rdf.Define(col_name, f"get_{var}_bin({var})")
+        all_trees[tree_name] = rdf
 
     if all_trees:
         # Open a tmp ROOT file per variable and register all histogram actions.

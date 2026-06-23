@@ -263,6 +263,13 @@ class Setup:
         self.period = period
         self.law_run_version = law_run_version
 
+        # Resolve a relative user_custom file against the analysis path. The path is passed
+        # through to subprocesses (e.g. HistTupleProducer.py) verbatim, where the working
+        # directory is not the analysis directory (on HTCondor it is the job scratch dir), so
+        # it must be made absolute here for every caller, not only in Task.__init__.
+        if user_custom_file is not None and not os.path.isabs(user_custom_file):
+            user_custom_file = os.path.join(ana_path, user_custom_file)
+
         self.config_path_order = [
             os.path.join(ana_path, "FLAF", "config"),
             os.path.join(ana_path, "FLAF", "config", period),

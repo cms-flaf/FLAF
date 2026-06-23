@@ -461,6 +461,21 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 )
                 HistTupleProducer_cmd.extend(["--cacheFile", local_anacaches_str])
 
+            # Localize the per-sample aggregated caches (e.g. BtagShape) and pass them as
+            # "producer:localpath" so the consumer reads the law-localized file instead of
+            # reconstructing a version-dependent path.
+            anaAggs = self.input().get("anaAggs", {})
+            local_anaaggs_str = ",".join(
+                f"{producer_name}:"
+                + stack.enter_context(agg_targets[0].localize("r")).abspath
+                for producer_name, agg_targets in anaAggs.items()
+                if agg_targets
+            )
+            if local_anaaggs_str:
+                HistTupleProducer_cmd.extend(
+                    ["--aggregatedCacheFiles", local_anaaggs_str]
+                )
+
             ps_call(HistTupleProducer_cmd, verbose=1)
 
             with self.output().localize("w") as local_output:
@@ -1703,7 +1718,18 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self.producer_to_aggregate
         ].get("save_as", "root")
         output_name = f"aggregatedCache.{extension}"
-        return self.local_target(sample_name, self.producer_to_aggregate, output_name)
+        # Remote target (like AnalysisCacheTask) so the aggregated cache is a proper shared
+        # artifact that law localizes for consumers, instead of a local path consumers
+        # reconstruct (which broke under version overrides).
+        output_path = os.path.join(
+            self.version,
+            "AnalysisCacheAggregation",
+            self.producer_to_aggregate,
+            self.period,
+            sample_name,
+            output_name,
+        )
+        return self.remote_target(output_path, fs=self.fs_anaCacheTuple)
 
     def run(self):
         sample_name, _ = self.branch_data
@@ -1738,10 +1764,11 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             aggregate_cmd.extend(local_inputs)
             ps_call(aggregate_cmd, verbose=1)
 
-            # For local target: ensure parent directory exists and move directly
-            out_local_path = local_output.abspath
-            local_output.parent.touch()  # Creates parent directories if needed
-            shutil.move(tmpFile, out_local_path)
+            with local_output.localize("w") as local_out:
+                shutil.move(tmpFile, local_out.abspath)
             print(
-                f"Creating aggregated cache for producer {self.producer_to_aggregate} and dataset {sample_name} at {out_local_path}"
+                f"Created aggregated cache for producer {self.producer_to_aggregate} "
+                f"and dataset {sample_name}"
             )
+            if remove_job_home:
+                shutil.rmtree(job_home)

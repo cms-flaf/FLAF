@@ -277,24 +277,18 @@ if __name__ == "__main__":
     vars_to_process = [v.strip() for v in args.vars.split(",") if v.strip()]
     os.makedirs(args.outDir, exist_ok=True)
 
-    flatten_vars = set()
     for var in vars_to_process:
         var_entry = HistHelper.findBinEntry(hist_cfg_dict, var)
-        if hist_cfg_dict[var_entry].get("var_list"):
-            for v in hist_cfg_dict[var_entry]["var_list"]:
-                flatten_vars.add(v)
-        else:
-            flatten_vars.add(var)
-
-    for var in flatten_vars:
-        DefineBinnedColumn(hist_cfg_dict, var)
-
-    for tree_name, rdf in list(all_trees.items()):
-        for var in flatten_vars:
-            col_name = f"{var}_bin"
-            if col_name not in list(rdf.GetColumnNames()):
-                rdf = rdf.Define(col_name, f"get_{var}_bin({var})")
-        all_trees[tree_name] = rdf
+        sub_vars = hist_cfg_dict[var_entry].get("var_list") or [var]
+        for v in sub_vars:
+            v_entry = HistHelper.findBinEntry(hist_cfg_dict, v)
+            if not hist_cfg_dict[v_entry].get("x_bins"):
+                continue
+            DefineBinnedColumn(hist_cfg_dict, v)
+            col_name = f"{v}_bin"
+            for tree_name in list(all_trees.keys()):
+                if col_name not in list(all_trees[tree_name].GetColumnNames()):
+                    all_trees[tree_name] = all_trees[tree_name].Define(col_name, f"get_{v}_bin({v})")
 
     if all_trees:
         # Open a tmp ROOT file per variable and register all histogram actions.

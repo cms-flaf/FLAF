@@ -31,6 +31,23 @@ from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 _anaTuple_outputs_cache = {}
 
 
+def _dedup_variables(variables):
+    """Drop duplicate variables (by name) keeping first occurrence and order. The variables
+    config may list the same variable more than once; per-variable processing downstream
+    (e.g. HistProducerFromNTuple's tmp_<var>.root, one HistMerger branch per variable)
+    collides on duplicates. HistTupleProducer already deduplicates via a set; this keeps the
+    other stages consistent."""
+    seen = set()
+    result = []
+    for var in variables:
+        name = var["name"] if isinstance(var, dict) else var
+        if name in seen:
+            continue
+        seen.add(name)
+        result.append(var)
+    return result
+
+
 def _anaTuple_outputs(task):
     wf = AnaTupleMergeTask.req(
         task,
@@ -507,7 +524,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @property
     def active_variables(self):
-        all_vars = self.global_params["variables"]
+        all_vars = _dedup_variables(self.global_params["variables"])
         if not self.variables:
             return all_vars
         selected = {v.strip() for v in self.variables.split(",") if v.strip()}
@@ -849,7 +866,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @property
     def active_variables(self):
-        all_vars = self.global_params["variables"]
+        all_vars = _dedup_variables(self.global_params["variables"])
         if not self.variables:
             return all_vars
         selected = {v.strip() for v in self.variables.split(",") if v.strip()}
@@ -1352,7 +1369,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @property
     def active_variables(self):
-        all_vars = self.global_params["variables"]
+        all_vars = _dedup_variables(self.global_params["variables"])
         if not self.variables:
             return all_vars
         selected = {v.strip() for v in self.variables.split(",") if v.strip()}

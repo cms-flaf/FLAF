@@ -291,7 +291,9 @@ if __name__ == "__main__":
                     if not binned_def_created:
                         DefineBinnedColumn(hist_cfg_dict, v)
                         binned_def_created = True
-                    all_trees[tree_name] = all_trees[tree_name].Define(col_name, f"get_{v}_bin({v})")
+                    all_trees[tree_name] = all_trees[tree_name].Define(
+                        col_name, f"get_{v}_bin({v})"
+                    )
 
     if all_trees:
         # Open a tmp ROOT file per variable and register all histogram actions.

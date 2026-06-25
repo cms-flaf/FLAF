@@ -284,10 +284,13 @@ if __name__ == "__main__":
             v_entry = HistHelper.findBinEntry(hist_cfg_dict, v)
             if not hist_cfg_dict[v_entry].get("x_bins"):
                 continue
-            DefineBinnedColumn(hist_cfg_dict, v)
+            binned_def_created = False
             col_name = f"{v}_bin"
             for tree_name in list(all_trees.keys()):
                 if col_name not in list(all_trees[tree_name].GetColumnNames()):
+                    if not binned_def_created:
+                        DefineBinnedColumn(hist_cfg_dict, v)
+                        binned_def_created = True
                     all_trees[tree_name] = all_trees[tree_name].Define(col_name, f"get_{v}_bin({v})")
 
     if all_trees:

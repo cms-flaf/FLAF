@@ -398,7 +398,7 @@ def create_processor_instances(global_params, processor_entries, stage, verbose=
 WPInit = False
 
 
-def InitializeCorrections(setup, dataset_name, stage):
+def InitializeCorrections(setup, dataset_name, stage, aggregated_caches=None):
     from Corrections.Corrections import Corrections
     import FLAF.Common.triggerSel as Triggers
 
@@ -458,6 +458,7 @@ def InitializeCorrections(setup, dataset_name, stage):
             isData=isData,
             load_corr_lib=True,
             trigger_class=trigger_class,
+            aggregated_caches=aggregated_caches,
         )
 
 

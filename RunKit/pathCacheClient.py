@@ -47,6 +47,53 @@ def set_status(entries, host, port, timeout, verbose=0):
             print(f"pathCacheClient.set_status: unexpected error: {e}", file=sys.stderr)
 
 
+def _decode_status(line):
+    if not line:
+        return None
+    line = line.decode("utf-8").strip()
+    if line == "1":
+        return True
+    if line == "0":
+        return False
+    return None
+
+
+def get_status_many(paths, host, port, timeout, verbose=0, batch_size=1000):
+    """Query existence for many paths over as few connections as possible (pipelined:
+    all GETs of a batch are sent on one connection, then all responses are read). Returns
+    {path: True|False|None}. The server processes one request line at a time, so responses
+    line up with the request order. On any connection error the remaining paths of that
+    batch map to None (unknown)."""
+    results = {}
+    for i in range(0, len(paths), batch_size):
+        batch = paths[i : i + batch_size]
+        try:
+            with socket.create_connection((host, port), timeout=timeout) as sock:
+                file = sock.makefile(mode="rwb", buffering=0)
+                request = "".join(f"GET {p}\n" for p in batch).encode("utf-8")
+                file.write(request)
+                file.flush()
+                for p in batch:
+                    results[p] = _decode_status(file.readline())
+        except TimeoutError as e:
+            if verbose > 0:
+                print(
+                    f"pathCacheClient.get_status_many: connection timed out: {e}",
+                    file=sys.stderr,
+                )
+            for p in batch:
+                results.setdefault(p, None)
+        except Exception as e:
+            if verbose > 0:
+                print(
+                    f"pathCacheClient.get_status_many: unexpected error: {e}",
+                    file=sys.stderr,
+                )
+            for p in batch:
+                results.setdefault(p, None)
+    return results
+
+
 def get_status(path, host, port, timeout, verbose=0):
     try:
         with socket.create_connection((host, port), timeout=timeout) as sock:

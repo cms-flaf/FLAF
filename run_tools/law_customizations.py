@@ -9,6 +9,8 @@ import shutil
 import subprocess
 import tempfile
 
+from law.parser import global_cmdline_values
+
 from FLAF.RunKit.run_tools import natural_sort
 from FLAF.RunKit.kinit import update_kinit
 from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget, WLCGDirectoryTarget
@@ -36,6 +38,73 @@ class Task(law.Task):
     Base task that we use to force a version parameter on all inheriting tasks, and that provides
     some convenience methods to create local file and directory targets at the default data path.
     """
+
+    # --- Per-class caches for luigi/law reflection. luigi.Task.get_params() rebuilds the
+    # parameter list with dir(cls) + isinstance on every call, and law's req_params() filters
+    # parameters with fnmatch on every .req() call. Both results are constant for a given
+    # class (and class pair), but recomputing them dominates CPU when building or printing
+    # large task graphs (thousands of .req()/instantiations). Memoizing them is transparent
+    # (the cached values are exactly what luigi/law would have produced).
+    _get_params_cache = {}
+    _req_copy_names_cache = {}
+    _req_prefer_cli_drop_cache = {}
+
+    @classmethod
+    def get_params(cls):
+        cached = Task._get_params_cache.get(cls)
+        if cached is None:
+            cached = super(Task, cls).get_params()
+            Task._get_params_cache[cls] = cached
+        return cached
+
+    @classmethod
+    def req(cls, inst, **kwargs):
+        # Law control kwargs (prefixed with "_", e.g. _exclude/_prefer_cli) change which
+        # parameters are copied; defer those rare calls to law's full implementation.
+        if any(key.startswith("_") for key in kwargs):
+            return super(Task, cls).req(inst, **kwargs)
+        params = {name: getattr(inst, name) for name in cls._req_copy_names(inst)}
+        params.update(kwargs)
+        for name in cls._req_prefer_cli_drop():
+            params.pop(name, None)
+        return cls(**params)
+
+    @classmethod
+    def _req_copy_names(cls, inst):
+        # Names of the parameters req_params() copies from inst (common parameters minus the
+        # excluded ones), constant per (cls, type(inst)). Derived from law's own req_params
+        # (with prefer-cli removal disabled, which we re-apply per call) so the exclusion is
+        # exactly law's; computed once and cached.
+        key = (cls, type(inst))
+        names = Task._req_copy_names_cache.get(key)
+        if names is None:
+            names = tuple(cls.req_params(inst, _prefer_cli=[]).keys())
+            Task._req_copy_names_cache[key] = names
+        return names
+
+    @classmethod
+    def _req_prefer_cli_drop(cls):
+        # Parameters that req_params() drops because they are preferably taken from the CLI.
+        # Keyed on the CLI parser identity so a None -> real-parser transition is picked up.
+        prefer = cls.prefer_params_cli
+        if not prefer:
+            return ()
+        parser = luigi.cmdline_parser.CmdlineParser.get_instance()
+        key = (cls, id(parser))
+        cached = Task._req_prefer_cli_drop_cache.get(key)
+        if cached is None:
+            drop = set()
+            if parser is not None:
+                prefix = cls.get_task_family() + "_"
+                present = {
+                    k[len(prefix) :]
+                    for k in global_cmdline_values().keys()
+                    if k.startswith(prefix)
+                }
+                drop = set(prefer) & present
+            cached = tuple(drop)
+            Task._req_prefer_cli_drop_cache[key] = cached
+        return cached
 
     version = luigi.Parameter()
     prefer_params_cli = [
@@ -98,6 +167,57 @@ class Task(law.Task):
         self._dataset_id_name_list = None
         self._dataset_id_name_dict = None
         self._dataset_name_id_dict = None
+
+    # Process-local memoization of create_branch_map results, shared across task
+    # instances. The same branch map is otherwise rebuilt many times during task
+    # initialization because every `X.req(...).create_branch_map()` constructs a fresh
+    # instance and so bypasses law's per-instance branch-map cache (`_branch_map`). The
+    # downstream maps form a cascade (e.g. AnalysisCacheAggregation -> AnalysisCacheTask
+    # -> HistTupleProducer -> AnaTupleMerge), and `workflow_requires`/`requires` rebuild
+    # it once per branch, which is O(nBranches) redundant full rebuilds and dominates the
+    # loading time of post-anaTuple tasks. Within a single law process the inputs that
+    # determine a branch map (config + merge plans + completed upstream outputs) are
+    # stable, so memoizing by the map-determining parameters is safe.
+    _branch_map_cache = {}
+
+    def _branch_map_cache_key(self):
+        return (
+            type(self).__name__,
+            self.version,
+            self.period,
+            self.customisations,
+            self.dataset,
+            self.process,
+            self.model,
+            self.test,
+            self.user_custom,
+            self.anaTuple_version,
+            self.anaCache_version,
+            self.ana_version,
+            getattr(self, "producer_to_run", None),
+            getattr(self, "producer_to_aggregate", None),
+            getattr(self, "variables", None),
+            getattr(self, "n_var_batches", None),
+        )
+
+    def cached_branch_map(self, build_fn):
+        """Return ``build_fn()`` memoized per map-determining parameter signature.
+
+        Only populated maps are cached: an empty result means an upstream task is not
+        ready yet (e.g. the merge plan does not exist), which must stay dynamic so the
+        map is rebuilt once the upstream completes.
+        """
+        key = self._branch_map_cache_key()
+        cached = Task._branch_map_cache.get(key)
+        if cached is None:
+            cached = build_fn()
+            if cached:
+                Task._branch_map_cache[key] = cached
+        # Return a shallow copy: law's get_branch_map() mutates the returned dict in place
+        # (`_reduce_branch_map` does `del branch_map[b]` to filter to the requested
+        # `branches`), which would otherwise corrupt the shared cached map for other
+        # instances. The branch-data values are immutable tuples, so a shallow copy is safe.
+        return dict(cached)
 
     def store_parts(self):
         return (self.version, self.__class__.__name__, self.period)

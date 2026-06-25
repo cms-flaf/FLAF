@@ -125,6 +125,17 @@ def standardize_path_name(path):
     return "/".join(standardized_parts)
 
 
+def iter_parent_paths(path):
+    """Yield the ancestor paths of a standardized path, from the immediate parent up to
+    (but not including) the root, e.g. "/a/b/c" -> "/a/b", "/a"."""
+    while True:
+        idx = path.rfind("/")
+        if idx <= 0:
+            break
+        path = path[:idx]
+        yield path
+
+
 class PathCache:
     def __init__(self, validity_db, logger, cache_file=None, cache_write_interval=-1):
         self.validity_db = validity_db
@@ -221,6 +232,14 @@ class PathCache:
             current_time = time.time()
             expiration_time = int(current_time + self.validity_db.get_validity(path))
             self.cache[path] = {"exists": exists, "expiration_time": expiration_time}
+            # If a path exists, every ancestor directory exists too. Drop any stale
+            # "does not exist" ancestor entries that would otherwise (via directory-negative
+            # inference in get()) wrongly imply this path is absent.
+            if exists:
+                for parent in iter_parent_paths(path):
+                    pentry = self.cache.get(parent)
+                    if pentry is not None and not pentry["exists"]:
+                        del self.cache[parent]
             self.n_calls += 1
             self.write(current_time=current_time)
             return path, self.n_calls
@@ -228,15 +247,30 @@ class PathCache:
     def get(self, path):
         path = standardize_path_name(path)
         with self.lock:
+            current_time = time.time()
             result = None
             if path in self.cache:
                 entry = self.cache[path]
-                current_time = time.time()
                 if entry["expiration_time"] >= current_time:
                     result = entry["exists"]
                 else:
                     del self.cache[path]
                     self.write(current_time=current_time)
+            if result is None:
+                # Directory-negative inference: if the nearest cached ancestor directory
+                # does not exist, then this path cannot exist either. This lets a single
+                # "directory absent" entry answer existence for an entire missing subtree
+                # without any gfal calls from the clients.
+                for parent in iter_parent_paths(path):
+                    pentry = self.cache.get(parent)
+                    if pentry is None:
+                        continue
+                    if pentry["expiration_time"] < current_time:
+                        del self.cache[parent]
+                        continue
+                    if not pentry["exists"]:
+                        result = False
+                    break
             self.n_calls += 1
             return path, result, self.n_calls
 

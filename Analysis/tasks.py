@@ -21,6 +21,48 @@ from FLAF.AnaProd.tasks import (
 )
 from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 
+# Process-local cache of the upstream AnaTupleMergeTask outputs, keyed by the resolved
+# AnaTuple (version, period, customisations). HistTupleProducerTask.output() and
+# AnalysisCacheTask.output() derive their own output name from the anaTuple input file name;
+# resolving that per branch (instantiating AnaTupleMergeTask and building/reducing its branch
+# map each time) is O(nBranches) per branch, i.e. O(nBranches^2) when all outputs are queried
+# (e.g. --print-status). Building the {branch -> [targets]} map once and sharing it makes each
+# lookup O(1). Safe within a process: the map is fixed by the (already produced) merge plan.
+_anaTuple_outputs_cache = {}
+
+
+def _dedup_variables(variables):
+    """Drop duplicate variables (by name) keeping first occurrence and order. The variables
+    config may list the same variable more than once; per-variable processing downstream
+    (e.g. HistProducerFromNTuple's tmp_<var>.root, one HistMerger branch per variable)
+    collides on duplicates. HistTupleProducer already deduplicates via a set; this keeps the
+    other stages consistent."""
+    seen = set()
+    result = []
+    for var in variables:
+        name = var["name"] if isinstance(var, dict) else var
+        if name in seen:
+            continue
+        seen.add(name)
+        result.append(var)
+    return result
+
+
+def _anaTuple_outputs(task):
+    wf = AnaTupleMergeTask.req(
+        task,
+        branch=-1,
+        branches=(),
+        customisations=task.customisations,
+        max_runtime=AnaTupleMergeTask.max_runtime._default,
+    )
+    key = (wf.version, wf.period, wf.customisations)
+    cache = _anaTuple_outputs_cache.get(key)
+    if cache is None:
+        cache = wf.all_branch_outputs()
+        _anaTuple_outputs_cache[key] = cache
+    return cache
+
 
 class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
@@ -84,6 +126,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         branch_set_cache = set()
         producer_set = set()
         agg_dict = {}
+        # An aggregation branch map depends only on the producer, not on the requesting
+        # branch, so resolve each producer's {dataset -> aggregation branches} once instead
+        # of rebuilding it for every branch (which was O(nBranches) full cascade rebuilds).
+        agg_dataset_branches = {}
         for idx, (
             dataset,
             br,
@@ -97,22 +143,23 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 for producer_name in (p for p in producer_list if p is not None):
                     producer_set.add(producer_name)
 
-            if len(aggregate_list) > 0:
-                for agg_name in aggregate_list:
-                    if agg_name not in agg_dict.keys():
-                        agg_dict[agg_name] = set()
+            for agg_name in aggregate_list:
+                if agg_name not in agg_dataset_branches:
+                    by_dataset = {}
                     aggr_task_branch_map = AnalysisCacheAggregationTask.req(
                         self,
                         branch=-1,
                         producer_to_aggregate=agg_name,
                     ).create_branch_map()
-
                     for aggr_br_idx, (
                         aggr_dataset_name,
                         _,
                     ) in aggr_task_branch_map.items():
-                        if aggr_dataset_name == dataset:
-                            agg_dict[agg_name].add(aggr_br_idx)
+                        by_dataset.setdefault(aggr_dataset_name, []).append(aggr_br_idx)
+                    agg_dataset_branches[agg_name] = by_dataset
+                agg_dict.setdefault(agg_name, set()).update(
+                    agg_dataset_branches[agg_name].get(dataset, ())
+                )
 
         if len(branch_set) > 0:
             reqs["anaTuple"] = AnaTupleMergeTask.req(
@@ -219,6 +266,9 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         var_produced_by = self.setup.var_producer_map
 
         n = 0
@@ -338,7 +388,10 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         dataset_name, prod_br, producer_list, aggregate_list, input_index = (
             self.branch_data
         )
-        input = self.input()["anaTuple"][input_index]
+        # Derive the output name from the anaTuple input only (not the full requires graph:
+        # anaCaches/anaAggs are irrelevant here). The anaTuple outputs are resolved once per
+        # process and shared, so this is O(1) instead of O(nBranches) per branch.
+        input = _anaTuple_outputs(self)[prod_br][input_index]
         input_name = os.path.basename(input.abspath)
         outFileName = (
             f"histTuple_" + os.path.basename(input.abspath).split("_", 1)[1]
@@ -425,6 +478,21 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 )
                 HistTupleProducer_cmd.extend(["--cacheFile", local_anacaches_str])
 
+            # Localize the per-sample aggregated caches (e.g. BtagShape) and pass them as
+            # "producer:localpath" so the consumer reads the law-localized file instead of
+            # reconstructing a version-dependent path.
+            anaAggs = self.input().get("anaAggs", {})
+            local_anaaggs_str = ",".join(
+                f"{producer_name}:"
+                + stack.enter_context(agg_targets[0].localize("r")).abspath
+                for producer_name, agg_targets in anaAggs.items()
+                if agg_targets
+            )
+            if local_anaaggs_str:
+                HistTupleProducer_cmd.extend(
+                    ["--aggregatedCacheFiles", local_anaaggs_str]
+                )
+
             ps_call(HistTupleProducer_cmd, verbose=1)
 
             with self.output().localize("w") as local_output:
@@ -456,7 +524,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @property
     def active_variables(self):
-        all_vars = self.global_params["variables"]
+        all_vars = _dedup_variables(self.global_params["variables"])
         if not self.variables:
             return all_vars
         selected = {v.strip() for v in self.variables.split(",") if v.strip()}
@@ -521,6 +589,9 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         branches = {}
 
         dataset_to_branches = {}
@@ -795,7 +866,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @property
     def active_variables(self):
-        all_vars = self.global_params["variables"]
+        all_vars = _dedup_variables(self.global_params["variables"])
         if not self.variables:
             return all_vars
         selected = {v.strip() for v in self.variables.split(",") if v.strip()}
@@ -859,6 +930,9 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         hfn_branch_map = HistFromNtupleProducerTask.req(
             self, branches=()
         ).create_branch_map()
@@ -1155,6 +1229,9 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         branches = HistTupleProducerTask.req(
             self, branch=-1, branches=()
         ).create_branch_map()
@@ -1162,8 +1239,11 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.output
     def output(self):
-        dataset_name, _, _, _, input_index = self.branch_data
-        inputFilePath = self.input()["anaTuple"][input_index].abspath
+        dataset_name, prod_br, _, _, input_index = self.branch_data
+        # Derive the output name from the anaTuple input only; the anaTuple outputs are
+        # resolved once per process and shared, so this is O(1) instead of building the
+        # anaTuple/anaCache requirements per branch (O(nBranches) each).
+        inputFilePath = _anaTuple_outputs(self)[prod_br][input_index].abspath
         outFileNameWithoutExtension = os.path.basename(inputFilePath).split(".")[0]
         outFileName = f"{outFileNameWithoutExtension}.{self.output_file_extension}"
         output_path = os.path.join(
@@ -1289,7 +1369,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @property
     def active_variables(self):
-        all_vars = self.global_params["variables"]
+        all_vars = _dedup_variables(self.global_params["variables"])
         if not self.variables:
             return all_vars
         selected = {v.strip() for v in self.variables.split(",") if v.strip()}
@@ -1599,6 +1679,9 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         # structure of branch map
         # ---- name of sample,
         # ---- list of branch indices of the AnalysisCacheTask(producer_to_run=producer_name)
@@ -1652,7 +1735,18 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             self.producer_to_aggregate
         ].get("save_as", "root")
         output_name = f"aggregatedCache.{extension}"
-        return self.local_target(sample_name, self.producer_to_aggregate, output_name)
+        # Remote target (like AnalysisCacheTask) so the aggregated cache is a proper shared
+        # artifact that law localizes for consumers, instead of a local path consumers
+        # reconstruct (which broke under version overrides).
+        output_path = os.path.join(
+            self.version,
+            "AnalysisCacheAggregation",
+            self.producer_to_aggregate,
+            self.period,
+            sample_name,
+            output_name,
+        )
+        return self.remote_target(output_path, fs=self.fs_anaCacheTuple)
 
     def run(self):
         sample_name, _ = self.branch_data
@@ -1687,10 +1781,11 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             aggregate_cmd.extend(local_inputs)
             ps_call(aggregate_cmd, verbose=1)
 
-            # For local target: ensure parent directory exists and move directly
-            out_local_path = local_output.abspath
-            local_output.parent.touch()  # Creates parent directories if needed
-            shutil.move(tmpFile, out_local_path)
+            with local_output.localize("w") as local_out:
+                shutil.move(tmpFile, local_out.abspath)
             print(
-                f"Creating aggregated cache for producer {self.producer_to_aggregate} and dataset {sample_name} at {out_local_path}"
+                f"Created aggregated cache for producer {self.producer_to_aggregate} "
+                f"and dataset {sample_name}"
             )
+            if remove_job_home:
+                shutil.rmtree(job_home)

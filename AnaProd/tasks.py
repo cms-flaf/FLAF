@@ -137,17 +137,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     def requires(self):
         return []
 
-    _req_params = None
-
-    @classmethod
-    def req(cls, inst, **kwargs):
-        if cls._req_params is None:
-            cls._req_params = cls.req_params(inst, **kwargs)
-        for param_name in ["branch", "branches"]:
-            param_value = kwargs.get(param_name, getattr(inst, param_name))
-            cls._req_params[param_name] = param_value
-        return cls(**cls._req_params)
-
     @law.dynamic_workflow_condition
     def workflow_condition(self):
         return InputFileTask.WF_complete(self)
@@ -418,6 +407,9 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ]
 
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         branches = {}
         k = 0
         data_done = False
@@ -507,9 +499,7 @@ class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
         super(AnaTupleFileListTask, self).__init__(*args, **kwargs)
 
     def workflow_requires(self):
-        reqs = super().workflow_requires()
-        reqs["AnaTupleFileListBuilderTask"] = AnaTupleFileListBuilderTask.req(self)
-        return reqs
+        return {"AnaTupleFileListBuilderTask": AnaTupleFileListBuilderTask.req(self)}
 
     def requires(self):
         return AnaTupleFileListBuilderTask.req(self)
@@ -665,6 +655,9 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         branches = {}
         nBranch = 0
         # Use req(self) for controlled FileList ds map; version via copy of ana* or per-task on FileList.
@@ -724,23 +717,28 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         other_datasets[p_dataset_name] = ds_branches[p_dataset_name]
         return other_datasets
 
+    def _branch_output_targets(self, branch_data):
+        dataset_name = branch_data[0]
+        output_file_list = branch_data[5]
+        output_dir = os.path.join(self.version, "AnaTuples", self.period, dataset_name)
+        return [
+            self.remote_target(os.path.join(output_dir, out_file), fs=self.fs_anaTuple)
+            for out_file in output_file_list
+        ]
+
+    def all_branch_outputs(self):
+        """{branch -> [output targets]} for the whole workflow, built directly from the
+        branch map without instantiating a task per branch. Downstream tasks
+        (HistTupleProducer, AnalysisCache) use this to derive their output names cheaply
+        instead of resolving the anaTuple requirement per branch (O(nBranches) each)."""
+        return {
+            br: self._branch_output_targets(branch_data)
+            for br, branch_data in self.branch_map.items()
+        }
+
     @workflow_condition.output
     def output(self):
-        (
-            dataset_name,
-            process_group,
-            ds_branch,
-            dataset_dependencies,
-            input_file_list,
-            output_file_list,
-            skip_future_tasks,
-            runs,
-        ) = self.branch_data
-        output_dir = os.path.join(self.version, "AnaTuples", self.period, dataset_name)
-        outputs = [os.path.join(output_dir, out_file) for out_file in output_file_list]
-        return [
-            self.remote_target(out_path, fs=self.fs_anaTuple) for out_path in outputs
-        ]
+        return self._branch_output_targets(self.branch_data)
 
     def run(self):
         (

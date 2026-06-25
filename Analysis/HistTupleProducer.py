@@ -64,6 +64,7 @@ def createHistTuple(
     dataset_name,
     inFileName,
     cacheFileNames,
+    aggregatedCacheNames,
     snapshotOptions,
     range,
     evtIds,
@@ -73,7 +74,9 @@ def createHistTuple(
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
     hist_cfg_dict = setup.hists
-    Utilities.InitializeCorrections(setup, dataset_name, stage="HistTuple")
+    Utilities.InitializeCorrections(
+        setup, dataset_name, stage="HistTuple", aggregated_caches=aggregatedCacheNames
+    )
     histTupleDef.Initialize()
     histTupleDef.analysis_setup(setup)
     isData = dataset_name == "data"
@@ -210,6 +213,9 @@ if __name__ == "__main__":
     parser.add_argument("--inFile", required=True, type=str)
     parser.add_argument("--outFile", required=True, type=str)
     parser.add_argument("--cacheFiles", required=False, type=str, default=None)
+    parser.add_argument(
+        "--aggregatedCacheFiles", required=False, type=str, default=None
+    )
     parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--histTupleDef", required=True, type=str)
     parser.add_argument("--compute_unc_variations", type=bool, default=False)
@@ -270,6 +276,14 @@ if __name__ == "__main__":
                 raise RuntimeError(f"Cache file for {name} already specified.")
             cacheFileNames[name] = file
 
+    aggregatedCacheNames = {}
+    if args.aggregatedCacheFiles:
+        for entry in args.aggregatedCacheFiles.split(","):
+            name, file = entry.split(":", 1)
+            if name in aggregatedCacheNames:
+                raise RuntimeError(f"Aggregated cache for {name} already specified.")
+            aggregatedCacheNames[name] = file
+
     histTupleDef = Utilities.load_module(args.histTupleDef)
 
     snapshotOptions = ROOT.RDF.RSnapshotOptions()
@@ -286,6 +300,7 @@ if __name__ == "__main__":
         dataset_name=args.dataset,
         inFileName=args.inFile,
         cacheFileNames=cacheFileNames,
+        aggregatedCacheNames=aggregatedCacheNames,
         snapshotOptions=snapshotOptions,
         range=args.nEvents,
         evtIds=args.evtIds,

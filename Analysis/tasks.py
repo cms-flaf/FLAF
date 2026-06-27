@@ -984,11 +984,32 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         with contextlib.ExitStack() as stack:
             # `datasets` is aligned with self.input() (both follow requires()/br_indices
             # order); multiple file-chunks of the same dataset appear as repeated entries.
-            for inp, dataset_name in zip(self.input(), datasets):
-                # Each inp is a dict {var_name: FileTarget} from HistFromNtupleProducerTask.
-                var_file = inp[var_name]
+            # Each input is a tiny remote histogram file, but every davs localize pays a fixed
+            # connection cost, so localizing the O(100s) of (dataset, chunk) inputs serially
+            # dominated the merge. Download them concurrently -- each in its own (thread-safe)
+            # ExitStack registered for cleanup; ThreadPoolExecutor.map preserves order so
+            # local_inputs stays aligned with all_datasets (mapped to process types below).
+            var_targets = [
+                (inp[var_name], dataset_name)
+                for inp, dataset_name in zip(self.input(), datasets)
+            ]
+            max_dl = max(
+                1, int(self.global_params.get("max_simultaneous_downloads", 8))
+            )
+
+            def _localize(var_file):
+                file_stack = contextlib.ExitStack()
+                abspath = file_stack.enter_context(var_file.localize("r")).abspath
+                return abspath, file_stack
+
+            with ThreadPoolExecutor(max_workers=max_dl) as executor:
+                localized = list(executor.map(lambda t: _localize(t[0]), var_targets))
+            for (var_file, dataset_name), (abspath, file_stack) in zip(
+                var_targets, localized
+            ):
+                stack.callback(file_stack.close)
                 all_datasets.append(dataset_name)
-                local_inputs.append(stack.enter_context(var_file.localize("r")).abspath)
+                local_inputs.append(abspath)
             dataset_names = ",".join(smpl for smpl in all_datasets)
             all_outputs_merged = []
             if len(uncNames) == 1:

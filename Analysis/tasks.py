@@ -2,9 +2,7 @@ import law
 import os
 import contextlib
 import luigi
-import queue
 import shutil
-import threading
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -678,10 +676,26 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 shutil.rmtree(job_home)
             return
 
-        inputs = list(self.input())
-        n_inputs = len(inputs)
+        # Localize this chunk's input files concurrently, then run the producer once over all
+        # of them. A chunk is small by construction (n_files_per_job), and the producer fills
+        # every variable in a single event-loop pass, writing one <var>.root per variable --
+        # so there is nothing to stage in waves or merge afterwards.
+        max_dl = max(1, int(self.global_params.get("max_simultaneous_downloads", 8)))
+        out_dir = os.path.join(job_home, "hists")
+        os.makedirs(out_dir, exist_ok=True)
 
-        def _run_producer(out_dir, files):
+        def _localize(inp):
+            file_stack = contextlib.ExitStack()
+            return file_stack.enter_context(inp.localize("r")).abspath, file_stack
+
+        with contextlib.ExitStack() as stack:
+            with ThreadPoolExecutor(max_workers=max_dl) as executor:
+                localized = list(executor.map(_localize, self.input()))
+            local_inputs = []
+            for abspath, file_stack in localized:
+                stack.callback(file_stack.close)
+                local_inputs.append(abspath)
+
             cmd = [
                 "python3",
                 HistFromNtupleProducer,
@@ -713,118 +727,13 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 cmd.extend(["--customisations", self.customisations])
             if self.user_custom:
                 cmd.extend(["--user-custom", self.user_custom])
-            cmd.extend(files)
+            cmd.extend(local_inputs)
             ps_call(cmd, verbose=1)
 
-        round_outputs = {var: [] for var in vars_to_run}
-
-        # ---- Queue-based download/process pipeline ----
-        # A bounded pool of downloader threads localizes the input files concurrently and
-        # pushes each ready local path onto `ready_q`; the single processing loop (the producer
-        # is itself multi-threaded via nMT) consumes them in waves -- block for >=1 file, then
-        # take everything already downloaded -- and hadds the per-wave partials at the end, so
-        # download and processing overlap. Two limits from the global config bound resource use:
-        #   * max_simultaneous_downloads (default 4): concurrent transfers.
-        #   * max_total_download_size_gb (default 10): total size of localized-but-not-yet-
-        #     processed files. A downloader waits when the budget is exhausted and resumes once a
-        #     processed wave releases its files. At least one file is always admitted, so a single
-        #     file larger than the whole budget cannot deadlock (the cap is then soft).
-        max_parallel_dl = max(
-            1, int(self.global_params.get("max_simultaneous_downloads", 4))
-        )
-        max_download_bytes = (
-            float(self.global_params.get("max_total_download_size_gb", 10)) * 1024**3
-        )
-
-        ready_q = queue.Queue()
-        errors = []
-        budget_cond = threading.Condition()
-        downloaded_bytes = [0.0]
-
-        def _download_one(inp):
-            try:
-                with budget_cond:
-                    # Wait for budget, but always admit at least one file (downloaded_bytes==0).
-                    while (
-                        downloaded_bytes[0] >= max_download_bytes
-                        and downloaded_bytes[0] > 0
-                    ):
-                        budget_cond.wait()
-                stack = contextlib.ExitStack()
-                abspath = stack.enter_context(inp.localize("r")).abspath
-                size = os.path.getsize(abspath)
-                with budget_cond:
-                    downloaded_bytes[0] += size
-                ready_q.put((abspath, stack, size))
-            except Exception as e:  # noqa: BLE001 - surfaced to the main thread
-                errors.append(e)
-                ready_q.put(("__error__", None, 0))
-
-        def _release(stack, size):
-            if stack is not None:
-                stack.close()
-            with budget_cond:
-                downloaded_bytes[0] -= size
-                budget_cond.notify_all()
-
-        executor = ThreadPoolExecutor(max_workers=max_parallel_dl)
-        for inp in inputs:
-            executor.submit(_download_one, inp)
-
-        try:
-            remaining = n_inputs
-            round_idx = 0
-            while remaining > 0:
-                wave = []
-                # Block for the first ready file, then take everything already downloaded.
-                item = ready_q.get()
-                if item[0] == "__error__":
-                    raise errors[0]
-                wave.append(item)
-                while len(wave) < remaining:
-                    try:
-                        item = ready_q.get_nowait()
-                    except queue.Empty:
-                        break
-                    if item[0] == "__error__":
-                        raise errors[0]
-                    wave.append(item)
-
-                remaining -= len(wave)
-                round_dir = os.path.join(job_home, "rounds", str(round_idx))
-                os.makedirs(round_dir, exist_ok=True)
-                _run_producer(round_dir, [abspath for abspath, _, _ in wave])
-                for var in vars_to_run:
-                    round_outputs[var].append(os.path.join(round_dir, f"{var}.root"))
-                round_idx += 1
-                # Release this wave's local copies and free their download budget.
-                for _, stack, size in wave:
-                    _release(stack, size)
-        finally:
-            executor.shutdown(wait=True)
-            # Drain and release anything downloaded after an exception.
-            while True:
-                try:
-                    _, stack, size = ready_q.get_nowait()
-                except queue.Empty:
-                    break
-                _release(stack, size)
-
-        if errors:
-            raise errors[0]
-
-        # Merge per-wave partial outputs per variable and upload.
+        # Upload the single per-variable output file.
         for var in vars_to_run:
-            files = round_outputs[var]
-            if len(files) == 1:
-                with outputs[var].localize("w") as tmp_out:
-                    shutil.move(files[0], tmp_out.abspath)
-            else:
-                merged = os.path.join(job_home, f"merged_{var}.root")
-                hadd_cmd = f"hadd -f209 -j -O {merged} " + " ".join(files)
-                ps_call([hadd_cmd], True)
-                with outputs[var].localize("w") as tmp_out:
-                    shutil.move(merged, tmp_out.abspath)
+            with outputs[var].localize("w") as tmp_out:
+                shutil.move(os.path.join(out_dir, f"{var}.root"), tmp_out.abspath)
 
         if remove_job_home:
             shutil.rmtree(job_home)

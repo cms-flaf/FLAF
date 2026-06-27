@@ -145,13 +145,9 @@ def BuildAllHistActions(
                         else filter_to_apply_base
                     )
                     rdf_filtered = rdf_base.Filter(filter_to_apply_final)
-                    key_tuple = (
-                        key + (further_cut_name,) if further_cut_name else key
-                    )
+                    key_tuple = key + (further_cut_name,) if further_cut_name else key
                     for var in vars_to_process:
-                        model, unit_hist = BookUnitHist(
-                            rdf_filtered, var, weight_name
-                        )
+                        model, unit_hist = BookUnitHist(rdf_filtered, var, weight_name)
                         _, tmp_root_file = var_tmp_files[var]
                         save_fns.append(
                             _make_save_fn(

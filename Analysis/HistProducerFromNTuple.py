@@ -11,7 +11,6 @@ if __name__ == "__main__":
 import FLAF.Common.HistHelper as HistHelper
 import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
-from FLAF.RunKit.run_tools import ps_call
 
 
 def find_keys(inFiles_list):
@@ -36,6 +35,10 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     dir_ptr = Utilities.mkdir(outFile, dir_name)
 
     merged_hist = model.GetHistogram().Clone()
+    # Detach from the current ROOT directory: the histogram is persisted explicitly via
+    # WriteTObject below, so it must not also be auto-flushed into the output file's root
+    # (which would leave one stray, unnamed histogram per call when writing directly).
+    merged_hist.SetDirectory(0)
     N_bins = (
         unit_hist.GetNbins()
         if hasattr(unit_hist, "GetNbins")
@@ -65,14 +68,21 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     dir_ptr.WriteTObject(merged_hist, final_hist_name, "Overwrite")
 
 
-def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
+def BookUnitHist(rdf_filtered, var, weight_name):
+    """Book the unit-bin histogram for ``var`` on an ALREADY-filtered RDataFrame node.
+
+    The selection filter is applied once by the caller and the resulting node is shared
+    across all variables, so the (compound) channel/region/category cut is evaluated once
+    per event instead of once per variable.
+    """
     var_entry = HistHelper.findBinEntry(hist_cfg_dict, var)
     dims = (
         1
         if not hist_cfg_dict[var_entry].get("var_list", False)
         else len(hist_cfg_dict[var_entry]["var_list"])
     )
-
+    if dims < 1 or dims > 3:
+        raise RuntimeError("Only 1D, 2D and 3D histograms are supported")
     model, unit_bin_model = HistHelper.GetModel(
         hist_cfg_dict, var, dims, return_unit_bin_model=True
     )
@@ -81,106 +91,76 @@ def GetUnitBinHist(rdf, var, filter_to_apply, weight_name, unc, scale):
         if dims > 1
         else [f"{var}_bin"]
     )
-
-    rdf_filtered = rdf.Filter(filter_to_apply)
-    if dims >= 1 and dims <= 3:
-        mkhist_fn = getattr(rdf_filtered, f"Histo{dims}D")
-        unit_hist = mkhist_fn(unit_bin_model, *var_bin_list, weight_name)
-    else:
-        raise RuntimeError("Only 1D, 2D and 3D histograms are supported")
+    mkhist_fn = getattr(rdf_filtered, f"Histo{dims}D")
+    unit_hist = mkhist_fn(unit_bin_model, *var_bin_list, weight_name)
     return model, unit_hist
 
 
-def SaveSingleHistSet(
-    all_trees,
-    var,
-    filter_expr,
-    unc,
-    scale,
-    key,
-    outFile,
-    is_shift_unc,
-    treeName,
-    further_cut_name=None,
-):
-    hist_list = []
-    if is_shift_unc:
-        tree_prefix = f"Events__{unc}__{scale}"
-        rdf_shift = all_trees[tree_prefix]
-        model, unit_hist = GetUnitBinHist(
-            rdf_shift, var, filter_expr, "weight_Central", unc, scale
-        )
-        hist_list.append((model, unit_hist, rdf_shift))
-    else:
-        weight_name = f"weight_{unc}_{scale}" if unc != "Central" else "weight_Central"
-        rdf_central = all_trees[treeName]
-        model, unit_hist = GetUnitBinHist(
-            rdf_central, var, filter_expr, weight_name, unc, scale
-        )
-        hist_list.append((model, unit_hist, rdf_central))
-
+def _make_save_fn(key_tuple, outFile, model, unit_hist, rdf, var, unc, scale):
     def save_fn():
-        if hist_list:
-            key_tuple = key
-            if further_cut_name:
-                key_tuple = key + (further_cut_name,)
-            SaveHist(key_tuple, outFile, hist_list, var, unc, scale)
+        SaveHist(key_tuple, outFile, [(model, unit_hist, rdf)], var, unc, scale)
 
     return save_fn
 
 
-def BuildHistActions(
-    tmp_file_root,
+def BuildAllHistActions(
     uncs_to_compute,
     unc_cfg_dict,
     all_trees,
-    var,
+    vars_to_process,
     key_filter_dict,
     further_cuts,
     treeName,
+    var_tmp_files,
 ):
-    """Register all histogram actions for var against the open TFile.
+    """Register histogram actions for every variable, sharing one filtered RDataFrame node
+    per (uncertainty, scale, selection-key, further-cut) across ALL variables.
 
-    Returns a list of save_fn callables without triggering the RDF event loop
-    or closing the file. Call all returned functions after collecting actions
-    for every variable so ROOT can execute them in a single event-loop pass.
+    The dominant per-event cost is evaluating the compound channel/region/category filter,
+    not filling the (precomputed unit-bin) histogram. Booking each variable on its own
+    ``rdf.Filter(...)`` re-evaluated the identical selection once per variable; sharing the
+    filtered node collapses ~Nvar redundant filter passes into a single one. Histograms are
+    identical -- only the RDF graph is smaller and the single event loop does far less work.
+
+    Returns a list of save callables; invoke them after booking so ROOT runs one event loop.
     """
     save_fns = []
+    cut_names = list(further_cuts.keys()) if further_cuts else [None]
     for unc, scales in uncs_to_compute.items():
         is_shift_unc = unc in unc_cfg_dict["shape"].keys()
         for scale in scales:
+            if is_shift_unc:
+                rdf_base = all_trees[f"Events__{unc}__{scale}"]
+                weight_name = "weight_Central"
+            else:
+                rdf_base = all_trees[treeName]
+                weight_name = (
+                    f"weight_{unc}_{scale}" if unc != "Central" else "weight_Central"
+                )
             for key, filter_to_apply_base in key_filter_dict.items():
-                if further_cuts:
-                    for further_cut_name in further_cuts.keys():
-                        filter_to_apply_final = (
-                            f"{filter_to_apply_base} && {further_cut_name}"
-                        )
-                        save_fn = SaveSingleHistSet(
-                            all_trees,
-                            var,
-                            filter_to_apply_final,
-                            unc,
-                            scale,
-                            key,
-                            tmp_file_root,
-                            is_shift_unc,
-                            treeName,
-                            further_cut_name,
-                        )
-                        save_fns.append(save_fn)
-                else:
-                    save_fn = SaveSingleHistSet(
-                        all_trees,
-                        var,
-                        filter_to_apply_base,
-                        unc,
-                        scale,
-                        key,
-                        tmp_file_root,
-                        is_shift_unc,
-                        treeName,
+                for further_cut_name in cut_names:
+                    filter_to_apply_final = (
+                        f"{filter_to_apply_base} && {further_cut_name}"
+                        if further_cut_name
+                        else filter_to_apply_base
                     )
-                    save_fns.append(save_fn)
+                    rdf_filtered = rdf_base.Filter(filter_to_apply_final)
+                    key_tuple = key + (further_cut_name,) if further_cut_name else key
+                    for var in vars_to_process:
+                        model, unit_hist = BookUnitHist(rdf_filtered, var, weight_name)
+                        _, tmp_root_file = var_tmp_files[var]
+                        save_fns.append(
+                            _make_save_fn(
+                                key_tuple,
+                                tmp_root_file,
+                                model,
+                                unit_hist,
+                                rdf_filtered,
+                                var,
+                                unc,
+                                scale,
+                            )
+                        )
     return save_fns
 
 
@@ -277,37 +257,37 @@ if __name__ == "__main__":
     os.makedirs(args.outDir, exist_ok=True)
 
     if all_trees:
-        # Open a tmp ROOT file per variable and register all histogram actions.
-        # Collecting actions for all variables before triggering lets ROOT execute
-        # them in a single event-loop pass over the input files.
+        # Open a tmp ROOT file per variable, then register all histogram actions sharing one
+        # filtered RDataFrame node per selection across variables (see BuildAllHistActions).
+        # Collecting every action before triggering lets ROOT execute them in a single
+        # event-loop pass over the input files.
+        # Write each variable's histograms directly into its final, compressed output file.
+        # SaveHist persists objects via WriteTObject as the actions run, so once the single
+        # event loop has executed we just close the files -- no per-variable hadd recompress
+        # pass (209 == LZMA level 9, matching the previous `hadd -f209` output compression).
         var_tmp_files = {}
-        all_save_fns = []
         for var in vars_to_process:
-            tmp_path = os.path.join(args.outDir, f"tmp_{var}.root")
-            tmp_root_file = ROOT.TFile(tmp_path, "RECREATE")
-            var_tmp_files[var] = (tmp_path, tmp_root_file)
-            fns = BuildHistActions(
-                tmp_root_file,
-                uncs_to_compute,
-                unc_cfg_dict,
-                all_trees,
-                var,
-                key_filter_dict,
-                further_cuts,
-                treeName,
-            )
-            all_save_fns.extend(fns)
+            out_path = os.path.join(args.outDir, f"{var}.root")
+            out_root_file = ROOT.TFile(out_path, "RECREATE", "", 209)
+            var_tmp_files[var] = (out_path, out_root_file)
+
+        all_save_fns = BuildAllHistActions(
+            uncs_to_compute,
+            unc_cfg_dict,
+            all_trees,
+            vars_to_process,
+            key_filter_dict,
+            further_cuts,
+            treeName,
+            var_tmp_files,
+        )
 
         for fn in all_save_fns:
             fn()
 
         for var in vars_to_process:
-            tmp_path, tmp_root_file = var_tmp_files[var]
-            tmp_root_file.Close()
-            out_path = os.path.join(args.outDir, f"{var}.root")
-            hadd_str = f"hadd -f209 -j -O {out_path} {tmp_path}"
-            ps_call([hadd_str], True)
-            os.remove(tmp_path)
+            _, out_root_file = var_tmp_files[var]
+            out_root_file.Close()
 
     time_elapsed = time.time() - start
     print(f"execution time = {time_elapsed} ")

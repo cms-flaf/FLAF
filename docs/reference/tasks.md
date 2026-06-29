@@ -74,8 +74,11 @@ per variable).
 - **Parameter:** `--variables` (string; restrict which variables).
 
 Plot styling comes from the analysis `config/plot/*.yaml` files (`cms_stacked.yaml`,
-`histograms.yaml`, `<era>.yaml`) — unchanged from the legacy renderer. PlotKit can also render
-outside FLAF; see its README for the standalone `python -m PlotKit.cli` entry point.
+`histograms.yaml`, `<era>.yaml`) — unchanged from the legacy renderer. Signal overlays are scaled by
+`signal_plot_scale` in `global.yaml`: a fixed factor (e.g. `100`) **or** `bkg` to normalise each
+signal's integral to the summed background (shape comparison; the legend then reads
+`… (norm. to bkg)`). PlotKit can also render outside FLAF; see its README for the standalone
+`python -m PlotKit.cli` entry point.
 
 ## Statistical-inference tasks
 

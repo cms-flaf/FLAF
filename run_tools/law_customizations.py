@@ -197,7 +197,7 @@ class Task(law.Task):
             getattr(self, "producer_to_run", None),
             getattr(self, "producer_to_aggregate", None),
             getattr(self, "variables", None),
-            getattr(self, "n_var_batches", None),
+            getattr(self, "n_files_per_job", None),
         )
 
     def cached_branch_map(self, build_fn):

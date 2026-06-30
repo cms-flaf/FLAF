@@ -39,10 +39,13 @@ producers"), writing **histTuples**.
 
 ### `HistFromNtupleProducerTask`
 Fills **histograms** of the requested variables from the histTuples, including systematic
-variations. **Branches over variables.**
+variations. **Branches over (dataset, file-chunk):** each job reads its chunk of input files
+once and fills **all** active variables in a single event-loop pass. Large datasets are
+parallelized by splitting their files into chunks (work is never split per variable, which
+would re-read the same events once per variable).
 
-- **Parameters:** `--variables` (string; restrict which variables), `--n-var-batches` (int,
-  default `10`; how variables are grouped into branches).
+- **Parameters:** `--variables` (string; restrict which variables), `--n-files-per-job` (int,
+  default `20`; input files processed per branch).
 
 ### `HistMergerTask`
 Merges the per-piece histograms into per-process histograms ready for plotting and fitting.

@@ -34,6 +34,7 @@ install() {
     run_cmd pip install bayesian-optimization
     run_cmd pip install yamllint
     run_cmd pip install black
+    run_cmd pip install cmsstyle  # optional PlotKit backend (ROOT/cmsstyle); mplhep comes from LCG
 }
 
 install_gh_cli() {

@@ -27,7 +27,7 @@ tools with it. For example, HH→bb̄ττ looks like this:
 ```text
 HH_bbtautau/                  ← the analysis repository (you clone this)
 ├── FLAF/                     ← shared framework (submodule)
-│   ├── PlotKit/              ← plotting helpers (submodule of FLAF)
+│   ├── PlotKit/              ← plotting toolkit: matplotlib/mplhep (+ROOT/cmsstyle); submodule
 │   └── RunKit/               ← workflow utilities (vendored directory, not a submodule)
 ├── Corrections/              ← shared corrections (submodule)
 ├── StatInference/            ← shared stat tooling (submodule; HH analyses only)

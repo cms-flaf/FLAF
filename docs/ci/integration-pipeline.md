@@ -29,9 +29,12 @@ Repos with the trigger enabled: HH_bbtautau, HH_bbWW, H_mumu, FLAF, Corrections,
     ```text
     @cms-flaf-bot please test
     - https://github.com/cms-flaf/FLAF/pull/272
+    - https://github.com/cms-flaf/PlotKit/pull/2
     ```
     Shorthands include `- <repo>_version=PR_<n>`, a `…/pull/<n>` URL, a `…/tree/<branch>` URL, and
-    `- gitlab_branch=<branch>` to run a non-default `flaf_integration` branch.
+    `- gitlab_branch=<branch>` to run a non-default `flaf_integration` branch. `PlotKit_version`
+    pins the `FLAF/PlotKit` sub-sub-module, which is switched after `FLAF` (so it overrides whatever
+    commit the requested `FLAF` pins).
 
 ## `integration_cfg.yaml`
 
@@ -73,7 +76,9 @@ The shared trigger logic distinguishes:
 
 - **root packages** — repos with an `_active` variable (the analyses: HH_bbtautau, HH_bbWW,
   H_mumu);
-- **packages** — repos with a `_version` but no `_active` (FLAF, Corrections, StatInference).
+- **packages** — repos with a `_version` but no `_active` (FLAF, PlotKit, Corrections,
+  StatInference). `PlotKit` is a sub-sub-module (`FLAF/PlotKit`); the build switches it after
+  `FLAF`.
 
 Both may trigger the pipeline; the distinction matters only when editing the trigger logic.
 

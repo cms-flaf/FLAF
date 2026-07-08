@@ -250,7 +250,10 @@ if __name__ == "__main__":
             uncs_to_compute.update(
                 {
                     key: setup.global_params["scales"]
-                    for key in unc_cfg_dict["shape"].keys()
+                    for key, params in unc_cfg_dict["shape"].items()
+                    if not (
+                        isinstance(params, dict) and params.get("data_driven", False)
+                    )
                 }
             )
     print(uncs_to_compute)

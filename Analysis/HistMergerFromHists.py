@@ -45,17 +45,18 @@ def fill_hists(
     unc_source="Central",
     data_type="data",
 ):
+    load_source = "Central" if unc_source == "QCDScale" else unc_source
     var_check = f"{var_input}"
     for key_tuple, hist_map in items_dict.items():
         for var, var_hist in hist_map.items():
-            scales = ["Up", "Down"] if unc_source != "Central" else ["Central"]
+            scales = ["Up", "Down"] if load_source != "Central" else ["Central"]
             for scale in scales:
-                if unc_source != "Central" and dataset_type != data_type:
-                    var_check = f"{var_input}_{unc_source}_{scale}"
+                if load_source != "Central" and dataset_type != data_type:
+                    var_check = f"{var_input}_{load_source}_{scale}"
                 if var != var_check:
                     continue
 
-                final_key = (key_tuple, (unc_source, scale))
+                final_key = (key_tuple, (load_source, scale))
                 if dataset_type not in all_hist_dict.keys():
                     all_hist_dict[dataset_type] = {}
                 if final_key not in all_hist_dict[dataset_type]:

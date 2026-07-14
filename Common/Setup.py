@@ -377,8 +377,8 @@ class Setup:
                     unique_list.append(var)
             else:
                 if var not in seen_hashable:
-                    seen_hashable.add(item)
-                    unique_list.append(item)
+                    seen_hashable.add(var)
+                    unique_list.append(var)
 
         self.histTuple_vars = (
             unique_list  # Keep union for the simple tasks-dependency loading

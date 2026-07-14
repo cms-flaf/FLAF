@@ -360,18 +360,26 @@ class Setup:
 
         self.histTuple_flavor = self.global_params["histTuple_flavor"]
         print(f"Using histTuple flavor {self.histTuple_flavor}")
-        histTuple_plot_vars = self.global_params["histTuple_flavors"][
+        self.histTuple_plot_vars = self.global_params["histTuple_flavors"][
             self.histTuple_flavor
         ]["variables"]
-        self.histTuple_plot_vars = set(
-            [x["name"] if isinstance(x, dict) else x for x in histTuple_plot_vars]
-        )
-        histTuple_fullres_vars = self.global_params["histTuple_flavors"][
+        self.histTuple_fullres_vars = self.global_params["histTuple_flavors"][
             self.histTuple_flavor
         ]["fullResolution_variables"]
-        self.histTuple_fullres_vars = set(
-            [x["name"] if isinstance(x, dict) else x for x in histTuple_fullres_vars]
-        )
+
+        unique_list = [ ]
+        seen_hashable = set()
+        seen_unhashable = [ ]
+        for var in self.histTuple_plot_vars + self.histTuple_fullres_vars:
+            if isinstance(var, dict):
+                if var not in seen_unhashable:
+                    seen_unhashable.append(var)
+                    unique_list.append(var)
+            else:
+                if var not in seen_hashable:
+                    seen_hashable.add(item)
+                    unique_list.append(item)
+                    
         self.histTuple_vars = (
             self.histTuple_plot_vars | self.histTuple_fullres_vars
         )  # Keep union for the simple tasks-dependency loading

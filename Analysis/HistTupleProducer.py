@@ -81,10 +81,7 @@ def createHistTuple(
     histTupleDef.analysis_setup(setup)
     isData = dataset_name == "data"
 
-    if type(setup.global_params["variables"]) == list:
-        variables = setup.global_params["variables"]
-    elif type(setup.global_params["variables"]) == dict:
-        variables = setup.global_params["variables"].keys()
+    variables = setup.histTuple_plot_vars
 
     norm_uncertainties = set()
     if setup.global_params["compute_rel_weights"]:

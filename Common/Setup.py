@@ -358,6 +358,20 @@ class Setup:
             else:
                 processes[key] = item
 
+        self.histTuple_flavor = self.global_params["histTuple_flavor"]
+        print(f"Using histTuple flavor {self.histTuple_flavor}")
+        self.histTuple_plot_vars = set(
+            self.global_params["histTuple_flavors"][self.histTuple_flavor]["variables"]
+        )
+        self.histTuple_fullres_vars = set(
+            self.global_params["histTuple_flavors"][self.histTuple_flavor][
+                "fullResolution_variables"
+            ]
+        )
+        self.histTuple_vars = (
+            self.histTuple_plot_vars | self.histTuple_fullres_vars
+        )  # Keep union for the simple tasks-dependency loading
+
         def collect_base_processes(p_name, parent_name=None):
             if p_name not in processes:
                 if parent_name is not None:

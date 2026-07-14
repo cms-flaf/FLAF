@@ -367,9 +367,9 @@ class Setup:
             self.histTuple_flavor
         ]["fullResolution_variables"]
 
-        unique_list = [ ]
+        unique_list = []
         seen_hashable = set()
-        seen_unhashable = [ ]
+        seen_unhashable = []
         for var in self.histTuple_plot_vars + self.histTuple_fullres_vars:
             if isinstance(var, dict):
                 if var not in seen_unhashable:
@@ -379,7 +379,7 @@ class Setup:
                 if var not in seen_hashable:
                     seen_hashable.add(item)
                     unique_list.append(item)
-                    
+
         self.histTuple_vars = (
             unique_list  # Keep union for the simple tasks-dependency loading
         )

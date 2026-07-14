@@ -360,13 +360,13 @@ class Setup:
 
         self.histTuple_flavor = self.global_params["histTuple_flavor"]
         print(f"Using histTuple flavor {self.histTuple_flavor}")
+        histTuple_plot_vars = self.global_params["histTuple_flavors"][self.histTuple_flavor]["variables"]
         self.histTuple_plot_vars = set(
-            self.global_params["histTuple_flavors"][self.histTuple_flavor]["variables"]
+            histTuple_plot_vars if isinstance(histTuple_plot_vars, list) else histTuple_plot_vars.keys()
         )
+        histTuple_fullres_vars = self.global_params["histTuple_flavors"][self.histTuple_flavor]["fullResolution_variables"]
         self.histTuple_fullres_vars = set(
-            self.global_params["histTuple_flavors"][self.histTuple_flavor][
-                "fullResolution_variables"
-            ]
+            histTuple_plot_vars if isinstance(histTuple_fullres_vars, list) else histTuple_fullres_vars.keys()
         )
         self.histTuple_vars = (
             self.histTuple_plot_vars | self.histTuple_fullres_vars

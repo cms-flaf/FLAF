@@ -380,7 +380,9 @@ class Setup:
                     seen_hashable.add(item)
                     unique_list.append(item)
                     
-        self.histTuple_vars = unique_list  # Keep union for the simple tasks-dependency loading
+        self.histTuple_vars = (
+            unique_list  # Keep union for the simple tasks-dependency loading
+        )
 
         def collect_base_processes(p_name, parent_name=None):
             if p_name not in processes:

@@ -363,11 +363,15 @@ class Setup:
         histTuple_plot_vars = self.global_params["histTuple_flavors"][
             self.histTuple_flavor
         ]["variables"]
-        self.histTuple_plot_vars = set([ x["name"] if isinstance(x, dict) else x for x in histTuple_plot_vars ])
+        self.histTuple_plot_vars = set(
+            [ x["name"] if isinstance(x, dict) else x for x in histTuple_plot_vars ]
+        )
         histTuple_fullres_vars = self.global_params["histTuple_flavors"][
             self.histTuple_flavor
         ]["fullResolution_variables"]
-        self.histTuple_fullres_vars = set([ x["name"] if isinstance(x, dict) else x for x in histTuple_fullres_vars ])
+        self.histTuple_fullres_vars = set(
+            [ x["name"] if isinstance(x, dict) else x for x in histTuple_fullres_vars ]
+        )
         self.histTuple_vars = (
             self.histTuple_plot_vars | self.histTuple_fullres_vars
         )  # Keep union for the simple tasks-dependency loading

@@ -367,22 +367,13 @@ class Setup:
             self.histTuple_flavor
         ]["fullResolution_variables"]
 
-        unique_list = []
-        seen_hashable = set()
-        seen_unhashable = []
+        var_dict = {}
         for var in self.histTuple_plot_vars + self.histTuple_fullres_vars:
-            if isinstance(var, dict):
-                if var not in seen_unhashable:
-                    seen_unhashable.append(var)
-                    unique_list.append(var)
-            else:
-                if var not in seen_hashable:
-                    seen_hashable.add(var)
-                    unique_list.append(var)
-
-        self.histTuple_vars = (
-            unique_list  # Keep union for the simple tasks-dependency loading
-        )
+            var_name = var["name"] if isinstance(var, dict) else var
+            if var_name in var_dict:
+                raise RuntimeError(f"Duplicated variable name {var_name}")
+            var_dict[var_name] = var
+        self.histTuple_vars = list(var_dict.values())
 
         def collect_base_processes(p_name, parent_name=None):
             if p_name not in processes:

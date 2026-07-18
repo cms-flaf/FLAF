@@ -388,7 +388,7 @@ class Setup:
         var_set = set()
         for var in list(plotvar_dict.values()) + list(fullresvar_dict.values()):
             var_name = var["name"] if isinstance(var, dict) else var
-            var_set.add(var)
+            var_set.add(var_name)
         self.histTuple_vars = list(var_set)
 
         def collect_base_processes(p_name, parent_name=None):

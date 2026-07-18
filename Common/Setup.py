@@ -360,17 +360,20 @@ class Setup:
 
         self.histTuple_flavor = self.global_params["histTuple_flavor"]
         print(f"Using histTuple flavor {self.histTuple_flavor}")
-        self.histTuple_plot_vars = set(
-            self.global_params["histTuple_flavors"][self.histTuple_flavor]["variables"]
-        )
-        self.histTuple_fullres_vars = set(
-            self.global_params["histTuple_flavors"][self.histTuple_flavor][
-                "fullResolution_variables"
-            ]
-        )
-        self.histTuple_vars = (
-            self.histTuple_plot_vars | self.histTuple_fullres_vars
-        )  # Keep union for the simple tasks-dependency loading
+        self.histTuple_plot_vars = self.global_params["histTuple_flavors"][
+            self.histTuple_flavor
+        ]["variables"]
+        self.histTuple_fullres_vars = self.global_params["histTuple_flavors"][
+            self.histTuple_flavor
+        ]["fullResolution_variables"]
+
+        var_dict = {}
+        for var in self.histTuple_plot_vars + self.histTuple_fullres_vars:
+            var_name = var["name"] if isinstance(var, dict) else var
+            if var_name in var_dict:
+                raise RuntimeError(f"Duplicated variable name {var_name}")
+            var_dict[var_name] = var
+        self.histTuple_vars = list(var_dict.values())
 
         def collect_base_processes(p_name, parent_name=None):
             if p_name not in processes:

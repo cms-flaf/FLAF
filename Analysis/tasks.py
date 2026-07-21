@@ -97,7 +97,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             var_produced_by = self.setup.var_producer_map
 
             flatten_vars = set()
-            for var in self.global_params["variables"]:
+            for var in self.setup.histTuple_vars:
                 if isinstance(var, dict) and "vars" in var:
                     for v in var["vars"]:
                         flatten_vars.add(v)
@@ -286,7 +286,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         datasets_to_consider.append("data")
 
         flatten_vars = set()
-        for var in self.global_params["variables"]:
+        for var in self.setup.histTuple_vars:
             if isinstance(var, dict) and "vars" in var:
                 for v in var["vars"]:
                     flatten_vars.add(v)
@@ -519,7 +519,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @property
     def active_variables(self):
-        all_vars = _dedup_variables(self.global_params["variables"])
+        all_vars = _dedup_variables(self.setup.histTuple_plot_vars)
         if not self.variables:
             return all_vars
         selected = {v.strip() for v in self.variables.split(",") if v.strip()}
@@ -751,7 +751,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @property
     def active_variables(self):
-        all_vars = _dedup_variables(self.global_params["variables"])
+        all_vars = _dedup_variables(self.setup.histTuple_plot_vars)
         if not self.variables:
             return all_vars
         selected = {v.strip() for v in self.variables.split(",") if v.strip()}
@@ -1275,7 +1275,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
     @property
     def active_variables(self):
-        all_vars = _dedup_variables(self.global_params["variables"])
+        all_vars = _dedup_variables(self.setup.histTuple_plot_vars)
         if not self.variables:
             return all_vars
         selected = {v.strip() for v in self.variables.split(",") if v.strip()}
@@ -1364,7 +1364,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             customisations=self.customisations,
         ).create_branch_map()
         var_dict = {}
-        for var in self.global_params["variables"]:
+        for var in self.setup.histTuple_plot_vars:
             var_name = var if isinstance(var, str) else var["name"]
             var_dict[var_name] = var
         for k, (_, (var, _, _)) in enumerate(merge_map.items()):

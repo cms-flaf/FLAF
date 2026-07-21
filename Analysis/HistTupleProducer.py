@@ -81,10 +81,8 @@ def createHistTuple(
     histTupleDef.analysis_setup(setup)
     isData = dataset_name == "data"
 
-    if type(setup.global_params["variables"]) == list:
-        variables = setup.global_params["variables"]
-    elif type(setup.global_params["variables"]) == dict:
-        variables = setup.global_params["variables"].keys()
+    binned_variables = setup.histTuple_plot_vars
+    fullres_variables = setup.histTuple_fullres_vars
 
     norm_uncertainties = set()
     if setup.global_params["compute_rel_weights"]:
@@ -97,7 +95,7 @@ def createHistTuple(
 
     print("Defining binnings for variables")
     flatten_vars = set()
-    for var in variables:
+    for var in binned_variables:
         if isinstance(var, dict) and "vars" in var:
             for v in var["vars"]:
                 flatten_vars.add(v)
@@ -143,6 +141,8 @@ def createHistTuple(
                 )
 
             dfw = histTupleDef.GetDfw(df, setup, dataset_name)
+            for var in fullres_variables:
+                dfw.colToSave.append(var)
 
             selection_tags = setup.global_params.get("histTuple_selectors", [])
             selection_flags = []

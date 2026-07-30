@@ -20,6 +20,17 @@ double Calculate_TotalMT(const LVector1& lepton1_p4, const LVector2& lepton2_p4,
     return std::sqrt(std::pow(mt_1, 2) + std::pow(mt_2, 2) + std::pow(mt_ll, 2));
 }
 
+template <typename LVector1, typename LVector2>
+double Calculate_MT_WithMass(const LVector1& system_p4, const LVector2& met_p4) {
+    const double m1 = system_p4.M();
+    const double pt1 = system_p4.Pt();
+    const double pt2 = met_p4.Pt();
+    const double et1 = std::sqrt(pt1 * pt1 + m1 * m1);
+    const double delta_phi = TVector2::Phi_mpi_pi(system_p4.Phi() - met_p4.Phi());
+    const double mt2 = m1 * m1 + 2.0 * (et1 * pt2 - pt1 * pt2 * std::cos(delta_phi));
+    return std::sqrt(std::max(0.0, mt2));
+}
+
 namespace analysis {
     template <typename LVector1, typename LVector2>
     double Calculate_CosDTheta(const LVector1& obj1_p4, const LVector2& obj2_p4) {

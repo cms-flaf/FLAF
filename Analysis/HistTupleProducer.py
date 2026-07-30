@@ -90,7 +90,10 @@ def createHistTuple(
     print("Norm uncertainties to consider:", norm_uncertainties)
     scale_uncertainties = set()
     if setup.global_params["compute_unc_variations"]:
-        scale_uncertainties.update(unc_cfg_dict["shape"].keys())
+        for unc_name, unc_params in unc_cfg_dict["shape"].items():
+            if isinstance(unc_params, dict) and unc_params.get("data_driven", False):
+                continue
+            scale_uncertainties.add(unc_name)
     print("Scale uncertainties to consider:", scale_uncertainties)
 
     print("Defining binnings for variables")

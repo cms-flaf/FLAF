@@ -415,7 +415,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         print(f"input file is {input_file.abspath}")
         histTupleDef = os.path.join(self.ana_path(), self.global_params["histTupleDef"])
         HistTupleProducer = os.path.join(
-            self.ana_path(), "FLAF", "Analysis", "HistTupleProducer.py"
+            self._flaf_root(), "Analysis", "HistTupleProducer.py"
         )
         outFile = self.output().abspath
         print(f"output file is {outFile}")
@@ -660,7 +660,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             else self.global_params.get("compute_unc_histograms", False)
         )
         HistFromNtupleProducer = os.path.join(
-            self.ana_path(), "FLAF", "Analysis", "HistProducerFromNTuple.py"
+            self._flaf_root(), "Analysis", "HistProducerFromNTuple.py"
         )
         nMT = self.n_cpus * 2 if self.effective_workflow == "htcondor" else 8
 
@@ -882,7 +882,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 uncNames.append(uncName)
 
         MergerProducer = os.path.join(
-            self.ana_path(), "FLAF", "Analysis", "HistMergerFromHists.py"
+            self._flaf_root(), "Analysis", "HistMergerFromHists.py"
         )
 
         all_datasets = []
@@ -1131,7 +1131,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 self.branch_data
             )
             analysis_cache_producer = os.path.join(
-                self.ana_path(), "FLAF", "Analysis", "AnalysisCacheProducer.py"
+                self._flaf_root(), "Analysis", "AnalysisCacheProducer.py"
             )
             customisation_dict = getCustomisationSplit(self.customisations)
             channels = (
@@ -1386,7 +1386,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ver = self.version
         customisation_dict = getCustomisationSplit(self.customisations)
 
-        plotter = os.path.join(self.ana_path(), "FLAF", "Analysis", "HistPlotter.py")
+        plotter = os.path.join(self._flaf_root(), "Analysis", "HistPlotter.py")
 
         def bool_flag(key, default):
             return (
@@ -1621,7 +1621,7 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         sample_name, _ = self.branch_data
         producers = self.global_params["payload_producers"]
         cacheAggregator = os.path.join(
-            self.ana_path(), "FLAF", "Analysis", "AnalysisCacheAggregator.py"
+            self._flaf_root(), "Analysis", "AnalysisCacheAggregator.py"
         )
         with contextlib.ExitStack() as stack:
             local_output = self.output()

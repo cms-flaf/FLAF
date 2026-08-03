@@ -26,6 +26,13 @@ voms-proxy-info        # is it still valid?
 voms-proxy-init -voms cms -rfc -valid 192:00
 ```
 
+If instead you see a transient Rucio error (e.g. `server returned 503`), it usually clears on a
+retry. FLAF caches resolved storage locations (LFN→PFN) on disk, so once a path has been resolved
+a Rucio outage no longer blocks commands that reuse it; the cache lives at
+`$ANALYSIS_DATA_PATH/lfn_pfn_cache.json` (override with `FLAF_LFN_PFN_CACHE`, delete to reset).
+`env.sh` also pins the Rucio version and warns if a newer one is available on cvmfs — pin a
+different one with `FLAF_RUCIO_VERSION` if the default ever misbehaves.
+
 ## "Permission denied" / "file not found" on storage
 Usually an **expired VOMS proxy** — grid/EOS access needs a valid one. Re-run `voms-proxy-init`. If
 it persists, confirm your `fs_*` paths in `user_custom.yaml` are correct and writable

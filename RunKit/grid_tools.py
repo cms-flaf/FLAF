@@ -466,13 +466,66 @@ def gfal_rename(path, new_path, voms_token=None):
         ) from None
 
 
-def lfn_to_pfn(server, lfn):
-    from rucio.client import Client
+# Persistent (server, lfn) -> pfn cache. The mapping is determined by an RSE's
+# protocol configuration and changes very rarely, so caching it lets law commands keep
+# working through transient Rucio outages (issue #115): once a base path has been
+# resolved, it is reused without contacting Rucio again.
+_lfn_pfn_cache = None
 
-    client = Client()
-    key = f"user.jdoe:{lfn}"
-    result = client.lfns2pfns(server, [key])
-    return result[key]
+
+def _lfn_pfn_cache_path():
+    override = os.environ.get("FLAF_LFN_PFN_CACHE")
+    if override:
+        return override
+    base = os.environ.get("ANALYSIS_DATA_PATH") or os.path.join(
+        os.path.expanduser("~"), ".flaf"
+    )
+    return os.path.join(base, "lfn_pfn_cache.json")
+
+
+def _load_lfn_pfn_cache():
+    try:
+        with open(_lfn_pfn_cache_path(), "r") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _store_lfn_pfn_cache(cache):
+    # Best-effort persistence: an atomic rename keeps concurrent writers from
+    # corrupting the file, and any I/O failure is ignored (the cache is an optimisation).
+    path = _lfn_pfn_cache_path()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = f"{path}.{os.getpid()}.tmp"
+        with open(tmp, "w") as f:
+            json.dump(cache, f)
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
+def lfn_to_pfn(server, lfn):
+    global _lfn_pfn_cache
+    if _lfn_pfn_cache is None:
+        _lfn_pfn_cache = _load_lfn_pfn_cache()
+    key = f"{server}\t{lfn}"
+    if key in _lfn_pfn_cache:
+        return _lfn_pfn_cache[key]
+
+    rucio_key = f"user.jdoe:{lfn}"
+    try:
+        client = get_rucio_client()
+        pfn = client.lfns2pfns(server, [rucio_key])[rucio_key]
+    except Exception as e:
+        raise RuntimeError(
+            f"lfn_to_pfn: unable to resolve PFN for {server}:{lfn} and no cached value "
+            f"is available. Rucio may be unavailable ({type(e).__name__}: {e})."
+        ) from None
+
+    _lfn_pfn_cache[key] = pfn
+    _store_lfn_pfn_cache(_lfn_pfn_cache)
+    return pfn
 
 
 def path_to_pfn(path, *sub_paths):
@@ -502,11 +555,16 @@ def get_rucio_client():
     try:
         from rucio.client import Client
     except ImportError:
+        # Pin the Rucio version instead of the volatile 'current' symlink (issue #146),
+        # matching env.sh; fall back to 'current' if the pinned version is unavailable.
         _, out, _ = ps_call(
             """
+        VER=${FLAF_RUCIO_VERSION:-39.2.0};
         ARCH=$(uname -m)/$(/cvmfs/cms.cern.ch/common/cmsos | cut -d_ -f1 | sed 's|^[a-z]*|rhel|');
-        echo /cvmfs/cms.cern.ch/rucio/$ARCH/py3/current;
-        echo /cvmfs/cms.cern.ch/rucio/$ARCH/py3/current/lib/python*/site-packages""",
+        RUCIO_DIR=/cvmfs/cms.cern.ch/rucio/$ARCH/py3/$VER;
+        [ -e $RUCIO_DIR/bin/rucio ] || RUCIO_DIR=/cvmfs/cms.cern.ch/rucio/$ARCH/py3/current;
+        echo $RUCIO_DIR;
+        echo $RUCIO_DIR/lib/python*/site-packages""",
             shell=True,
             catch_stdout=True,
             split="\n",

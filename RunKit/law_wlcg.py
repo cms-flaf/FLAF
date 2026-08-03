@@ -19,7 +19,7 @@ from law.logger import get_logger
 logger = get_logger(__name__)
 
 from .law_gfal import GFALFileInterface
-from .law_das import DASFileInterface
+from .law_rucio import RucioFileInterface
 from .grid_tools import path_to_pfn
 
 
@@ -32,8 +32,8 @@ class WLCGFileSystem(RemoteFileSystem):
         path_cache_port=None,
         verbose=0,
     ):
-        if base == "DAS":
-            file_interface = DASFileInterface()
+        if base == "rucio":
+            file_interface = RucioFileInterface()
         else:
             if type(base) is str:
                 base = [base]

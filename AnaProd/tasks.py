@@ -13,6 +13,7 @@ from FLAF.RunKit.run_tools import (
     PsCallError,
     natural_sort,
     check_root_file_integrity,
+    get_tree_entries,
 )
 from FLAF.run_tools.law_customizations import Task, HTCondorWorkflow, copy_param
 from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
@@ -49,7 +50,6 @@ class InputFileTask(Task, law.LocalWorkflow):
         pattern = pattern_dict.get(nano_version, r".*\.root$")
         input_files = []
         inactive_files = []
-        empty_files = []
         for file in fs_nanoAOD.listdir(folder_name):
             if not re.match(pattern, file):
                 continue
@@ -68,12 +68,6 @@ class InputFileTask(Task, law.LocalWorkflow):
                             continue
                         else:
                             raise RuntimeError(f"No sites found for {file_path}")
-                if hasattr(fs_nanoAOD.file_interface, "n_events"):
-                    n_events = fs_nanoAOD.file_interface.n_events(folder_name, file)
-                    if n_events == 0:
-                        print(f"{file_path}: will be ignored because it has 0 events.")
-                        empty_files.append(file_path)
-                        continue
             input_files.append(file_path)
 
         if len(input_files) == 0:
@@ -83,7 +77,6 @@ class InputFileTask(Task, law.LocalWorkflow):
         output = {
             "input_files": input_files,
             "inactive_files": inactive_files,
-            "empty_files": empty_files,
         }
         with self.output().localize("w") as out_local_file:
             with open(out_local_file.abspath, "w") as f:
@@ -224,52 +217,64 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 local_input = stack.enter_context(input_file.localize("r")).abspath
                 inFileName = os.path.basename(input_file.abspath)
                 print(f"inFileName {inFileName}")
-                anatuple_cmd = [
-                    "python3",
-                    "-u",
-                    producer_anatuples,
-                    "--period",
-                    self.period,
-                    "--inFile",
-                    local_input,
-                    "--outDir",
-                    outdir_anatuples,
-                    "--dataset",
-                    dataset_name,
-                    "--anaTupleDef",
-                    anaTupleDef,
-                    "--channels",
-                    channels,
-                    "--inFileName",
-                    inFileName,
-                    "--reportOutput",
-                    rawReportPath,
-                    "--LAWrunVersion",
-                    self.version,
-                    "--output-name",
-                    output_name,
-                ]
-                if compute_unc_variations:
-                    anatuple_cmd.append("--compute-unc-variations")
-                if store_noncentral:
-                    anatuple_cmd.append("--store-noncentral")
-
-                if self.test > 0:
-                    anatuple_cmd.extend(["--nEvents", str(self.test)])
-                env = None
-                if self.global_params.get("use_cmssw_env_AnaTupleProduction", False):
-                    env = self.cmssw_env
-                try:
-                    ps_call(anatuple_cmd, env=env, verbose=1)
-                except PsCallError as e:
-                    print(f"anaTupleProducer failed: {e}")
-                    print("Checking input file integrity...")
-                    input_ok = check_root_file_integrity(local_input, verbose=1)
-                    if input_ok:
-                        raise RuntimeError("anaTupleProducer failed.")
+                # A NanoAOD file with no events cannot be processed by the producer;
+                # treat it like a corrupted input and emit an empty anaTuple + invalid
+                # report so it is skipped when building the merge plan.
+                if get_tree_entries(local_input, verbose=1) == 0:
+                    input_ok = False
                     print(
-                        "Input file is corrupted. Will create empty anaTuple and report."
+                        f"{inFileName}: input file has 0 entries. "
+                        "Will create empty anaTuple and report."
                     )
+                else:
+                    anatuple_cmd = [
+                        "python3",
+                        "-u",
+                        producer_anatuples,
+                        "--period",
+                        self.period,
+                        "--inFile",
+                        local_input,
+                        "--outDir",
+                        outdir_anatuples,
+                        "--dataset",
+                        dataset_name,
+                        "--anaTupleDef",
+                        anaTupleDef,
+                        "--channels",
+                        channels,
+                        "--inFileName",
+                        inFileName,
+                        "--reportOutput",
+                        rawReportPath,
+                        "--LAWrunVersion",
+                        self.version,
+                        "--output-name",
+                        output_name,
+                    ]
+                    if compute_unc_variations:
+                        anatuple_cmd.append("--compute-unc-variations")
+                    if store_noncentral:
+                        anatuple_cmd.append("--store-noncentral")
+
+                    if self.test > 0:
+                        anatuple_cmd.extend(["--nEvents", str(self.test)])
+                    env = None
+                    if self.global_params.get(
+                        "use_cmssw_env_AnaTupleProduction", False
+                    ):
+                        env = self.cmssw_env
+                    try:
+                        ps_call(anatuple_cmd, env=env, verbose=1)
+                    except PsCallError as e:
+                        print(f"anaTupleProducer failed: {e}")
+                        print("Checking input file integrity...")
+                        input_ok = check_root_file_integrity(local_input, verbose=1)
+                        if input_ok:
+                            raise RuntimeError("anaTupleProducer failed.")
+                        print(
+                            "Input file is corrupted. Will create empty anaTuple and report."
+                        )
 
             producer_fuseTuples = os.path.join(
                 self.ana_path(), "FLAF", "AnaProd", "FuseAnaTuples.py"

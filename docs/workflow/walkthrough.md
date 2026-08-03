@@ -28,7 +28,7 @@ to run on this machine; switch to `--workflow htcondor` to scale up
 
 ## Stage 0 — Resolve the input files
 
-`InputFileTask` turns "the datasets for this era" into a concrete list of NanoAOD files (from DAS).
+`InputFileTask` turns "the datasets for this era" into a concrete list of NanoAOD files (from Rucio).
 Everything else depends on it, so it runs first — automatically when you launch a later stage, or
 explicitly:
 

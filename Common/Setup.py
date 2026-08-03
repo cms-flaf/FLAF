@@ -493,7 +493,7 @@ class Setup:
         self.cmssw_env_ = None
         self.anaTupleFiles = {}
         self.processors_cache = {}
-        self.fs_das_ = None
+        self.fs_rucio_ = None
 
     def get_processors(self, process_name, stage, create_instances=False):
         key = (process_name, stage, create_instances)
@@ -592,10 +592,10 @@ class Setup:
             return self.fs_dict[fs_name]
 
     @property
-    def fs_das(self):
-        if self.fs_das_ is None:
-            self.fs_das_ = WLCGFileSystem("DAS")
-        return self.fs_das_
+    def fs_rucio(self):
+        if self.fs_rucio_ is None:
+            self.fs_rucio_ = WLCGFileSystem("rucio")
+        return self.fs_rucio_
 
     @property
     def cmssw_env(self):

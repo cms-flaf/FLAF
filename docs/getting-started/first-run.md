@@ -71,7 +71,7 @@ These and many more options are catalogued in [Command arguments](../workflow/ar
 
 ## If it fails
 
-- **`InputFileTask` keeps appearing / DAS errors** — usually a wrong era/version or an expired
+- **`InputFileTask` keeps appearing / Rucio errors** — usually a wrong era/version or an expired
   proxy. Re-run `voms-proxy-init`. See [Troubleshooting](../troubleshooting.md).
 - **`law: command not found`** — you did not `source env.sh` in this shell.
 - **Import errors / empty submodule dirs** — you cloned without `--recursive`; run

@@ -491,38 +491,50 @@ def get_local_site():
     return None
 
 
-def get_distances(local_site, sites):
-    distances = {}
+_rucio_client = None
+
+
+def get_rucio_client():
+    """Return a cached Rucio client, setting up the client library from cvmfs if needed."""
+    global _rucio_client
+    if _rucio_client is not None:
+        return _rucio_client
     try:
         from rucio.client import Client
     except ImportError:
-        try:
-            _, out, _ = ps_call(
-                """
+        _, out, _ = ps_call(
+            """
         ARCH=$(uname -m)/$(/cvmfs/cms.cern.ch/common/cmsos | cut -d_ -f1 | sed 's|^[a-z]*|rhel|');
         echo /cvmfs/cms.cern.ch/rucio/$ARCH/py3/current;
         echo /cvmfs/cms.cern.ch/rucio/$ARCH/py3/current/lib/python*/site-packages""",
-                shell=True,
-                catch_stdout=True,
-                split="\n",
-            )
-            sys.path.append(out[1])
-            os.environ["RUCIO_HOME"] = out[0]
-            from rucio.client import Client
-        except:
+            shell=True,
+            catch_stdout=True,
+            split="\n",
+        )
+        sys.path.append(out[1])
+        os.environ["RUCIO_HOME"] = out[0]
+        from rucio.client import Client
+    if "RUCIO_ACCOUNT" not in os.environ and "USER" in os.environ:
+        os.environ["RUCIO_ACCOUNT"] = os.environ["USER"]
+    _rucio_client = Client()
+    return _rucio_client
 
-            class Client:
-                def get_distance(self, site1, site2):
-                    return [{"distance": 1}]
 
-    client = Client()
+def get_distances(local_site, sites):
+    distances = {}
+    try:
+        client = get_rucio_client()
+    except Exception:
+        client = None
     for site in sites:
         if local_site is None or site == local_site:
             distances[site] = 0
+        elif client is None:
+            distances[site] = 1
         else:
             try:
                 dist = client.get_distance(site, local_site)
-            except:
+            except Exception:
                 dist = []
             if len(dist) > 0:
                 distances[site] = dist[0]["distance"]
@@ -531,6 +543,88 @@ def get_distances(local_site, sites):
     return distances
 
 
+def rucio_list_files(dataset, scope="cms"):
+    """List the files (LFNs) of a CMS dataset with their size and adler32 checksum.
+
+    A CMS "dataset" path (e.g. /A/B/NANOAODSIM) is a Rucio container; list_files
+    traverses it down to the individual file DIDs.
+    """
+    client = get_rucio_client()
+    files = []
+    for entry in client.list_files(scope, dataset):
+        files.append(
+            {
+                "name": entry["name"],
+                "bytes": entry.get("bytes"),
+                "adler32": entry.get("adler32"),
+            }
+        )
+    return files
+
+
+def rucio_list_replicas(files, scope="cms", schemes=("root", "davs", "gsiftp")):
+    """Return replica information for a list of LFNs.
+
+    Result maps each LFN to a dict with:
+      "pfns"      : {"DISK": [(pfn, rse), ...], "TAPE": [...]}
+      "available" : True if at least one DISK replica is in state AVAILABLE
+      "adler32"   : checksum string (or None)
+      "bytes"     : file size (or None)
+    """
+    if isinstance(files, str):
+        files = [files]
+    client = get_rucio_client()
+    dids = [{"scope": scope, "name": f} for f in files]
+    result = {}
+    for rep in client.list_replicas(
+        dids, schemes=list(schemes), ignore_availability=False
+    ):
+        states = rep.get("states", {})
+        pfns = {}
+        available = False
+        for pfns_link, pfns_info in rep.get("pfns", {}).items():
+            pfns_type = pfns_info.get("type", "UNKNOWN")
+            rse = pfns_info.get("rse")
+            pfns.setdefault(pfns_type, []).append((pfns_link, rse))
+            if pfns_type == "DISK" and states.get(rse) == "AVAILABLE":
+                available = True
+        result[rep["name"]] = {
+            "pfns": pfns,
+            "available": available,
+            "adler32": rep.get("adler32"),
+            "bytes": rep.get("bytes"),
+        }
+    return result
+
+
+def rucio_file_pfns(
+    file,
+    disk_only=True,
+    return_adler32=False,
+    keep_rse=False,
+    scope="cms",
+    verbose=0,
+):
+    reps = rucio_list_replicas([file], scope=scope)
+    info = reps.get(file, {"pfns": {}, "adler32": None})
+    pfns_all = {}
+    for pfns_type, entries in info["pfns"].items():
+        pfns_all[pfns_type] = set(
+            entries if keep_rse else [pfns_link for pfns_link, _ in entries]
+        )
+    adler32 = int(info["adler32"], 16) if info.get("adler32") else None
+    if disk_only:
+        pfns = pfns_all.get("DISK", set())
+    else:
+        pfns = pfns_all
+    if return_adler32:
+        return pfns, adler32
+    return pfns
+
+
+# DAS (dasgoclient) query helpers. No longer used by the default file-discovery path
+# (which goes through Rucio, above), but retained for future use cases that Rucio does
+# not cover -- e.g. per-file event counts, or the phys03 instance for USER datasets.
 def run_dasgoclient(
     query, inputDBS="global", json_output=False, timeout=None, verbose=0
 ):
@@ -607,13 +701,12 @@ def copy_remote_file(
     verbose=1,
 ):
     voms_token = get_voms_proxy_token(voms_token)
-    from_das = input_remote_file.startswith("/store/")
-    if from_das:
-        pfns_info, adler32 = das_file_pfns(
+    from_grid = input_remote_file.startswith("/store/")
+    if from_grid:
+        pfns_info, adler32 = rucio_file_pfns(
             input_remote_file,
             disk_only=True,
             return_adler32=True,
-            inputDBS=inputDBS,
             keep_rse=True,
             verbose=verbose,
         )

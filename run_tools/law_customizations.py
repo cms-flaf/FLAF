@@ -370,7 +370,7 @@ class Task(law.Task):
             das_ds_name = das_cfg
 
         if das_ds_name is not None:
-            return self.setup.fs_das, das_ds_name, False
+            return self.setup.fs_rucio, das_ds_name, False
 
         raise RuntimeError(
             f"Unable to identify the file source for dataset {dataset_name}"

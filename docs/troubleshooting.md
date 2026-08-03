@@ -15,7 +15,7 @@ You cloned without `--recursive`, so submodules (FLAF, PlotKit, physics tools) a
 git submodule update --init --recursive
 ```
 
-## A run unexpectedly drops into `InputFileTask` / DAS errors
+## A run unexpectedly drops into `InputFileTask` / Rucio errors
 For a from-scratch production, `InputFileTask` running first is normal. But if a run that should
 reuse existing outputs keeps re-resolving inputs, or fails here, the cause is almost always a
 **wrong `--period` or `--version`** (so the expected upstream outputs aren't found and LAW falls

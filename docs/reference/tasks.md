@@ -12,9 +12,9 @@ which they run, see the [walkthrough](../workflow/walkthrough.md) and
 ## Production tasks (`AnaProd`)
 
 ### `InputFileTask`
-Resolves the concrete list of NanoAOD files for the requested datasets and era (from DAS). Runs
-locally (it is a `LocalWorkflow`, not submitted to HTCondor) and is cheap. Every downstream task
-depends on it, so it runs first.
+Resolves the concrete list of NanoAOD files for the requested datasets and era, querying **Rucio**
+for the file list and their disk availability. Runs locally (it is a `LocalWorkflow`, not submitted
+to HTCondor) and is cheap. Every downstream task depends on it, so it runs first.
 
 ### `AnaTupleFileTask`
 Runs the analysis producer (`AnaProd/anaTupleProducer.py`, inside CMSSW) over input files to create

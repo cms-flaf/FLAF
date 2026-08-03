@@ -884,9 +884,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         MergerProducer = os.path.join(
             self.ana_path(), "FLAF", "Analysis", "HistMergerFromHists.py"
         )
-        HaddMergedHistsProducer = os.path.join(
-            self.ana_path(), "FLAF", "Analysis", "hadd_merged_hists.py"
-        )
 
         all_datasets = []
         local_inputs = []
@@ -920,68 +917,34 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 all_datasets.append(dataset_name)
                 local_inputs.append(abspath)
             dataset_names = ",".join(smpl for smpl in all_datasets)
-            all_outputs_merged = []
-            if len(uncNames) == 1:
-                with self.output().localize("w") as outFile:
-                    MergerProducer_cmd = [
-                        "python3",
-                        MergerProducer,
-                        "--outFile",
-                        outFile.abspath,
-                        "--var",
-                        var_name,
-                        "--dataset_names",
-                        dataset_names,
-                        "--uncSource",
-                        uncNames[0],
-                        "--channels",
-                        channels,
-                        "--period",
-                        self.period,
-                        "--LAWrunVersion",
-                        self.version,
-                    ]
-                    MergerProducer_cmd.extend(local_inputs)
-                    ps_call(MergerProducer_cmd, verbose=1)
-            else:
-                job_home, remove_job_home = self.law_job_home()
-                for uncName in uncNames:
-                    final_histname = f"{var_name}_{uncName}.root"
-                    tmp_outfile_merge = os.path.join(job_home, final_histname)
-                    MergerProducer_cmd = [
-                        "python3",
-                        MergerProducer,
-                        "--outFile",
-                        tmp_outfile_merge,
-                        "--var",
-                        var_name,
-                        "--dataset_names",
-                        dataset_names,
-                        "--uncSource",
-                        uncName,
-                        "--channels",
-                        channels,
-                        "--period",
-                        self.period,
-                        "--LAWrunVersion",
-                        self.version,
-                    ]
-                    MergerProducer_cmd.extend(local_inputs)
-                    ps_call(MergerProducer_cmd, verbose=1)
-                    all_outputs_merged.append(tmp_outfile_merge)
-                with self.output().localize("w") as outFile:
-                    HaddMergedHistsProducer_cmd = [
-                        "python3",
-                        HaddMergedHistsProducer,
-                        "--outFile",
-                        outFile.abspath,
-                        "--var",
-                        var_name,
-                    ]
-                    HaddMergedHistsProducer_cmd.extend(all_outputs_merged)
-                    ps_call(HaddMergedHistsProducer_cmd, verbose=1)
-                if remove_job_home:
-                    shutil.rmtree(job_home)
+            # A single producer call merges all uncertainty sources in one pass: each
+            # input file is read once and all histograms are written directly to the
+            # final output (previously one subprocess per source + a hadd recombination,
+            # which re-read every input per source and paid the interpreter/ROOT startup
+            # N_unc+1 times per variable).
+            with self.output().localize("w") as outFile:
+                MergerProducer_cmd = [
+                    "python3",
+                    MergerProducer,
+                    "--outFile",
+                    outFile.abspath,
+                    "--var",
+                    var_name,
+                    "--dataset_names",
+                    dataset_names,
+                    "--uncSources",
+                    ",".join(uncNames),
+                    "--channels",
+                    channels,
+                    "--period",
+                    self.period,
+                    "--LAWrunVersion",
+                    self.version,
+                ]
+                if self.user_custom:
+                    MergerProducer_cmd.extend(["--user-custom", self.user_custom])
+                MergerProducer_cmd.extend(local_inputs)
+                ps_call(MergerProducer_cmd, verbose=1)
 
 
 class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):

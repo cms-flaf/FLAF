@@ -16,8 +16,8 @@ it when unset, so a one-line configuration is enough to get going.
 | `fs_anaCacheTuple` | Cached per-event payloads. |
 | `fs_HistTuple` | histTuples (ntuples with analysis observables). |
 | `fs_plots` | Plot outputs. |
-| `fs_nanoAOD` | Location of NanoAOD inputs for **custom/local** samples (not from DAS). |
-| `fs_das` | The DAS-backed filesystem used to resolve official datasets. |
+| `fs_nanoAOD` | Location of NanoAOD inputs for **custom/local** samples (not from Rucio). |
+| `fs_rucio` | The Rucio-backed filesystem used to resolve official datasets. |
 
 !!! tip "Start with just `fs_default`"
     Set `fs_default` to your personal storage and leave the rest unset. Everything then lands in

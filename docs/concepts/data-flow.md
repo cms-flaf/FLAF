@@ -8,7 +8,7 @@ how the products feed the next stage. It is the conceptual companion to the hand
 
 ```mermaid
 flowchart TD
-    NANO[(CMS NanoAOD<br/>DAS / WLCG)]
+    NANO[(CMS NanoAOD<br/>Rucio / WLCG)]
     LIST[Input file lists]
     ANA[anaTuples<br/>analysis ntuples]
     HTUP[histTuples<br/>+ analysis observables]
@@ -30,7 +30,7 @@ flowchart TD
 
 | Stage (task) | Consumes | Produces |
 |---|---|---|
-| **InputFileTask** | A DAS query for the requested datasets and era. | The concrete list of NanoAOD files to process. Runs first and cheaply; everything else keys off it. |
+| **InputFileTask** | A Rucio query for the requested datasets and era. | The concrete list of NanoAOD files to process. Runs first and cheaply; everything else keys off it. |
 | **AnaTupleFileTask** | One NanoAOD file (one branch per file). | One **anaTuple**: a slimmed/skimmed analysis ntuple with the objects, weights and flags the analysis needs. Runs inside CMSSW via `AnaProd/anaTupleProducer.py`. |
 | **AnaTupleMergeTask** | The per-file anaTuples for a dataset. | One merged anaTuple per dataset (data merged across runs). |
 | **HistTupleProducerTask** | Merged anaTuples. | **histTuples**: ntuples with the heavier analysis **observables** computed (the "payload producers"). |

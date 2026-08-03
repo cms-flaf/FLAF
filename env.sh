@@ -254,7 +254,29 @@ load_flaf_env() {
   source "$( law completion )" 2>/dev/null
   current_args=( "$@" )
   set --
-  source /cvmfs/cms.cern.ch/rucio/setup-py3.sh &> /dev/null
+  # Pin the Rucio version instead of following the volatile 'current' symlink (issue #146),
+  # which occasionally breaks. Override with FLAF_RUCIO_VERSION; if the pinned version is not
+  # on cvmfs, fall back to the standard setup script.
+  export FLAF_RUCIO_VERSION="${FLAF_RUCIO_VERSION:-39.2.0}"
+  local rucio_arch=$(uname -m)/$(/cvmfs/cms.cern.ch/common/cmsos | cut -d_ -f1 | sed 's|^[a-z]*|rhel|')
+  local rucio_root=/cvmfs/cms.cern.ch/rucio/${rucio_arch}/py3
+  local rucio_dir=${rucio_root}/${FLAF_RUCIO_VERSION}
+  if [ -e "${rucio_dir}/bin/rucio" ]; then
+    local rucio_pydir="$(grep '#!/' ${rucio_dir}/bin/rucio | sed 's|^#!||;s|/bin/python[^/]*$||')"
+    [ -e "${rucio_pydir}/etc/profile.d/init.sh" ] && source "${rucio_pydir}/etc/profile.d/init.sh"
+    export PATH="${rucio_dir}/bin${PATH:+:$PATH}"
+    export PYTHONPATH="$(ls -d ${rucio_dir}/lib/python*/site-packages)${PYTHONPATH:+:$PYTHONPATH}"
+    export RUCIO_HOME="${rucio_dir}"
+    # Warn if cvmfs offers a newer Rucio than the pinned one, so the pin can be refreshed.
+    local rucio_latest=$(ls -1 "${rucio_root}" 2>/dev/null | grep -E '^[0-9]' | sort -V | tail -1)
+    if [ -n "$rucio_latest" ] && [ "$rucio_latest" != "$FLAF_RUCIO_VERSION" ] \
+        && [ "$(printf '%s\n%s\n' "$FLAF_RUCIO_VERSION" "$rucio_latest" | sort -V | tail -1)" = "$rucio_latest" ]; then
+      echo "Warning: a newer Rucio version '$rucio_latest' is available on cvmfs; FLAF is pinned to '$FLAF_RUCIO_VERSION' (set FLAF_RUCIO_VERSION to override). See FLAF issue #146." >&2
+    fi
+  else
+    echo "Warning: pinned Rucio version '$FLAF_RUCIO_VERSION' not found on cvmfs; falling back to 'current'." >&2
+    source /cvmfs/cms.cern.ch/rucio/setup-py3.sh &> /dev/null
+  fi
   set -- "${current_args[@]}"
   #export PATH="$ANALYSIS_SOFT_PATH/bin:$PATH"
   alias cmsEnv="env -i HOME=$HOME ANALYSIS_PATH=$ANALYSIS_PATH ANALYSIS_DATA_PATH=$ANALYSIS_DATA_PATH X509_USER_PROXY=$X509_USER_PROXY FLAF_CMSSW_BASE=$FLAF_CMSSW_BASE FLAF_CMSSW_ARCH=$FLAF_CMSSW_ARCH $FLAF_PATH/cmsEnv.sh"

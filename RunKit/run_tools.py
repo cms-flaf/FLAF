@@ -270,6 +270,28 @@ def check_root_file_integrity(file_name, tmp_file=None, verbose=1):
             os.remove(tmp_file)
 
 
+def get_tree_entries(file_name, tree_name="Events", verbose=0):
+    """Return the number of entries in tree_name of a ROOT file (metadata only).
+
+    Returns 0 if the tree is absent, so that callers can treat an unprocessable
+    (e.g. empty) input file the same way as a file with no events.
+    """
+    import ROOT
+
+    root_file = ROOT.TFile.Open(file_name)
+    if root_file is None or root_file.IsZombie():
+        raise RuntimeError(f"Unable to open ROOT file {file_name}")
+    try:
+        tree = root_file.Get(tree_name)
+        if not tree:
+            if verbose > 0:
+                print(f"{file_name}: tree '{tree_name}' not found", file=sys.stderr)
+            return 0
+        return int(tree.GetEntries())
+    finally:
+        root_file.Close()
+
+
 if __name__ == "__main__":
     import sys
 

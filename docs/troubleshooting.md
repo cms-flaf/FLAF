@@ -15,7 +15,7 @@ You cloned without `--recursive`, so submodules (FLAF, PlotKit, physics tools) a
 git submodule update --init --recursive
 ```
 
-## A run unexpectedly drops into `InputFileTask` / DAS errors
+## A run unexpectedly drops into `InputFileTask` / Rucio errors
 For a from-scratch production, `InputFileTask` running first is normal. But if a run that should
 reuse existing outputs keeps re-resolving inputs, or fails here, the cause is almost always a
 **wrong `--period` or `--version`** (so the expected upstream outputs aren't found and LAW falls
@@ -25,6 +25,13 @@ back to regenerating them), or an **expired proxy**. Double-check the era/versio
 voms-proxy-info        # is it still valid?
 voms-proxy-init -voms cms -rfc -valid 192:00
 ```
+
+If instead you see a transient Rucio error (e.g. `server returned 503`), it usually clears on a
+retry. FLAF caches resolved storage locations (LFN→PFN) on disk, so once a path has been resolved
+a Rucio outage no longer blocks commands that reuse it; the cache lives at
+`$ANALYSIS_DATA_PATH/lfn_pfn_cache.json` (override with `FLAF_LFN_PFN_CACHE`, delete to reset).
+`env.sh` also pins the Rucio version and warns if a newer one is available on cvmfs — pin a
+different one with `FLAF_RUCIO_VERSION` if the default ever misbehaves.
 
 ## "Permission denied" / "file not found" on storage
 Usually an **expired VOMS proxy** — grid/EOS access needs a valid one. Re-run `voms-proxy-init`. If

@@ -36,8 +36,9 @@ Framework and CMS-computing vocabulary, in plain terms. For the quick on-ramp ve
   Python, ROOT (LCG stacks) and CMSSW.
 
 **DAS**
-: The CMS Data Aggregation System — the catalogue of official datasets. `InputFileTask` queries it
-  to turn dataset names into file lists.
+: The CMS Data Aggregation System — the catalogue of official datasets and the source of the
+  dataset **name** convention (`/A/B/TIER`). File lists and disk locations are resolved via Rucio
+  (see below), not by querying DAS directly.
 
 **Dataset**
 : One CMS sample (a simulated process or a chunk of data), identified by its DAS name. Declared in
@@ -97,6 +98,10 @@ Framework and CMS-computing vocabulary, in plain terms. For the quick on-ramp ve
 **Proxy (VOMS)**
 : A short-lived credential derived from your grid certificate that authorises grid/EOS access.
   Created with `voms-proxy-init`; FLAF expects it at `data/voms.proxy`.
+
+**Rucio**
+: The CMS data-management service. `InputFileTask` queries it to turn a dataset name into its list
+  of NanoAOD files and their disk locations.
 
 **RunKit**
 : Workflow utilities vendored into FLAF as a regular directory (formerly a submodule). Imported as

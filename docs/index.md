@@ -23,7 +23,7 @@ same pipeline. From CMS NanoAOD to final results, the stages are:
 
 ```mermaid
 flowchart TD
-    NANO[CMS NanoAOD<br/>on DAS / WLCG] --> IFT[InputFileTask<br/>resolve the file list]
+    NANO[CMS NanoAOD<br/>on Rucio / WLCG] --> IFT[InputFileTask<br/>resolve the file list]
     IFT --> ATF[AnaTupleFileTask<br/>produce analysis ntuples]
     ATF --> ATM[AnaTupleMergeTask<br/>merge per dataset]
     ATM --> HTP[HistTupleProducerTask<br/>compute analysis observables]

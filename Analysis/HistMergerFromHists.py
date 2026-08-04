@@ -226,10 +226,12 @@ if __name__ == "__main__":
     # Uncertainties
     uncNameTypes = GetUncNameTypes(unc_cfg_dict)
     scales = list(global_cfg_dict["scales"])
-    unc_sources = [s for s in args.uncSources.split(",") if s]
-    for unc_source in unc_sources:
-        if unc_source != "Central" and unc_source not in uncNameTypes:
-            print(f"unknown unc source {unc_source}")
+    unc_sources = [s.strip() for s in args.uncSources.split(",") if s.strip()]
+    unknown_sources = [
+        s for s in unc_sources if s != "Central" and s not in uncNameTypes
+    ]
+    if unknown_sources:
+        raise ValueError(f"Unknown uncertainty source(s): {', '.join(unknown_sources)}")
     # Uncertainties exception
     unc_exception = global_cfg_dict.get(
         "unc_exception", {}
@@ -342,8 +344,6 @@ if __name__ == "__main__":
                     continue
                 if uncScale == "Central":
                     continue
-                if uncName not in all_unc_dict.keys():
-                    print(f"unknown unc name {uncName}")
                 hist_name += f"""_{all_unc_dict[uncName]["name"].format(uncScale)}"""
             else:
                 if uncScale != "Central":

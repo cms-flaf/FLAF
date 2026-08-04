@@ -42,27 +42,52 @@ def fill_hists(
     all_hist_dict,
     dataset_type,
     var_input,
-    unc_source="Central",
+    unc_sources,
     data_type="data",
 ):
-    var_check = f"{var_input}"
+    """Accumulate the histograms of one input file for all requested unc sources in a
+    single pass. Data has no per-uncertainty variations: only its nominal histogram is
+    accumulated here; alias_data_variations() links it under the varied keys afterwards
+    (QCD estimation looks data up per (unc, scale))."""
+    target_keys = {var_input: ("Central", "Central")}
+    if dataset_type != data_type:
+        for unc_source in unc_sources:
+            if unc_source == "Central":
+                continue
+            for scale in ["Up", "Down"]:
+                target_keys[f"{var_input}_{unc_source}_{scale}"] = (unc_source, scale)
+    hists = all_hist_dict.setdefault(dataset_type, {})
     for key_tuple, hist_map in items_dict.items():
         for var, var_hist in hist_map.items():
-            scales = ["Up", "Down"] if unc_source != "Central" else ["Central"]
-            for scale in scales:
-                if unc_source != "Central" and dataset_type != data_type:
-                    var_check = f"{var_input}_{unc_source}_{scale}"
-                if var != var_check:
-                    continue
+            unc_scale = target_keys.get(var)
+            if unc_scale is None:
+                continue
+            final_key = (key_tuple, unc_scale)
+            if final_key not in hists:
+                var_hist.SetDirectory(0)
+                hists[final_key] = var_hist
+            else:
+                hists[final_key].Add(var_hist)
 
-                final_key = (key_tuple, (unc_source, scale))
-                if dataset_type not in all_hist_dict.keys():
-                    all_hist_dict[dataset_type] = {}
-                if final_key not in all_hist_dict[dataset_type]:
-                    var_hist.SetDirectory(0)
-                    all_hist_dict[dataset_type][final_key] = var_hist
-                else:
-                    all_hist_dict[dataset_type][final_key].Add(var_hist)
+
+def alias_data_variations(all_hist_dict, data_type, unc_sources):
+    """Expose the accumulated nominal data histogram under every varied (unc, scale) key.
+    Downstream consumers (QCD estimation) only read/clone these entries, so sharing the
+    same object is safe; the output-writing loop skips data for non-Central sources."""
+    data_hists = all_hist_dict.get(data_type)
+    if not data_hists:
+        return
+    central = {
+        key_tuple: hist
+        for (key_tuple, unc_scale), hist in data_hists.items()
+        if unc_scale == ("Central", "Central")
+    }
+    for unc_source in unc_sources:
+        if unc_source == "Central":
+            continue
+        for scale in ["Up", "Down"]:
+            for key_tuple, hist in central.items():
+                data_hists.setdefault((key_tuple, (unc_source, scale)), hist)
 
 
 def GetBTagWeightDict(
@@ -122,14 +147,26 @@ if __name__ == "__main__":
     parser.add_argument("--var", required=True, type=str)
     parser.add_argument("--outFile", required=True, type=str)
     parser.add_argument("--period", required=True, type=str)
-    parser.add_argument("--uncSource", required=False, type=str, default="Central")
+    parser.add_argument(
+        "--uncSources",
+        required=False,
+        type=str,
+        default="Central",
+        help="comma-separated list of uncertainty sources to merge in one pass",
+    )
     parser.add_argument("--channels", required=False, type=str, default="")
     parser.add_argument("--LAWrunVersion", required=True, type=str)
+    parser.add_argument("--user-custom", type=str, default=None)
 
     args = parser.parse_args()
     startTime = time.time()
 
-    setup = Setup.Setup(os.environ["ANALYSIS_PATH"], args.period, args.LAWrunVersion)
+    setup = Setup.Setup(
+        os.environ["ANALYSIS_PATH"],
+        args.period,
+        args.LAWrunVersion,
+        user_custom_file=args.user_custom,
+    )
 
     global_cfg_dict = setup.global_params
     unc_cfg_dict = setup.weights_config
@@ -189,8 +226,12 @@ if __name__ == "__main__":
     # Uncertainties
     uncNameTypes = GetUncNameTypes(unc_cfg_dict)
     scales = list(global_cfg_dict["scales"])
-    if args.uncSource != "Central" and args.uncSource not in uncNameTypes:
-        print("unknown unc source {args.uncSource}")
+    unc_sources = [s.strip() for s in args.uncSources.split(",") if s.strip()]
+    unknown_sources = [
+        s for s in unc_sources if s != "Central" and s not in uncNameTypes
+    ]
+    if unknown_sources:
+        raise ValueError(f"Unknown uncertainty source(s): {', '.join(unknown_sources)}")
     # Uncertainties exception
     unc_exception = global_cfg_dict.get(
         "unc_exception", {}
@@ -217,10 +258,6 @@ if __name__ == "__main__":
     all_hists_dict = {}
     all_datasets = args.dataset_names.split(",")
     for dataset_name, inFile_path in zip(all_datasets, args.inFiles):
-        if unc_exception.keys():
-            for unc_condition in unc_exception.keys():
-                if unc_condition and args.uncSource in unc_exception[key]:
-                    continue
         if not os.path.exists(inFile_path):
             print(
                 f"input file for dataset {dataset_name} (with path= {inFile_path}) does not exist, skipping"
@@ -245,9 +282,10 @@ if __name__ == "__main__":
                 all_hists_dict,
                 dataset_type,
                 args.var,
-                args.uncSource,
+                unc_sources,
                 data_process_name,
-            )  # to add: , unc_source="Central", scale="Central"
+            )
+    alias_data_variations(all_hists_dict, data_process_name, unc_sources)
 
     # here there should be the custom applications - e.g. GetBTagWeightDict, AddQCDInHistDict, etc.
     # analysis.ApplyMergeCustomisations() # --> here go the QCD and bTag functions
@@ -272,44 +310,47 @@ if __name__ == "__main__":
         from Analysis.QCD_estimation import AddQCDInHistDict
 
         fixNegativeContributions = False
-        error_on_qcdnorm, error_on_qcdnorm_varied = AddQCDInHistDict(
-            args.var,
-            all_hists_dict,
-            channels,
-            all_categories,
-            args.uncSource,
-            list(all_hists_dict.keys()),
-            scales,
-            data_process_name=data_processes,
-            wantNegativeContributions=False,
-        )
+        # Snapshot the sample list before the loop: AddQCDInHistDict adds a "QCD" entry
+        # to all_hists_dict, which must not appear in all_samples_list for later sources.
+        dataset_types = list(all_hists_dict.keys())
+        for unc_source in unc_sources:
+            error_on_qcdnorm, error_on_qcdnorm_varied = AddQCDInHistDict(
+                args.var,
+                all_hists_dict,
+                channels,
+                all_categories,
+                unc_source,
+                dataset_types,
+                scales,
+                data_process_name=data_processes,
+                wantNegativeContributions=False,
+            )
 
     all_unc_dict = unc_cfg_dict["norm"].copy()
     all_unc_dict.update(unc_cfg_dict["shape"])
 
-    outFile = ROOT.TFile(args.outFile, "RECREATE")
+    # 209 = LZMA level 9, the standard compression for merged histogram files
+    outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)
     for dataset_type in all_hists_dict.keys():
         for key in all_hists_dict[dataset_type].keys():
             key_dir, (uncName, uncScale) = key
             # here there can be some custom requirements - e.g. regions / categories to not merge, datasets to ignore
-            dir_name = "/".join(key_dir)
-            dir_ptr = Utilities.mkdir(outFile, dir_name)
             hist = all_hists_dict[dataset_type][key]
             hist_name = dataset_type
-            if uncName != args.uncSource:
+            if uncName not in unc_sources:
                 continue
             if uncName != "Central":
                 if dataset_type == "data":
                     continue
                 if uncScale == "Central":
                     continue
-                if uncName not in all_unc_dict.keys():
-                    print(f"unknown unc name {uncName}")
                 hist_name += f"""_{all_unc_dict[uncName]["name"].format(uncScale)}"""
             else:
                 if uncScale != "Central":
                     continue
 
+            dir_name = "/".join(key_dir)
+            dir_ptr = Utilities.mkdir(outFile, dir_name)
             hist.SetTitle(hist_name)
             hist.SetName(hist_name)
             dir_ptr.WriteTObject(hist, hist_name, "Overwrite")

@@ -205,7 +205,7 @@ def createAnalysisCache(
             if saveAs == "root":
                 dfw = histTupleDef.GetDfw(df, setup, dataset_name)
                 # dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
-                tmp_fileName = f"{fullTreeName}.root"
+                tmp_fileName = os.path.join(workingDir, f"{fullTreeName}.root")
             elif saveAs == "json":
                 if hasattr(producer, "create_dfw"):
                     dfw = producer.create_dfw(
@@ -221,8 +221,13 @@ def createAnalysisCache(
                         df_is_central=isCentral,
                     )
 
-                tmp_fileName = (
-                    f"{central}.json" if isCentral else f"{unc_source}_{unc_scale}.json"
+                tmp_fileName = os.path.join(
+                    workingDir,
+                    (
+                        f"{central}.json"
+                        if isCentral
+                        else f"{unc_source}_{unc_scale}.json"
+                    ),
                 )
             else:
                 raise NotImplementedError(f"Unsupported output format `{saveAs}`.")
@@ -349,7 +354,7 @@ if __name__ == "__main__":
 
         data = {}
         for file_name in tmp_fileNames:
-            unc_name = file_name.removesuffix(".json")
+            unc_name = os.path.basename(file_name).removesuffix(".json")
             with open(file_name, "r") as json_file:
                 file_data = json.load(json_file)
                 data[unc_name] = file_data

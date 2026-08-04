@@ -415,7 +415,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         print(f"input file is {input_file.abspath}")
         histTupleDef = os.path.join(self.ana_path(), self.global_params["histTupleDef"])
         HistTupleProducer = os.path.join(
-            self.ana_path(), "FLAF", "Analysis", "HistTupleProducer.py"
+            self._flaf_root(), "Analysis", "HistTupleProducer.py"
         )
         outFile = self.output().abspath
         print(f"output file is {outFile}")
@@ -660,7 +660,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             else self.global_params.get("compute_unc_histograms", False)
         )
         HistFromNtupleProducer = os.path.join(
-            self.ana_path(), "FLAF", "Analysis", "HistProducerFromNTuple.py"
+            self._flaf_root(), "Analysis", "HistProducerFromNTuple.py"
         )
         nMT = self.n_cpus * 2 if self.effective_workflow == "htcondor" else 8
 
@@ -882,10 +882,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 uncNames.append(uncName)
 
         MergerProducer = os.path.join(
-            self.ana_path(), "FLAF", "Analysis", "HistMergerFromHists.py"
-        )
-        HaddMergedHistsProducer = os.path.join(
-            self.ana_path(), "FLAF", "Analysis", "hadd_merged_hists.py"
+            self._flaf_root(), "Analysis", "HistMergerFromHists.py"
         )
 
         all_datasets = []
@@ -920,68 +917,29 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 all_datasets.append(dataset_name)
                 local_inputs.append(abspath)
             dataset_names = ",".join(smpl for smpl in all_datasets)
-            all_outputs_merged = []
-            if len(uncNames) == 1:
-                with self.output().localize("w") as outFile:
-                    MergerProducer_cmd = [
-                        "python3",
-                        MergerProducer,
-                        "--outFile",
-                        outFile.abspath,
-                        "--var",
-                        var_name,
-                        "--dataset_names",
-                        dataset_names,
-                        "--uncSource",
-                        uncNames[0],
-                        "--channels",
-                        channels,
-                        "--period",
-                        self.period,
-                        "--LAWrunVersion",
-                        self.version,
-                    ]
-                    MergerProducer_cmd.extend(local_inputs)
-                    ps_call(MergerProducer_cmd, verbose=1)
-            else:
-                job_home, remove_job_home = self.law_job_home()
-                for uncName in uncNames:
-                    final_histname = f"{var_name}_{uncName}.root"
-                    tmp_outfile_merge = os.path.join(job_home, final_histname)
-                    MergerProducer_cmd = [
-                        "python3",
-                        MergerProducer,
-                        "--outFile",
-                        tmp_outfile_merge,
-                        "--var",
-                        var_name,
-                        "--dataset_names",
-                        dataset_names,
-                        "--uncSource",
-                        uncName,
-                        "--channels",
-                        channels,
-                        "--period",
-                        self.period,
-                        "--LAWrunVersion",
-                        self.version,
-                    ]
-                    MergerProducer_cmd.extend(local_inputs)
-                    ps_call(MergerProducer_cmd, verbose=1)
-                    all_outputs_merged.append(tmp_outfile_merge)
-                with self.output().localize("w") as outFile:
-                    HaddMergedHistsProducer_cmd = [
-                        "python3",
-                        HaddMergedHistsProducer,
-                        "--outFile",
-                        outFile.abspath,
-                        "--var",
-                        var_name,
-                    ]
-                    HaddMergedHistsProducer_cmd.extend(all_outputs_merged)
-                    ps_call(HaddMergedHistsProducer_cmd, verbose=1)
-                if remove_job_home:
-                    shutil.rmtree(job_home)
+            with self.output().localize("w") as outFile:
+                MergerProducer_cmd = [
+                    "python3",
+                    MergerProducer,
+                    "--outFile",
+                    outFile.abspath,
+                    "--var",
+                    var_name,
+                    "--dataset_names",
+                    dataset_names,
+                    "--uncSources",
+                    ",".join(uncNames),
+                    "--channels",
+                    channels,
+                    "--period",
+                    self.period,
+                    "--LAWrunVersion",
+                    self.version,
+                ]
+                if self.user_custom:
+                    MergerProducer_cmd.extend(["--user-custom", self.user_custom])
+                MergerProducer_cmd.extend(local_inputs)
+                ps_call(MergerProducer_cmd, verbose=1)
 
 
 class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
@@ -1168,7 +1126,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 self.branch_data
             )
             analysis_cache_producer = os.path.join(
-                self.ana_path(), "FLAF", "Analysis", "AnalysisCacheProducer.py"
+                self._flaf_root(), "Analysis", "AnalysisCacheProducer.py"
             )
             customisation_dict = getCustomisationSplit(self.customisations)
             channels = (
@@ -1423,7 +1381,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ver = self.version
         customisation_dict = getCustomisationSplit(self.customisations)
 
-        plotter = os.path.join(self.ana_path(), "FLAF", "Analysis", "HistPlotter.py")
+        plotter = os.path.join(self._flaf_root(), "Analysis", "HistPlotter.py")
 
         def bool_flag(key, default):
             return (
@@ -1658,7 +1616,7 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         sample_name, _ = self.branch_data
         producers = self.global_params["payload_producers"]
         cacheAggregator = os.path.join(
-            self.ana_path(), "FLAF", "Analysis", "AnalysisCacheAggregator.py"
+            self._flaf_root(), "Analysis", "AnalysisCacheAggregator.py"
         )
         with contextlib.ExitStack() as stack:
             local_output = self.output()

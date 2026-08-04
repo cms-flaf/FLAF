@@ -50,8 +50,9 @@ class TTStitcher(MCStitcher):
 
     def defineVariables(self, df):
         _declare_helpers()
-        df = df.Define(
-            "TT_n_leptonic_W",
-            "flaf_stitch::nLeptonicW(GenPart_pdgId, GenPart_genPartIdxMother)",
-        )
+        if "TT_n_leptonic_W" not in df.GetColumnNames():
+            df = df.Define(
+                "TT_n_leptonic_W",
+                "flaf_stitch::nLeptonicW(GenPart_pdgId, GenPart_genPartIdxMother)",
+            )
         return super().defineVariables(df)

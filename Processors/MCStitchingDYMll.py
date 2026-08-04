@@ -52,9 +52,10 @@ class DYMllStitcher(MCStitcher):
 
     def defineVariables(self, df):
         _declare_helpers()
-        df = df.Define(
-            "LHE_mll",
-            "flaf_stitch::LHEDileptonMass(LHEPart_pt, LHEPart_eta, LHEPart_phi, "
-            "LHEPart_mass, LHEPart_pdgId, LHEPart_status)",
-        )
+        if "LHE_mll" not in df.GetColumnNames():
+            df = df.Define(
+                "LHE_mll",
+                "flaf_stitch::LHEDileptonMass(LHEPart_pt, LHEPart_eta, LHEPart_phi, "
+                "LHEPart_mass, LHEPart_pdgId, LHEPart_status)",
+            )
         return super().defineVariables(df)

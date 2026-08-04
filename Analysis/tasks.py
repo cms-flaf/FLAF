@@ -917,11 +917,6 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 all_datasets.append(dataset_name)
                 local_inputs.append(abspath)
             dataset_names = ",".join(smpl for smpl in all_datasets)
-            # A single producer call merges all uncertainty sources in one pass: each
-            # input file is read once and all histograms are written directly to the
-            # final output (previously one subprocess per source + a hadd recombination,
-            # which re-read every input per source and paid the interpreter/ROOT startup
-            # N_unc+1 times per variable).
             with self.output().localize("w") as outFile:
                 MergerProducer_cmd = [
                     "python3",

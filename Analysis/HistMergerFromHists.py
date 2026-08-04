@@ -327,8 +327,7 @@ if __name__ == "__main__":
     all_unc_dict = unc_cfg_dict["norm"].copy()
     all_unc_dict.update(unc_cfg_dict["shape"])
 
-    # Write everything into the final file directly (compression 209 = LZMA-9, matching
-    # what the previous per-source merge + hadd -f209 recompression produced).
+    # 209 = LZMA level 9, the standard compression for merged histogram files
     outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)
     for dataset_type in all_hists_dict.keys():
         for key in all_hists_dict[dataset_type].keys():

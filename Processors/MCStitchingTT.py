@@ -15,15 +15,16 @@ def _declare_helpers():
     #ifndef FLAF_TT_STITCH_HELPERS
     #define FLAF_TT_STITCH_HELPERS
     namespace flaf_stitch {
+    // Count W bosons that decay to a charged lepton (e/mu/tau), i.e. the number of
+    // leptonically decaying W's in the event. Only the charged lepton whose direct
+    // mother is the W is counted, so radiated lepton copies are not double counted.
     template <typename VecId, typename VecMother>
     int nLeptonicW(const VecId& GenPart_pdgId, const VecMother& GenPart_genPartIdxMother) {
         int n = 0;
         for (size_t i = 0; i < GenPart_pdgId.size(); ++i) {
             const int apdg = std::abs(static_cast<int>(GenPart_pdgId[i]));
             if (apdg == 11 || apdg == 13 || apdg == 15) {
-                int m = static_cast<int>(GenPart_genPartIdxMother[i]);
-                while (m >= 0 && std::abs(static_cast<int>(GenPart_pdgId[m])) == apdg)
-                    m = static_cast<int>(GenPart_genPartIdxMother[m]);
+                const int m = static_cast<int>(GenPart_genPartIdxMother[i]);
                 if (m >= 0 && std::abs(static_cast<int>(GenPart_pdgId[m])) == 24)
                     ++n;
             }

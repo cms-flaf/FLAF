@@ -31,27 +31,44 @@ def _declare_helpers():
         }
         return n >= 2 ? static_cast<float>(p4.M()) : -1.f;
     }
+    // Flavor of the DY dilepton pair: |pdgId| of the outgoing LHE charged lepton
+    // (11 = e, 13 = mu, 15 = tau), or 0 if none is found.
+    template <typename VecId>
+    int LHEDileptonFlavor(const VecId& LHEPart_pdgId, const VecId& LHEPart_status) {
+        for (size_t i = 0; i < LHEPart_pdgId.size(); ++i) {
+            const int apdg = std::abs(static_cast<int>(LHEPart_pdgId[i]));
+            if ((apdg == 11 || apdg == 13 || apdg == 15)
+                    && static_cast<int>(LHEPart_status[i]) == 1)
+                return apdg;
+        }
+        return 0;
+    }
     }  // namespace flaf_stitch
     #endif
     """)
     if not ok:
         raise RuntimeError(
-            "DYMllStitcher: failed to declare C++ helper flaf_stitch::LHEDileptonMass"
+            "DYMllStitcher: failed to declare C++ helpers flaf_stitch::LHEDilepton*"
         )
     _helpers_declared = True
 
 
 class DYMllStitcher(MCStitcher):
-    """MCStitcher that adds a dilepton-mass axis to the DY Vpt/NpNLO stitching, so a
-    mass-window sample (e.g. DYto2Mu_MLL_105to160) can be stitched in on top of the
-    inclusive DY.
+    """MCStitcher that adds dilepton flavor and mass axes to the DY Vpt/NpNLO stitching,
+    so the whole DY background can be handled by a single stitched process: the flavor
+    axis splits the inclusive (all-flavor) DY into e/mu/tau, and a mass-window sample
+    (e.g. DYto2Mu_MLL_105to160) is stitched into the mu-mu bins via the mass axis.
 
-    Defines ``LHE_mll`` (the invariant mass of the two outgoing LHE charged leptons)
-    which the stitching bins select on.
+    Defines ``LHE_dilep_flavor`` (11/13/15) and ``LHE_mll`` which the bins select on.
     """
 
     def defineVariables(self, df):
         _declare_helpers()
+        if "LHE_dilep_flavor" not in df.GetColumnNames():
+            df = df.Define(
+                "LHE_dilep_flavor",
+                "flaf_stitch::LHEDileptonFlavor(LHEPart_pdgId, LHEPart_status)",
+            )
         if "LHE_mll" not in df.GetColumnNames():
             df = df.Define(
                 "LHE_mll",

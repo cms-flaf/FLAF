@@ -70,6 +70,7 @@ def createHistTuple(
     evtIds,
     histTupleDef,
     isData,
+    workingDir,
 ):
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
@@ -192,7 +193,7 @@ def createHistTuple(
                 dfw.colToSave.append(f"{var}_bin")
 
             varToSave = Utilities.ListToVector(list(set(dfw.colToSave)))
-            tmp_fileName = f"{fullTreeName}.root"
+            tmp_fileName = os.path.join(workingDir, f"{fullTreeName}.root")
             tmp_fileNames.append(tmp_fileName)
             print("Creating snapshot")
             snaps.append(
@@ -306,6 +307,7 @@ if __name__ == "__main__":
         evtIds=args.evtIds,
         histTupleDef=histTupleDef,
         isData=isData,
+        workingDir=os.path.dirname(args.outFile),
     )
     hadd_cmd = ["hadd", "-j", "-ff", args.outFile]
     hadd_cmd.extend(tmp_fileNames)

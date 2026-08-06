@@ -49,6 +49,8 @@ would re-read the same events once per variable).
 
 ### `HistMergerTask`
 Merges the per-piece histograms into per-process histograms ready for plotting and fitting.
+Each branch (one per variable) merges **all uncertainty sources in a single pass**: every
+input file is read once and all histograms are written directly to the final output file.
 
 - **Parameter:** `--variables` (string; restrict which variables).
 

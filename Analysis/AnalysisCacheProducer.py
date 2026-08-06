@@ -223,7 +223,11 @@ def createAnalysisCache(
 
                 tmp_fileName = os.path.join(
                     workingDir,
-                    f"{central}.json" if isCentral else f"{unc_source}_{unc_scale}.json",
+                    (
+                        f"{central}.json"
+                        if isCentral
+                        else f"{unc_source}_{unc_scale}.json"
+                    ),
                 )
             else:
                 raise NotImplementedError(f"Unsupported output format `{saveAs}`.")

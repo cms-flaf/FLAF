@@ -175,7 +175,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             dataset = self.datasets[dataset_name]
             process_group = dataset["process_group"]
             producer_anatuples = os.path.join(
-                self.ana_path(), "FLAF", "AnaProd", "anaTupleProducer.py"
+                self._flaf_root(), "AnaProd", "anaTupleProducer.py"
             )
 
             customisation_dict = getCustomisationSplit(self.customisations)
@@ -277,7 +277,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         )
 
             producer_fuseTuples = os.path.join(
-                self.ana_path(), "FLAF", "AnaProd", "FuseAnaTuples.py"
+                self._flaf_root(), "AnaProd", "FuseAnaTuples.py"
             )
             outdir_fusedTuples = os.path.join(job_home, "fusedAnaTuples")
             outFileName = os.path.basename(input_file.abspath)

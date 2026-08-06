@@ -259,6 +259,8 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
                     if self.test > 0:
                         anatuple_cmd.extend(["--nEvents", str(self.test)])
+                    if self.user_custom:
+                        anatuple_cmd.extend(["--user-custom", self.user_custom])
                     env = None
                     if self.global_params.get(
                         "use_cmssw_env_AnaTupleProduction", False

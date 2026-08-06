@@ -456,6 +456,7 @@ if __name__ == "__main__":
     parser.add_argument("--evtIds", type=str, default="")
     parser.add_argument("--reportOutput", type=str, default=None)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
+    parser.add_argument("--user-custom", type=str, default=None)
 
     args = parser.parse_args()
 
@@ -468,6 +469,7 @@ if __name__ == "__main__":
         args.period,
         args.LAWrunVersion,
         customisations=args.customisations,
+        user_custom_file=args.user_custom,
     )
 
     channels = setup.global_params["channelSelection"]

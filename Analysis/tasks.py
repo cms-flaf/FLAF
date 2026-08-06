@@ -1209,6 +1209,10 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                         self.ana_path(), self.global_params["histTupleDef"]
                     )
                     analysisCacheProducer_cmd.extend(["--histTupleDef", histTupleDef])
+                    if self.user_custom:
+                        analysisCacheProducer_cmd.extend(
+                            ["--user-custom", self.user_custom]
+                        )
 
                     ps_call(analysisCacheProducer_cmd, env=prod_env, verbose=1)
                 print(
@@ -1456,6 +1460,8 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     cmd += ["--wantQCD", "true"]
                 if plot_rebin:
                     cmd += ["--rebin", "true"]
+                if self.user_custom:
+                    cmd += ["--user-custom", self.user_custom]
                 ps_call(cmd, verbose=1)
 
 
@@ -1643,6 +1649,8 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             ]
             aggregate_cmd.append("--inputFiles")
             aggregate_cmd.extend(local_inputs)
+            if self.user_custom:
+                aggregate_cmd.extend(["--user-custom", self.user_custom])
             ps_call(aggregate_cmd, verbose=1)
 
             with local_output.localize("w") as local_out:

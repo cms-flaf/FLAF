@@ -234,9 +234,15 @@ if __name__ == "__main__":
     parser.add_argument("--ana_path", required=True, type=str)
     parser.add_argument("--period", required=True, type=str)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
+    parser.add_argument("--user-custom", type=str, default=None)
     args = parser.parse_args()
 
-    setup = Setup.Setup(args.ana_path, args.period, args.LAWrunVersion)
+    setup = Setup.Setup(
+        args.ana_path,
+        args.period,
+        args.LAWrunVersion,
+        user_custom_file=args.user_custom,
+    )
 
 analysis_import = setup.global_params["analysis_import"]
 analysis = importlib.import_module(f"{analysis_import}")

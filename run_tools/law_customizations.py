@@ -167,44 +167,53 @@ class Task(law.Task):
         """Resolve --user-custom on submit host or remote worker.
 
         Absolute paths from the submit host are not available on CRAB/HTCondor
-        bundle workers. Remote jobs ship the file as a job input; law may rename
-        it with a hash suffix (``name_<hash>.yaml``). Search common job dirs for
-        the exact basename or a hashed variant.
+        bundle workers. Remote jobs ship the file as a job input; law renames
+        it with a content-hash suffix (``name_<hash>.yaml``). Search common job
+        dirs for the exact basename or a hashed variant.
+
+        Always returns an absolute path when a file is found: a relative hit
+        (e.g. ``./name_hash.yaml`` from CWD) must not be re-joined onto
+        ANALYSIS_PATH by Setup/Config.
         """
+
+        def _abs_if_file(p):
+            if p and os.path.isfile(p):
+                return os.path.abspath(p)
+            return None
+
         path = user_custom
         if not os.path.isabs(path):
             ana = os.getenv("ANALYSIS_PATH") or ""
             path = os.path.join(ana, path) if ana else path
-        if path and os.path.isfile(path):
-            return path
+        found = _abs_if_file(path)
+        if found:
+            return found
         base = os.path.basename(user_custom)
         stem, ext = os.path.splitext(base)
+        # Prefer job input locations over CWD/ANALYSIS_PATH (bundle cwd would
+        # incorrectly win a relative match that Setup then re-roots under bundle).
         search_dirs = [
-            "",
             os.environ.get("LAW_JOB_INIT_DIR", ""),
             os.environ.get("LAW_JOB_HOME", ""),
-            os.getenv("ANALYSIS_PATH") or "",
             "/srv",
+            os.getcwd(),
+            os.getenv("ANALYSIS_PATH") or "",
         ]
         for d in search_dirs:
-            candidates = []
-            if d:
-                candidates.append(os.path.join(d, base))
-            else:
-                candidates.append(base)
-            for candidate in candidates:
-                if candidate and os.path.isfile(candidate):
-                    return candidate
+            if not d:
+                continue
+            found = _abs_if_file(os.path.join(d, base))
+            if found:
+                return found
             # Hashed JobInputFile variants: stem_<hash>.ext
-            dir_path = d if d else "."
-            if not os.path.isdir(dir_path):
+            if not os.path.isdir(d):
                 continue
             try:
-                for name in os.listdir(dir_path):
+                for name in os.listdir(d):
                     if name.startswith(stem + "_") and name.endswith(ext):
-                        full = os.path.join(dir_path, name)
-                        if os.path.isfile(full):
-                            return full
+                        found = _abs_if_file(os.path.join(d, name))
+                        if found:
+                            return found
             except OSError:
                 pass
         return path

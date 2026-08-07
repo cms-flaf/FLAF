@@ -1399,6 +1399,9 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         plot_analysis = customisation_dict.get(
             "plot_analysis", self.global_params.get("plot_analysis", "")
         )
+        # Same resolution as in HistMergerTask: it decides whether the merged file holds the
+        # up/down variations that the full-uncertainty band and ratio panel are built from.
+        compute_unc_histograms = bool_flag("compute_unc_histograms", False)
 
         with self.input().localize("r") as local_input:
             infile = local_input.abspath
@@ -1456,6 +1459,8 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     cmd += ["--wantQCD", "true"]
                 if plot_rebin:
                     cmd += ["--rebin", "true"]
+                if compute_unc_histograms:
+                    cmd.append("--compute_unc_histograms")
                 ps_call(cmd, verbose=1)
 
 

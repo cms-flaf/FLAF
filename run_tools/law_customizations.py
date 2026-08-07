@@ -1193,13 +1193,15 @@ class CrabWorkflow(law.cms.CrabWorkflow):
         if n_cpus > 1:
             config.crab.JobType.numCores = n_cpus
 
-        # Optional runtime limit (hours → minutes)
+        # Runtime limit (hours → minutes). CRAB jobs must download/unpack bundles before
+        # the payload starts, so enforce a floor (default 60 min) even when the task's
+        # max_runtime is tiny (e.g. HelloWorld 0.1 h would otherwise be 6 min).
         max_runtime = getattr(self, "max_runtime", None)
         if max_runtime is not None and float(max_runtime) > 0:
             try:
-                config.crab.JobType.maxJobRuntimeMin = int(
-                    math.floor(float(max_runtime) * 60)
-                )
+                cfg_floor = int(self._crab_cfg().get("min_runtime_min", 60))
+                minutes = max(int(math.floor(float(max_runtime) * 60)), cfg_floor)
+                config.crab.JobType.maxJobRuntimeMin = minutes
             except Exception:
                 # Older CRAB clients may not support maxJobRuntimeMin; ignore if rejected later.
                 pass

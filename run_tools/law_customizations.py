@@ -875,7 +875,9 @@ class FLAFCrabJobFileFactory(law.cms.CrabJobFileFactory):
                 if hasattr(c, "crab") and getattr(c.crab, "JobType", None) is not None:
                     c.crab.JobType.sendPythonFolder = None
         except Exception as exc:
-            print(f"WARNING: could not strip deprecated sendPythonFolder from {job_file}: {exc}")
+            print(
+                f"WARNING: could not strip deprecated sendPythonFolder from {job_file}: {exc}"
+            )
         return job_file, c
 
 
@@ -906,18 +908,24 @@ class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
             )
         kwargs = {"proxy": proxy}
 
-        # Prefer an existing MyProxy credential if still long-lived enough for CRAB.
-        try:
-            info = law.wlcg.get_myproxy_info(silent=True) or {}
-        except Exception:
-            info = {}
-        # CRAB server asks for >= 5 days; keep a small margin.
+        # CRAB server asks for >= 5 days remaining; keep a small margin.
         min_myproxy_seconds = 5 * 24 * 3600
-        if info.get("username") and info.get("timeleft", 0) >= min_myproxy_seconds:
-            kwargs["myproxy_username"] = info["username"]
-            return kwargs
+
+        # MyProxy usernames may be either the DN (`myproxy-init -d`) or a SHA1 of the DN
+        # (law's default encode_username=True / some crab helpers). Accept either form.
+        for encode in (False, True):
+            try:
+                info = (
+                    law.wlcg.get_myproxy_info(encode_username=encode, silent=True) or {}
+                )
+            except Exception:
+                info = {}
+            if info.get("username") and info.get("timeleft", 0) >= min_myproxy_seconds:
+                kwargs["myproxy_username"] = info["username"]
+                return kwargs
 
         # Non-interactive delegation when a password file is configured (law.cfg).
+        # law.delegate_myproxy registers under the SHA1 username CRAB workers expect.
         cfg = law.config.Config.instance()
         password_file = cfg.get_expanded("job", "crab_password_file")
         if password_file and os.path.isfile(password_file):
@@ -933,6 +941,7 @@ class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
             "(CRAB server retrieves it from myproxy.cern.ch). "
             "Run once interactively:\n"
             "  myproxy-init -d -n -s myproxy.cern.ch\n"
+            "  # verify: myproxy-info -d -s myproxy.cern.ch  (timeleft >= 5 days)\n"
             "or set job.crab_password_file in law.cfg to a file containing the "
             "grid certificate passphrase for non-interactive delegation."
         )

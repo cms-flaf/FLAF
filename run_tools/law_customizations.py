@@ -161,6 +161,9 @@ class Task(law.Task):
             customisations=self.customisations,
             user_custom_file=user_custom_file,
         )
+        self._dataset_id_name_list = None
+        self._dataset_id_name_dict = None
+        self._dataset_name_id_dict = None
 
     @staticmethod
     def _resolve_user_custom_path(user_custom):

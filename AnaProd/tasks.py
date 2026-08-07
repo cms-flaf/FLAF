@@ -330,7 +330,9 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                 shutil.rmtree(job_home)
 
 
-class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
+class AnaTupleFileListBuilderTask(
+    Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow
+):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 24.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     bundle_flavours = ["core", "inputFileList"]

@@ -167,9 +167,9 @@ class Task(law.Task):
         """Resolve --user-custom on submit host or remote worker.
 
         Absolute paths from the submit host are not available on CRAB/HTCondor
-        bundle workers. Remote jobs ship the file as a job input (basename only);
-        fall back to LAW_JOB_INIT_DIR / job home / ANALYSIS_PATH when the original
-        path is missing.
+        bundle workers. Remote jobs ship the file as a job input; law may rename
+        it with a hash suffix (``name_<hash>.yaml``). Search common job dirs for
+        the exact basename or a hashed variant.
         """
         path = user_custom
         if not os.path.isabs(path):
@@ -178,14 +178,35 @@ class Task(law.Task):
         if path and os.path.isfile(path):
             return path
         base = os.path.basename(user_custom)
-        for candidate in (
-            base,
-            os.path.join(os.environ.get("LAW_JOB_INIT_DIR", ""), base),
-            os.path.join(os.environ.get("LAW_JOB_HOME", ""), base),
-            os.path.join(os.getenv("ANALYSIS_PATH") or "", base),
-        ):
-            if candidate and os.path.isfile(candidate):
-                return candidate
+        stem, ext = os.path.splitext(base)
+        search_dirs = [
+            "",
+            os.environ.get("LAW_JOB_INIT_DIR", ""),
+            os.environ.get("LAW_JOB_HOME", ""),
+            os.getenv("ANALYSIS_PATH") or "",
+            "/srv",
+        ]
+        for d in search_dirs:
+            candidates = []
+            if d:
+                candidates.append(os.path.join(d, base))
+            else:
+                candidates.append(base)
+            for candidate in candidates:
+                if candidate and os.path.isfile(candidate):
+                    return candidate
+            # Hashed JobInputFile variants: stem_<hash>.ext
+            dir_path = d if d else "."
+            if not os.path.isdir(dir_path):
+                continue
+            try:
+                for name in os.listdir(dir_path):
+                    if name.startswith(stem + "_") and name.endswith(ext):
+                        full = os.path.join(dir_path, name)
+                        if os.path.isfile(full):
+                            return full
+            except OSError:
+                pass
         return path
 
     def _stage_user_custom_input(self, config):
@@ -197,8 +218,13 @@ class Task(law.Task):
             path = os.path.join(os.getenv("ANALYSIS_PATH") or "", path)
         if not path or not os.path.isfile(path):
             return
-        # Avoid absolute remote paths: worker will open by basename via _resolve_user_custom_path.
-        config.input_files["user_custom"] = path
+        from law.job.base import JobInputFile
+
+        # share=True, increment=False keeps a stable basename when possible; resolve
+        # still accepts law's hashed names if increment is forced elsewhere.
+        config.input_files["user_custom"] = JobInputFile(
+            path=path, copy=True, share=True, render=False, increment=False
+        )
         self._dataset_id_name_list = None
         self._dataset_id_name_dict = None
         self._dataset_name_id_dict = None

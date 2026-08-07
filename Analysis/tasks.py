@@ -516,7 +516,9 @@ def _split_merged_marker(split_target):
     return split_target.sibling(split_target.basename + ".merged", type="f")
 
 
-class HistFromNtupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
+class HistFromNtupleProducerTask(
+    Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow
+):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 10.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     variables = luigi.Parameter(default="")
@@ -689,11 +691,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.Local
         HistFromNtupleProducer = os.path.join(
             self._flaf_root(), "Analysis", "HistProducerFromNTuple.py"
         )
-        nMT = (
-            self.n_cpus * 2
-            if self.effective_workflow in ("htcondor", "crab")
-            else 8
-        )
+        nMT = self.n_cpus * 2 if self.effective_workflow in ("htcondor", "crab") else 8
 
         # Determine which variables still need to be produced for this (dataset, chunk).
         outputs = self.output()
@@ -1527,7 +1525,9 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                 ps_call(cmd, verbose=1)
 
 
-class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
+class AnalysisCacheAggregationTask(
+    Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow
+):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     producer_to_aggregate = luigi.Parameter()

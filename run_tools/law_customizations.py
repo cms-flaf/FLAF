@@ -856,29 +856,94 @@ HTCondorWorkflow._defined_workflow_proxy = True
 
 
 class FLAFCrabJobFileFactory(law.cms.CrabJobFileFactory):
-    """CrabJobFileFactory compatible with recent CRAB clients.
+    """CrabJobFileFactory for FLAF: no CRAB-side product/log stageout.
 
-    law 0.1.20 still emits ``JobType.sendPythonFolder``, which modern CRAB rejects as
-    deprecated (the Python folder is always sandboxed). Strip that line after writing
-    the config file.
+    Analysis products and job logs are written by FLAF itself (remote targets via
+    gfal + ``stageout_logs.sh``). CRAB is used only as a batch backend, so we force:
+
+    - ``General.transferOutputs = False``
+    - ``General.transferLogs = False``
+    - no ``JobType.outputFiles``
+    - ``JobType.disableAutomaticOutputCollection = True`` (law default)
+
+    ``Site.storageSite`` / ``Data.outLFNDirBase`` remain required by the CRAB client
+    for a valid config and the submit-time write check, but FLAF never places analysis
+    outputs there.
+
+    Also strips deprecated ``JobType.sendPythonFolder`` (rejected by modern CRAB).
     """
 
     def create(self, **kwargs):
+        # Prevent law from promoting custom_log_file into CRAB JobType.outputFiles
+        # (which would set transferOutputs=True and duplicate FLAF log stageout).
+        kwargs = dict(kwargs)
+        kwargs["output_files"] = []
+        # Keep a local log file name for the law job script if transfer_logs requested,
+        # but do not register it as a CRAB output.
+        custom_log = kwargs.get("custom_log_file")
+
         job_file, c = super().create(**kwargs)
+
+        if hasattr(c, "crab"):
+            c.crab.General.transferOutputs = False
+            c.crab.General.transferLogs = False
+            if getattr(c.crab, "JobType", None) is not None:
+                c.crab.JobType.sendPythonFolder = None
+                c.crab.JobType.outputFiles = None
+                c.crab.JobType.disableAutomaticOutputCollection = True
+        c.output_files = []
+        if custom_log:
+            c.custom_log_file = custom_log
+
         try:
-            with open(job_file) as f:
-                lines = f.readlines()
-            new_lines = [ln for ln in lines if "sendPythonFolder" not in ln]
-            if len(new_lines) != len(lines):
-                with open(job_file, "w") as f:
-                    f.writelines(new_lines)
-                if hasattr(c, "crab") and getattr(c.crab, "JobType", None) is not None:
-                    c.crab.JobType.sendPythonFolder = None
+            self._rewrite_crab_job_file(job_file)
         except Exception as exc:
-            print(
-                f"WARNING: could not strip deprecated sendPythonFolder from {job_file}: {exc}"
-            )
+            print(f"WARNING: could not post-process crab job file {job_file}: {exc}")
         return job_file, c
+
+    @staticmethod
+    def _rewrite_crab_job_file(job_file):
+        """Rewrite the generated CRAB cfg to drop output transfer and deprecated keys."""
+        with open(job_file) as f:
+            lines = f.readlines()
+
+        new_lines = []
+        skip_list = False
+        for ln in lines:
+            stripped = ln.strip()
+
+            # Skip deprecated option entirely.
+            if "sendPythonFolder" in ln:
+                continue
+
+            # Force no CRAB-side transfers (FLAF owns remote I/O).
+            if "General.transferOutputs" in ln:
+                new_lines.append("cfg.General.transferOutputs = False\n")
+                continue
+            if "General.transferLogs" in ln:
+                new_lines.append("cfg.General.transferLogs = False\n")
+                continue
+
+            # Drop JobType.outputFiles (single line or multi-line list).
+            if "JobType.outputFiles" in ln:
+                if stripped.endswith("[") or ("[" in stripped and "]" not in stripped):
+                    skip_list = True
+                continue
+            if skip_list:
+                if "]" in stripped:
+                    skip_list = False
+                continue
+
+            if "JobType.disableAutomaticOutputCollection" in ln:
+                new_lines.append(
+                    "cfg.JobType.disableAutomaticOutputCollection = True\n"
+                )
+                continue
+
+            new_lines.append(ln)
+
+        with open(job_file, "w") as f:
+            f.writelines(new_lines)
 
 
 # Soften MyProxy requirements: modern CRAB accepts a local VOMS proxy for submit/status.
@@ -950,9 +1015,13 @@ class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
 class CrabWorkflow(law.cms.CrabWorkflow):
     """CRAB (WLCG) remote workflow, built on law.contrib.cms.CrabWorkflow.
 
-    Analysis outputs are still written via FLAF's normal remote targets (fs_default
-    through gfal/davs). CRAB's own stageout location is only required for submission
-    bookkeeping (automatic output collection is disabled by law).
+    CRAB is only the batch backend. **All analysis products and logs use FLAF remote
+    I/O** (``fs_default`` / gfal via task targets and ``stageout_logs.sh``). CRAB
+    ``transferOutputs`` / ``transferLogs`` / ``JobType.outputFiles`` are forced off so
+    nothing is duplicated onto CRAB's stageout area.
+
+    ``crab.storage_site`` / ``crab.out_lfn_base`` remain required by the CRAB client
+    (submit-time write check); they are not used for analysis outputs.
 
     CRAB workers have no AFS, so code is always shipped via the existing BundleTask
     mechanism (same as ``--bundle`` on HTCondor). Tasks must declare ``bundle_flavours``.
@@ -960,8 +1029,8 @@ class CrabWorkflow(law.cms.CrabWorkflow):
     Config (``global_params`` / user_custom YAML)::
 
         crab:
-          storage_site: T2_CH_CERN          # Site.storageSite
-          out_lfn_base: /store/user/<user>/FLAF   # Data.outLFNDirBase
+          storage_site: T3_CH_CERNBOX       # Site.storageSite (write-check only)
+          out_lfn_base: /store/user/<user>/FLAF   # Data.outLFNDirBase (write-check only)
           # optional:
           # whitelist: [T2_CH_CERN, T2_IT_Pisa]
           # blacklist: [T2_US_MIT]
@@ -973,10 +1042,13 @@ class CrabWorkflow(law.cms.CrabWorkflow):
     workflow_proxy_cls = _FLAFCrabWorkflowProxy
 
     poll_interval = copy_param(law.cms.CrabWorkflow.poll_interval, 5)
+    # When True, law names the worker log ``stdall.txt`` and FLAF stageout_logs.sh
+    # uploads it to fs_default. CRAB itself never transfers this file.
     transfer_logs = luigi.BoolParameter(
         default=True,
         significant=False,
-        description="transfer job logs (stdall.txt) for stageout; default True",
+        description="enable FLAF remote log stageout (stdall.txt via stageout_logs.sh); "
+        "CRAB transferLogs stays off",
     )
     crab_memory = luigi.IntParameter(
         default=-1,
@@ -1003,10 +1075,12 @@ class CrabWorkflow(law.cms.CrabWorkflow):
         return self.global_params.get("crab") or {}
 
     def crab_stageout_location(self):
-        """Return (storageSite, outLFNDirBase) required by CRAB submission.
+        """Return (storageSite, outLFNDirBase) required by the CRAB client.
 
-        Analysis outputs do not go here (disableAutomaticOutputCollection is True);
-        still required by the CRAB client for a valid config.
+        FLAF does **not** store analysis outputs here (CRAB transferOutputs is forced
+        off; products go to ``fs_default``). CRAB still requires these fields and runs
+        a submit-time write check against them — pick a site you can write to
+        (e.g. ``T3_CH_CERNBOX`` + ``/store/user/<you>/...``).
         """
         cfg = self._crab_cfg()
         site = cfg.get("storage_site") or os.environ.get("FLAF_CRAB_STORAGE_SITE")
@@ -1015,8 +1089,9 @@ class CrabWorkflow(law.cms.CrabWorkflow):
             raise RuntimeError(
                 "CRAB requires crab.storage_site and crab.out_lfn_base in config "
                 "(user_custom / global_params), or FLAF_CRAB_STORAGE_SITE and "
-                "FLAF_CRAB_OUT_LFN_BASE environment variables. "
-                "Example: crab: {storage_site: T2_CH_CERN, "
+                "FLAF_CRAB_OUT_LFN_BASE environment variables. These are only for the "
+                "CRAB client write-check, not analysis outputs. "
+                "Example: crab: {storage_site: T3_CH_CERNBOX, "
                 "out_lfn_base: /store/user/$USER/FLAF}"
             )
         return str(site), str(lfn)

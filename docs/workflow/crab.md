@@ -4,25 +4,42 @@ HTCondor covers the CERN local batch farm. For jobs that should run anywhere on 
 **WLCG** (CMS CRAB), FLAF tasks can be submitted with `--workflow crab`. The implementation
 uses [law's CMS CRAB workflow](https://github.com/riga/law) (`law.contrib.cms.CrabWorkflow`).
 
-Analysis **outputs** still go through the normal FLAF remote targets (`fs_default` via
-gfal/`davs://` etc.). CRAB's own stageout path is only used for CRAB bookkeeping (automatic
-output collection is disabled).
+Analysis **outputs and job logs** use FLAF remote I/O only (`fs_default` via gfal/`davs://`,
+plus `stageout_logs.sh`). CRAB `transferOutputs` / `transferLogs` are forced **off** so
+nothing is duplicated onto CRAB's stageout area. `crab.storage_site` /
+`crab.out_lfn_base` are still required by the CRAB client for a valid config and a
+submit-time write check — they are not where FLAF stores analysis products.
 
 ## Prerequisites
 
 1. A valid **VOMS proxy** for the CMS VO (`voms-proxy-init --voms cms -valid 192:00`).
-2. A **MyProxy** credential valid for **at least 5 days**. The CRAB *server* pulls the proxy
-   from `myproxy.cern.ch`; without it the client can accept the task and the server then
-   returns `SUBMITFAILED`. Set up once:
+2. A **MyProxy** credential valid for **at least 5 days**, registered so **CRAB task
+   workers can retrieve it**. A plain `myproxy-init -d -n` is not enough: the credential
+   must use the SHA1 username law/CRAB expect and include CRAB retriever DNs. From an
+   existing VOMS proxy (no grid-cert passphrase):
 
    ```sh
-   myproxy-init -d -n -s myproxy.cern.ch
-   # or, for non-interactive delegation, put the grid cert passphrase in a file and set
-   # job.crab_password_file in law.cfg
+   export X509_USER_PROXY=/tmp/x509up_u$(id -u)   # or your proxy path
+   # identity DN → SHA1 username (same as law)
+   SHA1=$(python3 - <<'PY'
+   import hashlib, subprocess
+   out = subprocess.check_output(["voms-proxy-info", "-identity"], text=True).strip()
+   print(hashlib.sha1(out.encode()).hexdigest())
+   PY
+   )
+   RETR='/DC=ch/DC=cern/OU=computers/CN=crab-(preprod|prod|dev)-tw(01|02|03).cern.ch|/DC=ch/DC=cern/OU=computers/CN=stefanov(m|m2).cern.ch|/DC=ch/DC=cern/OU=computers/CN=dciangot-tw.cern.ch|/DC=ch/DC=cern/OU=computers/CN=crab-(preprod|prod)-tw(01|02).cern.ch|/DC=ch/DC=cern/OU=computers/CN=crab-dev-tw(01|02|03|04).cern.ch|/DC=ch/DC=cern/OU=Organic Units/OU=Users/CN=cmscrab/CN=(817881|373708)/CN=Robot: cms crab|/DC=ch/DC=cern/OU=Organic Units/OU=Users/CN=crabint1/CN=373708/CN=Robot: CMS CRAB Integration 1'
+   GT_PROXY_MODE=rfc myproxy-init -n -s myproxy.cern.ch \
+     -C "$X509_USER_PROXY" -y "$X509_USER_PROXY" \
+     -l "$SHA1" -t 168 -c 168 \
+     -x -R "$RETR" -x -Z "$RETR" -m cms
+   myproxy-info -s myproxy.cern.ch -l "$SHA1"   # expect timeleft >= 5 days + retrieval policy
    ```
 
-   FLAF fails early with a clear error if MyProxy is missing (instead of waiting for
-   `SUBMITFAILED`).
+   Alternatively set `job.crab_password_file` in `law.cfg` to a file with the grid
+   certificate passphrase; law will call `delegate_myproxy` with the same CRAB retrievers.
+
+   FLAF fails early if no suitable MyProxy credential is found (instead of waiting for
+   server-side `SUBMITFAILED`).
 3. CRAB client available (via CMSSW / the law CMSSW sandbox; default sandbox name is set in
    law's config as `job.crab_sandbox_name`).
 4. **Bundles**: CRAB workers do not mount AFS. FLAF always ships code via `BundleTask`
@@ -37,18 +54,27 @@ Add a `crab:` block to `user_custom.yaml` (or pass via `--user-custom`):
 
 ```yaml
 crab:
-  storage_site: T2_CH_CERN
+  # Stageout site for CRAB bookkeeping (analysis outputs still use fs_default).
+  # At CERN, T3_CH_CERNBOX maps /store/user/<you> to personal EOS and usually
+  # passes `crab checkwrite`; T2_CH_CERN /store/user often does not exist.
+  storage_site: T3_CH_CERNBOX
   out_lfn_base: /store/user/<your_username>/FLAF
   # optional:
-  # whitelist: [T2_CH_CERN]
+  # whitelist: [T2_CH_CERN]   # where jobs run (can differ from storage_site)
   # blacklist: [T2_US_MIT]
   # max_memory_mb: 4000
+```
+
+Verify write access before the first campaign:
+
+```sh
+crab checkwrite --site=T3_CH_CERNBOX --lfn=/store/user/$USER
 ```
 
 Alternatively set environment variables:
 
 ```sh
-export FLAF_CRAB_STORAGE_SITE=T2_CH_CERN
+export FLAF_CRAB_STORAGE_SITE=T3_CH_CERNBOX
 export FLAF_CRAB_OUT_LFN_BASE=/store/user/$USER/FLAF
 ```
 

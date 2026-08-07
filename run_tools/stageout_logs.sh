@@ -7,23 +7,36 @@ if [ -z "${log_remote_base_url}" ]; then
     exit 0
 fi
 
-postfix="${LAW_HTCONDOR_JOB_POSTFIX}"
-if [ -n "${postfix}" ]; then
-    log_file="stdall${postfix}.txt"
+# Resolve local log path and remote basename.
+# HTCondor: law may use a postfix / cluster_process name.
+# CRAB: the sandbox log is always stdall.txt in the job dir; include the CRAB job
+# number in the remote name so concurrent jobs do not overwrite each other.
+local_log_file=""
+remote_log_file=""
+
+if [ -n "${LAW_CRAB_JOB_NUMBER:-}" ]; then
+    local_log_file="stdall.txt"
+    remote_log_file="stdall_crab${LAW_CRAB_JOB_NUMBER}.txt"
 else
-    cluster="${LAW_HTCONDOR_JOB_CLUSTER}"
-    process="${LAW_HTCONDOR_JOB_PROCESS}"
-    if [ -n "${cluster}" ] && [ -n "${process}" ]; then
-        log_file="stdall_${cluster}_${process}.txt"
+    postfix="${LAW_HTCONDOR_JOB_POSTFIX}"
+    if [ -n "${postfix}" ]; then
+        local_log_file="stdall${postfix}.txt"
     else
-        log_file="stdall.txt"
+        cluster="${LAW_HTCONDOR_JOB_CLUSTER}"
+        process="${LAW_HTCONDOR_JOB_PROCESS}"
+        if [ -n "${cluster}" ] && [ -n "${process}" ]; then
+            local_log_file="stdall_${cluster}_${process}.txt"
+        else
+            local_log_file="stdall.txt"
+        fi
     fi
+    remote_log_file="${local_log_file}"
 fi
 
 if [ -n "${LAW_JOB_INIT_DIR}" ]; then
-    log_path="${LAW_JOB_INIT_DIR}/${log_file}"
+    log_path="${LAW_JOB_INIT_DIR}/${local_log_file}"
 else
-    log_path="${log_file}"
+    log_path="${local_log_file}"
 fi
 
 if [ ! -f "${log_path}" ]; then
@@ -31,7 +44,7 @@ if [ ! -f "${log_path}" ]; then
     exit 0
 fi
 
-log_remote_url="${log_remote_base_url%/}/${log_file}"
+log_remote_url="${log_remote_base_url%/}/${remote_log_file}"
 
 GFAL_COPY=$(which gfal-copy 2>/dev/null)
 if [ -z "${GFAL_COPY}" ]; then

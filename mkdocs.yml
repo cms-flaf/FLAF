@@ -88,6 +88,7 @@ nav:
   - Full workflow:
       - Walkthrough: workflow/walkthrough.md
       - Running on HTCondor: workflow/htcondor.md
+      - Running on CRAB: workflow/crab.md
       - Command arguments: workflow/arguments.md
   - Configuration guide:
       - user_custom.yaml: configuration/user-custom.md

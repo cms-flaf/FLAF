@@ -1,10 +1,15 @@
 import law
 import luigi
 
-from FLAF.run_tools.law_customizations import Task, HTCondorWorkflow, copy_param
+from FLAF.run_tools.law_customizations import (
+    Task,
+    HTCondorWorkflow,
+    CrabWorkflow,
+    copy_param,
+)
 
 
-class HelloWorldTask(Task, HTCondorWorkflow, law.LocalWorkflow):
+class HelloWorldTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 0.1)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     poll_interval = copy_param(HTCondorWorkflow.poll_interval, 1)

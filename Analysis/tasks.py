@@ -10,6 +10,7 @@ from FLAF.RunKit.run_tools import ps_call
 from FLAF.run_tools.law_customizations import (
     Task,
     HTCondorWorkflow,
+    CrabWorkflow,
     copy_param,
 )
 from FLAF.AnaProd.tasks import (
@@ -61,7 +62,7 @@ def _anaTuple_outputs(task):
     return cache
 
 
-class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
+class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
     # many short per-file branches: group several per HTCondor job to bound nJobs.
@@ -515,7 +516,7 @@ def _split_merged_marker(split_target):
     return split_target.sibling(split_target.basename + ".merged", type="f")
 
 
-class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
+class HistFromNtupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 10.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     variables = luigi.Parameter(default="")
@@ -688,7 +689,11 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         HistFromNtupleProducer = os.path.join(
             self._flaf_root(), "Analysis", "HistProducerFromNTuple.py"
         )
-        nMT = self.n_cpus * 2 if self.effective_workflow == "htcondor" else 8
+        nMT = (
+            self.n_cpus * 2
+            if self.effective_workflow in ("htcondor", "crab")
+            else 8
+        )
 
         # Determine which variables still need to be produced for this (dataset, chunk).
         outputs = self.output()
@@ -766,7 +771,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             shutil.rmtree(job_home)
 
 
-class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
+class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     variables = luigi.Parameter(default="")
@@ -986,7 +991,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     )
 
 
-class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
+class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     producer_to_run = luigi.Parameter()
@@ -1003,8 +1008,12 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             flavours.append("cmssw")
         return flavours
 
-    # Need to override this from HTCondorWorkflow to have separate data pathways for different cache tasks
+    # Need to override this from HTCondorWorkflow/CrabWorkflow to have separate data
+    # pathways for different cache tasks
     def htcondor_output_directory(self):
+        return law.LocalDirectoryTarget(self.local_path(self.producer_to_run))
+
+    def crab_output_directory(self):
         return law.LocalDirectoryTarget(self.local_path(self.producer_to_run))
 
     def __init__(self, *args, **kwargs):
@@ -1269,7 +1278,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 shutil.rmtree(job_home)
 
 
-class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
+class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     variables = luigi.Parameter(default="")
@@ -1518,7 +1527,7 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 ps_call(cmd, verbose=1)
 
 
-class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
+class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     producer_to_aggregate = luigi.Parameter()

@@ -17,6 +17,7 @@ from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget, WLCGDirectoryTa
 from FLAF.Common.Setup import Setup
 
 law.contrib.load("htcondor")
+law.contrib.load("cms")
 
 
 def copy_param(ref_param, new_default):
@@ -589,7 +590,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         default=False,
         significant=False,
         description="download pre-built bundle archives on workers instead of accessing AFS; "
-        "tasks declare which flavours they need via bundle_flavours",
+        "tasks declare which flavours they need via bundle_flavours. Always on for --workflow crab.",
     )
     htcondor_spool = luigi.BoolParameter(
         default=True,
@@ -606,20 +607,103 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     ]
     bundle_flavours = []
 
+    def _flaf_root(self):
+        # FLAF source root, respecting the dev overlay: flaf_dev.sh sets FLAF_PATH to
+        # the top-level FLAF_all/FLAF, while the analysis env.sh sets it to the pinned
+        # submodule (ANALYSIS_PATH/FLAF).  Job-input scripts shipped to workers must
+        # come from here so that, in overlay mode, non-bundle jobs run the edited
+        # bootstrap/stageout scripts (and, via them, the edited FLAF) rather than the
+        # stale submodule copies.  Falls back to ANALYSIS_PATH/FLAF if FLAF_PATH unset.
+        return os.getenv("FLAF_PATH") or os.path.join(
+            os.getenv("ANALYSIS_PATH"), "FLAF"
+        )
+
+    def _uses_bundles(self):
+        """Whether this submission should ship and unpack code bundles on the worker.
+
+        Bundles are optional for HTCondor (shared AFS is available) but required for CRAB
+        (WLCG workers have no AFS mount).
+        """
+        if not self.bundle_flavours:
+            return False
+        if getattr(self, "effective_workflow", None) == "crab":
+            return True
+        return bool(self.bundle)
+
+    def _bundle_requirements(self):
+        """Return BundleTask requirements for configured flavours (empty if unused)."""
+        if not self._uses_bundles():
+            return {}
+        bundles = []
+        for item in self.bundle_flavours:
+            if isinstance(item, (list, tuple)) and len(item) == 2:
+                flavour, bversion = item
+                bundles.append(BundleTask.req(self, flavour=flavour, version=bversion))
+            else:
+                bundles.append(BundleTask.req(self, flavour=item))
+        return {"bundles": bundles}
+
+    def _apply_bundle_render_variables(self, config):
+        """Set bootstrap render variables for bundle download (or clear them)."""
+        if not self._uses_bundles():
+            config.render_variables["bundle_list"] = ""
+            return
+        if not isinstance(self.fs_default, WLCGFileSystem):
+            raise RuntimeError(
+                "bundle / crab workflows require fs_default to be a remote filesystem "
+                "(davs://, root://, ...)"
+            )
+        bundle_parts = []
+        for item in self.bundle_flavours:
+            if isinstance(item, (list, tuple)) and len(item) == 2:
+                flavour, bversion = item
+            else:
+                flavour = item
+                bversion = self.version
+            bundle_url = self.remote_target(
+                bversion, "bundles", self.period, f"{flavour}.tar.bz2"
+            ).uri()
+            bundle_parts.append(f"{flavour}:{bundle_url}")
+        config.render_variables["bundle_list"] = " ".join(bundle_parts)
+
+    def _apply_bootstrap_path_render_variables(self, config):
+        """Set analysis_path / FLAF_PATH / CORRECTIONS_PATH / token-server for bootstrap.sh."""
+        ana_path = os.getenv("ANALYSIS_PATH")
+        # Bundle (and always-on CRAB) jobs unpack code on the worker and must not point back
+        # at AFS. Non-bundle HTCondor jobs source the shared workspace and forward overlay paths.
+        flaf_path = ""
+        corrections_path = ""
+        if self._uses_bundles():
+            config.render_variables["analysis_path"] = "NONE"
+        else:
+            config.render_variables["analysis_path"] = ana_path
+            flaf_path = os.getenv("FLAF_PATH", "") or ""
+            corrections_path = os.getenv("CORRECTIONS_PATH", "") or ""
+        config.render_variables["flaf_path"] = flaf_path
+        config.render_variables["corrections_path"] = corrections_path
+
+        runTokenServer = self.global_params.get("runTokenServer", None)
+        if runTokenServer and not self._uses_bundles():
+            config.render_variables["run_token_server_host"] = runTokenServer["host"]
+            config.render_variables["run_token_server_port"] = str(
+                runTokenServer["port"]
+            )
+            config.input_files["get_token_script"] = os.path.join(
+                self._flaf_root(), "run_tools", "get_run_token.py"
+            )
+        else:
+            config.render_variables["run_token_server_host"] = ""
+            config.render_variables["run_token_server_port"] = ""
+
+    def _log_remote_base_url(self):
+        if isinstance(self.fs_default, WLCGFileSystem):
+            return self.remote_dir_target(
+                self.version, "logs", self.__class__.__name__, self.period
+            ).uri()
+        return ""
+
     def workflow_requires(self):
-        if self.bundle and self.bundle_flavours:
-            bundles = []
-            for item in self.bundle_flavours:
-                if isinstance(item, (list, tuple)) and len(item) == 2:
-                    flavour, bversion = item
-                    bundles.append(
-                        BundleTask.req(self, flavour=flavour, version=bversion)
-                    )
-                else:
-                    flavour = item
-                    bundles.append(BundleTask.req(self, flavour=flavour))
-            return {"bundles": bundles}
-        return {}
+        return self._bundle_requirements()
 
     def htcondor_check_job_completeness(self):
         return False
@@ -635,17 +719,6 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     def htcondor_log_directory(self):
         return None
 
-    def _flaf_root(self):
-        # FLAF source root, respecting the dev overlay: flaf_dev.sh sets FLAF_PATH to
-        # the top-level FLAF_all/FLAF, while the analysis env.sh sets it to the pinned
-        # submodule (ANALYSIS_PATH/FLAF).  Job-input scripts shipped to workers must
-        # come from here so that, in overlay mode, non-bundle jobs run the edited
-        # bootstrap/stageout scripts (and, via them, the edited FLAF) rather than the
-        # stale submodule copies.  Falls back to ANALYSIS_PATH/FLAF if FLAF_PATH unset.
-        return os.getenv("FLAF_PATH") or os.path.join(
-            os.getenv("ANALYSIS_PATH"), "FLAF"
-        )
-
     def htcondor_stageout_file(self):
         return os.path.join(self._flaf_root(), "run_tools", "stageout_logs.sh")
 
@@ -658,43 +731,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         return CERNHTCondorJobFileFactory
 
     def htcondor_job_config(self, config, job_num, branches):
-        ana_path = os.getenv("ANALYSIS_PATH")
-        # NON-bundle jobs run on the shared AFS workspace and source the analysis env.sh
-        # there.  Forward FLAF_PATH / CORRECTIONS_PATH so the worker uses the same FLAF /
-        # Corrections as the submit side (the submodule copies in production, or the edited
-        # top-level copies when flaf_dev.sh is active) — bootstrap.sh exports them before
-        # sourcing env.sh.  In production these equal $ANALYSIS_PATH/FLAF(/Corrections), so
-        # forwarding them is transparent.
-        #
-        # BUNDLE jobs instead set analysis_path=NONE and ship FLAF / Corrections inside the
-        # tarball; they must NOT receive FLAF_PATH / CORRECTIONS_PATH, otherwise the in-bundle
-        # env.sh would point them back at the AFS workspace and the worker would access AFS.
-        flaf_path = ""
-        corrections_path = ""
-        if self.bundle and self.bundle_flavours:
-            config.render_variables["analysis_path"] = "NONE"
-        else:
-            config.render_variables["analysis_path"] = ana_path
-            flaf_path = os.getenv("FLAF_PATH", "") or ""
-            corrections_path = os.getenv("CORRECTIONS_PATH", "") or ""
-        config.render_variables["flaf_path"] = flaf_path
-        config.render_variables["corrections_path"] = corrections_path
-
-        # token server for rate-limiting job starts to avoid AFS overload.
-        # Not needed in bundle mode: workers never touch AFS, so there is no load concern.
-        runTokenServer = self.global_params.get("runTokenServer", None)
-        if runTokenServer and not (self.bundle and self.bundle_flavours):
-            config.render_variables["run_token_server_host"] = runTokenServer["host"]
-            config.render_variables["run_token_server_port"] = str(
-                runTokenServer["port"]
-            )
-            # ship get_token.py with the job so it is available before AFS is accessed
-            config.input_files["get_token_script"] = os.path.join(
-                ana_path, "FLAF", "run_tools", "get_run_token.py"
-            )
-        else:
-            config.render_variables["run_token_server_host"] = ""
-            config.render_variables["run_token_server_port"] = ""
+        self._apply_bootstrap_path_render_variables(config)
 
         # force to run on AlmaLinux9, https://batchdocs.web.cern.ch/local/submit.html
         config.custom_content.append(
@@ -718,10 +755,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
             ("environment", '"LAW_HTCONDOR_JOB_POSTFIX=$(law_job_postfix)"')
         )
 
-        # Compute the remote destination directory for the stageout script.
-        log_remote_base_url = ""
-        if isinstance(self.fs_default, WLCGFileSystem):
-            log_remote_base_url = self.remote_log_dir_target().uri()
+        log_remote_base_url = self._log_remote_base_url()
         config.render_variables["log_remote_base_url"] = log_remote_base_url
 
         # Redirect the sandbox log copy to /dev/null only when stageout will
@@ -730,31 +764,11 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         if log_remote_base_url:
             config.output_files["stdall.txt"] = "/dev/null"
 
-        # bundle: build a space-separated list of "flavour:url" pairs for bootstrap.sh.
-        if self.bundle and self.bundle_flavours:
-            if not isinstance(self.fs_default, WLCGFileSystem):
-                raise RuntimeError(
-                    "--bundle requires fs_default to be a remote filesystem (davs://, root://, ...)"
-                )
-            bundle_parts = []
-            for item in self.bundle_flavours:
-                if isinstance(item, (list, tuple)) and len(item) == 2:
-                    flavour, bversion = item
-                else:
-                    flavour = item
-                    bversion = self.version
-                bundle_url = self.remote_target(
-                    bversion, "bundles", self.period, f"{flavour}.tar.bz2"
-                ).uri()
-                bundle_parts.append(f"{flavour}:{bundle_url}")
-            config.render_variables["bundle_list"] = " ".join(bundle_parts)
-
-            if not self.htcondor_spool:
-                config._worker_files_remote_dir = self.remote_dir_target(
-                    self.version, "worker_files", self.period
-                )
-        else:
-            config.render_variables["bundle_list"] = ""
+        self._apply_bundle_render_variables(config)
+        if self._uses_bundles() and not self.htcondor_spool:
+            config._worker_files_remote_dir = self.remote_dir_target(
+                self.version, "worker_files", self.period
+            )
 
         return config
 
@@ -839,3 +853,291 @@ HTCondorWorkflow.workflow_proxy_cls = _BundleAwareHTCondorWorkflowProxy
 # our `_submit_group` override (remote log path rewrite) would never run.  Flip the
 # flag so this class is recognised as the "htcondor" workflow provider.
 HTCondorWorkflow._defined_workflow_proxy = True
+
+
+class FLAFCrabJobFileFactory(law.cms.CrabJobFileFactory):
+    """CrabJobFileFactory compatible with recent CRAB clients.
+
+    law 0.1.20 still emits ``JobType.sendPythonFolder``, which modern CRAB rejects as
+    deprecated (the Python folder is always sandboxed). Strip that line after writing
+    the config file.
+    """
+
+    def create(self, **kwargs):
+        job_file, c = super().create(**kwargs)
+        try:
+            with open(job_file) as f:
+                lines = f.readlines()
+            new_lines = [ln for ln in lines if "sendPythonFolder" not in ln]
+            if len(new_lines) != len(lines):
+                with open(job_file, "w") as f:
+                    f.writelines(new_lines)
+                if hasattr(c, "crab") and getattr(c.crab, "JobType", None) is not None:
+                    c.crab.JobType.sendPythonFolder = None
+        except Exception as exc:
+            print(f"WARNING: could not strip deprecated sendPythonFolder from {job_file}: {exc}")
+        return job_file, c
+
+
+# Soften MyProxy requirements: modern CRAB accepts a local VOMS proxy for submit/status.
+# law's default CrabWorkflowProxy.setup_job_manager always tries interactive myproxy
+# delegation; that blocks non-interactive CI-like runs when myproxy is not pre-loaded.
+_FLAFCrabWorkflowProxyBase = law.cms.CrabWorkflow.workflow_proxy_cls
+
+
+class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
+    def setup_job_manager(self):
+        """Ensure VOMS + MyProxy before crab submit.
+
+        The CRAB *server* retrieves the user proxy from myproxy.cern.ch and requires
+        at least ~5 days remaining. A local VOMS proxy alone is not enough: the client
+        may accept the task, then the server returns SUBMITFAILED. Fail early here.
+        """
+        proxy = os.environ.get("X509_USER_PROXY", "")
+        if not proxy or not os.path.isfile(proxy):
+            raise RuntimeError(
+                "CRAB submission requires a valid VOMS proxy (X509_USER_PROXY). "
+                "Run: voms-proxy-init --voms cms -valid 192:00"
+            )
+        if not law.wlcg.check_vomsproxy_validity(proxy_file=proxy):
+            raise RuntimeError(
+                f"VOMS proxy at {proxy} is missing or expired; run "
+                "`voms-proxy-init --voms cms -valid 192:00`"
+            )
+        kwargs = {"proxy": proxy}
+
+        # Prefer an existing MyProxy credential if still long-lived enough for CRAB.
+        try:
+            info = law.wlcg.get_myproxy_info(silent=True) or {}
+        except Exception:
+            info = {}
+        # CRAB server asks for >= 5 days; keep a small margin.
+        min_myproxy_seconds = 5 * 24 * 3600
+        if info.get("username") and info.get("timeleft", 0) >= min_myproxy_seconds:
+            kwargs["myproxy_username"] = info["username"]
+            return kwargs
+
+        # Non-interactive delegation when a password file is configured (law.cfg).
+        cfg = law.config.Config.instance()
+        password_file = cfg.get_expanded("job", "crab_password_file")
+        if password_file and os.path.isfile(password_file):
+            from law.contrib.cms.util import renew_vomsproxy, delegate_myproxy
+
+            if not law.wlcg.check_vomsproxy_validity():
+                renew_vomsproxy(password_file=password_file)
+            kwargs["myproxy_username"] = delegate_myproxy(password_file=password_file)
+            return kwargs
+
+        raise RuntimeError(
+            "CRAB requires a MyProxy credential valid for at least 5 days "
+            "(CRAB server retrieves it from myproxy.cern.ch). "
+            "Run once interactively:\n"
+            "  myproxy-init -d -n -s myproxy.cern.ch\n"
+            "or set job.crab_password_file in law.cfg to a file containing the "
+            "grid certificate passphrase for non-interactive delegation."
+        )
+
+
+class CrabWorkflow(law.cms.CrabWorkflow):
+    """CRAB (WLCG) remote workflow, built on law.contrib.cms.CrabWorkflow.
+
+    Analysis outputs are still written via FLAF's normal remote targets (fs_default
+    through gfal/davs). CRAB's own stageout location is only required for submission
+    bookkeeping (automatic output collection is disabled by law).
+
+    CRAB workers have no AFS, so code is always shipped via the existing BundleTask
+    mechanism (same as ``--bundle`` on HTCondor). Tasks must declare ``bundle_flavours``.
+
+    Config (``global_params`` / user_custom YAML)::
+
+        crab:
+          storage_site: T2_CH_CERN          # Site.storageSite
+          out_lfn_base: /store/user/<user>/FLAF   # Data.outLFNDirBase
+          # optional:
+          # whitelist: [T2_CH_CERN, T2_IT_Pisa]
+          # blacklist: [T2_US_MIT]
+          # max_memory_mb: 4000
+    """
+
+    # Re-declare in the class body so law's metaclass sets _defined_workflow_proxy=True
+    # and find_workflow_cls('crab') resolves to *this* class (not law.cms.CrabWorkflow).
+    workflow_proxy_cls = _FLAFCrabWorkflowProxy
+
+    poll_interval = copy_param(law.cms.CrabWorkflow.poll_interval, 5)
+    transfer_logs = luigi.BoolParameter(
+        default=True,
+        significant=False,
+        description="transfer job logs (stdall.txt) for stageout; default True",
+    )
+    crab_memory = luigi.IntParameter(
+        default=-1,
+        significant=False,
+        description="max memory per CRAB job in MB; -1 = n_cpus * 2000",
+    )
+    crab_whitelist = law.CSVParameter(
+        default=(),
+        significant=False,
+        description="comma-separated CRAB Site.whitelist; empty = no whitelist",
+    )
+    crab_blacklist = law.CSVParameter(
+        default=(),
+        significant=False,
+        description="comma-separated CRAB Site.blacklist; ignored when whitelist is set",
+    )
+
+    # Parameters that are only meaningful on the workflow (not branch tasks).
+    exclude_params_branch = getattr(
+        law.cms.CrabWorkflow, "exclude_params_branch", set()
+    ) | {"crab_memory", "crab_whitelist", "crab_blacklist"}
+
+    def _crab_cfg(self):
+        return self.global_params.get("crab") or {}
+
+    def crab_stageout_location(self):
+        """Return (storageSite, outLFNDirBase) required by CRAB submission.
+
+        Analysis outputs do not go here (disableAutomaticOutputCollection is True);
+        still required by the CRAB client for a valid config.
+        """
+        cfg = self._crab_cfg()
+        site = cfg.get("storage_site") or os.environ.get("FLAF_CRAB_STORAGE_SITE")
+        lfn = cfg.get("out_lfn_base") or os.environ.get("FLAF_CRAB_OUT_LFN_BASE")
+        if not site or not lfn:
+            raise RuntimeError(
+                "CRAB requires crab.storage_site and crab.out_lfn_base in config "
+                "(user_custom / global_params), or FLAF_CRAB_STORAGE_SITE and "
+                "FLAF_CRAB_OUT_LFN_BASE environment variables. "
+                "Example: crab: {storage_site: T2_CH_CERN, "
+                "out_lfn_base: /store/user/$USER/FLAF}"
+            )
+        return str(site), str(lfn)
+
+    def crab_output_directory(self):
+        return law.LocalDirectoryTarget(self.local_path())
+
+    def crab_request_name(self, submit_jobs):
+        # CRAB: no dots, max 100 characters.
+        import uuid
+
+        parts = [
+            self.task_family.replace(".", "_"),
+            str(self.version).replace(".", "_"),
+            str(self.period).replace(".", "_"),
+            uuid.uuid4().hex[:8],
+        ]
+        name = "_".join(parts)
+        return re.sub(r"[^A-Za-z0-9_\-]", "_", name)[:100]
+
+    def crab_bootstrap_file(self):
+        from law.job.base import JobInputFile
+
+        return JobInputFile(
+            path=os.path.join(self._flaf_root(), "bootstrap.sh"),
+            copy=True,
+            share=True,
+            render_job=True,
+        )
+
+    def crab_stageout_file(self):
+        from law.job.base import JobInputFile
+
+        return JobInputFile(
+            path=os.path.join(self._flaf_root(), "run_tools", "stageout_logs.sh"),
+            copy=True,
+            share=True,
+            render_job=True,
+        )
+
+    def crab_workflow_requires(self):
+        # Always require bundles for CRAB (no AFS on WLCG workers).
+        if not self.bundle_flavours:
+            raise RuntimeError(
+                f"{self.__class__.__name__}: --workflow crab requires bundle_flavours "
+                "on the task (code/environment shipped via BundleTask)"
+            )
+        return self._bundle_requirements()
+
+    def crab_check_job_completeness(self):
+        return False
+
+    def crab_poll_callback(self, poll_data):
+        update_kinit(verbose=0)
+        return True
+
+    def crab_job_file_factory_cls(self):
+        return FLAFCrabJobFileFactory
+
+    def crab_job_file(self):
+        # Same deps_depth=0 patch as HTCondor: avoid huge print_deps on the worker.
+        from law.job.base import JobInputFile
+
+        original = law.util.law_src_path("job", "law_job.sh")
+        custom = os.path.join(
+            os.getenv("ANALYSIS_DATA_PATH"), "law_job_no_print_deps.sh"
+        )
+        if not os.path.exists(custom) or os.path.getmtime(original) > os.path.getmtime(
+            custom
+        ):
+            with open(original) as f:
+                content = f.read()
+            content = re.sub(r'\bdeps_depth="[0-9]+"', 'deps_depth="0"', content)
+            with open(custom, "w") as f:
+                f.write(content)
+            os.chmod(custom, 0o755)
+        return JobInputFile(path=custom, copy=True, share=True, render_job=True)
+
+    def crab_job_config(self, config, job_nums, branches=None):
+        # law 0.1.20 calls crab_job_config(config, list(keys), list(values)); the base
+        # signature documents a single submit_jobs arg, but the call site passes two lists.
+        if not self.bundle_flavours:
+            raise RuntimeError(
+                f"{self.__class__.__name__}: --workflow crab requires bundle_flavours"
+            )
+
+        self._apply_bootstrap_path_render_variables(config)
+        self._apply_bundle_render_variables(config)
+
+        log_remote_base_url = self._log_remote_base_url()
+        config.render_variables["log_remote_base_url"] = log_remote_base_url
+
+        # Memory / cores
+        n_cpus = int(getattr(self, "n_cpus", 1) or 1)
+        mem = int(self.crab_memory)
+        if mem <= 0:
+            mem = int(self._crab_cfg().get("max_memory_mb", n_cpus * 2000))
+        config.crab.JobType.maxMemoryMB = mem
+        if n_cpus > 1:
+            config.crab.JobType.numCores = n_cpus
+
+        # Optional runtime limit (hours → minutes)
+        max_runtime = getattr(self, "max_runtime", None)
+        if max_runtime is not None and float(max_runtime) > 0:
+            try:
+                config.crab.JobType.maxJobRuntimeMin = int(
+                    math.floor(float(max_runtime) * 60)
+                )
+            except Exception:
+                # Older CRAB clients may not support maxJobRuntimeMin; ignore if rejected later.
+                pass
+
+        # Site white/black lists: CLI params override config.
+        # CRAB requires a whitelist when jobs use synthetic userInputFiles (no inputDataset),
+        # which is always the case for law CRAB workflows. Default the whitelist to the
+        # storage site when nothing else is configured.
+        whitelist = list(self.crab_whitelist) or list(
+            self._crab_cfg().get("whitelist") or []
+        )
+        blacklist = list(self.crab_blacklist) or list(
+            self._crab_cfg().get("blacklist") or []
+        )
+        if not whitelist and not blacklist:
+            site, _ = self.crab_stageout_location()
+            whitelist = [site]
+        if whitelist:
+            config.crab.Site.whitelist = [str(s) for s in whitelist]
+            config.crab.Site.ignoreGlobalBlacklist = True
+            config.crab.Data.ignoreLocality = True
+        elif blacklist:
+            config.crab.Site.blacklist = [str(s) for s in blacklist]
+
+        return config

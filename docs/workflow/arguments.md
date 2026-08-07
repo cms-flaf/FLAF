@@ -14,7 +14,7 @@ also provides built-in options for status and cleanup.
 |---|---|---|
 | `--version` | *(required)* | Label that namespaces this run's outputs. Different versions never collide. |
 | `--period` | *(required)* | The [era](../concepts/eras.md), e.g. `Run3_2022`. |
-| `--workflow` | `local` | `local` (this machine) or `htcondor` (batch). See [HTCondor](htcondor.md). |
+| `--workflow` | `local` | `local` (this machine), `htcondor` (CERN batch), or `crab` (WLCG). See [HTCondor](htcondor.md) and [CRAB](crab.md). |
 | `--branches` | *(all)* | Which branches to run, e.g. `0`, `0,2`, `5-7`. Restricts only the launched task, not its dependencies. |
 | `--test` | `-1` | Process only N events per input file (`-1` = all). Great for smoke tests. |
 | `--process` | `""` | Restrict to one process (e.g. `custom_CI_Signal`). |
@@ -31,9 +31,21 @@ also provides built-in options for status and cleanup.
 | `--parallel-jobs` | *(unbounded)* | Cap concurrent branches, e.g. `--parallel-jobs 100`. |
 | `--max-runtime` | *(task default)* | Per-job wall-clock limit. |
 | `--n-cpus` | `1` | CPUs requested per job. |
-| `--priority` | `0` | Job priority. |
-| `--bundle` | off | Ship a code/environment tarball to the worker. See [HTCondor → bundles](htcondor.md#bundles-shipping-the-code-to-workers). |
+| `--priority` | `0` | Job priority (HTCondor). |
+| `--bundle` | off | Ship a code/environment tarball to the worker. See [HTCondor → bundles](htcondor.md#bundles-shipping-the-code-to-workers). Always on for `--workflow crab`. |
 | `--htcondor-spool` | off | Spool job files to the schedd. |
+
+## CRAB options (on every workflow task)
+
+| Option | Default | Meaning |
+|---|---|---|
+| `--workflow crab` | — | Submit branches via CMS CRAB (WLCG). See [CRAB](crab.md). |
+| `--crab-memory` | `-1` | Max memory per job in MB (`-1` → `n_cpus * 2000` or `crab.max_memory_mb`). |
+| `--crab-whitelist` | empty | Comma-separated site whitelist. |
+| `--crab-blacklist` | empty | Comma-separated site blacklist (ignored if whitelist is set). |
+
+CRAB also needs `crab.storage_site` and `crab.out_lfn_base` in config (or the
+`FLAF_CRAB_STORAGE_SITE` / `FLAF_CRAB_OUT_LFN_BASE` environment variables).
 
 ## Status & cleanup (LAW built-ins)
 

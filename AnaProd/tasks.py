@@ -15,7 +15,12 @@ from FLAF.RunKit.run_tools import (
     check_root_file_integrity,
     get_tree_entries,
 )
-from FLAF.run_tools.law_customizations import Task, HTCondorWorkflow, copy_param
+from FLAF.run_tools.law_customizations import (
+    Task,
+    HTCondorWorkflow,
+    CrabWorkflow,
+    copy_param,
+)
 from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 from .AnaTupleFileList import CreateMergePlan
 from .MergeAnaTuples import mergeAnaTuples
@@ -111,7 +116,7 @@ class InputFileTask(Task, law.LocalWorkflow):
         return InputFileTask.WF_complete_
 
 
-class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
+class AnaTupleFileTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 40.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
 
@@ -325,7 +330,7 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 shutil.rmtree(job_home)
 
 
-class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
+class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 24.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     bundle_flavours = ["core", "inputFileList"]
@@ -536,7 +541,7 @@ class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
             shutil.copy(input_local.abspath, self.output().abspath)
 
 
-class AnaTupleMergeTask(Task, HTCondorWorkflow, law.LocalWorkflow):
+class AnaTupleMergeTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 48.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     delete_inputs_after_merge = luigi.BoolParameter(default=False)

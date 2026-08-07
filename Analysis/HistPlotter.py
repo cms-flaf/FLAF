@@ -2,6 +2,7 @@ import ROOT
 import sys
 import os
 import array
+import math
 
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
@@ -21,6 +22,97 @@ def GetHistName(dataset_name, dataset_type, uncName, unc_scale, global_cfg_dict)
         if not onlyCentral:
             histName = f"{dataset_namehist}_{uncName}{scale}"
     return histName
+
+
+def GetUncNames(setup, global_cfg_dict, period):
+    """Map each active uncertainty source to the histogram-name template used by the merger.
+
+    ``HistMergerFromHists`` writes the varied histograms as ``<process>_<name.format(scale)>``,
+    with ``name`` taken from the weights config; the same sources that ``HistMergerTask``
+    skips (``uncs_to_exclude``) have no histograms in the merged file.
+    """
+    unc_cfg_dict = setup.weights_config
+    all_unc_dict = dict(unc_cfg_dict["norm"])
+    all_unc_dict.update(unc_cfg_dict["shape"])
+    uncs_to_exclude = (global_cfg_dict.get("uncs_to_exclude") or {}).get(period, [])
+    return {
+        unc_name: unc_entry["name"]
+        for unc_name, unc_entry in all_unc_dict.items()
+        if unc_name not in uncs_to_exclude
+    }
+
+
+def GetTotalUncertaintyHist(
+    dir_1, bkg_hists, unc_names, scales, rebin_fn, verbose=False
+):
+    """Summed background with its full per-bin uncertainty (stat + syst).
+
+    ``bkg_hists`` maps process name -> its central (already rebinned) histogram.  For each
+    uncertainty source the *varied* histograms of all processes are summed first and only then
+    compared with the central sum, which keeps a source correlated across processes -- the same
+    treatment the datacards use.  The per-source contribution is the envelope
+    ``max(|up - central|, |down - central|)``; sources are added in quadrature.
+    """
+    if not bkg_hists:
+        return None
+
+    central_total = None
+    for hist in bkg_hists.values():
+        if central_total is None:
+            central_total = hist.Clone("bkg_total_unc")
+            central_total.SetDirectory(0)
+        else:
+            central_total.Add(hist)
+    if central_total is None:
+        return None
+
+    n_bins = central_total.GetNbinsX()
+    # start from the statistical variance of the central sum
+    variances = [central_total.GetBinError(i) ** 2 for i in range(1, n_bins + 1)]
+
+    available = {str(key.GetName()) for key in dir_1.GetListOfKeys()}
+    n_sources = 0
+    for unc_name, name_template in unc_names.items():
+        deviations = []
+        for scale in scales:
+            varied_total = None
+            found_any = False
+            for process_name, central_hist in bkg_hists.items():
+                hist_name = f"{process_name}_{name_template.format(scale)}"
+                if hist_name in available:
+                    obj = dir_1.Get(hist_name)
+                    if not obj or not obj.IsA().InheritsFrom(ROOT.TH1.Class()):
+                        continue
+                    obj.SetDirectory(0)
+                    varied_hist = rebin_fn(obj, hist_name)
+                    found_any = True
+                else:
+                    # No variation stored for this process (e.g. data-driven QCD):
+                    # it simply does not move under this source.
+                    varied_hist = central_hist
+                if varied_total is None:
+                    varied_total = varied_hist.Clone(f"{unc_name}_{scale}_total")
+                    varied_total.SetDirectory(0)
+                else:
+                    varied_total.Add(varied_hist)
+            if found_any and varied_total is not None:
+                deviations.append(varied_total)
+        if not deviations:
+            if verbose:
+                print(f"No variation histograms found for {unc_name}, skipping")
+            continue
+        n_sources += 1
+        for i in range(1, n_bins + 1):
+            central_value = central_total.GetBinContent(i)
+            envelope = max(
+                abs(dev.GetBinContent(i) - central_value) for dev in deviations
+            )
+            variances[i - 1] += envelope**2
+
+    print(f"Total uncertainty built from {n_sources} uncertainty source(s)")
+    for i in range(1, n_bins + 1):
+        central_total.SetBinError(i, math.sqrt(variances[i - 1]))
+    return central_total
 
 
 def findNewBins(hist_cfg_dict, var, **keys):
@@ -93,6 +185,13 @@ if __name__ == "__main__":
     parser.add_argument("--period", required=True, type=str)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
     parser.add_argument("--user-custom", type=str, default=None)
+    parser.add_argument(
+        "--compute_unc_histograms",
+        required=False,
+        action="store_true",
+        help="the merged file also holds the up/down variations: show the full "
+        "(stat + syst) uncertainty as a band and as a ratio panel below the plot",
+    )
 
     args = parser.parse_args()
 
@@ -279,6 +378,18 @@ if __name__ == "__main__":
                 hists_to_plot_unbinned[dataset_process_name][0].Add(
                     hists_to_plot_unbinned[dataset_process_name][0], obj
                 )
+
+        def apply_binning(hist, hist_key):
+            if not rebin_condition:
+                return hist
+            return RebinHisto(
+                hist,
+                new_bins,
+                hist_key,
+                wantOverflow=args.wantOverflow,
+                verbose=False,
+            )
+
         hists_to_plot_binned = {}
         for hist_key, (
             hist_unbinned,
@@ -286,18 +397,33 @@ if __name__ == "__main__":
             plot_color,
             dataset_process_group,
         ) in hists_to_plot_unbinned.items():
-            old_hist = hist_unbinned
-            new_hist = RebinHisto(
-                old_hist,
-                new_bins,
-                hist_key,
-                wantOverflow=args.wantOverflow,
-                verbose=False,
-            )
             hists_to_plot_binned[hist_key] = (
-                (new_hist, plot_name, plot_color, dataset_process_group)
-                if rebin_condition
-                else (old_hist, plot_name, plot_color, dataset_process_group)
+                apply_binning(hist_unbinned, hist_key),
+                plot_name,
+                plot_color,
+                dataset_process_group,
+            )
+
+        # Full (stat + syst) uncertainty on the background stack, from the up/down
+        # variations stored alongside the central histograms.
+        total_unc_hist = None
+        if args.compute_unc_histograms:
+            bkg_hists = {
+                hist_key: hist
+                for hist_key, (
+                    hist,
+                    _,
+                    _,
+                    dataset_process_group,
+                ) in hists_to_plot_binned.items()
+                if dataset_process_group == "backgrounds"
+            }
+            total_unc_hist = GetTotalUncertaintyHist(
+                dir_1,
+                bkg_hists,
+                GetUncNames(setup, setup.global_params, args.period),
+                list(setup.global_params["scales"]),
+                apply_binning,
             )
 
         scale = global_cfg_dict.get("signal_plot_scale", 1.0)
@@ -308,6 +434,7 @@ if __name__ == "__main__":
             want_data=args.wantData,
             custom=custom1,
             scale=scale,
+            total_unc=total_unc_hist,
         )
         inFile_root.Close()
         print(outFile)

@@ -6,8 +6,14 @@ dilepton flavor and mass), and, with ``--tautau``, also ``identifyTauTau`` (repo
 Z->tautau gen-filter efficiency).
 
 Usage:
-    test_DY.py --input <nanoAOD.root> [...] [--tree Events] [--max-events N] [--tautau]
+    test_DY.py --input <nanoAOD.root> [...] [--trees Events [EventsNotSelected]] \
+        [--max-events N] [--tautau]
 Exit code is non-zero if any event fails to be identified.
+
+For the HLepRare skims the events are split across the ``Events`` (skim-selected) and
+``EventsNotSelected`` (skim-rejected) trees; pass ``--trees Events EventsNotSelected`` to
+get the unbiased gen-filter efficiency (the skim selection is correlated with the visible
+tau kinematics, so ``Events`` alone is biased).
 """
 
 import argparse
@@ -18,7 +24,12 @@ import sys
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True, nargs="+")
-    parser.add_argument("--tree", default="Events")
+    parser.add_argument(
+        "--trees",
+        nargs="+",
+        default=["Events"],
+        help="trees to process; use 'Events EventsNotSelected' for HLepRare skims",
+    )
     parser.add_argument("--max-events", type=int, default=0)
     parser.add_argument(
         "--tautau",
@@ -74,31 +85,53 @@ def main():
     }
     """)
 
-    df = ROOT.RDataFrame(args.tree, list(args.input))
-    if args.max_events:
-        df = df.Range(args.max_events)
-    df = df.Define(
-        "dy_flavor",
-        "_dy_test::lheFlavor(LHEPart_pt, LHEPart_eta, LHEPart_phi, LHEPart_mass, "
-        "LHEPart_pdgId, LHEPart_status)",
-    ).Define(
-        "dy_mll",
-        "_dy_test::lheMass(LHEPart_pt, LHEPart_eta, LHEPart_phi, LHEPart_mass, "
-        "LHEPart_pdgId, LHEPart_status)",
-    )
-    hf = df.Histo1D(("f", "flavor", 20, -1.5, 18.5), "dy_flavor")
-    if args.tautau:
-        df = df.Define(
-            "dy_filter",
-            "_dy_test::tautauFilter(GenPart_pt, GenPart_eta, GenPart_phi, GenPart_mass, "
-            "GenPart_pdgId, GenPart_statusFlags, GenPart_genPartIdxMother)",
-        )
-        hfilt = df.Histo1D(("filt", "filter", 4, -1.5, 2.5), "dy_filter")
-    n_total = df.Count()
-    mll_min = df.Filter("dy_mll > 0").Min("dy_mll")
-    mll_max = df.Max("dy_mll")
-    n_total = n_total.GetValue()
-    hf = hf.GetValue()
+    # Book work per tree, then trigger once. EventsNotSelected (HLepRare) may lack the
+    # LHEPart branches, so the LHE flavor/mass check is only booked where they exist.
+    booked = []
+    for tree in args.trees:
+        df = ROOT.RDataFrame(tree, list(args.input))
+        if args.max_events:
+            df = df.Range(args.max_events)
+        cols = set(str(c) for c in df.GetColumnNames())
+        item = {"tree": tree, "n": df.Count()}
+        if "LHEPart_pt" in cols:
+            df = df.Define(
+                "dy_flavor",
+                "_dy_test::lheFlavor(LHEPart_pt, LHEPart_eta, LHEPart_phi, LHEPart_mass, "
+                "LHEPart_pdgId, LHEPart_status)",
+            ).Define(
+                "dy_mll",
+                "_dy_test::lheMass(LHEPart_pt, LHEPart_eta, LHEPart_phi, LHEPart_mass, "
+                "LHEPart_pdgId, LHEPart_status)",
+            )
+            item["hf"] = df.Histo1D(
+                ("f_" + tree, "flavor", 20, -1.5, 18.5), "dy_flavor"
+            )
+            item["mll_min"] = df.Filter("dy_mll > 0").Min("dy_mll")
+            item["mll_max"] = df.Max("dy_mll")
+        if args.tautau:
+            df = df.Define(
+                "dy_filter",
+                "_dy_test::tautauFilter(GenPart_pt, GenPart_eta, GenPart_phi, GenPart_mass, "
+                "GenPart_pdgId, GenPart_statusFlags, GenPart_genPartIdxMother)",
+            )
+            item["hfilt"] = df.Histo1D(
+                ("filt_" + tree, "filter", 4, -1.5, 2.5), "dy_filter"
+            )
+        booked.append(item)
+
+    hf = ROOT.TH1D("f", "flavor", 20, -1.5, 18.5)
+    hfilt = ROOT.TH1D("filt", "filter", 4, -1.5, 2.5)
+    n_total = 0
+    mll_lo, mll_hi = [], []
+    for item in booked:
+        n_total += int(item["n"].GetValue())
+        if "hf" in item:
+            hf.Add(item["hf"].GetValue())
+            mll_lo.append(item["mll_min"].GetValue())
+            mll_hi.append(item["mll_max"].GetValue())
+        if "hfilt" in item:
+            hfilt.Add(item["hfilt"].GetValue())
 
     def fcount(v):
         return int(hf.GetBinContent(hf.FindBin(v)))
@@ -110,14 +143,14 @@ def main():
         f"  LHE flavor: e={fcount(11)} mu={fcount(13)} tau={fcount(15)} "
         f"(unidentified={fcount(-1)})"
     )
-    print(f"  LHE m_ll range: [{mll_min.GetValue():.1f}, {mll_max.GetValue():.1f}] GeV")
+    if mll_lo:
+        print(f"  LHE m_ll range: [{min(mll_lo):.1f}, {max(mll_hi):.1f}] GeV")
     print(
         f"  identifyLHE failures: {n_fail_lhe} ({100.0 * n_fail_lhe / max(n_total, 1):.4f}%)"
     )
 
     n_fail_tt = 0
     if args.tautau:
-        hfilt = hfilt.GetValue()
         n_pass = int(hfilt.GetBinContent(hfilt.FindBin(1)))
         n_notpass = int(hfilt.GetBinContent(hfilt.FindBin(0)))
         n_fail_tt = int(ROOT._dy_test.n_fail_tt)

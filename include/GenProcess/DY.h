@@ -116,10 +116,30 @@ namespace gen_process {
         }  // namespace detail
 
         //! Identify the two generator-level taus of a Z->tautau event and their visible
-        //! decays. Exactly two hard-process taus are required; the decay mode of each is
-        //! taken from the tau's last copy: a direct charged-lepton daughter -> e/mu,
-        //! otherwise hadronic. The visible momentum sums all non-neutrino final-state
-        //! descendants (so it is dressed with FSR).
+        //! decays. This reproduces the CMSSW DY->tautau generator filter
+        //! EmbeddingHepMCFilter (GeneratorInterface/Core/src/EmbeddingHepMCFilter.cc) on
+        //! the stored GenPart collection:
+        //!   - the two taus are the hard-process taus. CMSSW selects the taus whose direct
+        //!     mother is the Z (pdgId 23), but that mother link is absent for ~5% of events
+        //!     in BOTH central nanoAOD and the full-gen HLepRare skims (the amcatnlo ME
+        //!     proceeds via gamma*/Z), so the hard-process flag is used instead -- it yields
+        //!     exactly two taus for every event tested. This matches the filter's
+        //!     IncludeDY=true fallback (isFirstCopy && fromHardProcess);
+        //!   - the decay mode is taken from the tau's last copy: a direct charged-lepton
+        //!     daughter -> e/mu, otherwise hadronic;
+        //!   - the visible momentum is the hard-process tau's own 4-momentum minus its
+        //!     neutrinos. By momentum conservation this equals the FSR-dressed sum of the
+        //!     visible decay products (decay_and_sump4Vis's status==1 non-neutrino sum), but
+        //!     is robust to how the showered decay products are stored: an explicit sum over
+        //!     final-state descendants silently under-counts hadronic products on the
+        //!     full-gen HLepRare record (and mildly over-counts on pruned central nanoAOD).
+        //!
+        //! Validated on the DYto2Tau *_Filtered samples (events that passed the production
+        //! filter): 99.2% are recovered, identically on central nanoAOD and on the full-gen
+        //! HLepRare skims. The residual ~0.8% is irreducible from any stored gen record --
+        //! the filter ran on the full HepMC GenEvent at generation time, and the soft
+        //! products it summed were already dropped by the gen pruning applied before miniAOD
+        //! (hence central nanoAOD and the fuller HLepRare skims agree to <0.01%).
         template <typename VecF, typename VecId, typename VecFlags, typename VecMother>
         TauTauInfo identifyTauTau(const VecF& GenPart_pt,
                                   const VecF& GenPart_eta,
@@ -157,8 +177,8 @@ namespace gen_process {
                     tau = next;
                 }
 
-                // Decay mode from the tau's direct daughters (conversions deeper in the
-                // chain are ignored); visible p4 from all non-neutrino final states.
+                // Decay mode from the last copy's direct daughters (conversions deeper in
+                // the chain are ignored).
                 int lepton = -1;
                 for (const int d : daughters[tau]) {
                     const int a = apdg(d);
@@ -168,13 +188,19 @@ namespace gen_process {
                         lepton = d;
                     }
                 }
+                // Visible p4 = the hard-process tau's own momentum minus its neutrinos.
+                // This is robust to how the showered decay products are stored (see the
+                // note above); by momentum conservation it is the FSR-dressed visible.
                 std::vector<int> fs;
-                detail::finalStates(tau, daughters, fs);
-                ROOT::Math::PtEtaPhiMVector vis;
+                detail::finalStates(taus[k], daughters, fs);
+                ROOT::Math::PtEtaPhiMVector nu;
                 for (const int p : fs)
-                    if (!detail::isNeutrino(apdg(p)))
-                        vis +=
+                    if (detail::isNeutrino(apdg(p)))
+                        nu +=
                             ROOT::Math::PtEtaPhiMVector(GenPart_pt[p], GenPart_eta[p], GenPart_phi[p], GenPart_mass[p]);
+                const ROOT::Math::PtEtaPhiMVector hard(
+                    GenPart_pt[taus[k]], GenPart_eta[taus[k]], GenPart_phi[taus[k]], GenPart_mass[taus[k]]);
+                const ROOT::Math::PtEtaPhiMVector vis = hard - nu;
 
                 if (lepton < 0)
                     info.vis_type[k] = TauVis::Hadrons;

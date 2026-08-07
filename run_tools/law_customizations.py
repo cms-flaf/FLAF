@@ -150,11 +150,7 @@ class Task(law.Task):
         super(Task, self).__init__(*args, **kwargs)
         user_custom_file = None
         if self.user_custom:
-            user_custom_file = self.user_custom
-            if not os.path.isabs(user_custom_file):
-                user_custom_file = os.path.join(
-                    os.getenv("ANALYSIS_PATH"), user_custom_file
-                )
+            user_custom_file = self._resolve_user_custom_path(self.user_custom)
         self.setup = Setup.getGlobal(
             os.getenv("ANALYSIS_PATH"),
             self.period,
@@ -165,6 +161,44 @@ class Task(law.Task):
             customisations=self.customisations,
             user_custom_file=user_custom_file,
         )
+
+    @staticmethod
+    def _resolve_user_custom_path(user_custom):
+        """Resolve --user-custom on submit host or remote worker.
+
+        Absolute paths from the submit host are not available on CRAB/HTCondor
+        bundle workers. Remote jobs ship the file as a job input (basename only);
+        fall back to LAW_JOB_INIT_DIR / job home / ANALYSIS_PATH when the original
+        path is missing.
+        """
+        path = user_custom
+        if not os.path.isabs(path):
+            ana = os.getenv("ANALYSIS_PATH") or ""
+            path = os.path.join(ana, path) if ana else path
+        if path and os.path.isfile(path):
+            return path
+        base = os.path.basename(user_custom)
+        for candidate in (
+            base,
+            os.path.join(os.environ.get("LAW_JOB_INIT_DIR", ""), base),
+            os.path.join(os.environ.get("LAW_JOB_HOME", ""), base),
+            os.path.join(os.getenv("ANALYSIS_PATH") or "", base),
+        ):
+            if candidate and os.path.isfile(candidate):
+                return candidate
+        return path
+
+    def _stage_user_custom_input(self, config):
+        """Ship user_custom yaml as a job input for remote workers (bundle/CRAB)."""
+        if not self.user_custom:
+            return
+        path = self.user_custom
+        if not os.path.isabs(path):
+            path = os.path.join(os.getenv("ANALYSIS_PATH") or "", path)
+        if not path or not os.path.isfile(path):
+            return
+        # Avoid absolute remote paths: worker will open by basename via _resolve_user_custom_path.
+        config.input_files["user_custom"] = path
         self._dataset_id_name_list = None
         self._dataset_id_name_dict = None
         self._dataset_name_id_dict = None
@@ -732,6 +766,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
 
     def htcondor_job_config(self, config, job_num, branches):
         self._apply_bootstrap_path_render_variables(config)
+        self._stage_user_custom_input(config)
 
         # force to run on AlmaLinux9, https://batchdocs.web.cern.ch/local/submit.html
         config.custom_content.append(
@@ -1180,6 +1215,7 @@ class CrabWorkflow(law.cms.CrabWorkflow):
 
         self._apply_bootstrap_path_render_variables(config)
         self._apply_bundle_render_variables(config)
+        self._stage_user_custom_input(config)
 
         log_remote_base_url = self._log_remote_base_url()
         config.render_variables["log_remote_base_url"] = log_remote_base_url

@@ -192,17 +192,12 @@ DYto2L_M_50_0J_amcatnloFXFX_singleFlavor:
   unc: 8.007 / 3
   comments: "divided by 3 to account for e, mu, tau"
 
-DYto2Tau_M_50_0J_Filtered_amcatnloFXFX_allFlavors:
-  # measured DY->tautau gen-filter efficiency (0.15629) x all-flavor DYto2L_M_50_0J, so the
-  # ttFilter stitching fraction (Filtered / DYto2L) equals the measured efficiency.
-  crossSec: 0.156286 * DYto2L_M_50_0J_amcatnloFXFX_allFlavors
-  reference: DY->tautau gen-filter efficiency 0.15629 measured on HLepRare DYto2Tau_MLL_50_0J skims (Events+EventsNotSelected, FLAF/include/GenProcess/DY.h, 99.2% closure vs the *_Filtered sample); replaces GenXSecAnalyzer 847.035 (efficiency 15.7%)
-  unc: 0.156286 * 8.007
 DYto2Tau_M_50_0J_Filtered_amcatnloFXFX_singleFlavor:
-  crossSec: DYto2Tau_M_50_0J_Filtered_amcatnloFXFX_allFlavors / 3
-  reference: single lepton flavor of DYto2Tau_M_50_0J_Filtered_amcatnloFXFX_allFlavors
+  # measured DY->tautau gen-filter efficiency (0.15629) x DYto2L_M_50_0J single-flavor xsec,
+  # so the ttFilter stitching fraction (Filtered / DYto2L) equals the measured efficiency.
+  crossSec: 0.156286 * DYto2L_M_50_0J_amcatnloFXFX_singleFlavor
+  reference: DY->tautau gen-filter efficiency 0.15629 measured on HLepRare DYto2Tau_MLL_50_0J skims (Events+EventsNotSelected, FLAF/include/GenProcess/DY.h, 99.2% closure vs the *_Filtered sample); replaces GenXSecAnalyzer 847.035/3 (efficiency 15.7%)
   unc: 0.156286 * 8.007 / 3
-  comments: "divided by 3 to account for e, mu, tau"
 DYto2L_M_50_1J_amcatnloFXFX_allFlavors:
   crossSec: 1017.0
   reference: XSDB DYto2L-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:09
@@ -212,17 +207,12 @@ DYto2L_M_50_1J_amcatnloFXFX_singleFlavor:
   reference: XSDB DYto2L-2Jets_MLL-50_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:09
   unc: 6.264 / 3
   comments: "divided by 3 to account for e, mu, tau"
-DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_allFlavors:
-  # measured DY->tautau gen-filter efficiency (0.18884) x all-flavor DYto2L_M_50_1J, so the
-  # ttFilter stitching fraction (Filtered / DYto2L) equals the measured efficiency.
-  crossSec: 0.188839 * DYto2L_M_50_1J_amcatnloFXFX_allFlavors
-  reference: DY->tautau gen-filter efficiency 0.18884 measured on HLepRare DYto2Tau_MLL_50_1J skims (Events+EventsNotSelected, FLAF/include/GenProcess/DY.h, 99.2% closure vs the *_Filtered sample); replaces GenXSecAnalyzer 210.112 (efficiency 20.7%, ~10% high)
-  unc: 0.188839 * 6.264
 DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_singleFlavor:
-  crossSec: DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_allFlavors / 3
-  reference: single lepton flavor of DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_allFlavors
+  # measured DY->tautau gen-filter efficiency (0.18884) x DYto2L_M_50_1J single-flavor xsec,
+  # so the ttFilter stitching fraction (Filtered / DYto2L) equals the measured efficiency.
+  crossSec: 0.188839 * DYto2L_M_50_1J_amcatnloFXFX_singleFlavor
+  reference: DY->tautau gen-filter efficiency 0.18884 measured on HLepRare DYto2Tau_MLL_50_1J skims (Events+EventsNotSelected, FLAF/include/GenProcess/DY.h, 99.2% closure vs the *_Filtered sample); replaces GenXSecAnalyzer 210.112/3 (efficiency 20.7%, ~10% high)
   unc: 0.188839 * 6.264 / 3
-  comments: "divided by 3 to account for e, mu, tau"
 DYto2L_M_50_2J_amcatnloFXFX_allFlavors:
   crossSec: 385.5
   reference: XSDB DYto2L-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:12
@@ -232,17 +222,12 @@ DYto2L_M_50_2J_amcatnloFXFX_singleFlavor:
   reference: XSDB DYto2L-2Jets_MLL-50_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:12
   unc: 3.858 / 3
   comments: "divided by 3 to account for e, mu, tau"
-DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_allFlavors:
-  # measured DY->tautau gen-filter efficiency (0.21085) x all-flavor DYto2L_M_50_2J, so the
-  # ttFilter stitching fraction (Filtered / DYto2L) equals the measured efficiency.
-  crossSec: 0.210845 * DYto2L_M_50_2J_amcatnloFXFX_allFlavors
-  reference: DY->tautau gen-filter efficiency 0.21085 measured on HLepRare DYto2Tau_MLL_50_2J skims (Events+EventsNotSelected, FLAF/include/GenProcess/DY.h, 99.2% closure vs the *_Filtered sample); replaces GenXSecAnalyzer 83.268 (efficiency 21.6%)
-  unc: 0.210845 * 3.858
 DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_singleFlavor:
-  crossSec: DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_allFlavors / 3
-  reference: single lepton flavor of DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_allFlavors
+  # measured DY->tautau gen-filter efficiency (0.21085) x DYto2L_M_50_2J single-flavor xsec,
+  # so the ttFilter stitching fraction (Filtered / DYto2L) equals the measured efficiency.
+  crossSec: 0.210845 * DYto2L_M_50_2J_amcatnloFXFX_singleFlavor
+  reference: DY->tautau gen-filter efficiency 0.21085 measured on HLepRare DYto2Tau_MLL_50_2J skims (Events+EventsNotSelected, FLAF/include/GenProcess/DY.h, 99.2% closure vs the *_Filtered sample); replaces GenXSecAnalyzer 83.268/3 (efficiency 21.6%)
   unc: 0.210845 * 3.858 / 3
-  comments: "divided by 3 to account for e, mu, tau"
 DYto2L_M_50_1J_madgraphMLM_allFlavors:
   crossSec: 973.1
   reference: XSDB DYto2L-4Jets_MLL-50_1J_TuneCP5_13p6TeV_madgraphMLM-pythia8 modifiedOn 2024-04-03 19:19:40

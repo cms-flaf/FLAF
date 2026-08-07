@@ -90,6 +90,7 @@ namespace gen_process {
 
         namespace detail {
             inline bool isLastCopy(int status_flags) { return (status_flags >> 13) & 1; }
+            inline bool isHardProcess(int status_flags) { return (status_flags >> 7) & 1; }
             inline bool isNeutrino(int apdg) { return apdg == 12 || apdg == 14 || apdg == 16; }
 
             template <typename VecMother>
@@ -115,8 +116,10 @@ namespace gen_process {
         }  // namespace detail
 
         //! Identify the two generator-level taus of a Z->tautau event and their visible
-        //! decays. Exactly two last-copy taus are required; each tau must decay either to a
-        //! single charged lepton (+ neutrinos) or to hadrons.
+        //! decays. Exactly two hard-process taus are required; the decay mode of each is
+        //! taken from the tau's last copy: a direct charged-lepton daughter -> e/mu,
+        //! otherwise hadronic. The visible momentum sums all non-neutrino final-state
+        //! descendants (so it is dressed with FSR).
         template <typename VecF, typename VecId, typename VecFlags, typename VecMother>
         TauTauInfo identifyTauTau(const VecF& GenPart_pt,
                                   const VecF& GenPart_eta,
@@ -128,39 +131,55 @@ namespace gen_process {
             const auto daughters = detail::daughterMap(GenPart_genPartIdxMother);
             const std::size_t n = GenPart_pdgId.size();
             const auto apdg = [&](int i) { return std::abs(static_cast<int>(GenPart_pdgId[i])); };
+            const auto flags = [&](int i) { return static_cast<int>(GenPart_statusFlags[i]); };
 
             std::vector<int> taus;
             for (std::size_t i = 0; i < n; ++i)
-                if (apdg(static_cast<int>(i)) == 15 && detail::isLastCopy(static_cast<int>(GenPart_statusFlags[i])))
+                if (apdg(static_cast<int>(i)) == 15 && detail::isHardProcess(flags(static_cast<int>(i))))
                     taus.push_back(static_cast<int>(i));
             if (taus.size() != 2)
-                throw std::runtime_error("gen_process::dy: expected exactly 2 last-copy taus, found " +
+                throw std::runtime_error("gen_process::dy: expected exactly 2 hard-process taus, found " +
                                          std::to_string(taus.size()));
 
             TauTauInfo info;
             for (int k = 0; k < 2; ++k) {
+                // Resolve the hard-process tau to its last copy (walk down tau copies).
+                int tau = taus[k];
+                while (!detail::isLastCopy(flags(tau))) {
+                    int next = -1;
+                    for (const int d : daughters[tau])
+                        if (apdg(d) == 15) {
+                            next = d;
+                            break;
+                        }
+                    if (next < 0)
+                        throw std::runtime_error("gen_process::dy: could not resolve the tau last copy");
+                    tau = next;
+                }
+
+                // Decay mode from the tau's direct daughters (conversions deeper in the
+                // chain are ignored); visible p4 from all non-neutrino final states.
+                int lepton = -1;
+                for (const int d : daughters[tau]) {
+                    const int a = apdg(d);
+                    if (a == 11 || a == 13) {
+                        if (lepton >= 0)
+                            throw std::runtime_error("gen_process::dy: tau with two charged-lepton daughters");
+                        lepton = d;
+                    }
+                }
                 std::vector<int> fs;
-                detail::finalStates(taus[k], daughters, fs);
-                int n_e = 0, n_mu = 0;
+                detail::finalStates(tau, daughters, fs);
                 ROOT::Math::PtEtaPhiMVector vis;
-                for (const int p : fs) {
-                    const int a = apdg(p);
-                    if (a == 11)
-                        ++n_e;
-                    else if (a == 13)
-                        ++n_mu;
-                    if (!detail::isNeutrino(a))
+                for (const int p : fs)
+                    if (!detail::isNeutrino(apdg(p)))
                         vis +=
                             ROOT::Math::PtEtaPhiMVector(GenPart_pt[p], GenPart_eta[p], GenPart_phi[p], GenPart_mass[p]);
-                }
-                if (n_e + n_mu > 1)
-                    throw std::runtime_error("gen_process::dy: tau decay with more than one charged lepton");
-                if (n_e == 1)
-                    info.vis_type[k] = TauVis::Electron;
-                else if (n_mu == 1)
-                    info.vis_type[k] = TauVis::Muon;
-                else
+
+                if (lepton < 0)
                     info.vis_type[k] = TauVis::Hadrons;
+                else
+                    info.vis_type[k] = apdg(lepton) == 11 ? TauVis::Electron : TauVis::Muon;
                 info.vis_pt[k] = vis.pt();
                 info.vis_abseta[k] = std::abs(vis.eta());
             }

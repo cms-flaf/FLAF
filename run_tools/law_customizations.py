@@ -1260,12 +1260,15 @@ class CrabWorkflow(law.cms.CrabWorkflow):
 
         # Memory. Do not set JobType.numCores: law's dummy CMSSW PSet leaves
         # process.options.numberOfThreads at 1, and modern CRAB rejects a mismatch
-        # (exit 192). FLAF payloads are not multi-threaded CMSSW jobs; scale memory
-        # with the task's n_cpus instead.
+        # (exit 192). Without multi-core, CRAB also caps memory (~3 GB for 1-core
+        # jobs), so clamp to that ceiling. FLAF payloads are not multi-threaded CMSSW.
         n_cpus = int(getattr(self, "n_cpus", 1) or 1)
         mem = int(self.crab_memory)
         if mem <= 0:
             mem = int(self._crab_cfg().get("max_memory_mb", n_cpus * 2000))
+        single_core_cap = int(self._crab_cfg().get("max_memory_mb_single_core", 2500))
+        if mem > single_core_cap:
+            mem = single_core_cap
         config.crab.JobType.maxMemoryMB = mem
 
         # Runtime limit (hours → minutes). CRAB jobs must download/unpack bundles before

@@ -1258,14 +1258,15 @@ class CrabWorkflow(law.cms.CrabWorkflow):
         log_remote_base_url = self._log_remote_base_url()
         config.render_variables["log_remote_base_url"] = log_remote_base_url
 
-        # Memory / cores
+        # Memory. Do not set JobType.numCores: law's dummy CMSSW PSet leaves
+        # process.options.numberOfThreads at 1, and modern CRAB rejects a mismatch
+        # (exit 192). FLAF payloads are not multi-threaded CMSSW jobs; scale memory
+        # with the task's n_cpus instead.
         n_cpus = int(getattr(self, "n_cpus", 1) or 1)
         mem = int(self.crab_memory)
         if mem <= 0:
             mem = int(self._crab_cfg().get("max_memory_mb", n_cpus * 2000))
         config.crab.JobType.maxMemoryMB = mem
-        if n_cpus > 1:
-            config.crab.JobType.numCores = n_cpus
 
         # Runtime limit (hours → minutes). CRAB jobs must download/unpack bundles before
         # the payload starts, so enforce a floor (default 60 min) even when the task's

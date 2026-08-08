@@ -29,6 +29,24 @@ action() {
         export X509_USER_PROXY="${LAW_JOB_INIT_DIR}/voms.proxy"
     fi
 
+    # Rucio: pilot accounts (e.g. CRAB cmsplt01) are not valid RUCIO_ACCOUNT values.
+    # Prefer submit-time account (rendered below), then VOMS DN username, never pilot USER.
+    local rucio_account_submit="{{rucio_account}}"
+    if [ -z "${RUCIO_ACCOUNT:-}" ]; then
+        if [ -n "${rucio_account_submit}" ]; then
+            export RUCIO_ACCOUNT="${rucio_account_submit}"
+        elif [ -n "${X509_USER_PROXY:-}" ] && command -v voms-proxy-info >/dev/null 2>&1; then
+            # Standard CERN user cert: .../OU=Users/CN=<username>/CN=<digits>/...
+            export RUCIO_ACCOUNT="$(voms-proxy-info -identity 2>/dev/null \
+                | sed -n 's|.*/OU=Users/CN=\([^/]*\).*|\1|p' | head -1)"
+        fi
+        if [ -n "${RUCIO_ACCOUNT:-}" ]; then
+            echo "bootstrap: RUCIO_ACCOUNT=${RUCIO_ACCOUNT}"
+        else
+            echo "bootstrap: WARNING: RUCIO_ACCOUNT unset (Rucio client may fail on this worker)"
+        fi
+    fi
+
     if [ -n "${bundle_list}" ]; then
         local lcg_setup="/cvmfs/sft.cern.ch/lcg/views/LCG_108a/x86_64-el9-gcc15-opt/setup.sh"
         if [ -f "${lcg_setup}" ]; then
@@ -116,6 +134,11 @@ action() {
         [ -n "${flaf_path}" ] && export FLAF_PATH="${flaf_path}"
         [ -n "${corrections_path}" ] && export CORRECTIONS_PATH="${corrections_path}"
         source "${analysis_path}/env.sh"
+    fi
+
+    # Re-assert after env.sh (Rucio cvmfs init may re-read USER on some pilots).
+    if [ -n "${rucio_account_submit}" ]; then
+        export RUCIO_ACCOUNT="${rucio_account_submit}"
     fi
 }
 action

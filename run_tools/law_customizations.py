@@ -703,6 +703,11 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
             corrections_path = os.getenv("CORRECTIONS_PATH", "") or ""
         config.render_variables["flaf_path"] = flaf_path
         config.render_variables["corrections_path"] = corrections_path
+        # Rucio account for workers: CRAB pilots have USER=cmsplt01, which is not a Rucio
+        # account. Bake the submitter account so bootstrap can export RUCIO_ACCOUNT.
+        config.render_variables["rucio_account"] = (
+            os.environ.get("RUCIO_ACCOUNT") or os.environ.get("USER") or ""
+        )
 
         runTokenServer = self.global_params.get("runTokenServer", None)
         if runTokenServer and not self._uses_bundles():

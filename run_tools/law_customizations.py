@@ -167,59 +167,9 @@ class Task(law.Task):
 
     @staticmethod
     def _resolve_user_custom_path(user_custom):
-        """Resolve --user-custom on submit host or remote worker.
+        from FLAF.Common.Setup import resolve_user_custom_path
 
-        Absolute paths from the submit host are not available on CRAB/HTCondor
-        bundle workers. Remote jobs ship the file as a job input; law renames
-        it with a content-hash suffix (``name_<hash>.yaml``). Search common job
-        dirs for the exact basename or a hashed variant.
-
-        Always returns an absolute path when a file is found: a relative hit
-        (e.g. ``./name_hash.yaml`` from CWD) must not be re-joined onto
-        ANALYSIS_PATH by Setup/Config.
-        """
-
-        def _abs_if_file(p):
-            if p and os.path.isfile(p):
-                return os.path.abspath(p)
-            return None
-
-        path = user_custom
-        if not os.path.isabs(path):
-            ana = os.getenv("ANALYSIS_PATH") or ""
-            path = os.path.join(ana, path) if ana else path
-        found = _abs_if_file(path)
-        if found:
-            return found
-        base = os.path.basename(user_custom)
-        stem, ext = os.path.splitext(base)
-        # Prefer job input locations over CWD/ANALYSIS_PATH (bundle cwd would
-        # incorrectly win a relative match that Setup then re-roots under bundle).
-        search_dirs = [
-            os.environ.get("LAW_JOB_INIT_DIR", ""),
-            os.environ.get("LAW_JOB_HOME", ""),
-            "/srv",
-            os.getcwd(),
-            os.getenv("ANALYSIS_PATH") or "",
-        ]
-        for d in search_dirs:
-            if not d:
-                continue
-            found = _abs_if_file(os.path.join(d, base))
-            if found:
-                return found
-            # Hashed JobInputFile variants: stem_<hash>.ext
-            if not os.path.isdir(d):
-                continue
-            try:
-                for name in os.listdir(d):
-                    if name.startswith(stem + "_") and name.endswith(ext):
-                        found = _abs_if_file(os.path.join(d, name))
-                        if found:
-                            return found
-            except OSError:
-                pass
-        return path
+        return resolve_user_custom_path(user_custom)
 
     def _stage_user_custom_input(self, config):
         """Ship user_custom yaml as a job input for remote workers (bundle/CRAB)."""

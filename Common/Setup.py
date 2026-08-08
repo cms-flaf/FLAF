@@ -10,6 +10,57 @@ from FLAF.RunKit.law_wlcg import WLCGFileSystem
 from FLAF.Common.Utilities import create_processor_instances
 
 
+def resolve_user_custom_path(user_custom):
+    """Resolve --user-custom on the submit host or a remote worker.
+
+    Absolute submit-host paths are missing on CRAB/HTCondor bundle workers.
+    Jobs stage the file as a job input; law renames it with a content-hash
+    suffix (``name_<hash>.yaml``). Search common job dirs for the basename or
+    a hashed variant. Returns an absolute path when a file is found.
+    """
+
+    def _abs_if_file(p):
+        if p and os.path.isfile(p):
+            return os.path.abspath(p)
+        return None
+
+    if not user_custom:
+        return user_custom
+    path = user_custom
+    if not os.path.isabs(path):
+        ana = os.getenv("ANALYSIS_PATH") or ""
+        path = os.path.join(ana, path) if ana else path
+    found = _abs_if_file(path)
+    if found:
+        return found
+    base = os.path.basename(user_custom)
+    stem, ext = os.path.splitext(base)
+    search_dirs = [
+        os.environ.get("LAW_JOB_INIT_DIR", ""),
+        os.environ.get("LAW_JOB_HOME", ""),
+        "/srv",
+        os.getcwd(),
+        os.getenv("ANALYSIS_PATH") or "",
+    ]
+    for d in search_dirs:
+        if not d:
+            continue
+        found = _abs_if_file(os.path.join(d, base))
+        if found:
+            return found
+        if not os.path.isdir(d):
+            continue
+        try:
+            for name in os.listdir(d):
+                if name.startswith(stem + "_") and name.endswith(ext):
+                    found = _abs_if_file(os.path.join(d, name))
+                    if found:
+                        return found
+        except OSError:
+            pass
+    return path
+
+
 def select_items(all_items, filters):
     def name_match(name, pattern):
         if pattern[0] == "^":
@@ -265,12 +316,12 @@ class Setup:
         self.period = period
         self.law_run_version = law_run_version
 
-        # Resolve a relative user_custom file against the analysis path. The path is passed
-        # through to subprocesses (e.g. HistTupleProducer.py) verbatim, where the working
-        # directory is not the analysis directory (on HTCondor it is the job scratch dir), so
-        # it must be made absolute here for every caller, not only in Task.__init__.
-        if user_custom_file is not None and not os.path.isabs(user_custom_file):
-            user_custom_file = os.path.join(ana_path, user_custom_file)
+        # Resolve user_custom for every caller (Task and standalone scripts). Relative
+        # paths are rooted under ANALYSIS_PATH; absolute submit-host paths that are
+        # missing on remote workers are remapped to staged job inputs (see
+        # resolve_user_custom_path).
+        if user_custom_file:
+            user_custom_file = resolve_user_custom_path(user_custom_file)
 
         self.config_path_order = [
             os.path.join(ana_path, "FLAF", "config"),

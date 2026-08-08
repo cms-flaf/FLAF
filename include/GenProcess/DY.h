@@ -28,7 +28,11 @@ namespace gen_process {
 
         struct DYInfo {
             int flavor;  //!< |pdgId| of the dilepton pair: 11 (e), 13 (mu) or 15 (tau).
-            float mll;   //!< invariant mass of the outgoing LHE dilepton pair.
+            std::array<ROOT::Math::PtEtaPhiMVector, 2> lep_p4;  //!< p4 of each outgoing LHE lepton.
+            float mll;   //!< invariant mass of the outgoing LHE dilepton pair (== ll_p4().M()).
+
+            //! Four-momentum of the dilepton pair (sum of the two lepton momenta).
+            ROOT::Math::PtEtaPhiMVector ll_p4() const { return lep_p4[0] + lep_p4[1]; }
         };
 
         //! Identify the DY dilepton pair from the LHE record: exactly two outgoing
@@ -40,23 +44,26 @@ namespace gen_process {
                            const VecF& LHEPart_mass,
                            const VecId& LHEPart_pdgId,
                            const VecId& LHEPart_status) {
-            ROOT::Math::PtEtaPhiMVector p4;
-            int flavor = 0, n = 0;
+            DYInfo info{};
+            int n = 0;
             for (std::size_t i = 0; i < LHEPart_pdgId.size(); ++i) {
                 const int a = std::abs(static_cast<int>(LHEPart_pdgId[i]));
                 if ((a == 11 || a == 13 || a == 15) && static_cast<int>(LHEPart_status[i]) == 1) {
                     if (n == 0)
-                        flavor = a;
-                    else if (a != flavor)
+                        info.flavor = a;
+                    else if (a != info.flavor)
                         throw std::runtime_error("gen_process::dy: outgoing LHE leptons have mixed flavor");
-                    p4 += ROOT::Math::PtEtaPhiMVector(LHEPart_pt[i], LHEPart_eta[i], LHEPart_phi[i], LHEPart_mass[i]);
+                    if (n < 2)
+                        info.lep_p4[n] =
+                            ROOT::Math::PtEtaPhiMVector(LHEPart_pt[i], LHEPart_eta[i], LHEPart_phi[i], LHEPart_mass[i]);
                     ++n;
                 }
             }
             if (n != 2)
                 throw std::runtime_error("gen_process::dy: expected exactly 2 outgoing LHE charged leptons, found " +
                                          std::to_string(n));
-            return DYInfo{flavor, static_cast<float>(p4.M())};
+            info.mll = static_cast<float>(info.ll_p4().M());
+            return info;
         }
 
         // ---- Generator-level tau-tau decays and Z->tautau filter ----------------------

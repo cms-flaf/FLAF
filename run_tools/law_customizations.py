@@ -301,6 +301,18 @@ class Task(law.Task):
             return law.LocalDirectoryTarget(path)
         return WLCGDirectoryTarget(path, fs)
 
+    def remote_log_dir_target(self):
+        # Remote directory where job logs are staged. Include the producer name when the
+        # task has one (AnalysisCacheTask: producer_to_run; AnalysisCacheAggregationTask:
+        # producer_to_aggregate) so per-producer logs of the same task do not collide.
+        parts = [self.version, "logs", self.__class__.__name__, self.period]
+        producer = getattr(self, "producer_to_run", None) or getattr(
+            self, "producer_to_aggregate", None
+        )
+        if producer:
+            parts.append(producer)
+        return self.remote_dir_target(*parts)
+
     def law_job_home(self):
         if "LAW_JOB_HOME" in os.environ:
             return os.environ["LAW_JOB_HOME"], False
@@ -709,9 +721,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         # Compute the remote destination directory for the stageout script.
         log_remote_base_url = ""
         if isinstance(self.fs_default, WLCGFileSystem):
-            log_remote_base_url = self.remote_dir_target(
-                self.version, "logs", self.__class__.__name__, self.period
-            ).uri()
+            log_remote_base_url = self.remote_log_dir_target().uri()
         config.render_variables["log_remote_base_url"] = log_remote_base_url
 
         # Redirect the sandbox log copy to /dev/null only when stageout will
@@ -798,9 +808,7 @@ class _BundleAwareHTCondorWorkflowProxy(BundleAwareHTCondorWorkflowProxyBase):
             if task is not None and isinstance(
                 getattr(task, "fs_default", None), WLCGFileSystem
             ):
-                base = task.remote_dir_target(
-                    task.version, "logs", task.__class__.__name__, task.period
-                ).uri()
+                base = task.remote_log_dir_target().uri()
         except Exception:
             base = ""
 

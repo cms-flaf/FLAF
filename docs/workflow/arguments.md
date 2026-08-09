@@ -84,8 +84,29 @@ law run FLAF.Analysis.tasks.HistTupleProducerTask \
 
 Here the anaTuples are reused from the central `v2605` production, while the histTuples are written
 under `my_dev`. This is the key to fast, parallel development: many people can share one upstream
-production without recomputing it. The base task also exposes related shortcuts
-(`--anaTuple-version`, `--anaCache-version`, `--ana-version`) used by some stages.
+production without recomputing it.
+
+### Shortcuts for the whole upstream
+
+Listing every `--<Task>-version` is tedious. The base task exposes three shortcuts that set the
+version of **all** upstream tasks at once:
+
+| Flag | Sets the version of |
+|---|---|
+| `--anaTuple-version <v>` | every AnaTuple/AnaProd task (`InputFileTask`, `AnaTupleFileList*`, `AnaTupleMergeTask`, …) |
+| `--anaCache-version <v>` | `AnalysisCacheTask` and `AnalysisCacheAggregationTask` |
+| `--ana-version <v>` | **both of the above** — a single flag for the entire upstream production |
+
+So the multi-flag example above (and any deeper fork) collapses to one flag:
+
+```sh
+law run FLAF.Analysis.tasks.HistTupleProducerTask \
+  --version my_dev --ana-version v2605 \
+  --period Run3_2022EE --workflow local
+```
+
+Use `--anaTuple-version` / `--anaCache-version` when you want to fork only one of the two upstream
+stages.
 
 !!! tip "`--<AnyTaskInTree>-<param>` works generally"
     LAW lets you set *any* parameter of *any* task in the dependency tree by prefixing it with the

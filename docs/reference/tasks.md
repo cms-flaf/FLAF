@@ -68,6 +68,19 @@ consume.
 
 - **Parameter:** `--producer-to-aggregate`.
 
+### `ProductionTask`
+Runs the **entire AnaTuple + AnalysisCache production** for a version in one command, without
+producing histTuples. It shares `HistTupleProducerTask`'s dependency graph but writes only a small
+per-branch completion marker, so a single
+
+```sh
+law run FLAF.Analysis.tasks.ProductionTask --version <v> --period <era> --workflow local
+```
+
+forces every `AnaTupleMergeTask` and `AnalysisCacheTask` (plus their aggregation) to run — handy
+to pre-compute and then freeze/share those caches (as `AnaTupleMergeTask` outputs already can be),
+instead of submitting each `AnalysisCacheTask --producer-to-run` individually.
+
 ### `HistPlotTask`
 Produces the final **plots** via the [PlotKit](https://github.com/cms-flaf/PlotKit) submodule
 (matplotlib + mplhep by default; optional ROOT + cmsstyle). **Branches over variables** (one branch

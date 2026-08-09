@@ -1666,3 +1666,34 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             )
             if remove_job_home:
                 shutil.rmtree(job_home)
+
+
+class ProductionTask(HistTupleProducerTask):
+    """Force the full AnaTuple + AnalysisCache production for a version without producing
+    HistTuples (issue #214).
+
+    Reuses HistTupleProducerTask's dependency graph (AnaTupleMerge + AnalysisCache +
+    aggregation) but replaces the per-branch histTuple output with a small completion
+    marker, so a single ``law run ProductionTask --version ... --period ...`` runs the
+    entire AnaTuple/AnalysisCache subset (e.g. to freeze and share the caches, as
+    AnaTupleMergeTask outputs already can be)."""
+
+    @HistTupleProducerTask.workflow_condition.output
+    def output(self):
+        dataset_name, prod_br, producer_list, aggregate_list, input_index = self.branch_data
+        input = _anaTuple_outputs(self)[prod_br][input_index]
+        output_path = os.path.join(
+            self.version,
+            "Production",
+            self.period,
+            dataset_name,
+            os.path.basename(input.abspath) + ".done",
+        )
+        return self.remote_target(output_path, fs=self.fs_HistTuple)
+
+    def run(self):
+        # requires() has forced the AnaTuple + AnalysisCache upstream to complete; only a
+        # marker is written so the branch counts as done (no histTuple is produced).
+        with self.output().localize("w") as out:
+            with open(out.abspath, "w") as f:
+                f.write("production dependencies complete\n")

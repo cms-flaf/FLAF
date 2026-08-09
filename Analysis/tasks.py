@@ -640,6 +640,40 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             outputs[var_name] = self.remote_target(output_path, fs=self.fs_HistTuple)
         return outputs
 
+    # (version, period, var) -> True once the merged output has been seen (it does not vanish).
+    _merged_present_cache = {}
+
+    def _merged_output_present(self, var_name):
+        key = (self.version, self.period, var_name)
+        if HistFromNtupleProducerTask._merged_present_cache.get(key):
+            return True
+        # Mirrors HistMergerTask.output(): Hists_merged/<period>/<var>/<var>.root
+        merged = self.remote_target(
+            os.path.join(
+                self.version, "Hists_merged", self.period, var_name, f"{var_name}.root"
+            ),
+            fs=self.fs_HistTuple,
+        )
+        if merged.exists():
+            HistFromNtupleProducerTask._merged_present_cache[key] = True
+            return True
+        return False
+
+    def complete(self):
+        # Per-chunk split histograms are only needed until their variable is merged
+        # downstream; HistMergerTask can remove each variable's per-chunk inputs after
+        # merging (issue #229, to save space). Treat a branch as complete when, for every
+        # variable, the per-chunk output still exists OR the merged output is already
+        # present -- so removing the intermediates keeps the task graph consistent (law will
+        # not try to re-run this task). Only additive vs the default: never reports a task
+        # incomplete that the default would call complete.
+        if not self.is_branch():
+            return super().complete()
+        for var_name, target in self.output().items():
+            if not target.exists() and not self._merged_output_present(var_name):
+                return False
+        return True
+
     def run(self):
         dataset_name, prod_br_list, chunk_id = self.branch_data
         var_names = [
@@ -940,6 +974,20 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                     MergerProducer_cmd.extend(["--user-custom", self.user_custom])
                 MergerProducer_cmd.extend(local_inputs)
                 ps_call(MergerProducer_cmd, verbose=1)
+
+        # The merged output is now written; the per-chunk split inputs for this variable are
+        # no longer needed. Remove them to save space when enabled (issue #229) --
+        # HistFromNtupleProducerTask stays complete via its merged-output check, so the graph
+        # remains consistent. Opt-in (default off) to preserve the current keep-intermediates
+        # behaviour.
+        if self.global_params.get("remove_merged_inputs", False):
+            for inp in self.input():
+                try:
+                    inp[var_name].remove()
+                except Exception as e:
+                    print(
+                        f"HistMergerTask: could not remove merged input for {var_name}: {e}"
+                    )
 
 
 class AnalysisCacheTask(Task, HTCondorWorkflow, law.LocalWorkflow):

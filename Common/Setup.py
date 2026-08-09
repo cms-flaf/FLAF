@@ -367,6 +367,17 @@ class Setup:
             self.histTuple_flavor
         ]["fullResolution_variables"]
 
+        # Whether up/down-variation histograms are produced. The histTuple flavor usually
+        # dictates this (uncertainties are only needed for the limit-setting shape variable),
+        # so read it from the flavor config first, falling back to the global/user_custom
+        # value for back-compatibility.
+        self.compute_unc_histograms = self.global_params["histTuple_flavors"][
+            self.histTuple_flavor
+        ].get(
+            "compute_unc_histograms",
+            self.global_params.get("compute_unc_histograms", False),
+        )
+
         # Safety check that the fullres or the plotvars do not have duplicates
         plotvar_dict = {}
         for var in self.histTuple_plot_vars:

@@ -45,6 +45,13 @@ flowchart TD
     b-tag shape weights) before histogramming. They are part of the same graph and run
     automatically when required. See the [Task reference](../reference/tasks.md).
 
+!!! tip "Freeing space: removable intermediates"
+    The per-chunk split histograms `HistFromNtupleProducerTask` writes are only needed until they
+    are merged. Set `remove_merged_inputs: true` (see
+    [user_custom](../configuration/user-custom.md)) to have `HistMergerTask` delete them after
+    merging — the producer still reports **complete** because it detects the merged output, so the
+    task graph stays consistent and nothing re-runs.
+
 ## Where the outputs live
 
 Each output type is written to a **named filesystem** (`fs_*`) that you configure — typically

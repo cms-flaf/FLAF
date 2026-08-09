@@ -9,6 +9,7 @@ if __name__ == "__main__":
 
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
+from FLAF.Common.Utilities import str_to_bool
 
 
 def GetHistName(dataset_name, dataset_type, uncName, unc_scale, global_cfg_dict):
@@ -174,12 +175,12 @@ if __name__ == "__main__":
     )
     parser.add_argument("--wantData", required=False, action="store_true")
     parser.add_argument("--wantSignals", required=False, action="store_true")
-    parser.add_argument("--wantQCD", required=False, type=bool, default=False)
-    parser.add_argument("--wantOverflow", required=False, type=bool, default=False)
+    parser.add_argument("--wantQCD", required=False, type=str_to_bool, default=False)
+    parser.add_argument("--wantOverflow", required=False, type=str_to_bool, default=False)
     parser.add_argument("--wantLogScale", required=False, type=str, default="")
     parser.add_argument("--uncSource", required=False, type=str, default="Central")
     parser.add_argument("--year", required=False, type=str, default="Run2_2018")
-    parser.add_argument("--rebin", required=False, type=bool, default=False)
+    parser.add_argument("--rebin", required=False, type=str_to_bool, default=False)
     parser.add_argument("--analysis", required=False, type=str, default="")
     parser.add_argument("--ana_path", required=True, type=str)
     parser.add_argument("--period", required=True, type=str)

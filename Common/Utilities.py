@@ -9,6 +9,24 @@ import pickle
 import sys
 
 
+def str_to_bool(value):
+    """argparse-friendly string-to-bool conversion.
+
+    argparse ``type=bool`` maps any non-empty string (including "False") to
+    ``True``; use this as the ``type`` instead so e.g. ``--flag False`` yields
+    ``False``. Accepts the usual truthy/falsy spellings and raises ``ValueError``
+    (which argparse turns into a usage error) otherwise.
+    """
+    if isinstance(value, bool):
+        return value
+    v = str(value).strip().lower()
+    if v in ("true", "1", "yes", "y", "t"):
+        return True
+    if v in ("false", "0", "no", "n", "f", ""):
+        return False
+    raise ValueError(f"invalid boolean value: {value!r}")
+
+
 class WorkingPointsTauVSmu(Enum):
     VLoose = 1
     Loose = 2

@@ -1,0 +1,43 @@
+crossSections: { }
+# totalCrossSection: WtoLNu_0J_amcatnloFXFX + WtoLNu_1J_amcatnloFXFX + WtoLNu_2J_amcatnloFXFX
+totalCrossSectionScaling: 3 * WtoLNu_NNLO_QCD_NLO_EW_one_flav / (WtoLNu_0J_amcatnloFXFX + WtoLNu_1J_amcatnloFXFX + WtoLNu_2J_amcatnloFXFX)
+bins:
+  - name: NpNLO_0
+    selection: "LHE_NpNLO == 0"
+    crossSection: WtoLNu_0J_amcatnloFXFX
+  - name: Vpt_0_40_NpNLO_1
+    selection: "LHE_Vpt >= 0 && LHE_Vpt < 40 && LHE_NpNLO == 1"
+    crossSection: WtoLNu_1J_amcatnloFXFX - WtoLNu_PTLNu_40to100_1J_amcatnloFXFX - WtoLNu_PTLNu_100to200_1J_amcatnloFXFX - WtoLNu_PTLNu_200to400_1J_amcatnloFXFX - WtoLNu_PTLNu_400to600_1J_amcatnloFXFX - WtoLNu_PTLNu_600_1J_amcatnloFXFX
+  - name: Vpt_0_40_NpNLO_2
+    selection: "LHE_Vpt >= 0 && LHE_Vpt < 40 && LHE_NpNLO == 2"
+    crossSection: WtoLNu_2J_amcatnloFXFX - WtoLNu_PTLNu_40to100_2J_amcatnloFXFX - WtoLNu_PTLNu_100to200_2J_amcatnloFXFX - WtoLNu_PTLNu_200to400_2J_amcatnloFXFX - WtoLNu_PTLNu_400to600_2J_amcatnloFXFX - WtoLNu_PTLNu_600_2J_amcatnloFXFX
+  - name: Vpt_40_100_NpNLO_1
+    selection: "LHE_Vpt >= 40 && LHE_Vpt < 100 && LHE_NpNLO == 1"
+    crossSection: WtoLNu_PTLNu_40to100_1J_amcatnloFXFX
+  - name: Vpt_40_100_NpNLO_2
+    selection: "LHE_Vpt >= 40 && LHE_Vpt < 100 && LHE_NpNLO == 2"
+    crossSection: WtoLNu_PTLNu_40to100_2J_amcatnloFXFX
+  - name: Vpt_100_200_NpNLO_1
+    selection: "LHE_Vpt >= 100 && LHE_Vpt < 200 && LHE_NpNLO == 1"
+    crossSection: WtoLNu_PTLNu_100to200_1J_amcatnloFXFX
+  - name: Vpt_100_200_NpNLO_2
+    selection: "LHE_Vpt >= 100 && LHE_Vpt < 200 && LHE_NpNLO == 2"
+    crossSection: WtoLNu_PTLNu_100to200_2J_amcatnloFXFX
+  - name: Vpt_200_400_NpNLO_1
+    selection: "LHE_Vpt >= 200 && LHE_Vpt < 400 && LHE_NpNLO == 1"
+    crossSection: WtoLNu_PTLNu_200to400_1J_amcatnloFXFX
+  - name: Vpt_200_400_NpNLO_2
+    selection: "LHE_Vpt >= 200 && LHE_Vpt < 400 && LHE_NpNLO == 2"
+    crossSection: WtoLNu_PTLNu_200to400_2J_amcatnloFXFX
+  - name: Vpt_400_600_NpNLO_1
+    selection: "LHE_Vpt >= 400 && LHE_Vpt < 600 && LHE_NpNLO == 1"
+    crossSection: WtoLNu_PTLNu_400to600_1J_amcatnloFXFX
+  - name: Vpt_400_600_NpNLO_2
+    selection: "LHE_Vpt >= 400 && LHE_Vpt < 600 && LHE_NpNLO == 2"
+    crossSection: WtoLNu_PTLNu_400to600_2J_amcatnloFXFX
+  - name: Vpt_600_inf_NpNLO_1
+    selection: "LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 1"
+    crossSection: WtoLNu_PTLNu_600_1J_amcatnloFXFX
+  - name: Vpt_600_inf_NpNLO_2
+    selection: "LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 2"
+    crossSection: WtoLNu_PTLNu_600_2J_amcatnloFXFX

@@ -1,0 +1,163 @@
+# Single stitched DY background for H_mumu: the all-flavor DY Vpt/NpNLO bins are
+# split into flavor (e/mu/tau) and, for mu-mu, a dilepton-mass axis so the
+# DYto2Mu_MLL_105to160 amcatnlo sample is stitched in. Per-flavor cross-sections
+# (= all-flavor / 3) are used; the mu-mu window fraction f = sigma(105-160)/sigma(m>50).
+crossSections: { }
+totalCrossSectionScaling: DY_NNLO_QCD_NLO_EW / DYto2L_M_50_amcatnloFXFX_singleFlavor
+bins:
+  - name: NpNLO_0_e
+    selection: "(LHE_NpNLO == 0) && LHE_dilep_flavor == 11"
+    crossSection: DYto2L_M_50_0J_amcatnloFXFX_singleFlavor
+  - name: NpNLO_0_tau
+    selection: "(LHE_NpNLO == 0) && LHE_dilep_flavor == 15"
+    crossSection: DYto2L_M_50_0J_amcatnloFXFX_singleFlavor
+  - name: NpNLO_0_mu_mll_105_160
+    selection: "(LHE_NpNLO == 0) && LHE_dilep_flavor == 13 && LHE_mll >= 105 && LHE_mll < 160"
+    crossSection: (DYto2L_M_50_0J_amcatnloFXFX_singleFlavor) * (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor)
+  - name: NpNLO_0_mu_mll_other
+    selection: "(LHE_NpNLO == 0) && LHE_dilep_flavor == 13 && !(LHE_mll >= 105 && LHE_mll < 160)"
+    crossSection: (DYto2L_M_50_0J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor))
+  - name: Vpt_0_40_NpNLO_1_e
+    selection: "(LHE_Vpt >= 0 && LHE_Vpt < 40 && LHE_NpNLO == 1) && LHE_dilep_flavor == 11"
+    crossSection: DYto2L_M_50_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_600_1J_amcatnloFXFX_singleFlavor
+  - name: Vpt_0_40_NpNLO_1_tau
+    selection: "(LHE_Vpt >= 0 && LHE_Vpt < 40 && LHE_NpNLO == 1) && LHE_dilep_flavor == 15"
+    crossSection: DYto2L_M_50_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_600_1J_amcatnloFXFX_singleFlavor
+  - name: Vpt_0_40_NpNLO_1_mu_mll_105_160
+    selection: "(LHE_Vpt >= 0 && LHE_Vpt < 40 && LHE_NpNLO == 1) && LHE_dilep_flavor == 13 && LHE_mll >= 105 && LHE_mll < 160"
+    crossSection: (DYto2L_M_50_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_600_1J_amcatnloFXFX_singleFlavor) * (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor)
+  - name: Vpt_0_40_NpNLO_1_mu_mll_other
+    selection: "(LHE_Vpt >= 0 && LHE_Vpt < 40 && LHE_NpNLO == 1) && LHE_dilep_flavor == 13 && !(LHE_mll >= 105 && LHE_mll < 160)"
+    crossSection: (DYto2L_M_50_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_600_1J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor))
+  - name: Vpt_0_40_NpNLO_2_e
+    selection: "(LHE_Vpt >= 0 && LHE_Vpt < 40 && LHE_NpNLO == 2) && LHE_dilep_flavor == 11"
+    crossSection: DYto2L_M_50_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_singleFlavor
+  - name: Vpt_0_40_NpNLO_2_tau
+    selection: "(LHE_Vpt >= 0 && LHE_Vpt < 40 && LHE_NpNLO == 2) && LHE_dilep_flavor == 15"
+    crossSection: DYto2L_M_50_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_singleFlavor
+  - name: Vpt_0_40_NpNLO_2_mu_mll_105_160
+    selection: "(LHE_Vpt >= 0 && LHE_Vpt < 40 && LHE_NpNLO == 2) && LHE_dilep_flavor == 13 && LHE_mll >= 105 && LHE_mll < 160"
+    crossSection: (DYto2L_M_50_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_singleFlavor) * (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor)
+  - name: Vpt_0_40_NpNLO_2_mu_mll_other
+    selection: "(LHE_Vpt >= 0 && LHE_Vpt < 40 && LHE_NpNLO == 2) && LHE_dilep_flavor == 13 && !(LHE_mll >= 105 && LHE_mll < 160)"
+    crossSection: (DYto2L_M_50_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor))
+  - name: Vpt_40_100_NpNLO_1_e
+    selection: "(LHE_Vpt >= 40 && LHE_Vpt < 100 && LHE_NpNLO == 1) && LHE_dilep_flavor == 11"
+    crossSection: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_singleFlavor
+  - name: Vpt_40_100_NpNLO_1_tau
+    selection: "(LHE_Vpt >= 40 && LHE_Vpt < 100 && LHE_NpNLO == 1) && LHE_dilep_flavor == 15"
+    crossSection: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_singleFlavor
+  - name: Vpt_40_100_NpNLO_1_mu_mll_105_160
+    selection: "(LHE_Vpt >= 40 && LHE_Vpt < 100 && LHE_NpNLO == 1) && LHE_dilep_flavor == 13 && LHE_mll >= 105 && LHE_mll < 160"
+    crossSection: (DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_singleFlavor) * (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor)
+  - name: Vpt_40_100_NpNLO_1_mu_mll_other
+    selection: "(LHE_Vpt >= 40 && LHE_Vpt < 100 && LHE_NpNLO == 1) && LHE_dilep_flavor == 13 && !(LHE_mll >= 105 && LHE_mll < 160)"
+    crossSection: (DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor))
+  - name: Vpt_40_100_NpNLO_2_e
+    selection: "(LHE_Vpt >= 40 && LHE_Vpt < 100 && LHE_NpNLO == 2) && LHE_dilep_flavor == 11"
+    crossSection: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_singleFlavor
+  - name: Vpt_40_100_NpNLO_2_tau
+    selection: "(LHE_Vpt >= 40 && LHE_Vpt < 100 && LHE_NpNLO == 2) && LHE_dilep_flavor == 15"
+    crossSection: DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_singleFlavor
+  - name: Vpt_40_100_NpNLO_2_mu_mll_105_160
+    selection: "(LHE_Vpt >= 40 && LHE_Vpt < 100 && LHE_NpNLO == 2) && LHE_dilep_flavor == 13 && LHE_mll >= 105 && LHE_mll < 160"
+    crossSection: (DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_singleFlavor) * (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor)
+  - name: Vpt_40_100_NpNLO_2_mu_mll_other
+    selection: "(LHE_Vpt >= 40 && LHE_Vpt < 100 && LHE_NpNLO == 2) && LHE_dilep_flavor == 13 && !(LHE_mll >= 105 && LHE_mll < 160)"
+    crossSection: (DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor))
+  - name: Vpt_100_200_NpNLO_1_e
+    selection: "(LHE_Vpt >= 100 && LHE_Vpt < 200 && LHE_NpNLO == 1) && LHE_dilep_flavor == 11"
+    crossSection: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX_singleFlavor
+  - name: Vpt_100_200_NpNLO_1_tau
+    selection: "(LHE_Vpt >= 100 && LHE_Vpt < 200 && LHE_NpNLO == 1) && LHE_dilep_flavor == 15"
+    crossSection: DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX_singleFlavor
+  - name: Vpt_100_200_NpNLO_1_mu_mll_105_160
+    selection: "(LHE_Vpt >= 100 && LHE_Vpt < 200 && LHE_NpNLO == 1) && LHE_dilep_flavor == 13 && LHE_mll >= 105 && LHE_mll < 160"
+    crossSection: (DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX_singleFlavor) * (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor)
+  - name: Vpt_100_200_NpNLO_1_mu_mll_other
+    selection: "(LHE_Vpt >= 100 && LHE_Vpt < 200 && LHE_NpNLO == 1) && LHE_dilep_flavor == 13 && !(LHE_mll >= 105 && LHE_mll < 160)"
+    crossSection: (DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor))
+  - name: Vpt_100_200_NpNLO_2_e
+    selection: "(LHE_Vpt >= 100 && LHE_Vpt < 200 && LHE_NpNLO == 2) && LHE_dilep_flavor == 11"
+    crossSection: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX_singleFlavor
+  - name: Vpt_100_200_NpNLO_2_tau
+    selection: "(LHE_Vpt >= 100 && LHE_Vpt < 200 && LHE_NpNLO == 2) && LHE_dilep_flavor == 15"
+    crossSection: DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX_singleFlavor
+  - name: Vpt_100_200_NpNLO_2_mu_mll_105_160
+    selection: "(LHE_Vpt >= 100 && LHE_Vpt < 200 && LHE_NpNLO == 2) && LHE_dilep_flavor == 13 && LHE_mll >= 105 && LHE_mll < 160"
+    crossSection: (DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX_singleFlavor) * (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor)
+  - name: Vpt_100_200_NpNLO_2_mu_mll_other
+    selection: "(LHE_Vpt >= 100 && LHE_Vpt < 200 && LHE_NpNLO == 2) && LHE_dilep_flavor == 13 && !(LHE_mll >= 105 && LHE_mll < 160)"
+    crossSection: (DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor))
+  - name: Vpt_200_400_NpNLO_1_e
+    selection: "(LHE_Vpt >= 200 && LHE_Vpt < 400 && LHE_NpNLO == 1) && LHE_dilep_flavor == 11"
+    crossSection: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX_singleFlavor
+  - name: Vpt_200_400_NpNLO_1_tau
+    selection: "(LHE_Vpt >= 200 && LHE_Vpt < 400 && LHE_NpNLO == 1) && LHE_dilep_flavor == 15"
+    crossSection: DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX_singleFlavor
+  - name: Vpt_200_400_NpNLO_1_mu_mll_105_160
+    selection: "(LHE_Vpt >= 200 && LHE_Vpt < 400 && LHE_NpNLO == 1) && LHE_dilep_flavor == 13 && LHE_mll >= 105 && LHE_mll < 160"
+    crossSection: (DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX_singleFlavor) * (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor)
+  - name: Vpt_200_400_NpNLO_1_mu_mll_other
+    selection: "(LHE_Vpt >= 200 && LHE_Vpt < 400 && LHE_NpNLO == 1) && LHE_dilep_flavor == 13 && !(LHE_mll >= 105 && LHE_mll < 160)"
+    crossSection: (DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor))
+  - name: Vpt_200_400_NpNLO_2_e
+    selection: "(LHE_Vpt >= 200 && LHE_Vpt < 400 && LHE_NpNLO == 2) && LHE_dilep_flavor == 11"
+    crossSection: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX_singleFlavor
+  - name: Vpt_200_400_NpNLO_2_tau
+    selection: "(LHE_Vpt >= 200 && LHE_Vpt < 400 && LHE_NpNLO == 2) && LHE_dilep_flavor == 15"
+    crossSection: DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX_singleFlavor
+  - name: Vpt_200_400_NpNLO_2_mu_mll_105_160
+    selection: "(LHE_Vpt >= 200 && LHE_Vpt < 400 && LHE_NpNLO == 2) && LHE_dilep_flavor == 13 && LHE_mll >= 105 && LHE_mll < 160"
+    crossSection: (DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX_singleFlavor) * (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor)
+  - name: Vpt_200_400_NpNLO_2_mu_mll_other
+    selection: "(LHE_Vpt >= 200 && LHE_Vpt < 400 && LHE_NpNLO == 2) && LHE_dilep_flavor == 13 && !(LHE_mll >= 105 && LHE_mll < 160)"
+    crossSection: (DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor))
+  - name: Vpt_400_600_NpNLO_1_e
+    selection: "(LHE_Vpt >= 400 && LHE_Vpt < 600 && LHE_NpNLO == 1) && LHE_dilep_flavor == 11"
+    crossSection: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX_singleFlavor
+  - name: Vpt_400_600_NpNLO_1_tau
+    selection: "(LHE_Vpt >= 400 && LHE_Vpt < 600 && LHE_NpNLO == 1) && LHE_dilep_flavor == 15"
+    crossSection: DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX_singleFlavor
+  - name: Vpt_400_600_NpNLO_1_mu_mll_105_160
+    selection: "(LHE_Vpt >= 400 && LHE_Vpt < 600 && LHE_NpNLO == 1) && LHE_dilep_flavor == 13 && LHE_mll >= 105 && LHE_mll < 160"
+    crossSection: (DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX_singleFlavor) * (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor)
+  - name: Vpt_400_600_NpNLO_1_mu_mll_other
+    selection: "(LHE_Vpt >= 400 && LHE_Vpt < 600 && LHE_NpNLO == 1) && LHE_dilep_flavor == 13 && !(LHE_mll >= 105 && LHE_mll < 160)"
+    crossSection: (DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor))
+  - name: Vpt_400_600_NpNLO_2_e
+    selection: "(LHE_Vpt >= 400 && LHE_Vpt < 600 && LHE_NpNLO == 2) && LHE_dilep_flavor == 11"
+    crossSection: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX_singleFlavor
+  - name: Vpt_400_600_NpNLO_2_tau
+    selection: "(LHE_Vpt >= 400 && LHE_Vpt < 600 && LHE_NpNLO == 2) && LHE_dilep_flavor == 15"
+    crossSection: DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX_singleFlavor
+  - name: Vpt_400_600_NpNLO_2_mu_mll_105_160
+    selection: "(LHE_Vpt >= 400 && LHE_Vpt < 600 && LHE_NpNLO == 2) && LHE_dilep_flavor == 13 && LHE_mll >= 105 && LHE_mll < 160"
+    crossSection: (DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX_singleFlavor) * (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor)
+  - name: Vpt_400_600_NpNLO_2_mu_mll_other
+    selection: "(LHE_Vpt >= 400 && LHE_Vpt < 600 && LHE_NpNLO == 2) && LHE_dilep_flavor == 13 && !(LHE_mll >= 105 && LHE_mll < 160)"
+    crossSection: (DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor))
+  - name: Vpt_600_inf_NpNLO_1_e
+    selection: "(LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 1) && LHE_dilep_flavor == 11"
+    crossSection: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX_singleFlavor
+  - name: Vpt_600_inf_NpNLO_1_tau
+    selection: "(LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 1) && LHE_dilep_flavor == 15"
+    crossSection: DYto2L_M_50_PTLL_600_1J_amcatnloFXFX_singleFlavor
+  - name: Vpt_600_inf_NpNLO_1_mu_mll_105_160
+    selection: "(LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 1) && LHE_dilep_flavor == 13 && LHE_mll >= 105 && LHE_mll < 160"
+    crossSection: (DYto2L_M_50_PTLL_600_1J_amcatnloFXFX_singleFlavor) * (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor)
+  - name: Vpt_600_inf_NpNLO_1_mu_mll_other
+    selection: "(LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 1) && LHE_dilep_flavor == 13 && !(LHE_mll >= 105 && LHE_mll < 160)"
+    crossSection: (DYto2L_M_50_PTLL_600_1J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor))
+  - name: Vpt_600_inf_NpNLO_2_e
+    selection: "(LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 2) && LHE_dilep_flavor == 11"
+    crossSection: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_singleFlavor
+  - name: Vpt_600_inf_NpNLO_2_tau
+    selection: "(LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 2) && LHE_dilep_flavor == 15"
+    crossSection: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_singleFlavor
+  - name: Vpt_600_inf_NpNLO_2_mu_mll_105_160
+    selection: "(LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 2) && LHE_dilep_flavor == 13 && LHE_mll >= 105 && LHE_mll < 160"
+    crossSection: (DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_singleFlavor) * (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor)
+  - name: Vpt_600_inf_NpNLO_2_mu_mll_other
+    selection: "(LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 2) && LHE_dilep_flavor == 13 && !(LHE_mll >= 105 && LHE_mll < 160)"
+    crossSection: (DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Mu_MLL_105to160_amcatnloFXFX / DYto2L_M_50_amcatnloFXFX_singleFlavor))

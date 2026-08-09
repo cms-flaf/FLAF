@@ -293,6 +293,7 @@ if __name__ == "__main__":
     parser.add_argument("--is-data", action="store_true")
     parser.add_argument("--LAWrunVersion", required=True, type=str)
     parser.add_argument("--runs", required=False, nargs="+", type=int, default=[])
+    parser.add_argument("--user-custom", type=str, default=None)
     args = parser.parse_args()
 
     setup = Setup.getGlobal(
@@ -300,6 +301,7 @@ if __name__ == "__main__":
         args.period,
         args.LAWrunVersion,
         customisations=args.customisations,
+        user_custom_file=args.user_custom,
     )
 
     report_files = DeserializeObjectFromString(args.input_reports)

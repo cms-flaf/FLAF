@@ -69,6 +69,7 @@ if __name__ == "__main__":
     parser.add_argument("--period", required=True, type=str)
     parser.add_argument("--producer", required=True, type=str)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
+    parser.add_argument("--user-custom", type=str, default=None)
     args = parser.parse_args()
 
     ana_path = os.environ["ANALYSIS_PATH"]
@@ -78,7 +79,10 @@ if __name__ == "__main__":
         DeclareHeader(os.environ["ANALYSIS_PATH"] + "/" + header)
 
     setup = Setup.getGlobal(
-        os.environ["ANALYSIS_PATH"], args.period, args.LAWrunVersion
+        os.environ["ANALYSIS_PATH"],
+        args.period,
+        args.LAWrunVersion,
+        user_custom_file=args.user_custom,
     )
 
     aggregate_caches(

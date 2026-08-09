@@ -267,6 +267,7 @@ if __name__ == "__main__":
     parser.add_argument("--workingDir", required=True, type=str)
     parser.add_argument("--histTupleDef", type=str)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
+    parser.add_argument("--user-custom", type=str, default=None)
     args = parser.parse_args()
 
     startTime = time.time()
@@ -278,7 +279,10 @@ if __name__ == "__main__":
         DeclareHeader(os.environ["ANALYSIS_PATH"] + "/" + header)
 
     setup = Setup.getGlobal(
-        os.environ["ANALYSIS_PATH"], args.period, args.LAWrunVersion
+        os.environ["ANALYSIS_PATH"],
+        args.period,
+        args.LAWrunVersion,
+        user_custom_file=args.user_custom,
     )
     producer_config = setup.global_params["payload_producers"][args.producer]
     histTupleDef = Utilities.load_module(args.histTupleDef)

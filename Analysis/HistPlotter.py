@@ -184,6 +184,7 @@ if __name__ == "__main__":
     parser.add_argument("--ana_path", required=True, type=str)
     parser.add_argument("--period", required=True, type=str)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
+    parser.add_argument("--user-custom", type=str, default=None)
     parser.add_argument(
         "--compute_unc_histograms",
         required=False,
@@ -204,7 +205,12 @@ if __name__ == "__main__":
         os.environ["ANALYSIS_PATH"], "config", "plot/histograms.yaml"
     )
 
-    setup = Setup.Setup(args.ana_path, args.period, args.LAWrunVersion)
+    setup = Setup.Setup(
+        args.ana_path,
+        args.period,
+        args.LAWrunVersion,
+        user_custom_file=args.user_custom,
+    )
 
     #### config opening ####
     with open(hist_cfg, "r") as f:

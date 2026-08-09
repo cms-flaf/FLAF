@@ -1,0 +1,86 @@
+# DY (single-flavor tau-tau) Vpt/NpNLO stitching with an added Z->tautau gen-filter
+# axis, so the tau-tau filtered DYto2Tau samples can be stitched in on top of the
+# inclusive DY (for HH_bbtautau). The in-filter cross-section fraction is the ttau
+# filter efficiency, taken per NpNLO jet multiplicity (0/1/2 J); the filtered sample
+# only adds statistics inside the filter-passing region.
+crossSections: { }
+totalCrossSectionScaling: DY_NNLO_QCD_NLO_EW / DYto2L_M_50_amcatnloFXFX_singleFlavor
+bins:
+  - name: NpNLO_0_ttFilter
+    selection: "(LHE_NpNLO == 0) && DY_tautau_filter == 1"
+    crossSection: (DYto2L_M_50_0J_amcatnloFXFX_singleFlavor) * (DYto2Tau_M_50_0J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_0J_amcatnloFXFX_singleFlavor)
+  - name: NpNLO_0_ttOther
+    selection: "(LHE_NpNLO == 0) && DY_tautau_filter == 0"
+    crossSection: (DYto2L_M_50_0J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Tau_M_50_0J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_0J_amcatnloFXFX_singleFlavor))
+  - name: Vpt_0_40_NpNLO_1_ttFilter
+    selection: "(LHE_Vpt >= 0 && LHE_Vpt < 40 && LHE_NpNLO == 1) && DY_tautau_filter == 1"
+    crossSection: (DYto2L_M_50_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_600_1J_amcatnloFXFX_singleFlavor) * (DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_1J_amcatnloFXFX_singleFlavor)
+  - name: Vpt_0_40_NpNLO_1_ttOther
+    selection: "(LHE_Vpt >= 0 && LHE_Vpt < 40 && LHE_NpNLO == 1) && DY_tautau_filter == 0"
+    crossSection: (DYto2L_M_50_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_600_1J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_1J_amcatnloFXFX_singleFlavor))
+  - name: Vpt_0_40_NpNLO_2_ttFilter
+    selection: "(LHE_Vpt >= 0 && LHE_Vpt < 40 && LHE_NpNLO == 2) && DY_tautau_filter == 1"
+    crossSection: (DYto2L_M_50_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_singleFlavor) * (DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_2J_amcatnloFXFX_singleFlavor)
+  - name: Vpt_0_40_NpNLO_2_ttOther
+    selection: "(LHE_Vpt >= 0 && LHE_Vpt < 40 && LHE_NpNLO == 2) && DY_tautau_filter == 0"
+    crossSection: (DYto2L_M_50_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX_singleFlavor - DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_2J_amcatnloFXFX_singleFlavor))
+  - name: Vpt_40_100_NpNLO_1_ttFilter
+    selection: "(LHE_Vpt >= 40 && LHE_Vpt < 100 && LHE_NpNLO == 1) && DY_tautau_filter == 1"
+    crossSection: (DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_singleFlavor) * (DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_1J_amcatnloFXFX_singleFlavor)
+  - name: Vpt_40_100_NpNLO_1_ttOther
+    selection: "(LHE_Vpt >= 40 && LHE_Vpt < 100 && LHE_NpNLO == 1) && DY_tautau_filter == 0"
+    crossSection: (DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_1J_amcatnloFXFX_singleFlavor))
+  - name: Vpt_40_100_NpNLO_2_ttFilter
+    selection: "(LHE_Vpt >= 40 && LHE_Vpt < 100 && LHE_NpNLO == 2) && DY_tautau_filter == 1"
+    crossSection: (DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_singleFlavor) * (DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_2J_amcatnloFXFX_singleFlavor)
+  - name: Vpt_40_100_NpNLO_2_ttOther
+    selection: "(LHE_Vpt >= 40 && LHE_Vpt < 100 && LHE_NpNLO == 2) && DY_tautau_filter == 0"
+    crossSection: (DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_2J_amcatnloFXFX_singleFlavor))
+  - name: Vpt_100_200_NpNLO_1_ttFilter
+    selection: "(LHE_Vpt >= 100 && LHE_Vpt < 200 && LHE_NpNLO == 1) && DY_tautau_filter == 1"
+    crossSection: (DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX_singleFlavor) * (DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_1J_amcatnloFXFX_singleFlavor)
+  - name: Vpt_100_200_NpNLO_1_ttOther
+    selection: "(LHE_Vpt >= 100 && LHE_Vpt < 200 && LHE_NpNLO == 1) && DY_tautau_filter == 0"
+    crossSection: (DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_1J_amcatnloFXFX_singleFlavor))
+  - name: Vpt_100_200_NpNLO_2_ttFilter
+    selection: "(LHE_Vpt >= 100 && LHE_Vpt < 200 && LHE_NpNLO == 2) && DY_tautau_filter == 1"
+    crossSection: (DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX_singleFlavor) * (DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_2J_amcatnloFXFX_singleFlavor)
+  - name: Vpt_100_200_NpNLO_2_ttOther
+    selection: "(LHE_Vpt >= 100 && LHE_Vpt < 200 && LHE_NpNLO == 2) && DY_tautau_filter == 0"
+    crossSection: (DYto2L_M_50_PTLL_100to200_2J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_2J_amcatnloFXFX_singleFlavor))
+  - name: Vpt_200_400_NpNLO_1_ttFilter
+    selection: "(LHE_Vpt >= 200 && LHE_Vpt < 400 && LHE_NpNLO == 1) && DY_tautau_filter == 1"
+    crossSection: (DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX_singleFlavor) * (DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_1J_amcatnloFXFX_singleFlavor)
+  - name: Vpt_200_400_NpNLO_1_ttOther
+    selection: "(LHE_Vpt >= 200 && LHE_Vpt < 400 && LHE_NpNLO == 1) && DY_tautau_filter == 0"
+    crossSection: (DYto2L_M_50_PTLL_200to400_1J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_1J_amcatnloFXFX_singleFlavor))
+  - name: Vpt_200_400_NpNLO_2_ttFilter
+    selection: "(LHE_Vpt >= 200 && LHE_Vpt < 400 && LHE_NpNLO == 2) && DY_tautau_filter == 1"
+    crossSection: (DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX_singleFlavor) * (DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_2J_amcatnloFXFX_singleFlavor)
+  - name: Vpt_200_400_NpNLO_2_ttOther
+    selection: "(LHE_Vpt >= 200 && LHE_Vpt < 400 && LHE_NpNLO == 2) && DY_tautau_filter == 0"
+    crossSection: (DYto2L_M_50_PTLL_200to400_2J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_2J_amcatnloFXFX_singleFlavor))
+  - name: Vpt_400_600_NpNLO_1_ttFilter
+    selection: "(LHE_Vpt >= 400 && LHE_Vpt < 600 && LHE_NpNLO == 1) && DY_tautau_filter == 1"
+    crossSection: (DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX_singleFlavor) * (DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_1J_amcatnloFXFX_singleFlavor)
+  - name: Vpt_400_600_NpNLO_1_ttOther
+    selection: "(LHE_Vpt >= 400 && LHE_Vpt < 600 && LHE_NpNLO == 1) && DY_tautau_filter == 0"
+    crossSection: (DYto2L_M_50_PTLL_400to600_1J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_1J_amcatnloFXFX_singleFlavor))
+  - name: Vpt_400_600_NpNLO_2_ttFilter
+    selection: "(LHE_Vpt >= 400 && LHE_Vpt < 600 && LHE_NpNLO == 2) && DY_tautau_filter == 1"
+    crossSection: (DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX_singleFlavor) * (DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_2J_amcatnloFXFX_singleFlavor)
+  - name: Vpt_400_600_NpNLO_2_ttOther
+    selection: "(LHE_Vpt >= 400 && LHE_Vpt < 600 && LHE_NpNLO == 2) && DY_tautau_filter == 0"
+    crossSection: (DYto2L_M_50_PTLL_400to600_2J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_2J_amcatnloFXFX_singleFlavor))
+  - name: Vpt_600_inf_NpNLO_1_ttFilter
+    selection: "(LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 1) && DY_tautau_filter == 1"
+    crossSection: (DYto2L_M_50_PTLL_600_1J_amcatnloFXFX_singleFlavor) * (DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_1J_amcatnloFXFX_singleFlavor)
+  - name: Vpt_600_inf_NpNLO_1_ttOther
+    selection: "(LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 1) && DY_tautau_filter == 0"
+    crossSection: (DYto2L_M_50_PTLL_600_1J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Tau_M_50_1J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_1J_amcatnloFXFX_singleFlavor))
+  - name: Vpt_600_inf_NpNLO_2_ttFilter
+    selection: "(LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 2) && DY_tautau_filter == 1"
+    crossSection: (DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_singleFlavor) * (DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_2J_amcatnloFXFX_singleFlavor)
+  - name: Vpt_600_inf_NpNLO_2_ttOther
+    selection: "(LHE_Vpt >= 600 && LHE_Vpt < 10000 && LHE_NpNLO == 2) && DY_tautau_filter == 0"
+    crossSection: (DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_singleFlavor) * (1 - (DYto2Tau_M_50_2J_Filtered_amcatnloFXFX_singleFlavor / DYto2L_M_50_2J_amcatnloFXFX_singleFlavor))

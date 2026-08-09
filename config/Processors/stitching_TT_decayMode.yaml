@@ -1,0 +1,12 @@
+crossSections: { }
+totalCrossSection: TT
+bins:
+  - name: TT_2L2Nu
+    selection: "TT_n_leptonic_W >= 2"
+    crossSection: TTto2L2Nu
+  - name: TT_LNu2Q
+    selection: "TT_n_leptonic_W == 1"
+    crossSection: TTtoLNu2Q
+  - name: TT_4Q
+    selection: "TT_n_leptonic_W <= 0"
+    crossSection: TTto4Q

@@ -1678,7 +1678,14 @@ class PreHistTupleProductionTask(HistTupleProducerTask):
     runs the entire AnaTuple/AnalysisCache subset (e.g. to freeze and share the caches, as
     AnaTupleMergeTask outputs already can be)."""
 
-    @HistTupleProducerTask.workflow_condition.output
+    # Own copy of the parent's dynamic workflow condition. Decorating ``.output`` below mutates
+    # the condition instance (sets its ``_output_fn``); reusing HistTupleProducerTask's shared
+    # instance would rebind every HistTupleProducerTask branch to this ``.done`` marker and break
+    # real histTuple production. The copy keeps the inherited create_branch_map/requires; only the
+    # output differs.
+    workflow_condition = HistTupleProducerTask.workflow_condition.copy()
+
+    @workflow_condition.output
     def output(self):
         dataset_name, prod_br, producer_list, aggregate_list, input_index = (
             self.branch_data

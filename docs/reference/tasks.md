@@ -68,13 +68,13 @@ consume.
 
 - **Parameter:** `--producer-to-aggregate`.
 
-### `ProductionTask`
+### `PreHistTupleProductionTask`
 Runs the **entire AnaTuple + AnalysisCache production** for a version in one command, without
 producing histTuples. It shares `HistTupleProducerTask`'s dependency graph but writes only a small
 per-branch completion marker, so a single
 
 ```sh
-law run FLAF.Analysis.tasks.ProductionTask --version <v> --period <era> --workflow local
+law run FLAF.Analysis.tasks.PreHistTupleProductionTask --version <v> --period <era> --workflow local
 ```
 
 forces every `AnaTupleMergeTask` and `AnalysisCacheTask` (plus their aggregation) to run — handy

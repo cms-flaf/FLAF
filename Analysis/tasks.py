@@ -1668,14 +1668,14 @@ class AnalysisCacheAggregationTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 shutil.rmtree(job_home)
 
 
-class ProductionTask(HistTupleProducerTask):
+class PreHistTupleProductionTask(HistTupleProducerTask):
     """Force the full AnaTuple + AnalysisCache production for a version without producing
     HistTuples (issue #214).
 
     Reuses HistTupleProducerTask's dependency graph (AnaTupleMerge + AnalysisCache +
     aggregation) but replaces the per-branch histTuple output with a small completion
-    marker, so a single ``law run ProductionTask --version ... --period ...`` runs the
-    entire AnaTuple/AnalysisCache subset (e.g. to freeze and share the caches, as
+    marker, so a single ``law run PreHistTupleProductionTask --version ... --period ...``
+    runs the entire AnaTuple/AnalysisCache subset (e.g. to freeze and share the caches, as
     AnaTupleMergeTask outputs already can be)."""
 
     @HistTupleProducerTask.workflow_condition.output
@@ -1686,7 +1686,7 @@ class ProductionTask(HistTupleProducerTask):
         input = _anaTuple_outputs(self)[prod_br][input_index]
         output_path = os.path.join(
             self.version,
-            "Production",
+            "PreHistTupleProduction",
             self.period,
             dataset_name,
             os.path.basename(input.abspath) + ".done",

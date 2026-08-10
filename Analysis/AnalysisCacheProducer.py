@@ -260,7 +260,9 @@ if __name__ == "__main__":
     parser.add_argument("--cacheFiles", required=False, type=str, default=None)
     parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--producer", type=str, default=None)
-    parser.add_argument("--compute_unc_variations", type=bool, default=False)
+    parser.add_argument(
+        "--compute_unc_variations", type=Utilities.str_to_bool, default=False
+    )
     parser.add_argument("--compressionLevel", type=int, default=9)
     parser.add_argument("--compressionAlgo", type=str, default="LZMA")
     parser.add_argument("--channels", type=str, default=None)

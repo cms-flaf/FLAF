@@ -3,6 +3,7 @@ import sys
 import os
 import math
 from FLAF.RunKit.run_tools import ps_call
+from FLAF.Common.Utilities import str_to_bool
 
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
@@ -200,7 +201,7 @@ if __name__ == "__main__":
     parser.add_argument("--sampleConfig", required=True, type=str)
     parser.add_argument("--bckgConfig", required=True, type=str)
     parser.add_argument("--uncConfig", required=True, type=str)
-    parser.add_argument("--wantBTag", required=False, type=bool, default=False)
+    parser.add_argument("--wantBTag", required=False, type=str_to_bool, default=False)
     parser.add_argument("--suffix", required=False, type=str, default="")
     parser.add_argument("--var", required=False, type=str, default="tau1_pt")
     args = parser.parse_args()

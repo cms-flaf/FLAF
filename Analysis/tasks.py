@@ -422,7 +422,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         compute_unc_histograms = (
             customisation_dict.get("compute_unc_histograms") == "True"
             if "compute_unc_histograms" in customisation_dict
-            else self.global_params.get("compute_unc_histograms", False)
+            else self.setup.compute_unc_histograms
         )
         job_home, remove_job_home = self.law_job_home()
         with contextlib.ExitStack() as stack:
@@ -657,7 +657,7 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         compute_unc_histograms = (
             customisation_dict["compute_unc_histograms"] == "True"
             if "compute_unc_histograms" in customisation_dict.keys()
-            else self.global_params.get("compute_unc_histograms", False)
+            else self.setup.compute_unc_histograms
         )
         HistFromNtupleProducer = os.path.join(
             self._flaf_root(), "Analysis", "HistProducerFromNTuple.py"
@@ -871,7 +871,7 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         compute_unc_histograms = (
             customisation_dict["compute_unc_histograms"] == "True"
             if "compute_unc_histograms" in customisation_dict.keys()
-            else self.global_params.get("compute_unc_histograms", False)
+            else self.setup.compute_unc_histograms
         )
         if compute_unc_histograms:
             for uncName in list(unc_cfg_dict["norm"].keys()) + list(
@@ -1405,7 +1405,11 @@ class HistPlotTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         )
         # Same resolution as in HistMergerTask: it decides whether the merged file holds the
         # up/down variations that the full-uncertainty band and ratio panel are built from.
-        compute_unc_histograms = bool_flag("compute_unc_histograms", False)
+        compute_unc_histograms = (
+            customisation_dict["compute_unc_histograms"] == "True"
+            if "compute_unc_histograms" in customisation_dict
+            else self.setup.compute_unc_histograms
+        )
 
         with self.input().localize("r") as local_input:
             infile = local_input.abspath

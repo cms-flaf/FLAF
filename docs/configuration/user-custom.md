@@ -33,7 +33,7 @@ Replace `<initial>`/`<user>` with yours (e.g. `k` / `kandroso`). With just this,
 | `phys_model` | string | Which [physics model](processes-and-models.md) to run: `TestModel` (small, for testing/CI) or the analysis's production model (e.g. `BaseModel`). |
 | `analysis_config_area` | string | The analysis config directory, relative to the checkout — normally `config`. |
 | `compute_unc_variations` | bool | Whether to compute systematic (up/down) variations during production. |
-| `compute_unc_histograms` | bool | Whether to also fill histograms for those variations. |
+| `compute_unc_histograms` | bool | Whether to also fill histograms for those variations. Prefer setting this **per histTuple flavor** in `global.yaml` (`histTuple_flavors.<flavor>.compute_unc_histograms`) — uncertainties are usually only needed for the limit-setting shape flavor, so the flavor should dictate it. The value here (or in `global.yaml`) is used as the fallback when the active flavor does not set it. |
 | `store_noncentral` | bool | Whether to keep the non-central (systematic-shift) outputs, not just the central one. |
 | `variables` | list | Restrict which variables are produced/plotted. Omit for the full set. |
 

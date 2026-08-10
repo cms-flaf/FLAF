@@ -1680,7 +1680,9 @@ class ProductionTask(HistTupleProducerTask):
 
     @HistTupleProducerTask.workflow_condition.output
     def output(self):
-        dataset_name, prod_br, producer_list, aggregate_list, input_index = self.branch_data
+        dataset_name, prod_br, producer_list, aggregate_list, input_index = (
+            self.branch_data
+        )
         input = _anaTuple_outputs(self)[prod_br][input_index]
         output_path = os.path.join(
             self.version,

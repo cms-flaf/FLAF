@@ -176,7 +176,9 @@ if __name__ == "__main__":
     parser.add_argument("--wantData", required=False, action="store_true")
     parser.add_argument("--wantSignals", required=False, action="store_true")
     parser.add_argument("--wantQCD", required=False, type=str_to_bool, default=False)
-    parser.add_argument("--wantOverflow", required=False, type=str_to_bool, default=False)
+    parser.add_argument(
+        "--wantOverflow", required=False, type=str_to_bool, default=False
+    )
     parser.add_argument("--wantLogScale", required=False, type=str, default="")
     parser.add_argument("--uncSource", required=False, type=str, default="Central")
     parser.add_argument("--year", required=False, type=str, default="Run2_2018")

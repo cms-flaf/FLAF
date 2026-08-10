@@ -175,8 +175,12 @@ if __name__ == "__main__":
     parser.add_argument("--customisations", type=str, default=None)
     parser.add_argument("--channels", type=str, default=None)
     parser.add_argument("--vars", required=True, type=str)
-    parser.add_argument("--compute_unc_variations", type=Utilities.str_to_bool, default=False)
-    parser.add_argument("--compute_rel_weights", type=Utilities.str_to_bool, default=False)
+    parser.add_argument(
+        "--compute_unc_variations", type=Utilities.str_to_bool, default=False
+    )
+    parser.add_argument(
+        "--compute_rel_weights", type=Utilities.str_to_bool, default=False
+    )
     parser.add_argument("--furtherCut", type=str, default=None)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
     parser.add_argument("--nMT", type=int, default=8)

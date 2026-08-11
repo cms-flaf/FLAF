@@ -499,6 +499,15 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             shutil.rmtree(job_home)
 
 
+def _split_merged_marker(split_target):
+    # The per-chunk ``.merged`` marker written next to a HistFromNtupleProducer split histogram
+    # when HistMergerTask removes it after merging (issue #229). Placed beside the split so it is
+    # chunk-specific: a branch whose split was never produced (new dataset, changed
+    # n_files_per_job) has no marker. HistFromNtupleProducerTask.complete() and HistMergerTask.run()
+    # both derive it from the same split target, so the paths always agree.
+    return split_target.sibling(split_target.basename + ".merged", type="f")
+
+
 class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 10.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
@@ -640,37 +649,19 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
             outputs[var_name] = self.remote_target(output_path, fs=self.fs_HistTuple)
         return outputs
 
-    # (version, period, var) -> True once the merged output has been seen (it does not vanish).
-    _merged_present_cache = {}
-
-    def _merged_output_present(self, var_name):
-        key = (self.version, self.period, var_name)
-        if HistFromNtupleProducerTask._merged_present_cache.get(key):
-            return True
-        # Mirrors HistMergerTask.output(): Hists_merged/<period>/<var>/<var>.root
-        merged = self.remote_target(
-            os.path.join(
-                self.version, "Hists_merged", self.period, var_name, f"{var_name}.root"
-            ),
-            fs=self.fs_HistTuple,
-        )
-        if merged.exists():
-            HistFromNtupleProducerTask._merged_present_cache[key] = True
-            return True
-        return False
-
     def complete(self):
-        # Per-chunk split histograms are only needed until their variable is merged
-        # downstream; HistMergerTask can remove each variable's per-chunk inputs after
-        # merging (issue #229, to save space). Treat a branch as complete when, for every
-        # variable, the per-chunk output still exists OR the merged output is already
-        # present -- so removing the intermediates keeps the task graph consistent (law will
-        # not try to re-run this task). Only additive vs the default: never reports a task
-        # incomplete that the default would call complete.
+        # Per-chunk split histograms are only needed until their variable is merged downstream;
+        # HistMergerTask can remove each variable's per-chunk split after merging (issue #229) and
+        # leaves a small ``.merged`` marker next to it. Treat a branch as complete when, for every
+        # variable, the split still exists OR its per-chunk marker is present -- so removing the
+        # intermediates keeps the task graph consistent (law will not re-run this task). The marker
+        # is chunk-specific, so a branch whose split was never produced (e.g. a new dataset or a
+        # changed n_files_per_job, which shift the branch map) has no marker and is still correctly
+        # reported incomplete instead of being masked by an unrelated variable's merged output.
         if not self.is_branch():
             return super().complete()
         for var_name, target in self.output().items():
-            if not target.exists() and not self._merged_output_present(var_name):
+            if not target.exists() and not _split_merged_marker(target).exists():
                 return False
         return True
 
@@ -975,15 +966,20 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 MergerProducer_cmd.extend(local_inputs)
                 ps_call(MergerProducer_cmd, verbose=1)
 
-        # The merged output is now written; the per-chunk split inputs for this variable are
-        # no longer needed. Remove them to save space when enabled (issue #229) --
-        # HistFromNtupleProducerTask stays complete via its merged-output check, so the graph
-        # remains consistent. Opt-in (default off) to preserve the current keep-intermediates
-        # behaviour.
+        # The merged output is now written; the per-chunk split inputs for this variable are no
+        # longer needed. When enabled (issue #229), remove them to save space, leaving a small
+        # per-chunk ``.merged`` marker in place of each so HistFromNtupleProducerTask stays
+        # complete for exactly the chunks that were merged -- the graph remains consistent and a
+        # later-added chunk (no marker) is still produced. Opt-in (default off) to preserve the
+        # current keep-intermediates behaviour. The marker is written before the split is removed
+        # so a failure never leaves a chunk both gone and unmarked.
         if self.global_params.get("remove_merged_inputs", False):
             for inp in self.input():
+                split = inp[var_name]
                 try:
-                    inp[var_name].remove()
+                    with _split_merged_marker(split).localize("w") as marker:
+                        open(marker.abspath, "w").close()
+                    split.remove()
                 except Exception as e:
                     print(
                         f"HistMergerTask: could not remove merged input for {var_name}: {e}"

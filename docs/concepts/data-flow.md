@@ -48,9 +48,12 @@ flowchart TD
 !!! tip "Freeing space: removable intermediates"
     The per-chunk split histograms `HistFromNtupleProducerTask` writes are only needed until they
     are merged. Set `remove_merged_inputs: true` (see
-    [user_custom](../configuration/user-custom.md)) to have `HistMergerTask` delete them after
-    merging — the producer still reports **complete** because it detects the merged output, so the
-    task graph stays consistent and nothing re-runs.
+    [user_custom](../configuration/user-custom.md)) to have `HistMergerTask` delete each split
+    after merging and drop a tiny per-chunk `.merged` marker next to it. The producer still reports
+    **complete** for exactly the chunks that were merged (it finds the split *or* its marker), so
+    the task graph stays consistent and nothing re-runs — while a chunk that was never produced
+    (e.g. after adding a dataset or changing `n_files_per_job`) has no marker and is still produced
+    normally.
 
 ## Where the outputs live
 

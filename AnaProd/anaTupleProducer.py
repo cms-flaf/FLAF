@@ -171,9 +171,10 @@ def createAnatuple(
     runLumiTracker_sum = df.Sum("__runLumiTracker")
     handles_to_run = [runLumiTracker_sum]
     if df_not_selected is not None:
-        df_not_selected = df_not_selected.Filter(
-            runLumiTracker, ["run", "luminosityBlock"]
+        df_not_selected = df_not_selected.Define(
+            "__runLumiTracker", runLumiTracker, ["run", "luminosityBlock"]
         )
+        handles_to_run.append(df_not_selected.Sum("__runLumiTracker"))
 
     shape_sources = [central]
     if "pu" in corrections.to_apply and compute_unc_variations:

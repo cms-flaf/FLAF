@@ -35,6 +35,7 @@ Replace `<initial>`/`<user>` with yours (e.g. `k` / `kandroso`). With just this,
 | `compute_unc_variations` | bool | Whether to compute systematic (up/down) variations during production. |
 | `compute_unc_histograms` | bool | Whether to also fill histograms for those variations. Prefer setting this **per histTuple flavor** in `global.yaml` (`histTuple_flavors.<flavor>.compute_unc_histograms`) — uncertainties are usually only needed for the limit-setting shape flavor, so the flavor should dictate it. The value here (or in `global.yaml`) is used as the fallback when the active flavor does not set it. |
 | `store_noncentral` | bool | Whether to keep the non-central (systematic-shift) outputs, not just the central one. |
+| `remove_merged_inputs` | bool | If `true`, `HistMergerTask` deletes each variable's per-chunk split histograms (`HistFromNtupleProducerTask` outputs) after merging, to save space, leaving a tiny per-chunk `.merged` marker in place of each. Safe: the producer stays "complete" for exactly the chunks that were merged (it finds the split *or* its marker), so the task graph stays consistent (no re-run); a chunk that was never produced has no marker and is still produced. Default `false` — intermediates are kept. |
 | `variables` | list | Restrict which variables are produced/plotted. Omit for the full set. |
 
 !!! tip "`TestModel` is the fast path"

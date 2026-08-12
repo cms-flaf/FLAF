@@ -497,19 +497,34 @@ class AnaTupleFileListBuilderTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
 class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
     bundle_flavours = []
+    # This task only copies the Builder's plan into a local_target, so it is forced to run locally
+    # (its output must land on the shared FS, not an ephemeral HTCondor worker). Forcing
+    # workflow="local" would otherwise leak through req() into the upstream Builder and the heavy
+    # AnaTupleFileTask, making production run locally too. This carrier parameter remembers the
+    # originally requested workflow and is forwarded to the Builder, so Builder and AnaTupleFileTask
+    # run on the requested workflow while this task stays local. It is a parameter (not an attribute)
+    # so it survives req_branch and is identical for the workflow and all its branches, keeping
+    # workflow_requires() and requires() consistent; insignificant so it never affects the task id.
+    upstream_workflow = luigi.Parameter(default=law.NO_STR, significant=False)
 
     def __init__(self, *args, **kwargs):
         ana_v = kwargs.get("ana_version") or kwargs.get("anaTuple_version")
         if ana_v:
             kwargs["version"] = ana_v
+        if kwargs.get("upstream_workflow", law.NO_STR) in (law.NO_STR, None):
+            kwargs["upstream_workflow"] = kwargs.get("workflow") or law.NO_STR
         kwargs["workflow"] = "local"
         super(AnaTupleFileListTask, self).__init__(*args, **kwargs)
 
     def workflow_requires(self):
-        return {"AnaTupleFileListBuilderTask": AnaTupleFileListBuilderTask.req(self)}
+        return {
+            "AnaTupleFileListBuilderTask": AnaTupleFileListBuilderTask.req(
+                self, workflow=self.upstream_workflow
+            )
+        }
 
     def requires(self):
-        return AnaTupleFileListBuilderTask.req(self)
+        return AnaTupleFileListBuilderTask.req(self, workflow=self.upstream_workflow)
 
     def output(self):
         dataset_name, process_group = self.branch_data

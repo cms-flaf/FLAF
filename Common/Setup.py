@@ -451,6 +451,20 @@ class Setup:
                 self.parent_processes[process_name] = processes[process_name]
 
         all_datasets = Config("datasets", self.config_path_order, ["datasets.yaml"])
+        # Copy MC/signal datasets from another era (2025 reuses 2024 Summer24 MC).
+        reuse_mc_era = self.global_params.get("reuse_mc_from_era")
+        if reuse_mc_era:
+            reuse_paths = [
+                os.path.join(self.ana_path, "FLAF", "config", reuse_mc_era),
+                os.path.join(self.ana_path, "config", reuse_mc_era),
+            ]
+            reused = Config(f"datasets_{reuse_mc_era}", reuse_paths, ["datasets.yaml"])
+            for name, desc in reused.items():
+                if name in all_datasets.config_dict:
+                    continue
+                if isinstance(desc, dict) and "eraLetter" in desc:
+                    continue
+                all_datasets.config_dict[name] = desc
         active_datasets = {}
         for process_name, process in self.base_processes.items():
             for dataset_name in process.get("datasets", []):

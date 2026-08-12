@@ -32,7 +32,7 @@ flowchart TD
 |---|---|---|
 | **InputFileTask** | A Rucio query for the requested datasets and era. | The concrete list of NanoAOD files to process. Runs first and cheaply; everything else keys off it. |
 | **AnaTupleFileTask** | One NanoAOD file (one branch per file). | One **anaTuple**: a slimmed/skimmed analysis ntuple with the objects, weights and flags the analysis needs. Runs inside CMSSW via `AnaProd/anaTupleProducer.py`. |
-| **AnaTupleMergeTask** | The per-file anaTuples for a dataset. | One merged anaTuple per dataset (data merged across runs). |
+| **AnaTupleMergeTask** | The per-file anaTuples for a dataset. | One merged anaTuple per dataset (data merged across runs). For 2024/2025 this is also where `weight_base` and `weight_base_cmb` are written. |
 | **HistTupleProducerTask** | Merged anaTuples. | **histTuples**: ntuples with the heavier analysis **observables** computed (the "payload producers"). |
 | **HistFromNtupleProducerTask** | histTuples. | **Histograms** of the requested variables, including systematic variations. Branches over variables. |
 | **HistMergerTask** | Per-piece histograms. | Merged histograms per process, ready for plotting and fitting. |

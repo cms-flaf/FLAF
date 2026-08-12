@@ -12,7 +12,7 @@ data-taking period; choosing one selects the matching datasets, corrections and 
 | `Run3_2023` | 2023, pre-BPix | 13.6 TeV | v13 |
 | `Run3_2023BPix` | 2023, post-BPix install | 13.6 TeV | v13 |
 | `Run3_2024` | 2024 | 13.6 TeV | v15 |
-| `Run3_2025` | 2025 (future) | 13.6 TeV | — |
+| `Run3_2025` | 2025 | 13.6 TeV | v15 |
 
 ## Run 2 eras (legacy)
 
@@ -40,13 +40,21 @@ Each sub-era has its own corrections and luminosity, which is exactly why the
 - **Signals** — resonant/non-resonant signals exist for some eras and not others. For
   `Run3_2024`, VBF and non-resonant ggF HH are on DAS (new `Par-` naming); resonant
   Radion/BulkGraviton and X→YH→2B2W are not.
+- **2024/2025 shared MC** — there is no dedicated 2025 MC campaign. Both years use the
+  Summer24 NanoAOD, but **jet, PU and tau corrections differ**, so AnaTuple production
+  runs twice (once per era). `Run3_2025` sets `reuse_mc_from_era: Run3_2024` so the
+  2024 MC dataset list is reused. Each production stores `weight_base` (all events,
+  this year's luminosity; use for a single-year run) and `weight_base_cmb` (the same
+  events split by luminosity between 2024 and 2025; use for a 24+25 combination).
+  Select which branch histograms use with `weight_base_branch`.
 
 ## Running several eras
 
 A task runs **one era at a time**. To cover multiple eras, launch the task once per era (often
 scripted), or, in CI, list them in the `*_eras` variable (e.g.
 `Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix`, or `ALL`). See the
-[integration pipeline](../ci/integration-pipeline.md).
+[integration pipeline](../ci/integration-pipeline.md). For a 2024+2025 combination,
+run each era with `weight_base_branch: weight_base_cmb` and add the histograms.
 
 !!! warning "`--period` must match an existing era directory"
     If you pass an era that has no `config/<era>/` (or whose datasets are not defined), config

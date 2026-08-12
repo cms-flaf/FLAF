@@ -36,7 +36,8 @@ Replace `<initial>`/`<user>` with yours (e.g. `k` / `kandroso`). With just this,
 | `compute_unc_histograms` | bool | Whether to also fill histograms for those variations. Prefer setting this **per histTuple flavor** in `global.yaml` (`histTuple_flavors.<flavor>.compute_unc_histograms`) — uncertainties are usually only needed for the limit-setting shape flavor, so the flavor should dictate it. The value here (or in `global.yaml`) is used as the fallback when the active flavor does not set it. |
 | `store_noncentral` | bool | Whether to keep the non-central (systematic-shift) outputs, not just the central one. |
 | `remove_merged_inputs` | bool | If `true`, `HistMergerTask` deletes each variable's per-chunk split histograms (`HistFromNtupleProducerTask` outputs) after merging, to save space, leaving a tiny per-chunk `.merged` marker in place of each. Safe: the producer stays "complete" for exactly the chunks that were merged (it finds the split *or* its marker), so the task graph stays consistent (no re-run); a chunk that was never produced has no marker and is still produced. Default `false` — intermediates are kept. |
-| `variables` | list | Restrict which variables are produced/plotted. Omit for the full set. |
+| `variables` | list | Restrict which variables are produced/plotted (applied to the active `histTuple_flavor` list). If that flavor's variable list is empty (e.g. H_mumu `default`), this list is used as the active set. Omit for the full flavor set. |
+| `histTuple_flavor` | string | Optional. Selects which `histTuple_flavors` entry drives the variable lists (e.g. `CI` for the short H_mumu CI set). |
 | `hist_from_ntuple_max_hists` | int | Max histograms `HistFromNtupleProducerTask` books in one RDataFrame pass. The count is variables × selections × (Central + every Up/Down). Default `4000`; `0` disables batching. Lower this (do not raise CI memory) if a job OOMs. |
 
 !!! tip "`TestModel` is the fast path"

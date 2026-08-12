@@ -37,8 +37,9 @@ Each sub-era has its own corrections and luminosity, which is exactly why the
   the correct NanoAOD version path on DAS.
 - **NanoAOD version** — the table above; the dataset entries point at the right `vNN` campaign.
 - **Corrections** — pileup, b-tagging, trigger and other scale factors are era-specific.
-- **Signals** — resonant/non-resonant signals exist for some eras and not others (for instance,
-  several signal families are not produced for `Run3_2024`).
+- **Signals** — resonant/non-resonant signals exist for some eras and not others. For
+  `Run3_2024`, VBF and non-resonant ggF HH are on DAS (new `Par-` naming); resonant
+  Radion/BulkGraviton and X→YH→2B2W are not.
 
 ## Running several eras
 

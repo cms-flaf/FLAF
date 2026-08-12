@@ -495,6 +495,17 @@ class BundleTask(Task):
                         f"No files found for bundle flavour '{self.flavour}'"
                     )
 
+                # CMSSW analysis customisations (HHbtag, ClassicSVfit, …) are installed as
+                # absolute AFS symlinks under soft/CMSSW_*/src. On CRAB those targets do not
+                # exist. Materialize any absolute symlink that points outside the staging
+                # tree so the tarball is self-contained. Relative / internal links stay.
+                if self.flavour == "cmssw":
+                    n_mat = self._materialize_external_symlinks(staging)
+                    if n_mat:
+                        print(
+                            f"bundle[cmssw]: materialized {n_mat} external symlink(s)"
+                        )
+
                 subprocess.run(
                     [
                         "tar",
@@ -510,6 +521,51 @@ class BundleTask(Task):
                     check=True,
                 )
         print(f"bundle[{self.flavour}]: done")
+
+    @staticmethod
+    def _materialize_external_symlinks(root: str) -> int:
+        """Replace absolute external symlinks under *root* with real file/dir copies.
+
+        Returns the number of symlinks replaced. Relative symlinks and absolute ones
+        that already resolve inside *root* are left unchanged.
+        """
+        root_real = os.path.realpath(root)
+        n = 0
+        # Collect first so we do not walk into trees we just replaced.
+        external = []
+        for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+            for name in dirnames + filenames:
+                path = os.path.join(dirpath, name)
+                if not os.path.islink(path):
+                    continue
+                target = os.readlink(path)
+                if not os.path.isabs(target):
+                    continue
+                # Resolve once; skip broken links with a warning.
+                try:
+                    resolved = os.path.realpath(path)
+                except OSError:
+                    print(f"bundle[cmssw]: warning: broken symlink {path} -> {target}")
+                    continue
+                if not os.path.exists(resolved):
+                    print(
+                        f"bundle[cmssw]: warning: dangling symlink {path} -> {target}"
+                    )
+                    continue
+                # Already points inside the staging tree → fine to keep.
+                if resolved == root_real or resolved.startswith(root_real + os.sep):
+                    continue
+                external.append((path, resolved))
+
+        for path, resolved in external:
+            os.unlink(path)
+            if os.path.isdir(resolved):
+                shutil.copytree(resolved, path, symlinks=True)
+            else:
+                shutil.copy2(resolved, path)
+            n += 1
+            print(f"bundle[cmssw]: materialized {path} <- {resolved}")
+        return n
 
 
 class CERNHTCondorJobFileFactory(law.htcondor.HTCondorJobFileFactory):

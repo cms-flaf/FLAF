@@ -1247,6 +1247,14 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                         analysisCacheProducer_cmd.extend(
                             ["--cacheFiles", local_anacaches_str]
                         )
+                    if self.user_custom:
+                        # Must pass user_custom into the producer subprocess: Setup inside
+                        # AnalysisCacheProducer is independent of the law Task Setup. Without
+                        # this, keys only present in user_custom (e.g. compute_unc_histograms)
+                        # are missing and BtagShape/histTupleDef raise KeyError on workers.
+                        analysisCacheProducer_cmd.extend(
+                            ["--user-custom", self.user_custom]
+                        )
                     # Check if cmssw env is required
                     prod_env = (
                         self.cmssw_env

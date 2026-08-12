@@ -269,7 +269,12 @@ if __name__ == "__main__":
     parser.add_argument("--workingDir", required=True, type=str)
     parser.add_argument("--histTupleDef", type=str)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
-    parser.add_argument("--user-custom", type=str, default=None)
+    parser.add_argument(
+        "--user-custom",
+        type=str,
+        default=None,
+        help="Optional user_custom yaml (staged on remote workers; resolved by Setup).",
+    )
     args = parser.parse_args()
 
     startTime = time.time()

@@ -8,7 +8,16 @@ pattern = "=|\n"
 
 def includeLibTool(tool="", wantLib=False):
     command = ["scram", "tool", "info", tool]
-    directory = os.environ["CMSSW_BASE"]
+    # Prefer FLAF_CMSSW_BASE (always the analysis soft/CMSSW release, correctly
+    # relocated on CRAB/HTCondor bundle workers). CMSSW_BASE may still point at the
+    # submit-host AFS path if scram ProjectRename did not fully re-export the env.
+    directory = os.environ.get("FLAF_CMSSW_BASE") or os.environ["CMSSW_BASE"]
+    if not os.path.isdir(directory):
+        raise FileNotFoundError(
+            f"CMSSW release directory not found: {directory} "
+            f"(FLAF_CMSSW_BASE={os.environ.get('FLAF_CMSSW_BASE')!r}, "
+            f"CMSSW_BASE={os.environ.get('CMSSW_BASE')!r})"
+        )
     returncode, output, err = ps_call(
         command, catch_stdout=True, cwd=directory, verbose=0
     )

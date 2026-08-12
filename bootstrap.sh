@@ -104,20 +104,69 @@ action() {
             if [ -n "${flaf_cmssw_version}" ]; then
                 local cmssw_dir="${bundle_dir}/soft/${flaf_cmssw_version}"
                 if [ -d "${cmssw_dir}/src" ]; then
-                    echo "bootstrap: relocating CMSSW ${flaf_cmssw_version}"
+                    # Relocate a tarball-shipped CMSSW release to this worker path.
+                    # Do NOT `eval scram runtime` before ProjectRename: that bakes the
+                    # submit-host (AFS) LOCALTOP into the shell as CMSSW_BASE, and
+                    # anaTupleProducer (loadTF / scram tool info) then fails with
+                    # FileNotFoundError on the AFS path (no AFS on CRAB workers).
+                    echo "bootstrap: relocating CMSSW ${flaf_cmssw_version} -> ${cmssw_dir}"
                     source /cvmfs/cms.cern.ch/cmsset_default.sh 2>/dev/null || true
                     local prev_dir="${PWD}"
+                    # Discover submit-host LOCALTOP from the shipped Self file (if any).
+                    local old_localtop=""
+                    if [ -f "${cmssw_dir}/config/Self" ]; then
+                        old_localtop=$(sed -n 's/.*LOCALTOP="\([^"]*\)".*/\1/p' \
+                            "${cmssw_dir}/config/Self" 2>/dev/null | head -1)
+                        # XML form: <Project path="..."/>
+                        if [ -z "${old_localtop}" ]; then
+                            old_localtop=$(sed -n 's/.*path="\([^"]*\)".*/\1/p' \
+                                "${cmssw_dir}/config/Self" 2>/dev/null | head -1)
+                        fi
+                    fi
                     cd "${cmssw_dir}/src"
-                    eval "$(scramv1 runtime -sh 2>/dev/null)" || true
-                    scramv1 b ProjectRename "${cmssw_dir}" 2>/dev/null || true
+                    # ProjectRename updates scram's Self/LOCALTOP to cmssw_dir.
+                    if ! scramv1 b ProjectRename "${cmssw_dir}"; then
+                        echo "bootstrap: WARNING: scram ProjectRename failed; applying path sed fallback"
+                        if [ -n "${old_localtop}" ] && [ "${old_localtop}" != "${cmssw_dir}" ]; then
+                            # Escape sed separators in paths.
+                            local old_esc new_esc
+                            old_esc=$(printf '%s' "${old_localtop}" | sed 's/[.[\*^$\/&]/g')
+                            new_esc=$(printf '%s' "${cmssw_dir}" | sed 's/[.[\*^$\/&]/g')
+                            # Patch Self + .SCRAM metadata that embed the submit-host path.
+                            if [ -f "${cmssw_dir}/config/Self" ]; then
+                                sed -i "s|${old_esc}|${new_esc}|g" "${cmssw_dir}/config/Self"
+                            fi
+                            find "${cmssw_dir}/.SCRAM" -type f 2>/dev/null \
+                                | xargs -r sed -i "s|${old_esc}|${new_esc}|g"
+                        fi
+                    fi
+                    # Drop any AFS-tainted CMSSW_* vars that a prior runtime might have set.
+                    unset CMSSW_BASE CMSSW_RELEASE_BASE CMSSW_SEARCH_PATH RELEASETOP LOCALTOP 2>/dev/null || true
                     cd "${prev_dir}"
+                    # Verify scram now resolves to the bundle path (best-effort).
+                    if [ -n "${old_localtop}" ]; then
+                        local new_self
+                        new_self=$(sed -n 's/.*path="\([^"]*\)".*/\1/p' \
+                            "${cmssw_dir}/config/Self" 2>/dev/null | head -1)
+                        [ -z "${new_self}" ] && new_self=$(sed -n 's/.*LOCALTOP="\([^"]*\)".*/\1/p' \
+                            "${cmssw_dir}/config/Self" 2>/dev/null | head -1)
+                        echo "bootstrap: CMSSW Self path now: ${new_self:-unknown}"
+                    fi
                 fi
             fi
         fi
 
         echo "bootstrap: sourcing env.sh from bundle"
+        # Ensure no leftover AFS CMSSW_BASE from the pilot / prior steps.
+        unset CMSSW_BASE CMSSW_RELEASE_BASE RELEASETOP LOCALTOP 2>/dev/null || true
         export FLAF_NO_INSTALL=1
         source "${bundle_dir}/env.sh"
+        # After env.sh, force CMSSW_BASE to the bundled release when present so
+        # subprocesses (includeLibTool, HHbtag models) never see an AFS path.
+        if [ -n "${FLAF_CMSSW_BASE:-}" ] && [ -d "${FLAF_CMSSW_BASE}" ]; then
+            export CMSSW_BASE="${FLAF_CMSSW_BASE}"
+            echo "bootstrap: CMSSW_BASE=${CMSSW_BASE}"
+        fi
     else
         if [ "${analysis_path}" = "NONE" ]; then
             echo "ERROR: analysis_path is NONE but no bundle_list was provided"

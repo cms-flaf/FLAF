@@ -426,12 +426,37 @@ class Setup:
 
         self.histTuple_flavor = self.global_params["histTuple_flavor"]
         print(f"Using histTuple flavor {self.histTuple_flavor}")
-        self.histTuple_plot_vars = self.global_params["histTuple_flavors"][
-            self.histTuple_flavor
-        ]["variables"]
-        self.histTuple_fullres_vars = self.global_params["histTuple_flavors"][
-            self.histTuple_flavor
-        ]["fullResolution_variables"]
+        self.histTuple_plot_vars = list(
+            self.global_params["histTuple_flavors"][self.histTuple_flavor]["variables"]
+        )
+        self.histTuple_fullres_vars = list(
+            self.global_params["histTuple_flavors"][self.histTuple_flavor][
+                "fullResolution_variables"
+            ]
+        )
+
+        # Optional top-level `variables:` from user_custom / global.yaml.
+        # - When the active flavor already lists variables: treat as a restriction
+        #   (keep only names in the list) — used by CI user_custom flavors.
+        # - When the flavor list is empty (e.g. H_mumu default): use the list as the
+        #   active plot/full-res set so user_custom alone can drive a short CI chain
+        #   without requiring histTuple_flavor: CI.
+        user_vars = self.global_params.get("variables")
+        if user_vars:
+
+            def _var_name(v):
+                return v["name"] if isinstance(v, dict) else v
+
+            selected = {_var_name(v) for v in user_vars}
+            if self.histTuple_plot_vars:
+                self.histTuple_plot_vars = [
+                    v for v in self.histTuple_plot_vars if _var_name(v) in selected
+                ]
+                self.histTuple_fullres_vars = [
+                    v for v in self.histTuple_fullres_vars if _var_name(v) in selected
+                ]
+            else:
+                self.histTuple_plot_vars = list(user_vars)
 
         # Whether up/down-variation histograms are produced. The histTuple flavor usually
         # dictates this (uncertainties are only needed for the limit-setting shape variable),

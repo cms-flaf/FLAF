@@ -204,7 +204,7 @@ def CreateRecoP4(df, suffix="nano", nano_version="v12"):
                 if f"{obj}_superclusterEta" not in df.GetColumnNames():
                     df = df.Define(
                         f"{obj}_superclusterEta",
-                        "RVecF ele_SC_eta; for(size_t i = 0 ; i < Electron_eta.size(); i++) {{ele_SC_eta.push_back(Electron_deltaEtaSC[i]+Electron_eta[i]);}} return ele_SC_eta;",
+                        f"Electron_eta + Electron_deltaEtaSC",
                     )
     return df
 

@@ -104,7 +104,7 @@ jobs:
           retention-days: 1
 
   test-dataset:
-    needs: [prepare-matrix, build]
+    needs: [ prepare-matrix, build ]
     if: ${{ needs.prepare-matrix.outputs.has_processes == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 240
@@ -165,7 +165,7 @@ jobs:
           retention-days: 1
 
   test-era:
-    needs: [prepare-matrix, build, test-dataset]
+    needs: [ prepare-matrix, build, test-dataset ]
     if: ${{ always() && !contains(needs.build.result, 'failure') && !contains(needs.build.result, 'cancelled') && !contains(needs.test-dataset.result, 'failure') && !contains(needs.test-dataset.result, 'cancelled') && needs.prepare-matrix.outputs.has_eras == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -233,7 +233,7 @@ jobs:
           retention-days: 1
 
   test-multi-era:
-    needs: [prepare-matrix, build, test-era]
+    needs: [ prepare-matrix, build, test-era ]
     if: ${{ always() && !contains(needs.build.result, 'failure') && !contains(needs.build.result, 'cancelled') && !contains(needs.test-era.result, 'failure') && !contains(needs.test-era.result, 'cancelled') && needs.prepare-matrix.outputs.has_multi_eras == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
@@ -301,7 +301,7 @@ jobs:
           retention-days: 1
 
   notify:
-    needs: [prepare-matrix, build, test-dataset, test-era, test-multi-era]
+    needs: [ prepare-matrix, build, test-dataset, test-era, test-multi-era ]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
@@ -338,7 +338,7 @@ jobs:
 
             const [owner, repo, , pullNumber] = notifyUrl.replace('https://api.github.com/repos/', '').split('/');
             console.log(`Posting notification to ${notifyUrl}: ${msg}`);
-            
+
             const token = process.env.FLAF_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
             await fetch(notifyUrl, {
               method: 'POST',

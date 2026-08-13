@@ -74,6 +74,7 @@ jobs:
           script: |
             const workflowFiles = new Set([
               '.github/workflows/trigger-flaf-integration.yaml',
+              '.github/workflows/integration-test.yaml',
               '.github/scripts/trigger-flaf-integration-parse.js',
               '.github/scripts/trigger-flaf-integration-trigger.js',
             ]);
@@ -136,12 +137,15 @@ jobs:
         uses: actions/github-script@v6
         env:
           FLAF_INTEGRATION_TOKEN: ${{ secrets.FLAF_INTEGRATION_TOKEN }}
+          FLAF_GITHUB_TOKEN: ${{ secrets.FLAF_GITHUB_TOKEN }}
+          CI_BACKEND: ${{ steps.parse_comment.outputs.ci_backend }}
           VARIABLES: ${{ steps.parse_comment.outputs.variables }}
           GITLAB_URL: ${{ steps.parse_comment.outputs.gitlab_url }}
           GITLAB_BRANCH: ${{ steps.parse_comment.outputs.gitlab_branch }}
           SHARED_WORKFLOW_PATH: _shared_flaf_workflow
           USE_LOCAL_WORKFLOW_CODE: ${{ steps.detect_workflow_files.outputs.use_local_workflow_code }}
         with:
+          github-token: ${{ secrets.FLAF_GITHUB_TOKEN }}
           script: |
             const fs = require('fs');
             const path = require('path');
@@ -153,7 +157,7 @@ jobs:
 
             console.log(`Using trigger script: ${scriptPath}`);
             const run = require(scriptPath);
-            await run({ core, process, fetch, JSON, URLSearchParams, console });
+            await run({ github, context, core, process, fetch, JSON, URLSearchParams, console });
 
       - name: Post comment
         if: ${{ steps.trigger_flaf_integration_pipeline.outputs.send_message == 'true' }}

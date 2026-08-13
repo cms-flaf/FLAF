@@ -1,0 +1,162 @@
+name: FLAF Integration Test (GitHub Actions)
+
+on:
+  workflow_dispatch:
+    inputs:
+      analysis_name:
+        description: 'Analysis name (HH_bbtautau, HH_bbWW, H_mumu)'
+        required: true
+        default: 'HH_bbtautau'
+      analysis_version:
+        description: 'Analysis version/branch/PR (e.g. main, PR_123)'
+        required: false
+        default: 'main'
+      flaf_version:
+        description: 'FLAF version/branch/PR'
+        required: false
+        default: 'default'
+      plotkit_version:
+        description: 'PlotKit version'
+        required: false
+        default: 'default'
+      corrections_version:
+        description: 'Corrections version'
+        required: false
+        default: 'default'
+      statinference_version:
+        description: 'StatInference version'
+        required: false
+        default: 'default'
+      eras:
+        description: 'Eras to test (space-separated or ALL)'
+        required: false
+        default: 'Run3_2022EE'
+      processes:
+        description: 'Processes to test (space-separated, e.g. custom_CI_Signal custom_CI_Background custom_CI_Data)'
+        required: false
+        default: 'custom_CI_Signal custom_CI_Background custom_CI_Data'
+      task:
+        description: 'Analysis Task'
+        required: false
+        default: 'FLAF.Analysis.tasks.HistPlotTask'
+      args:
+        description: 'Task args'
+        required: false
+        default: '--test 1000'
+      github_notify_url:
+        description: 'GitHub comment URL to report results back'
+        required: false
+        default: ''
+  workflow_call:
+    inputs:
+      analysis_name:
+        type: string
+        required: true
+      analysis_version:
+        type: string
+        required: false
+        default: 'main'
+      flaf_version:
+        type: string
+        required: false
+        default: 'default'
+      plotkit_version:
+        type: string
+        required: false
+        default: 'default'
+      corrections_version:
+        type: string
+        required: false
+        default: 'default'
+      statinference_version:
+        type: string
+        required: false
+        default: 'default'
+      eras:
+        type: string
+        required: false
+        default: 'Run3_2022EE'
+      processes:
+        type: string
+        required: false
+        default: 'custom_CI_Signal custom_CI_Background custom_CI_Data'
+      task:
+        type: string
+        required: false
+        default: 'FLAF.Analysis.tasks.HistPlotTask'
+      args:
+        type: string
+        required: false
+        default: '--test 1000'
+      github_notify_url:
+        type: string
+        required: false
+        default: ''
+    secrets:
+      GRID_USERCERT:
+        required: false
+      GRID_USERKEY:
+        required: false
+      GRID_PASSWORD:
+        required: false
+      SSH_PRIVATE_KEY:
+        required: false
+      FLAF_GITHUB_TOKEN:
+        required: false
+
+jobs:
+  run-integration-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - name: Checkout FLAF
+        uses: actions/checkout@v4
+
+      - name: Set up CVMFS
+        uses: cvmfs-contrib/github-action-cvmfs@v4
+        with:
+          cvmfs_repositories: 'cms.cern.ch,grid.cern.ch,sft.cern.ch'
+
+      - name: Run Integration Build and Test
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          GRID_USERCERT: ${{ secrets.GRID_USERCERT }}
+          GRID_USERKEY: ${{ secrets.GRID_USERKEY }}
+          GRID_PASSWORD: ${{ secrets.GRID_PASSWORD }}
+          ANALYSIS_NAME: ${{ inputs.analysis_name }}
+          ANALYSIS_VERSION: ${{ inputs.analysis_version }}
+          FLAF_version: ${{ inputs.flaf_version }}
+          PlotKit_version: ${{ inputs.plotkit_version }}
+          Corrections_version: ${{ inputs.corrections_version }}
+          StatInference_version: ${{ inputs.statinference_version }}
+          ERAS: ${{ inputs.eras }}
+          PROCESSES: ${{ inputs.processes }}
+          ANALYSIS_TASK: ${{ inputs.task }}
+          ANALYSIS_ARGS: ${{ inputs.args }}
+          GITHUB_NOTIFY_URL: ${{ inputs.github_notify_url }}
+          FLAF_GITHUB_TOKEN: ${{ secrets.FLAF_GITHUB_TOKEN }}
+        run: |
+          docker run --rm \
+            --privileged \
+            -v /cvmfs:/cvmfs:shared \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            -e SSH_PRIVATE_KEY \
+            -e GRID_USERCERT \
+            -e GRID_USERKEY \
+            -e GRID_PASSWORD \
+            -e ANALYSIS_NAME \
+            -e ANALYSIS_VERSION \
+            -e FLAF_version \
+            -e PlotKit_version \
+            -e Corrections_version \
+            -e StatInference_version \
+            -e ERAS \
+            -e PROCESSES \
+            -e ANALYSIS_TASK \
+            -e ANALYSIS_ARGS \
+            -e GITHUB_NOTIFY_URL \
+            -e FLAF_GITHUB_TOKEN \
+            -e GITHUB_RUN_ID \
+            kandrosov/flaf:latest \
+            bash .github/scripts/ci/run_gha_integration.sh

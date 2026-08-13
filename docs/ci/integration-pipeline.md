@@ -110,6 +110,25 @@ flowchart LR
 - Disabled analyses/eras are simply not emitted; jobs are non-interruptible so parallel pipelines
   on the same branch don't cancel each other.
 
+### The GitHub Actions backend
+
+With `ci_backend: github` the same stages run as GitHub Actions jobs
+(`FLAF/.github/workflows/integration-test.yaml`, scripts in `FLAF/.github/scripts/ci/`), inside the
+`kandrosov/flaf` container with CVMFS mounted:
+
+- **build** (one job per analysis) assembles the checkout at the requested revisions *and installs
+  the analysis environment* (`flaf_env`, CMSSW, combine) into `soft/`. The result is passed to the
+  test jobs as a single compressed **tar** archive — a plain directory artifact is a zip and would
+  lose the symlinks (`flaf_env` links into CVMFS) and the executable bits.
+- **test jobs** unpack that archive and run with `FLAF_NO_INSTALL=1`, so they reuse the
+  environment instead of re-installing it (which used to cost ~20 min per job) and fail loudly if
+  anything is missing.
+- The build area is mounted at the same path (`/flaf_ci`) in every job, because the installed
+  virtualenv and the CMSSW/SCRAM areas record their own location and cannot be relocated.
+- `fs_default` from `ci_custom.yaml` points at the GitLab job directory, so the test script passes
+  a generated `--user-custom` overlay that redirects the CI output area into the shared build
+  volume; each stage uploads `output/` and `data/CI` as artifacts for the next one.
+
 ## Reproducing CI locally
 
 You can run what a CI job runs without the bot — point `fs_default` at a local path, use

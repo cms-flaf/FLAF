@@ -71,16 +71,43 @@ jobs:
       - name: Checkout FLAF
         uses: actions/checkout@v4
 
+      # Reference checkout with the environment already installed, reused across runs
+      # (the counterpart of the install cache on EOS used by the GitLab pipeline). The key
+      # rotates weekly, so the reference is rebuilt from scratch about as often as the
+      # GitLab one expires, while restore-keys keep the previous week's copy usable
+      # meanwhile.
+      - name: Reference cache stamp
+        id: cache-stamp
+        run: echo "week=$(date -u +%G-W%V)" >> "${GITHUB_OUTPUT}"
+
+      - name: Restore build cache
+        id: build-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: build_cache
+          key: flaf-build-${{ matrix.analysis }}-${{ steps.cache-stamp.outputs.week }}
+          restore-keys: flaf-build-${{ matrix.analysis }}-
+
       - name: Build Analysis
         uses: ./.github/actions/flaf-ci-run
         with:
           script: build_analysis.sh
           analysis: ${{ matrix.analysis }}
           variables: ${{ inputs.variables }}
+          # Refresh the reference (and thus re-save the cache) whenever the weekly key was
+          # not an exact hit.
+          build_cache_refresh: ${{ steps.build-cache.outputs.cache-hit == 'true' && '0' || '1' }}
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           grid_usercert: ${{ secrets.GRID_USERCERT }}
           grid_userkey: ${{ secrets.GRID_USERKEY }}
           grid_password: ${{ secrets.GRID_PASSWORD }}
+
+      - name: Save build cache
+        if: ${{ steps.build-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: build_cache
+          key: flaf-build-${{ matrix.analysis }}-${{ steps.cache-stamp.outputs.week }}
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4

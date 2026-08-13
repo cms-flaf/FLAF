@@ -32,6 +32,10 @@ inputs:
     description: 'Number of parallel law workers.'
     required: false
     default: '4'
+  build_cache_refresh:
+    description: 'Rebuild the reference checkout published to the build cache (build stage).'
+    required: false
+    default: '0'
   ssh_private_key:
     description: 'SSH key used to clone the GitLab submodules.'
     required: false
@@ -79,6 +83,7 @@ runs:
         ERA: ${{ inputs.era }}
         VARIABLES: ${{ inputs.variables }}
         LAW_WORKERS: ${{ inputs.law_workers }}
+        BUILD_CACHE_REFRESH: ${{ inputs.build_cache_refresh }}
         SSH_PRIVATE_KEY: ${{ inputs.ssh_private_key }}
         GRID_USERCERT: ${{ inputs.grid_usercert }}
         GRID_USERKEY: ${{ inputs.grid_userkey }}
@@ -100,6 +105,7 @@ runs:
           -e ERA \
           -e VARIABLES \
           -e LAW_WORKERS \
+          -e BUILD_CACHE_REFRESH \
           -e GITHUB_RUN_ID \
           kandrosov/flaf:latest \
           bash ".github/scripts/ci/${CI_SCRIPT}"

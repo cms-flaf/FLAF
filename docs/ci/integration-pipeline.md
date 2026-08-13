@@ -123,6 +123,10 @@ With `ci_backend: github` the same stages run as GitHub Actions jobs
 - **test jobs** unpack that archive and run with `FLAF_NO_INSTALL=1`, so they reuse the
   environment instead of re-installing it (which used to cost ~20 min per job) and fail loudly if
   anything is missing.
+- The build itself is cached across runs, like the install cache on EOS used by the GitLab
+  pipeline: a *reference* checkout (default branches, environment installed) is kept in the GitHub
+  Actions cache under a weekly key, and the requested revisions are applied on top of it. Set
+  `rebuild_cache: "1"` in the trigger variables to force a rebuild from scratch.
 - The build area is mounted at the same path (`/flaf_ci`) in every job, because the installed
   virtualenv and the CMSSW/SCRAM areas record their own location and cannot be relocated.
 - `fs_default` from `ci_custom.yaml` points at the GitLab job directory, so the test script passes

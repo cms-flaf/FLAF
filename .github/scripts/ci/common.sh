@@ -14,6 +14,9 @@ FLAF_CI_ROOT="${FLAF_CI_ROOT:-/flaf_ci}"
 # stages are staged for the current one.
 FLAF_CI_WORKSPACE="${FLAF_CI_WORKSPACE:-/workspace}"
 STAGE_INPUTS_DIR="${STAGE_INPUTS_DIR:-${FLAF_CI_WORKSPACE}/ci_inputs}"
+# Workspace subdirectory saved to / restored from the GitHub Actions cache by the build
+# job; keep it in sync with the `path:` of the cache steps in integration-test.yaml.
+BUILD_CACHE_DIR_NAME="${BUILD_CACHE_DIR_NAME:-build_cache}"
 
 require_var() {
   local var_name=$1
@@ -165,13 +168,35 @@ _archive_compressor() {
   fi
 }
 
-build_archive_path() {
-  local analysis=$1
-  local ext="tar.gz"
+_archive_ext() {
   if command -v zstd > /dev/null 2>&1; then
-    ext="tar.zst"
+    echo "tar.zst"
+  else
+    echo "tar.gz"
   fi
-  echo "${FLAF_CI_WORKSPACE}/${analysis}.${ext}"
+}
+
+build_archive_path() {
+  echo "${FLAF_CI_WORKSPACE}/${1}.$(_archive_ext)"
+}
+
+# Reference checkout (pristine, environment installed) kept across runs in the GitHub
+# Actions cache. It lives in the runner workspace because that is what the cache action
+# can store; the build job unpacks it into FLAF_CI_ROOT.
+reference_archive_path() {
+  echo "${FLAF_CI_WORKSPACE}/${BUILD_CACHE_DIR_NAME}/${1}.$(_archive_ext)"
+}
+
+# Unlike the build archive, this one keeps .git: the next run switches the checkout to the
+# revisions it has to test, which needs the repository history.
+create_reference_archive() {
+  local analysis=$1
+  local archive
+  archive="$(reference_archive_path "${analysis}")"
+  echo "Creating reference archive ${archive}..."
+  mkdir -p "$(dirname "${archive}")"
+  tar -I "$(_archive_compressor)" -cf "${archive}" -C "${FLAF_CI_ROOT}" "${analysis}"
+  echo "Reference archive created: $(du -h "${archive}" | cut -f1)"
 }
 
 create_build_archive() {

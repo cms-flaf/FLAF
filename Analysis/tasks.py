@@ -1247,6 +1247,10 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                         analysisCacheProducer_cmd.extend(
                             ["--cacheFiles", local_anacaches_str]
                         )
+                    if self.user_custom:
+                        analysisCacheProducer_cmd.extend(
+                            ["--user-custom", self.user_custom]
+                        )
                     # Check if cmssw env is required
                     prod_env = (
                         self.cmssw_env

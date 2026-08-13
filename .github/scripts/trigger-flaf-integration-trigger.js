@@ -5,22 +5,18 @@ module.exports = async ({ github, context, core, process, fetch, JSON, URLSearch
   if (ciBackend === 'github') {
     console.log('Triggering GitHub Actions integration test workflow...');
     const rootPackages = Object.keys(variables).filter(k => k.endsWith('_active')).map(k => k.slice(0, -7));
-    let activeAnalysis = rootPackages.find(pkg => variables[`${pkg}_active`] === '1');
-    if (!activeAnalysis) {
-      activeAnalysis = 'HH_bbtautau';
+    const activeAnalyses = rootPackages.filter(pkg => variables[`${pkg}_active`] === '1');
+    if (activeAnalyses.length === 0) {
+      activeAnalyses.push('HH_bbtautau');
     }
 
     const inputs = {
-      analysis_name: activeAnalysis,
-      analysis_version: variables[`${activeAnalysis}_version`] || 'main',
+      analyses: JSON.stringify(activeAnalyses),
+      variables: JSON.stringify(variables),
       flaf_version: variables['FLAF_version'] || 'default',
       plotkit_version: variables['PlotKit_version'] || 'default',
       corrections_version: variables['Corrections_version'] || 'default',
       statinference_version: variables['StatInference_version'] || 'default',
-      eras: variables[`${activeAnalysis}_eras`] || 'Run3_2022EE',
-      processes: variables[`${activeAnalysis}_processes`] || 'custom_CI_Signal custom_CI_Background custom_CI_Data',
-      task: variables[`${activeAnalysis}_task`] || 'FLAF.Analysis.tasks.HistPlotTask',
-      args: variables[`${activeAnalysis}_args`] || '--test 1000',
       github_notify_url: variables.github_notify_url || '',
     };
 
@@ -47,7 +43,7 @@ module.exports = async ({ github, context, core, process, fetch, JSON, URLSearch
     if (response.status === 204) {
       console.log('GitHub Actions integration workflow dispatched successfully.');
       const workflowUrl = 'https://github.com/cms-flaf/FLAF/actions/workflows/integration-test.yaml';
-      const message = `[GitHub Actions integration workflow](${workflowUrl}) dispatched for **${activeAnalysis}** (${inputs.analysis_version})`;
+      const message = `[GitHub Actions integration workflow](${workflowUrl}) dispatched for **${activeAnalyses.join(', ')}**`;
       core.setOutput('send_message', 'true');
       core.setOutput('message', message);
       return;

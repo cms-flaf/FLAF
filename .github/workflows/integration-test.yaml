@@ -3,12 +3,16 @@ name: FLAF Integration Test (GitHub Actions)
 on:
   workflow_dispatch:
     inputs:
-      analysis_name:
-        description: 'Analysis name (HH_bbtautau, HH_bbWW, H_mumu)'
+      analyses:
+        description: 'Analysis name(s) (JSON array, space-separated string, or single: HH_bbtautau, HH_bbWW, H_mumu, ALL)'
         required: true
-        default: 'HH_bbtautau'
+        default: '["HH_bbtautau"]'
+      variables:
+        description: 'JSON-serialized variables object'
+        required: false
+        default: '{}'
       analysis_version:
-        description: 'Analysis version/branch/PR (e.g. main, PR_123)'
+        description: 'Default analysis version/branch/PR (e.g. main, PR_123)'
         required: false
         default: 'main'
       flaf_version:
@@ -28,19 +32,19 @@ on:
         required: false
         default: 'default'
       eras:
-        description: 'Eras to test (space-separated or ALL)'
+        description: 'Default eras to test (space-separated or ALL)'
         required: false
         default: 'Run3_2022EE'
       processes:
-        description: 'Processes to test (space-separated, e.g. custom_CI_Signal custom_CI_Background custom_CI_Data)'
+        description: 'Default processes to test (space-separated)'
         required: false
         default: 'custom_CI_Signal custom_CI_Background custom_CI_Data'
       task:
-        description: 'Analysis Task'
+        description: 'Default analysis task'
         required: false
         default: 'FLAF.Analysis.tasks.HistPlotTask'
       args:
-        description: 'Task args'
+        description: 'Default task args'
         required: false
         default: '--test 1000'
       github_notify_url:
@@ -49,9 +53,14 @@ on:
         default: ''
   workflow_call:
     inputs:
-      analysis_name:
+      analyses:
         type: string
-        required: true
+        required: false
+        default: '["HH_bbtautau"]'
+      variables:
+        type: string
+        required: false
+        default: '{}'
       analysis_version:
         type: string
         required: false
@@ -105,9 +114,41 @@ on:
         required: false
 
 jobs:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Resolve matrix
+        id: set-matrix
+        run: |
+          python3 -c "
+          import json, sys
+
+          raw = '''${{ inputs.analyses }}'''.strip()
+          if not raw:
+              matrix = ['HH_bbtautau']
+          elif raw == 'ALL':
+              matrix = ['HH_bbtautau', 'HH_bbWW', 'H_mumu']
+          elif raw.startswith('['):
+              matrix = json.loads(raw)
+          else:
+              matrix = raw.split()
+
+          print(f'Matrix: {matrix}')
+          import os
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'matrix={json.dumps(matrix)}\n')
+          "
+
   run-integration-test:
+    needs: prepare-matrix
     runs-on: ubuntu-latest
     timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        analysis: ${{ fromJson(needs.prepare-matrix.outputs.matrix) }}
     steps:
       - name: Checkout FLAF
         uses: actions/checkout@v4
@@ -123,7 +164,7 @@ jobs:
           GRID_USERCERT: ${{ secrets.GRID_USERCERT }}
           GRID_USERKEY: ${{ secrets.GRID_USERKEY }}
           GRID_PASSWORD: ${{ secrets.GRID_PASSWORD }}
-          ANALYSIS_NAME: ${{ inputs.analysis_name }}
+          ANALYSIS_NAME: ${{ matrix.analysis }}
           ANALYSIS_VERSION: ${{ inputs.analysis_version }}
           FLAF_version: ${{ inputs.flaf_version }}
           PlotKit_version: ${{ inputs.plotkit_version }}
@@ -133,6 +174,7 @@ jobs:
           PROCESSES: ${{ inputs.processes }}
           ANALYSIS_TASK: ${{ inputs.task }}
           ANALYSIS_ARGS: ${{ inputs.args }}
+          VARIABLES: ${{ inputs.variables }}
           GITHUB_NOTIFY_URL: ${{ inputs.github_notify_url }}
           FLAF_GITHUB_TOKEN: ${{ secrets.FLAF_GITHUB_TOKEN }}
         run: |
@@ -155,6 +197,7 @@ jobs:
             -e PROCESSES \
             -e ANALYSIS_TASK \
             -e ANALYSIS_ARGS \
+            -e VARIABLES \
             -e GITHUB_NOTIFY_URL \
             -e FLAF_GITHUB_TOKEN \
             -e GITHUB_RUN_ID \

@@ -4,11 +4,11 @@ def shared_mc_split(era, shared_mc):
     Config shape::
 
         shared_mc:
-          split_modulus: 20
+          split_modulus: 38
           eras:
-            Run3_2024: [0, 8]
-            Run3_2025: [9, 17]
-            Run3_2026: [18, 19]
+            Run3_2024: [0, 16]
+            Run3_2025: [17, 33]
+            Run3_2026: [34, 37]
 
     Returns ``(split_mod, lo, hi, frac)``. An event is assigned to ``era`` when
     ``lo <= (event % split_mod) <= hi``. ``frac`` is that residue share.

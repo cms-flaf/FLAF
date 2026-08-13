@@ -14,11 +14,11 @@ if flaf_parent not in sys.path:
 from FLAF.Common.shared_mc import shared_mc_in_era, shared_mc_split
 
 SHARED_MC = {
-    "split_modulus": 20,
+    "split_modulus": 38,
     "eras": {
-        "Run3_2024": [0, 8],
-        "Run3_2025": [9, 17],
-        "Run3_2026": [18, 19],
+        "Run3_2024": [0, 16],
+        "Run3_2025": [17, 33],
+        "Run3_2026": [34, 37],
     },
 }
 
@@ -28,9 +28,9 @@ class TestSharedMcSplit(unittest.TestCase):
         _, _, _, frac_24 = shared_mc_split("Run3_2024", SHARED_MC)
         _, _, _, frac_25 = shared_mc_split("Run3_2025", SHARED_MC)
         _, _, _, frac_26 = shared_mc_split("Run3_2026", SHARED_MC)
-        self.assertAlmostEqual(frac_24, 9 / 20)
-        self.assertAlmostEqual(frac_25, 9 / 20)
-        self.assertAlmostEqual(frac_26, 2 / 20)
+        self.assertAlmostEqual(frac_24, 17 / 38)
+        self.assertAlmostEqual(frac_25, 17 / 38)
+        self.assertAlmostEqual(frac_26, 4 / 38)
         self.assertAlmostEqual(frac_24 + frac_25 + frac_26, 1.0)
 
     def test_unknown_era(self):
@@ -50,13 +50,13 @@ class TestSharedMcSplit(unittest.TestCase):
             n24 += int(in24)
             n25 += int(in25)
             n26 += int(in26)
-        self.assertEqual(n24, 9)
-        self.assertEqual(n25, 9)
-        self.assertEqual(n26, 2)
+        self.assertEqual(n24, 17)
+        self.assertEqual(n25, 17)
+        self.assertEqual(n26, 4)
 
-    def test_two_denominators_match_when_split_is_not_9_9_2(self):
-        # 25 events: residue counts are 14:9:2, not 9:9:2. Weights are not flat.
-        events = list(range(25))
+    def test_two_denominators_match_when_split_is_uneven(self):
+        # 50 events: residue counts are 29:17:4, not 17:17:4. Weights are not flat.
+        events = list(range(50))
         genw = [float(i + 1) for i in events]
         denom_all = sum(genw)
         lumi_xs = 100.0

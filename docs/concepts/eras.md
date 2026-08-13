@@ -51,12 +51,13 @@ Each sub-era has its own corrections and luminosity, which is exactly why the
   run). The split applies only to MC; data keeps the full year in
   `weight_base_cmb`. Select which branch histograms use with
   `weight_base_branch`.
-  `shared_mc` lives only on the source era (`Run3_2024`): a 9:9:2 residue
-  *target* over modulus 20 (`Run3_2024: [ 0, 8 ]`, `Run3_2025: [ 9, 17 ]`,
-  `Run3_2026: [ 18, 19 ]`), matching the approximate 110:111:28 luminosity
-  ratio. The actual event split need not be exactly 9:9:2. AnaTupleFileTask
-  therefore stores two denominators: the full-sample sum (for `weight_base`)
-  and the in-era sum (for `weight_base_cmb`). Each weight is
+  `shared_mc` lives only on the source era (`Run3_2024`): a 17:17:4 residue
+  *target* over modulus 38 (`Run3_2024: [ 0, 16 ]`, `Run3_2025: [ 17, 33 ]`,
+  `Run3_2026: [ 34, 37 ]`), matching the recorded luminosities
+  109948.18 : 110730.86 : 25843.26. The actual event split need not match
+  that target. AnaTupleFileTask therefore stores two denominators: the
+  full-sample sum (for `weight_base`) and the in-era sum (for
+  `weight_base_cmb`). Each weight is
   `gen × lumi × xs × PU / its_denominator`, so both yields stay `L·σ`.
   HistTuple multiplies the AnaTuple column named by `weight_base_branch`
   (`weight_base` for a single-year run, `weight_base_cmb` for the combined

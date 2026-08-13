@@ -4,7 +4,7 @@
 HistTuple multiplies the AnaTuple column named by ``weight_base_branch``.
 ``weight_base`` uses the full-sample denominator; ``weight_base_cmb`` uses
 the in-era denominator. The residue share is only a target — the two
-denominators keep both yields equal to L·σ even when the split is not 9:9:2.
+denominators keep both yields equal to L·σ even when the split is uneven.
 """
 
 import os
@@ -19,11 +19,11 @@ if flaf_parent not in sys.path:
 from FLAF.Common.shared_mc import shared_mc_in_era, shared_mc_split
 
 SHARED_MC = {
-    "split_modulus": 20,
+    "split_modulus": 38,
     "eras": {
-        "Run3_2024": [0, 8],
-        "Run3_2025": [9, 17],
-        "Run3_2026": [18, 19],
+        "Run3_2024": [0, 16],
+        "Run3_2025": [17, 33],
+        "Run3_2026": [34, 37],
     },
 }
 
@@ -42,7 +42,7 @@ def _two_denom_weights(events, genw, era):
 
 class TestHistTupleWeightBaseBranch(unittest.TestCase):
     def test_one_era_uses_full_denominator(self):
-        events = list(range(25))
+        events = list(range(50))
         genw = [float(i + 1) for i in events]
         for era in SHARED_MC["eras"]:
             w_base, _ = _two_denom_weights(events, genw, era)
@@ -51,7 +51,7 @@ class TestHistTupleWeightBaseBranch(unittest.TestCase):
             self.assertAlmostEqual(sum(w_base), 1.0)
 
     def test_shared_uses_in_era_denominator(self):
-        events = list(range(25))
+        events = list(range(50))
         genw = [float(i + 1) for i in events]
         for event_i, event in enumerate(events):
             assigned = 0
@@ -65,7 +65,7 @@ class TestHistTupleWeightBaseBranch(unittest.TestCase):
             self.assertAlmostEqual(sum(w_cmb), 1.0)
 
     def test_flag_selects_different_columns(self):
-        events = list(range(25))
+        events = list(range(50))
         genw = [float(i + 1) for i in events]
         w_base, w_cmb = _two_denom_weights(events, genw, "Run3_2025")
         self.assertNotEqual(w_base, w_cmb)

@@ -1,28 +1,38 @@
 def shared_mc_split(era, shared_mc):
-    """Luminosity split of one MC sample across the years in ``shared_mc``.
+    """Residue split of one MC sample across the eras in ``shared_mc``.
 
-    Returns ``(this_year, split_mod, thresh_24, frac)`` where ``this_year`` is
-    the two-digit suffix of ``era`` (``Run3_2024`` → ``24``), ``frac`` is this
-    year's luminosity share, and an event is assigned to 2024 when
-    ``(event % split_mod) < thresh_24``.
+    Config shape::
+
+        shared_mc:
+          split_modulus: 20
+          eras:
+            Run3_2024: [0, 8]
+            Run3_2025: [9, 17]
+            Run3_2026: [18, 19]
+
+    Returns ``(split_mod, lo, hi, frac)``. An event is assigned to ``era`` when
+    ``lo <= (event % split_mod) <= hi``. ``frac`` is that residue share.
     """
-    this_year = str(era.split("_")[-1])[-2:]
-    years = shared_mc["years"]
-    if this_year not in years:
-        raise RuntimeError(f"shared_mc has no year '{this_year}' for era {era}")
-    if "24" not in years:
-        raise RuntimeError("shared_mc requires year '24'")
-    lumi_sum = sum(float(ycfg["luminosity"]) for ycfg in years.values())
-    if lumi_sum <= 0:
-        raise RuntimeError("shared_mc year luminosities must be positive")
-    split_mod = int(shared_mc.get("split_modulus", 1000000))
+    eras = shared_mc.get("eras")
+    if not eras:
+        raise RuntimeError("shared_mc requires an 'eras' map of [lo, hi] ranges")
+    if era not in eras:
+        raise RuntimeError(f"shared_mc has no era '{era}'")
+    split_mod = int(shared_mc["split_modulus"])
     if split_mod <= 0:
         raise RuntimeError("shared_mc split_modulus must be positive")
-    frac_24 = float(years["24"]["luminosity"]) / lumi_sum
-    thresh_24 = int(frac_24 * split_mod)
-    frac = float(years[this_year]["luminosity"]) / lumi_sum
-    return this_year, split_mod, thresh_24, frac
+    rng = eras[era]
+    if not isinstance(rng, (list, tuple)) or len(rng) != 2:
+        raise RuntimeError(f"shared_mc era '{era}' must be a [lo, hi] range")
+    lo, hi = int(rng[0]), int(rng[1])
+    if not (0 <= lo <= hi < split_mod):
+        raise RuntimeError(
+            f"shared_mc era '{era}' range [{lo}, {hi}] is outside "
+            f"[0, {split_mod - 1}]"
+        )
+    frac = (hi - lo + 1) / float(split_mod)
+    return split_mod, lo, hi, frac
 
 
-def shared_mc_in_24(event, split_mod, thresh_24):
-    return (int(event) % split_mod) < thresh_24
+def shared_mc_in_era(event, split_mod, lo, hi):
+    return lo <= (int(event) % split_mod) <= hi

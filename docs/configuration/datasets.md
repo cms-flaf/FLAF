@@ -14,10 +14,11 @@ framework and the analysis are concatenated, so all datasets for an era are avai
 
 This keeps the common SM samples in one shared place while each analysis owns its signals.
 
-`Run3_2025` is the exception: it has no dedicated MC campaign. Set
-`reuse_mc_from_era: Run3_2024` in `FLAF/config/Run3_2025/global.yaml` and Setup copies
-every 2024 MC (and analysis-signal) dataset that is not already defined and is not
-data (`eraLetter`). 2025 `datasets.yaml` files therefore only need 2025 data plus any
+`Run3_2025` and `Run3_2026` have no dedicated MC campaign. Set
+`reuse_mc_from_era: Run3_2024` in those eras' `FLAF/config/<era>/global.yaml` and
+Setup copies every 2024 MC (and analysis-signal) dataset that is not already
+defined and is not data (`eraLetter`), and inherits `shared_mc` from that era.
+Those `datasets.yaml` files therefore only need that year's data plus any
 era-local custom/CI samples.
 
 ## Dataset entry format

@@ -1,15 +1,15 @@
 era: Run3_2024
 luminosity: 109948.18  # pb-1, https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis#DATA_AN2 command brilcalc lumi -b "STABLE BEAMS" --normtag /cvmfs/cms-bril.cern.ch/cms-lumi-pog/Normtags/normtag_PHYSICS.json -u /pb -i Cert_Collisions2024_378981_386951_Golden.json
-# Same Summer24 MC is processed once per year (2024 and 2025 corrections differ).
+# Same Summer24 MC is processed once per year (jet/PU/tau corrections differ).
 # weight_base = all events, this year's lumi (single-year).
-# weight_base_cmb = luminosity-split subset (24+25 combined); 0 if the event is assigned to the other year.
+# weight_base_cmb = residue-split subset (24+25+26 combined); 0 if assigned to another year.
+# Approximate 110:111:28 lumi ratio → modulus 20 with a 9:9:2 residue split.
 shared_mc:
-  split_modulus: 1000000
-  years:
-    "24":
-      luminosity: 109948.18
-    "25":
-      luminosity: 110730.86
+  split_modulus: 20
+  eras:
+    Run3_2024: [ 0, 8 ]
+    Run3_2025: [ 9, 17 ]
+    Run3_2026: [ 18, 19 ]
 weight_base_branch: weight_base
 nano_version: v15
 crossSectionsFile: FLAF/config/crossSections13p6TeV.yaml

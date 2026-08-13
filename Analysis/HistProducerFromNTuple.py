@@ -33,20 +33,6 @@ def find_keys(inFiles_list):
     return sorted(unique_keys)
 
 
-def _materialize_hist(unit_hist):
-    """Turn an RDF RResultPtr[TH*] into a concrete histogram.
-
-    Do not use ``hasattr`` on an unevaluated RResultPtr: under current ROOT/cppyy
-    that can trigger ``operator*`` via a broken attribute probe and fail with
-    misleading Filter/column errors (e.g. Legacy_region) even when the graph is
-    valid. ``GetValue()`` is the supported materialization path.
-    """
-    get_value = getattr(unit_hist, "GetValue", None)
-    if callable(get_value):
-        return get_value()
-    return unit_hist
-
-
 def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     model, unit_hist, rdf = hist_list[0]
     if verbose > 0:
@@ -56,15 +42,16 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     dir_name = "/".join(key_tuple)
     dir_ptr = Utilities.mkdir(outFile, dir_name)
 
-    unit_hist = _materialize_hist(unit_hist)
     merged_hist = model.GetHistogram().Clone()
     # Detach from the current ROOT directory: the histogram is persisted explicitly via
     # WriteTObject below, so it must not also be auto-flushed into the output file's root
     # (which would leave one stray, unnamed histogram per call when writing directly).
     merged_hist.SetDirectory(0)
-    # GetNcells covers TH1/TH2/TH3 (incl. under/overflow); do not probe GetNbins via
-    # hasattr on RResultPtr (see _materialize_hist).
-    N_bins = unit_hist.GetNcells()
+    N_bins = (
+        unit_hist.GetNbins()
+        if hasattr(unit_hist, "GetNbins")
+        else unit_hist.GetNcells()
+    )
     for i in range(0, N_bins):
         bin_content = unit_hist.GetBinContent(i)
         bin_error = unit_hist.GetBinError(i)
@@ -74,7 +61,6 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     nentries = unit_hist.GetEntries()
     if len(hist_list) > 1:
         for model, unit_hist in hist_list[1:]:
-            unit_hist = _materialize_hist(unit_hist)
             hist = model.GetHistogram()
             for i in range(0, N_bins):
                 bin_content = unit_hist.GetBinContent(i)
@@ -215,16 +201,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Do not call EnableImplicitMT here. Multi-tree RDataFrame graphs that Filter
-    # on bool region columns (e.g. Legacy_region) fail at evaluation under
-    # ImplicitMT — including EnableImplicitMT(1) — with TTreeReader errors. This
-    # producer books Central + weight + shape (shifted-tree) actions together, so
-    # it must stay single-threaded until ROOT fixes that combination.
-    if args.nMT and args.nMT > 1:
-        print(
-            f"Note: --nMT={args.nMT} ignored; HistProducerFromNTuple runs without "
-            "ROOT ImplicitMT (multi-tree region filters)."
-        )
+    ROOT.EnableImplicitMT(args.nMT)
 
     start = time.time()
 

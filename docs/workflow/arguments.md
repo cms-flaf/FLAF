@@ -40,12 +40,10 @@ also provides built-in options for status and cleanup.
 | Option | Default | Meaning |
 |---|---|---|
 | `--workflow crab` | — | Submit branches via CMS CRAB (WLCG). See [CRAB](crab.md). |
-| `--crab-memory` | `-1` | Max memory per job in MB (`-1` → `n_cpus * 2500` or `crab.max_memory_mb`). |
-| `--crab-whitelist` | empty | Comma-separated site whitelist. |
-| `--crab-blacklist` | empty | Comma-separated site blacklist (ignored if whitelist is set). |
 
-CRAB also needs `crab.storage_site` and `crab.out_lfn_base` in config (or the
-`FLAF_CRAB_STORAGE_SITE` / `FLAF_CRAB_OUT_LFN_BASE` environment variables).
+Site white/black lists go in `global.yaml` under `crab:` (not CLI flags).
+`Site.storageSite` / `Data.outLFNDirBase` are derived from `fs_default`.
+Memory is `2 GB * n_cpus`.
 
 ## Status & cleanup (LAW built-ins)
 

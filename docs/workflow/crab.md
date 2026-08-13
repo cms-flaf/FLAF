@@ -6,9 +6,9 @@ uses [law's CMS CRAB workflow](https://github.com/riga/law) (`law.contrib.cms.Cr
 
 Analysis **outputs and job logs** use FLAF remote I/O only (`fs_default` via gfal/`davs://`,
 plus `stageout_logs.sh`). CRAB `transferOutputs` / `transferLogs` are forced **off** so
-nothing is duplicated onto CRAB's stageout area. `crab.storage_site` /
-`crab.out_lfn_base` are still required by the CRAB client for a valid config and a
-submit-time write check — they are not where FLAF stores analysis products.
+nothing is duplicated onto CRAB's stageout area. The CRAB client still needs
+`Site.storageSite` / `Data.outLFNDirBase` for a submit-time write check — those
+fields are derived from `fs_default`, not configured separately.
 
 ## Prerequisites
 
@@ -35,11 +35,9 @@ submit-time write check — they are not where FLAF stores analysis products.
    myproxy-info -s myproxy.cern.ch -l "$SHA1"   # expect timeleft >= 5 days + retrieval policy
    ```
 
-   Alternatively set `job.crab_password_file` in `law.cfg` to a file with the grid
-   certificate passphrase; law will call `delegate_myproxy` with the same CRAB retrievers.
-
-   FLAF fails early if no suitable MyProxy credential is found (instead of waiting for
-   server-side `SUBMITFAILED`).
+   FLAF fails early if the VOMS proxy or a suitable MyProxy credential is missing
+   (instead of waiting for server-side `SUBMITFAILED`). There is no password-file
+   fallback.
 3. CRAB client available (via CMSSW / the law CMSSW sandbox; default sandbox name is set in
    law's config as `job.crab_sandbox_name`).
 4. **Bundles**: CRAB workers do not mount AFS. FLAF always ships code via `BundleTask`
@@ -50,20 +48,23 @@ submit-time write check — they are not where FLAF stores analysis products.
 
 ## Config
 
-Add a `crab:` block to `user_custom.yaml` (or pass via `--user-custom`):
+CRAB's write-check site is taken from `fs_default`:
+
+| `fs_default` | CRAB `storageSite` + `outLFNDirBase` |
+|---|---|
+| `T3_CH_CERNBOX:/store/user/<you>/...` | as written |
+| `davs://eoshome-<initial>.cern.ch:.../eos/user/<initial>/<you>/...` | `T3_CH_CERNBOX` + `/store/user/<you>/...` |
+
+Site lists belong in `global.yaml` (or `user_custom.yaml`) under `crab:`:
 
 ```yaml
 crab:
-  # Stageout site for CRAB bookkeeping (analysis outputs still use fs_default).
-  # At CERN, T3_CH_CERNBOX maps /store/user/<you> to personal EOS and usually
-  # passes `crab checkwrite`; T2_CH_CERN /store/user often does not exist.
-  storage_site: T3_CH_CERNBOX
-  out_lfn_base: /store/user/<your_username>/FLAF
-  # optional:
-  # whitelist: [T2_CH_CERN]   # where jobs run (can differ from storage_site)
+  whitelist: [T2_CH_CERN]   # where jobs run (required)
   # blacklist: [T2_US_MIT]
-  # max_memory_mb: 4000
 ```
+
+Memory is `2 GB * n_cpus` (the existing `--n-cpus` parameter). There is no separate
+CRAB memory flag.
 
 Verify write access before the first campaign:
 
@@ -71,19 +72,10 @@ Verify write access before the first campaign:
 crab checkwrite --site=T3_CH_CERNBOX --lfn=/store/user/$USER
 ```
 
-Alternatively set environment variables:
-
-```sh
-export FLAF_CRAB_STORAGE_SITE=T3_CH_CERNBOX
-export FLAF_CRAB_OUT_LFN_BASE=/store/user/$USER/FLAF
-```
-
 | Key | Meaning |
 |---|---|
-| `storage_site` | CRAB `Site.storageSite` (required for submission). |
-| `out_lfn_base` | CRAB `Data.outLFNDirBase` (required; not where analysis outputs go). |
-| `whitelist` / `blacklist` | Optional site lists. Whitelist implies `ignoreLocality`. |
-| `max_memory_mb` | Default memory when `--crab-memory` is not set (`n_cpus * 2500` otherwise). |
+| `whitelist` | CRAB `Site.whitelist`. Required (or set `blacklist`) when submitting. |
+| `blacklist` | CRAB `Site.blacklist`. Used only when `whitelist` is empty. |
 
 ## Submit
 
@@ -99,9 +91,7 @@ law run FLAF.Analysis.tasks.HistTupleProducerTask \
 | Option | Why |
 |---|---|
 | `--workflow crab` | Submit via CRAB instead of local/HTCondor. |
-| `--crab-memory 4000` | Override max memory (MB) per job. |
-| `--crab-whitelist T2_CH_CERN` | Restrict to listed sites. |
-| `--max-runtime` / `--n-cpus` | Same as HTCondor; mapped to CRAB `maxJobRuntimeMin` / `numCores` / memory. |
+| `--max-runtime` / `--n-cpus` | Same as HTCondor; mapped to CRAB `maxJobRuntimeMin` / `numCores` / memory (`2 GB * n_cpus`). |
 | `--transfer-logs` | On by default; enables remote log stageout when `fs_default` is WLCG. |
 
 You do **not** need `--bundle` for CRAB — bundles are forced whenever the workflow is `crab`.
@@ -129,7 +119,7 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
 
 !!! warning "MyProxy must stay valid"
     CRAB polls through MyProxy. Delegate a long-lived proxy before large campaigns
-    (`myproxy-init -d -n` or law's password-file path).
+    (`myproxy-init` as in Prerequisites).
 
 !!! warning "First-time CRAB / grid mapfile"
     New users may need a CRAB username mapping and write access to the chosen storage site

@@ -1027,20 +1027,16 @@ class FLAFCrabJobFileFactory(law.cms.CrabJobFileFactory):
             f.writelines(new_lines)
 
 
-# Soften MyProxy requirements: modern CRAB accepts a local VOMS proxy for submit/status.
-# law's default CrabWorkflowProxy.setup_job_manager always tries interactive myproxy
-# delegation; that blocks non-interactive CI-like runs when myproxy is not pre-loaded.
+# Require VOMS + MyProxy before submit. The CRAB server retrieves the user proxy
+# from myproxy.cern.ch (>= ~5 days remaining). A local VOMS proxy alone is not
+# enough: the client may accept the task, then the server returns SUBMITFAILED.
+# Do not fall back to interactive delegation or a law.cfg password file.
 _FLAFCrabWorkflowProxyBase = law.cms.CrabWorkflow.workflow_proxy_cls
 
 
 class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
     def setup_job_manager(self):
-        """Ensure VOMS + MyProxy before crab submit.
-
-        The CRAB *server* retrieves the user proxy from myproxy.cern.ch and requires
-        at least ~5 days remaining. A local VOMS proxy alone is not enough: the client
-        may accept the task, then the server returns SUBMITFAILED. Fail early here.
-        """
+        """Require a valid VOMS proxy and a MyProxy credential (>= 5 days)."""
         proxy = os.environ.get("X509_USER_PROXY", "")
         if not proxy or not os.path.isfile(proxy):
             raise RuntimeError(
@@ -1054,11 +1050,10 @@ class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
             )
         kwargs = {"proxy": proxy}
 
-        # CRAB server asks for >= 5 days remaining; keep a small margin.
         min_myproxy_seconds = 5 * 24 * 3600
 
-        # MyProxy usernames may be either the DN (`myproxy-init -d`) or a SHA1 of the DN
-        # (law's default encode_username=True / some crab helpers). Accept either form.
+        # MyProxy usernames may be either the DN (`myproxy-init -d`) or a SHA1 of
+        # the DN (law encode_username=True / some crab helpers). Accept either form.
         for encode in (False, True):
             try:
                 info = (
@@ -1070,27 +1065,55 @@ class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
                 kwargs["myproxy_username"] = info["username"]
                 return kwargs
 
-        # Non-interactive delegation when a password file is configured (law.cfg).
-        # law.delegate_myproxy registers under the SHA1 username CRAB workers expect.
-        cfg = law.config.Config.instance()
-        password_file = cfg.get_expanded("job", "crab_password_file")
-        if password_file and os.path.isfile(password_file):
-            from law.contrib.cms.util import renew_vomsproxy, delegate_myproxy
-
-            if not law.wlcg.check_vomsproxy_validity():
-                renew_vomsproxy(password_file=password_file)
-            kwargs["myproxy_username"] = delegate_myproxy(password_file=password_file)
-            return kwargs
-
         raise RuntimeError(
             "CRAB requires a MyProxy credential valid for at least 5 days "
             "(CRAB server retrieves it from myproxy.cern.ch). "
             "Run once interactively:\n"
             "  myproxy-init -d -n -s myproxy.cern.ch\n"
             "  # verify: myproxy-info -d -s myproxy.cern.ch  (timeleft >= 5 days)\n"
-            "or set job.crab_password_file in law.cfg to a file containing the "
-            "grid certificate passphrase for non-interactive delegation."
+            "See docs/workflow/crab.md for the CRAB-retriever form."
         )
+
+
+_EOSHOME_FS_RE = re.compile(
+    r"^davs://eoshome-[a-z0-9]+\.cern\.ch(?::\d+)?/eos/user/[a-z0-9]/([^/]+)(/.*)?$",
+    re.IGNORECASE,
+)
+
+
+def _crab_stageout_from_fs_spec(fs_spec):
+    """Map ``fs_default`` to CRAB ``(storageSite, outLFNDirBase)``.
+
+    Accepted forms (same as storage docs):
+
+    - ``T3_CH_CERNBOX:/store/user/<user>/...``
+    - ``davs://eoshome-<initial>.cern.ch:.../eos/user/<initial>/<user>/...``
+      → ``T3_CH_CERNBOX`` + ``/store/user/<user>/...``
+    """
+    if isinstance(fs_spec, (list, tuple)):
+        if not fs_spec:
+            raise RuntimeError("fs_default is empty; CRAB needs a remote filesystem")
+        fs_spec = fs_spec[0]
+    if not isinstance(fs_spec, str) or not fs_spec.strip():
+        raise RuntimeError("fs_default must be a string (or list of strings)")
+    spec = fs_spec.strip().rstrip("/")
+
+    if "://" not in spec and ":" in spec:
+        site, lfn = spec.split(":", 1)
+        site, lfn = site.strip(), lfn.strip()
+        if site and lfn.startswith("/"):
+            return site, lfn
+
+    m = _EOSHOME_FS_RE.match(spec)
+    if m:
+        user, rest = m.group(1), m.group(2) or ""
+        return "T3_CH_CERNBOX", f"/store/user/{user}{rest}"
+
+    raise RuntimeError(
+        "CRAB derives Site.storageSite and Data.outLFNDirBase from fs_default. "
+        "Use a WLCG site path (T3_CH_CERNBOX:/store/user/<you>/...) or a CERN "
+        f"EOS davs://eoshome-... URL. Got: {fs_spec}"
+    )
 
 
 class CrabWorkflow(law.cms.CrabWorkflow):
@@ -1101,21 +1124,18 @@ class CrabWorkflow(law.cms.CrabWorkflow):
     ``transferOutputs`` / ``transferLogs`` / ``JobType.outputFiles`` are forced off so
     nothing is duplicated onto CRAB's stageout area.
 
-    ``crab.storage_site`` / ``crab.out_lfn_base`` remain required by the CRAB client
-    (submit-time write check); they are not used for analysis outputs.
+    ``Site.storageSite`` / ``Data.outLFNDirBase`` are derived from ``fs_default``
+    (submit-time write check only). Site white/black lists come from the ``crab:``
+    section of ``global.yaml``. Memory is ``2 GB * n_cpus``.
 
     CRAB workers have no AFS, so code is always shipped via the existing BundleTask
     mechanism (same as ``--bundle`` on HTCondor). Tasks must declare ``bundle_flavours``.
 
-    Config (``global_params`` / user_custom YAML)::
+    Config (``global.yaml`` / user_custom YAML)::
 
         crab:
-          storage_site: T3_CH_CERNBOX       # Site.storageSite (write-check only)
-          out_lfn_base: /store/user/<user>/FLAF   # Data.outLFNDirBase (write-check only)
-          # optional:
-          # whitelist: [T2_CH_CERN, T2_IT_Pisa]
+          whitelist: [T2_CH_CERN]
           # blacklist: [T2_US_MIT]
-          # max_memory_mb: 4000
     """
 
     # Re-declare in the class body so law's metaclass sets _defined_workflow_proxy=True
@@ -1131,26 +1151,6 @@ class CrabWorkflow(law.cms.CrabWorkflow):
         description="enable FLAF remote log stageout (stdall.txt via stageout_logs.sh); "
         "CRAB transferLogs stays off",
     )
-    crab_memory = luigi.IntParameter(
-        default=-1,
-        significant=False,
-        description="max memory per CRAB job in MB; -1 = n_cpus * 2500",
-    )
-    crab_whitelist = law.CSVParameter(
-        default=(),
-        significant=False,
-        description="comma-separated CRAB Site.whitelist; empty = no whitelist",
-    )
-    crab_blacklist = law.CSVParameter(
-        default=(),
-        significant=False,
-        description="comma-separated CRAB Site.blacklist; ignored when whitelist is set",
-    )
-
-    # Parameters that are only meaningful on the workflow (not branch tasks).
-    exclude_params_branch = getattr(
-        law.cms.CrabWorkflow, "exclude_params_branch", set()
-    ) | {"crab_memory", "crab_whitelist", "crab_blacklist"}
 
     def _crab_cfg(self):
         return self.global_params.get("crab") or {}
@@ -1184,26 +1184,13 @@ process.out = cms.EndPath(process.output)
         return path
 
     def crab_stageout_location(self):
-        """Return (storageSite, outLFNDirBase) required by the CRAB client.
+        """Return (storageSite, outLFNDirBase) derived from ``fs_default``.
 
         FLAF does **not** store analysis outputs here (CRAB transferOutputs is forced
         off; products go to ``fs_default``). CRAB still requires these fields and runs
-        a submit-time write check against them — pick a site you can write to
-        (e.g. ``T3_CH_CERNBOX`` + ``/store/user/<you>/...``).
+        a submit-time write check against them.
         """
-        cfg = self._crab_cfg()
-        site = cfg.get("storage_site") or os.environ.get("FLAF_CRAB_STORAGE_SITE")
-        lfn = cfg.get("out_lfn_base") or os.environ.get("FLAF_CRAB_OUT_LFN_BASE")
-        if not site or not lfn:
-            raise RuntimeError(
-                "CRAB requires crab.storage_site and crab.out_lfn_base in config "
-                "(user_custom / global_params), or FLAF_CRAB_STORAGE_SITE and "
-                "FLAF_CRAB_OUT_LFN_BASE environment variables. These are only for the "
-                "CRAB client write-check, not analysis outputs. "
-                "Example: crab: {storage_site: T3_CH_CERNBOX, "
-                "out_lfn_base: /store/user/$USER/FLAF}"
-            )
-        return str(site), str(lfn)
+        return _crab_stageout_from_fs_spec(self.global_params.get("fs_default"))
 
     def crab_output_directory(self):
         return law.LocalDirectoryTarget(self.local_path())
@@ -1294,32 +1281,13 @@ process.out = cms.EndPath(process.output)
         log_remote_base_url = self._log_remote_base_url()
         config.render_variables["log_remote_base_url"] = log_remote_base_url
 
-        # Cores + memory. CRAB enforces ~2500 MB per core and requires
-        # JobType.numCores == process.options.numberOfThreads in the PSet.
-        # AnaTuple/CMSSW jobs need several GB → request enough cores and bake a
-        # matching PSet (law's default PSet always has threads=1).
+        # Cores + memory. CRAB requires JobType.numCores == PSet numberOfThreads.
+        # Memory is 2 GB per CPU from the existing n_cpus parameter.
         n_cpus = max(1, int(getattr(self, "n_cpus", 1) or 1))
-        mem = int(self.crab_memory)
-        if mem <= 0:
-            mem = int(self._crab_cfg().get("max_memory_mb", n_cpus * 2500))
-        # Production tasks that routinely OOM at 2.5 GB on CRAB.
-        heavy = self.__class__.__name__ in (
-            "AnaTupleFileTask",
-            "AnaTupleMergeTask",
-            "HistTupleProducerTask",
-            "HistFromNtupleProducerTask",
-        )
-        if heavy and mem < 8000:
-            mem = 8000
-        mb_per_core = int(self._crab_cfg().get("max_memory_mb_per_core", 2500))
-        max_cores = int(self._crab_cfg().get("max_cores", 8))
-        n_cores = max(n_cpus, (mem + mb_per_core - 1) // mb_per_core)
-        n_cores = max(1, min(n_cores, max_cores))
-        mem = max(mem, n_cores * mb_per_core)
-        # Write a per-thread-count PSet next to the analysis job dir.
-        pset_path = self._ensure_crab_pset(n_cores)
+        mem = n_cpus * 2000
+        pset_path = self._ensure_crab_pset(n_cpus)
         config.crab.JobType.psetName = pset_path
-        config.crab.JobType.numCores = n_cores
+        config.crab.JobType.numCores = n_cpus
         config.crab.JobType.maxMemoryMB = mem
 
         # Runtime limit (hours → minutes). CRAB jobs must download/unpack bundles before
@@ -1335,19 +1303,17 @@ process.out = cms.EndPath(process.output)
                 # Older CRAB clients may not support maxJobRuntimeMin; ignore if rejected later.
                 pass
 
-        # Site white/black lists: CLI params override config.
-        # CRAB requires a whitelist when jobs use synthetic userInputFiles (no inputDataset),
-        # which is always the case for law CRAB workflows. Default the whitelist to the
-        # storage site when nothing else is configured.
-        whitelist = list(self.crab_whitelist) or list(
-            self._crab_cfg().get("whitelist") or []
-        )
-        blacklist = list(self.crab_blacklist) or list(
-            self._crab_cfg().get("blacklist") or []
-        )
+        # Site white/black lists come from global.yaml ``crab:`` (no CLI overrides).
+        # CRAB requires a whitelist when jobs use synthetic userInputFiles (no
+        # inputDataset), which is always the case for law CRAB workflows.
+        whitelist = list(self._crab_cfg().get("whitelist") or [])
+        blacklist = list(self._crab_cfg().get("blacklist") or [])
         if not whitelist and not blacklist:
-            site, _ = self.crab_stageout_location()
-            whitelist = [site]
+            raise RuntimeError(
+                "CRAB requires crab.whitelist (or crab.blacklist) in global.yaml "
+                "under the crab: section. Example:\n"
+                "  crab:\n    whitelist: [T2_CH_CERN]"
+            )
         if whitelist:
             config.crab.Site.whitelist = [str(s) for s in whitelist]
             config.crab.Site.ignoreGlobalBlacklist = True

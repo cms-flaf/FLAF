@@ -731,7 +731,7 @@ class Setup:
                     self.cmssw_env_[var] = os.environ[var]
             # scram runtime (inside get_cmsenv) may still emit the submit-host AFS
             # CMSSW_BASE when ProjectRename failed on a CRAB worker. Force the
-            # relocated release path so HHbtag models / includeLibTool resolve
+            # relocated release path so CMSSW-dependent models / includeLibTool resolve
             # inside the bundle, not /afs/...
             if flaf_cmssw and os.path.isdir(flaf_cmssw):
                 self.cmssw_env_["CMSSW_BASE"] = flaf_cmssw

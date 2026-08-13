@@ -138,6 +138,9 @@ module.exports = async ({ github, context, core, process, require }) => {
         if (key === 'gitlab_branch' || key === 'gitlab_ref') {
           gitlabBranch = value;
           parsed = true;
+        } else if (key === 'ci_backend' || key === 'backend' || key === 'provider' || key === 'runner') {
+          variables.ci_backend = value.toLowerCase();
+          parsed = true;
         } else if (key in variables) {
           variables[key] = normalizeVersionValue(key, value);
           parsed = true;
@@ -214,6 +217,10 @@ module.exports = async ({ github, context, core, process, require }) => {
   variables.WORKFLOW_NAME = workflowNameItems.join(' ');
   variables.github_notify_url = `https://api.github.com/repos/${owner}/${repo}/issues/${prNumber}/comments`;
 
+  const ciBackend = (variables.ci_backend || cfg.ci_backend || 'gitlab').toLowerCase();
+  variables.ci_backend = ciBackend;
+
+  core.setOutput('ci_backend', ciBackend);
   core.setOutput('gitlab_url', cfg.gitlab_url);
   core.setOutput('gitlab_branch', gitlabBranch);
   core.setOutput('variables', JSON.stringify(variables));

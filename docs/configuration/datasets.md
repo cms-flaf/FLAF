@@ -19,7 +19,8 @@ This keeps the common SM samples in one shared place while each analysis owns it
 Setup copies every 2024 MC (and analysis-signal) dataset that is not already
 defined and is not data (`eraLetter`), and inherits `shared_mc` from that era.
 Those `datasets.yaml` files therefore only need that year's data plus any
-era-local custom/CI samples.
+era-local custom/CI samples. 2026 PromptReco NanoAOD (eras A–D) is listed in
+`FLAF/config/Run3_2026/datasets.yaml`.
 
 ## Dataset entry format
 
@@ -73,7 +74,7 @@ resolvable cross-section, that names are well-formed, etc.:
 ```sh
 python3 test/checkDatasetConfigConsistency.py \
   --exception config/dataset_exceptions.yaml \
-  Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025
+  Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025 Run3_2026
 ```
 
 Run it after editing any `datasets.yaml`. Known, intentional exceptions live in

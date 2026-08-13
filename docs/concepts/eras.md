@@ -52,8 +52,11 @@ Each sub-era has its own corrections and luminosity, which is exactly why the
   `weight_base_cmb`. Select which branch histograms use with
   `weight_base_branch`.
   `shared_mc` lives only on the source era (`Run3_2024`): a 9:9:2 residue split
-  over modulus 20 (`Run3_2024: [0, 8]`, `Run3_2025: [9, 17]`,
-  `Run3_2026: [18, 19]`), matching the approximate 110:111:28 luminosity ratio.
+  over modulus 20 (`Run3_2024: [ 0, 8 ]`, `Run3_2025: [ 9, 17 ]`,
+  `Run3_2026: [ 18, 19 ]`), matching the approximate 110:111:28 luminosity ratio.
+  HistTuple multiplies the AnaTuple column named by `weight_base_branch`
+  (`weight_base` for a single-year run, `weight_base_cmb` for the combined
+  24+25+26 run).
   Until official UParTAK4 shape files exist, 2024+ era overlays omit
   `btag.normCacheProducer`, so HistTuple does not depend on the global
   `BtagShape` cache. `modes.<stage>: none` still loads the correction (needed

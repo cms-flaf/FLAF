@@ -1,7 +1,7 @@
 era: Run3_2026
 luminosity: 27987  # pb-1, approximate (110:111:28 of 2024:2025:2026)
 # Same Summer24 MC as 2024. Some 2026 corrections are not yet available.
-# shared_mc is inherited from reuse_mc_from_era.
+# shared_mc is inherited from reuse_mc_from_era. 2026 data is PromptReco NanoAOD.
 reuse_mc_from_era: Run3_2024
 weight_base_branch: weight_base
 nano_version: v15

@@ -121,6 +121,11 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
     CRAB polls through MyProxy. Delegate a long-lived proxy before large campaigns
     (`myproxy-init` as in Prerequisites).
 
+!!! note "Path-existence cache is local on CRAB workers"
+    `WLCGFileSystem.remotePathCacheHost` (`cms-flaf.cern.ch`) is behind the CERN
+    firewall, so CRAB workers do not use it. Existence checks use the in-process
+    cache and gfal only.
+
 !!! warning "First-time CRAB / grid mapfile"
     New users may need a CRAB username mapping and write access to the chosen storage site
     LFN. At CERN, prefer `T3_CH_CERNBOX` for `/store/user/...` (maps to personal EOS and

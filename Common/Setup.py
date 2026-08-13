@@ -657,6 +657,11 @@ class Setup:
             cache_validity = cfg.get("localPathCacheValidity", 600)
             host = cfg.get("remotePathCacheHost", None)
             port = cfg.get("remotePathCachePort", None)
+            # cms-flaf.cern.ch is behind the CERN firewall; CRAB workers at other
+            # sites cannot reach it. Fall back to the in-process PathCache.
+            if os.environ.get("LAW_CRAB_JOB_NUMBER") or os.environ.get("CRAB_Id"):
+                host = None
+                port = None
             verbose = cfg.get("verbose", 0)
             return WLCGFileSystem(
                 path_or_paths,
@@ -726,6 +731,8 @@ class Setup:
                 "X509_USER_PROXY",
                 "FLAF_CMSSW_BASE",
                 "FLAF_CMSSW_ARCH",
+                "LAW_CRAB_JOB_NUMBER",
+                "CRAB_Id",
             ]:
                 if var in os.environ:
                     self.cmssw_env_[var] = os.environ[var]

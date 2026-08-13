@@ -1,5 +1,20 @@
 #!/usr/bin/env bash
 
+# Directory in which the analysis checkout produced by the build job lives. Every job
+# must see it under exactly the same absolute path: the flaf_env virtualenv and the
+# CMSSW/combine areas installed by the build job record their own location in activate
+# scripts, script shebangs and SCRAM configuration, so an installation unpacked
+# somewhere else would not work. It is a bind mount of a runner-workspace directory, so
+# the path inside the container is identical in build and test jobs
+# (see .github/actions/flaf-ci-run).
+FLAF_CI_ROOT="${FLAF_CI_ROOT:-/flaf_ci}"
+
+# Runner workspace: where the build archive is written by the build job and picked up
+# from by the test jobs (through GitHub artifacts), and where the outputs of previous
+# stages are staged for the current one.
+FLAF_CI_WORKSPACE="${FLAF_CI_WORKSPACE:-/workspace}"
+STAGE_INPUTS_DIR="${STAGE_INPUTS_DIR:-${FLAF_CI_WORKSPACE}/ci_inputs}"
+
 require_var() {
   local var_name=$1
   if [[ -z ${!var_name:-} ]]; then
@@ -135,6 +150,55 @@ source_analysis_env() {
   if [[ ${had_nounset} -eq 1 ]]; then
     set -u
   fi
+}
+
+# The build archive carries the installed analysis environment (flaf_env + CMSSW +
+# combine), so it is several GiB and is unpacked by every test job. bzip2 would spend
+# minutes of every job on decompression alone, hence the fastest available compressor.
+_archive_compressor() {
+  if command -v zstd > /dev/null 2>&1; then
+    echo "zstd -T0 -3"
+  elif command -v pigz > /dev/null 2>&1; then
+    echo "pigz -3"
+  else
+    echo "gzip -3"
+  fi
+}
+
+build_archive_path() {
+  local analysis=$1
+  local ext="tar.gz"
+  if command -v zstd > /dev/null 2>&1; then
+    ext="tar.zst"
+  fi
+  echo "${FLAF_CI_WORKSPACE}/${analysis}.${ext}"
+}
+
+create_build_archive() {
+  local analysis=$1
+  local archive
+  archive="$(build_archive_path "${analysis}")"
+  echo "Creating build archive ${archive}..."
+  # Git metadata is not needed downstream (nothing in FLAF reads it at run time) and
+  # would nearly double the archive size because of the LFS payloads.
+  tar --exclude=.git -I "$(_archive_compressor)" \
+    -cf "${archive}" -C "${FLAF_CI_ROOT}" "${analysis}"
+  echo "Build archive created: $(du -h "${archive}" | cut -f1)"
+}
+
+extract_build_archive() {
+  local analysis=$1
+  local archive
+  archive="$(build_archive_path "${analysis}")"
+  if [[ ! -f ${archive} ]]; then
+    echo "Error: build archive ${archive} not found." >&2
+    return 1
+  fi
+  echo "Unpacking ${archive} into ${FLAF_CI_ROOT}..."
+  mkdir -p "${FLAF_CI_ROOT}"
+  tar -xf "${archive}" -C "${FLAF_CI_ROOT}"
+  # Reclaim the runner disk: the unpacked checkout plus its environment is large.
+  rm -f "${archive}"
 }
 
 sync_and_update_submodules() {

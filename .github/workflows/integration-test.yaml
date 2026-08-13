@@ -55,10 +55,14 @@ jobs:
         run: |
           python3 .github/scripts/ci/generate_matrix.py
 
+  # Assembles the analysis checkout at the requested revisions and installs its
+  # environment (flaf_env, CMSSW, combine) once per analysis. It is handed to the test
+  # jobs as a single tar archive: the environment contains symlinks (flaf_env links into
+  # cvmfs) and executables, which the zip of a directory artifact would not preserve.
   build:
     needs: prepare-matrix
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -67,40 +71,25 @@ jobs:
       - name: Checkout FLAF
         uses: actions/checkout@v4
 
-      - name: Set up CVMFS
-        uses: cvmfs-contrib/github-action-cvmfs@v4
-        with:
-          cvmfs_repositories: 'cms.cern.ch,grid.cern.ch,sft.cern.ch'
-
       - name: Build Analysis
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          GRID_USERCERT: ${{ secrets.GRID_USERCERT }}
-          GRID_USERKEY: ${{ secrets.GRID_USERKEY }}
-          GRID_PASSWORD: ${{ secrets.GRID_PASSWORD }}
-          ANALYSIS_NAME: ${{ matrix.analysis }}
-          VARIABLES: ${{ inputs.variables }}
-        run: |
-          docker run --rm \
-            --privileged \
-            -v /cvmfs:/cvmfs:shared \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e SSH_PRIVATE_KEY \
-            -e GRID_USERCERT \
-            -e GRID_USERKEY \
-            -e GRID_PASSWORD \
-            -e ANALYSIS_NAME \
-            -e VARIABLES \
-            -e GITHUB_RUN_ID \
-            kandrosov/flaf:latest \
-            bash .github/scripts/ci/build_analysis.sh
+        uses: ./.github/actions/flaf-ci-run
+        with:
+          script: build_analysis.sh
+          analysis: ${{ matrix.analysis }}
+          variables: ${{ inputs.variables }}
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          grid_usercert: ${{ secrets.GRID_USERCERT }}
+          grid_userkey: ${{ secrets.GRID_USERKEY }}
+          grid_password: ${{ secrets.GRID_PASSWORD }}
 
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
           name: build-${{ matrix.analysis }}
-          path: ${{ matrix.analysis }}.tar.bz2
+          path: ${{ matrix.analysis }}.tar.*
+          if-no-files-found: error
+          # The archive is compressed already; zipping it again only costs time.
+          compression-level: 0
           retention-days: 1
 
   test-dataset:
@@ -116,11 +105,6 @@ jobs:
       - name: Checkout FLAF
         uses: actions/checkout@v4
 
-      - name: Set up CVMFS
-        uses: cvmfs-contrib/github-action-cvmfs@v4
-        with:
-          cvmfs_repositories: 'cms.cern.ch,grid.cern.ch,sft.cern.ch'
-
       - name: Download Build Artifact
         uses: actions/download-artifact@v4
         with:
@@ -128,39 +112,26 @@ jobs:
           path: .
 
       - name: Run Dataset Test
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          GRID_USERCERT: ${{ secrets.GRID_USERCERT }}
-          GRID_USERKEY: ${{ secrets.GRID_USERKEY }}
-          GRID_PASSWORD: ${{ secrets.GRID_PASSWORD }}
-          ANALYSIS_NAME: ${{ matrix.analysis }}
-          ANALYSIS_TASK: ${{ matrix.task }}
-          ANALYSIS_ARGS: ${{ matrix.args }}
-          ERA: ${{ matrix.era }}
-        run: |
-          docker run --rm \
-            --privileged \
-            -v /cvmfs:/cvmfs:shared \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e SSH_PRIVATE_KEY \
-            -e GRID_USERCERT \
-            -e GRID_USERKEY \
-            -e GRID_PASSWORD \
-            -e ANALYSIS_NAME \
-            -e ANALYSIS_TASK \
-            -e ANALYSIS_ARGS \
-            -e ERA \
-            -e GITHUB_RUN_ID \
-            kandrosov/flaf:latest \
-            bash .github/scripts/ci/test_analysis.sh
+        uses: ./.github/actions/flaf-ci-run
+        with:
+          script: test_analysis.sh
+          analysis: ${{ matrix.analysis }}
+          task: ${{ matrix.task }}
+          args: ${{ matrix.args }}
+          era: ${{ matrix.era }}
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          grid_usercert: ${{ secrets.GRID_USERCERT }}
+          grid_userkey: ${{ secrets.GRID_USERKEY }}
+          grid_password: ${{ secrets.GRID_PASSWORD }}
 
       - name: Upload Process Artifacts
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: dataset-${{ matrix.analysis }}-${{ matrix.era }}-${{ matrix.proc_safe }}
-          path: outputs/
+          path: |
+            ${{ env.FLAF_CI_HOST_DIR }}/output
+            ${{ env.FLAF_CI_HOST_DIR }}/${{ matrix.analysis }}/data/CI
           if-no-files-found: ignore
           retention-days: 1
 
@@ -177,11 +148,6 @@ jobs:
       - name: Checkout FLAF
         uses: actions/checkout@v4
 
-      - name: Set up CVMFS
-        uses: cvmfs-contrib/github-action-cvmfs@v4
-        with:
-          cvmfs_repositories: 'cms.cern.ch,grid.cern.ch,sft.cern.ch'
-
       - name: Download Build Artifact
         uses: actions/download-artifact@v4
         with:
@@ -192,43 +158,30 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: dataset-${{ matrix.analysis }}-${{ matrix.era }}-*
-          path: inputs
+          path: ci_inputs
           merge-multiple: true
 
       - name: Run Era Test
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          GRID_USERCERT: ${{ secrets.GRID_USERCERT }}
-          GRID_USERKEY: ${{ secrets.GRID_USERKEY }}
-          GRID_PASSWORD: ${{ secrets.GRID_PASSWORD }}
-          ANALYSIS_NAME: ${{ matrix.analysis }}
-          ANALYSIS_TASK: ${{ matrix.task }}
-          ANALYSIS_ARGS: ${{ matrix.args }}
-          ERA: ${{ matrix.era }}
-        run: |
-          docker run --rm \
-            --privileged \
-            -v /cvmfs:/cvmfs:shared \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e SSH_PRIVATE_KEY \
-            -e GRID_USERCERT \
-            -e GRID_USERKEY \
-            -e GRID_PASSWORD \
-            -e ANALYSIS_NAME \
-            -e ANALYSIS_TASK \
-            -e ANALYSIS_ARGS \
-            -e ERA \
-            -e GITHUB_RUN_ID \
-            kandrosov/flaf:latest \
-            bash .github/scripts/ci/test_analysis.sh
+        uses: ./.github/actions/flaf-ci-run
+        with:
+          script: test_analysis.sh
+          analysis: ${{ matrix.analysis }}
+          task: ${{ matrix.task }}
+          args: ${{ matrix.args }}
+          era: ${{ matrix.era }}
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          grid_usercert: ${{ secrets.GRID_USERCERT }}
+          grid_userkey: ${{ secrets.GRID_USERKEY }}
+          grid_password: ${{ secrets.GRID_PASSWORD }}
 
       - name: Upload Era Artifacts
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: era-${{ matrix.analysis }}-${{ matrix.era }}
-          path: outputs/
+          path: |
+            ${{ env.FLAF_CI_HOST_DIR }}/output
+            ${{ env.FLAF_CI_HOST_DIR }}/${{ matrix.analysis }}/data/CI
           if-no-files-found: ignore
           retention-days: 1
 
@@ -245,11 +198,6 @@ jobs:
       - name: Checkout FLAF
         uses: actions/checkout@v4
 
-      - name: Set up CVMFS
-        uses: cvmfs-contrib/github-action-cvmfs@v4
-        with:
-          cvmfs_repositories: 'cms.cern.ch,grid.cern.ch,sft.cern.ch'
-
       - name: Download Build Artifact
         uses: actions/download-artifact@v4
         with:
@@ -260,43 +208,30 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: era-${{ matrix.analysis }}-*
-          path: inputs
+          path: ci_inputs
           merge-multiple: true
 
       - name: Run Multi-Era Test
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          GRID_USERCERT: ${{ secrets.GRID_USERCERT }}
-          GRID_USERKEY: ${{ secrets.GRID_USERKEY }}
-          GRID_PASSWORD: ${{ secrets.GRID_PASSWORD }}
-          ANALYSIS_NAME: ${{ matrix.analysis }}
-          ANALYSIS_TASK: ${{ matrix.task }}
-          ANALYSIS_ARGS: ${{ matrix.args }}
-          ERA: ${{ matrix.era }}
-        run: |
-          docker run --rm \
-            --privileged \
-            -v /cvmfs:/cvmfs:shared \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace \
-            -e SSH_PRIVATE_KEY \
-            -e GRID_USERCERT \
-            -e GRID_USERKEY \
-            -e GRID_PASSWORD \
-            -e ANALYSIS_NAME \
-            -e ANALYSIS_TASK \
-            -e ANALYSIS_ARGS \
-            -e ERA \
-            -e GITHUB_RUN_ID \
-            kandrosov/flaf:latest \
-            bash .github/scripts/ci/test_analysis.sh
+        uses: ./.github/actions/flaf-ci-run
+        with:
+          script: test_analysis.sh
+          analysis: ${{ matrix.analysis }}
+          task: ${{ matrix.task }}
+          args: ${{ matrix.args }}
+          era: ${{ matrix.era }}
+          ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
+          grid_usercert: ${{ secrets.GRID_USERCERT }}
+          grid_userkey: ${{ secrets.GRID_USERKEY }}
+          grid_password: ${{ secrets.GRID_PASSWORD }}
 
       - name: Upload Multi-Era Artifacts
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
           name: multi-era-${{ matrix.analysis }}
-          path: outputs/
+          path: |
+            ${{ env.FLAF_CI_HOST_DIR }}/output
+            ${{ env.FLAF_CI_HOST_DIR }}/${{ matrix.analysis }}/data/CI
           if-no-files-found: ignore
           retention-days: 1
 

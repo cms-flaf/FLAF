@@ -54,39 +54,35 @@ class TestSharedMcSplit(unittest.TestCase):
         self.assertEqual(n25, 9)
         self.assertEqual(n26, 2)
 
-    def test_cmb_zero_on_other_era_and_rescales(self):
-        split_mod, lo24, hi24, frac_24 = shared_mc_split("Run3_2024", SHARED_MC)
-        _, lo25, hi25, frac_25 = shared_mc_split("Run3_2025", SHARED_MC)
-        _, lo26, hi26, frac_26 = shared_mc_split("Run3_2026", SHARED_MC)
-        weight_base = 2.5
-        event_24 = lo24
-        event_25 = lo25
-        event_26 = lo26
-        self.assertTrue(shared_mc_in_era(event_24, split_mod, lo24, hi24))
-        self.assertTrue(shared_mc_in_era(event_25, split_mod, lo25, hi25))
-        self.assertTrue(shared_mc_in_era(event_26, split_mod, lo26, hi26))
-        self.assertAlmostEqual((weight_base / frac_24) * frac_24, weight_base)
-        self.assertAlmostEqual((weight_base / frac_25) * frac_25, weight_base)
-        self.assertAlmostEqual((weight_base / frac_26) * frac_26, weight_base)
-
-    def test_cmb_expectation_matches_single_year(self):
-        split_mod, lo24, hi24, frac_24 = shared_mc_split("Run3_2024", SHARED_MC)
-        _, lo25, hi25, frac_25 = shared_mc_split("Run3_2025", SHARED_MC)
-        _, lo26, hi26, frac_26 = shared_mc_split("Run3_2026", SHARED_MC)
-        weight_base = 1.0
-        sum_24 = sum_25 = sum_26 = 0.0
-        n = split_mod * 5
-        for event in range(n):
-            if shared_mc_in_era(event, split_mod, lo24, hi24):
-                sum_24 += weight_base / frac_24
-            elif shared_mc_in_era(event, split_mod, lo25, hi25):
-                sum_25 += weight_base / frac_25
-            else:
-                self.assertTrue(shared_mc_in_era(event, split_mod, lo26, hi26))
-                sum_26 += weight_base / frac_26
-        self.assertAlmostEqual(sum_24 / n, weight_base)
-        self.assertAlmostEqual(sum_25 / n, weight_base)
-        self.assertAlmostEqual(sum_26 / n, weight_base)
+    def test_two_denominators_match_when_split_is_not_9_9_2(self):
+        # 25 events: residue counts are 14:9:2, not 9:9:2. Weights are not flat.
+        events = list(range(25))
+        genw = [float(i + 1) for i in events]
+        denom_all = sum(genw)
+        lumi_xs = 100.0
+        sum_base = 0.0
+        sums_cmb = {}
+        for era in SHARED_MC["eras"]:
+            split_mod, lo, hi, frac = shared_mc_split(era, SHARED_MC)
+            in_era = [shared_mc_in_era(e, split_mod, lo, hi) for e in events]
+            denom_cmb = sum(w for w, ok in zip(genw, in_era) if ok)
+            actual_frac = denom_cmb / denom_all
+            self.assertNotAlmostEqual(actual_frac, frac)
+            self.assertGreater(denom_cmb, 0)
+            sum_cmb = 0.0
+            for w, ok in zip(genw, in_era):
+                sum_base += lumi_xs * w / denom_all
+                sum_cmb += lumi_xs * w / denom_cmb if ok else 0.0
+            sums_cmb[era] = sum_cmb
+            self.assertAlmostEqual(sum_cmb, lumi_xs)
+            # Scaling the single-year weight by the residue fraction is biased.
+            biased = sum(
+                (lumi_xs * w / denom_all) / frac if ok else 0.0
+                for w, ok in zip(genw, in_era)
+            )
+            self.assertNotAlmostEqual(biased, lumi_xs)
+        # sum_base was accumulated once per era
+        self.assertAlmostEqual(sum_base / 3, lumi_xs)
 
 
 if __name__ == "__main__":

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """HistTuple-stage check: weight_base_branch selects one-era vs shared-MC.
 
-HistTuple does not recompute the split. It multiplies the AnaTuple column named
-by ``weight_base_branch`` (``weight_base`` or ``weight_base_cmb``).
+HistTuple multiplies the AnaTuple column named by ``weight_base_branch``.
+``weight_base`` uses the full-sample denominator; ``weight_base_cmb`` uses
+the in-era denominator. The residue share is only a target — the two
+denominators keep both yields equal to L·σ even when the split is not 9:9:2.
 """
 
 import os
@@ -26,54 +28,47 @@ SHARED_MC = {
 }
 
 
-def _histtuple_final_weight(weight_base, event, era, branch):
-    """Same product HistTuple uses: SF * selected base-weight column."""
-    split_mod, lo, hi, frac = shared_mc_split(era, SHARED_MC)
-    cmb = weight_base / frac if shared_mc_in_era(event, split_mod, lo, hi) else 0.0
-    selected = weight_base if branch == "weight_base" else cmb
-    return selected
+def _two_denom_weights(events, genw, era):
+    split_mod, lo, hi, _ = shared_mc_split(era, SHARED_MC)
+    in_era = [shared_mc_in_era(e, split_mod, lo, hi) for e in events]
+    denom_all = sum(genw)
+    denom_cmb = sum(w for w, ok in zip(genw, in_era) if ok)
+    w_base = [w / denom_all for w in genw]
+    w_cmb = [
+        (w / denom_cmb if ok and denom_cmb else 0.0) for w, ok in zip(genw, in_era)
+    ]
+    return w_base, w_cmb
 
 
 class TestHistTupleWeightBaseBranch(unittest.TestCase):
-    def test_one_era_keeps_every_event(self):
-        n = 0
-        n_nonzero = 0
+    def test_one_era_uses_full_denominator(self):
+        events = list(range(25))
+        genw = [float(i + 1) for i in events]
         for era in SHARED_MC["eras"]:
-            for event in range(100):
-                w = _histtuple_final_weight(2.0, event, era, "weight_base")
-                n += 1
-                n_nonzero += int(w != 0)
-                self.assertEqual(w, 2.0)
-        self.assertEqual(n_nonzero, n)
+            w_base, _ = _two_denom_weights(events, genw, era)
+            self.assertEqual(len(w_base), len(events))
+            self.assertTrue(all(w > 0 for w in w_base))
+            self.assertAlmostEqual(sum(w_base), 1.0)
 
-    def test_shared_is_partition_and_rescales(self):
-        weight_base = 2.0
-        totals = {era: 0.0 for era in SHARED_MC["eras"]}
-        nonzero = {era: 0 for era in SHARED_MC["eras"]}
-        n = 100
-        for event in range(n):
+    def test_shared_uses_in_era_denominator(self):
+        events = list(range(25))
+        genw = [float(i + 1) for i in events]
+        for event_i, event in enumerate(events):
             assigned = 0
             for era in SHARED_MC["eras"]:
-                w = _histtuple_final_weight(weight_base, event, era, "weight_base_cmb")
-                totals[era] += w
-                if w != 0:
+                _, w_cmb = _two_denom_weights(events, genw, era)
+                if w_cmb[event_i] != 0:
                     assigned += 1
-                    nonzero[era] += 1
-                    _, _, _, frac = shared_mc_split(era, SHARED_MC)
-                    self.assertAlmostEqual(w, weight_base / frac)
             self.assertEqual(assigned, 1)
-        for era, total in totals.items():
-            self.assertAlmostEqual(total / n, weight_base)
-        self.assertEqual(nonzero["Run3_2024"], 45)
-        self.assertEqual(nonzero["Run3_2025"], 45)
-        self.assertEqual(nonzero["Run3_2026"], 10)
+        for era in SHARED_MC["eras"]:
+            _, w_cmb = _two_denom_weights(events, genw, era)
+            self.assertAlmostEqual(sum(w_cmb), 1.0)
 
-    def test_unknown_branch_is_not_silently_one_era(self):
-        # HistTuple must use the configured column name, not fall back.
-        self.assertNotEqual(
-            _histtuple_final_weight(2.0, 0, "Run3_2025", "weight_base"),
-            _histtuple_final_weight(2.0, 0, "Run3_2025", "weight_base_cmb"),
-        )
+    def test_flag_selects_different_columns(self):
+        events = list(range(25))
+        genw = [float(i + 1) for i in events]
+        w_base, w_cmb = _two_denom_weights(events, genw, "Run3_2025")
+        self.assertNotEqual(w_base, w_cmb)
 
 
 if __name__ == "__main__":

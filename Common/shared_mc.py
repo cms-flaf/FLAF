@@ -36,3 +36,9 @@ def shared_mc_split(era, shared_mc):
 
 def shared_mc_in_era(event, split_mod, lo, hi):
     return lo <= (int(event) % split_mod) <= hi
+
+
+def shared_mc_in_era_expr(split_mod, lo, hi):
+    """C++ expression: 1 if this event is assigned to the era range, else 0."""
+    residue = f"(static_cast<unsigned long long>(event) % {int(split_mod)}ULL)"
+    return f"static_cast<int>({residue} >= {int(lo)}ULL && {residue} <= {int(hi)}ULL)"

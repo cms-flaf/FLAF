@@ -50,9 +50,9 @@ Each sub-era has its own corrections and luminosity, which is exactly why the
   Select which branch histograms use with `weight_base_branch`.
   Until official UParTAK4 shape files exist, 2024/2025 set
   `btag.wantShape: false` (and `modes: none`); HistTuple then skips the
-  global `BtagShape` cache. A correction whose `modes.<stage>` is `none`
-  is not applied at that stage. Missing `uncs_to_exclude` era keys default
-  to an empty list.
+  global `BtagShape` cache. `modes.<stage>: none` still loads the
+  correction (needed for WP-id branches) but does not apply scale
+  factors. Missing `uncs_to_exclude` era keys default to an empty list.
 
 ## Running several eras
 

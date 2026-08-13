@@ -900,10 +900,8 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         uncNames = ["Central"]
         unc_cfg_dict = self.setup.weights_config
-        uncs_to_exclude = (
-            self.global_params["uncs_to_exclude"][self.period]
-            if "uncs_to_exclude" in self.global_params.keys()
-            else []
+        uncs_to_exclude = (self.global_params.get("uncs_to_exclude") or {}).get(
+            self.period, []
         )
         compute_unc_histograms = (
             customisation_dict["compute_unc_histograms"] == "True"

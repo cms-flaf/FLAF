@@ -187,9 +187,6 @@ class Task(law.Task):
         config.input_files["user_custom"] = JobInputFile(
             path=path, copy=True, share=True, render=False, increment=False
         )
-        self._dataset_id_name_list = None
-        self._dataset_id_name_dict = None
-        self._dataset_name_id_dict = None
 
     # Process-local memoization of create_branch_map results, shared across task
     # instances. The same branch map is otherwise rebuilt many times during task
@@ -779,10 +776,10 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
             config.render_variables["run_token_server_port"] = ""
 
     def _log_remote_base_url(self):
+        # Must match remote_log_dir_target() (used by --print-status and the
+        # HTCondor submit proxy) so producer sub-paths stay consistent.
         if isinstance(self.fs_default, WLCGFileSystem):
-            return self.remote_dir_target(
-                self.version, "logs", self.__class__.__name__, self.period
-            ).uri()
+            return self.remote_log_dir_target().uri()
         return ""
 
     def workflow_requires(self):
@@ -1137,7 +1134,7 @@ class CrabWorkflow(law.cms.CrabWorkflow):
     crab_memory = luigi.IntParameter(
         default=-1,
         significant=False,
-        description="max memory per CRAB job in MB; -1 = n_cpus * 2000",
+        description="max memory per CRAB job in MB; -1 = n_cpus * 2500",
     )
     crab_whitelist = law.CSVParameter(
         default=(),

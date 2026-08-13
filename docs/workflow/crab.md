@@ -83,7 +83,7 @@ export FLAF_CRAB_OUT_LFN_BASE=/store/user/$USER/FLAF
 | `storage_site` | CRAB `Site.storageSite` (required for submission). |
 | `out_lfn_base` | CRAB `Data.outLFNDirBase` (required; not where analysis outputs go). |
 | `whitelist` / `blacklist` | Optional site lists. Whitelist implies `ignoreLocality`. |
-| `max_memory_mb` | Default memory when `--crab-memory` is not set (`n_cpus * 2000` otherwise). |
+| `max_memory_mb` | Default memory when `--crab-memory` is not set (`n_cpus * 2500` otherwise). |
 
 ## Submit
 
@@ -133,8 +133,8 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
 
 !!! warning "First-time CRAB / grid mapfile"
     New users may need a CRAB username mapping and write access to the chosen storage site
-    LFN. Prefer a site you already use for CMS jobs (`T2_CH_CERN` is the usual CERN EOS
-    choice for `/store/user/...`).
+    LFN. At CERN, prefer `T3_CH_CERNBOX` for `/store/user/...` (maps to personal EOS and
+    usually passes `crab checkwrite`); `T2_CH_CERN /store/user` often does not exist.
 
 !!! note "Test small first"
     Validate with `--workflow local --branches 0 --test 1000`, then a single CRAB branch,

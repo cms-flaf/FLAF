@@ -128,10 +128,11 @@ action() {
                     if ! scramv1 b ProjectRename "${cmssw_dir}"; then
                         echo "bootstrap: WARNING: scram ProjectRename failed; applying path sed fallback"
                         if [ -n "${old_localtop}" ] && [ "${old_localtop}" != "${cmssw_dir}" ]; then
-                            # Escape sed separators in paths.
+                            # Escape for sed s|old|new|g: BRE metacharacters on the
+                            # pattern side; \, &, | on both sides (delimiter specials).
                             local old_esc new_esc
-                            old_esc=$(printf '%s' "${old_localtop}" | sed 's/[.[\*^$\/&]/g')
-                            new_esc=$(printf '%s' "${cmssw_dir}" | sed 's/[.[\*^$\/&]/g')
+                            old_esc=$(printf '%s' "${old_localtop}" | sed 's/[.[\*^$\\|\&]/\\&/g')
+                            new_esc=$(printf '%s' "${cmssw_dir}" | sed 's/[\\|\&]/\\&/g')
                             # Patch Self + .SCRAM metadata that embed the submit-host path.
                             if [ -f "${cmssw_dir}/config/Self" ]; then
                                 sed -i "s|${old_esc}|${new_esc}|g" "${cmssw_dir}/config/Self"

@@ -108,13 +108,17 @@ class HelloWorldTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     k: (int(v) if k == "size" else str(v)) for k, v in st.items()
                 }
             except Exception as e:
-                report["gfal_stat_error"] = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+                report["gfal_stat_error"] = (
+                    f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+                )
 
             try:
                 asum = gfal_sum(self.download_url, sum_type="adler32")
                 report["gfal_sum"] = {"adler32": str(asum)}
             except Exception as e:
-                report["gfal_sum_error"] = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+                report["gfal_sum_error"] = (
+                    f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+                )
 
             size = None
             if report.get("gfal_stat") and "size" in report["gfal_stat"]:
@@ -164,7 +168,9 @@ class HelloWorldTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                 }
             except Exception as e:
                 report["rucio"] = {"ok": False}
-                report["rucio_error"] = f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+                report["rucio_error"] = (
+                    f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+                )
 
         return report
 

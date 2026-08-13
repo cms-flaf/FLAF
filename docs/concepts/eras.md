@@ -47,6 +47,11 @@ Each sub-era has its own corrections and luminosity, which is exactly why the
   this year's luminosity; use for a single-year run) and `weight_base_cmb` (the same
   events split by luminosity between 2024 and 2025; use for a 24+25 combination).
   Select which branch histograms use with `weight_base_branch`.
+  Until official UParTAK4 shape files exist, 2024/2025 set
+  `btag.wantShape: false` (and `modes: none`); HistTuple then skips the
+  global `BtagShape` cache. A correction whose `modes.<stage>` is `none`
+  is not applied at that stage. Missing `uncs_to_exclude` era keys default
+  to an empty list.
 
 ## Running several eras
 

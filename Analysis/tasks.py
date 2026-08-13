@@ -304,8 +304,16 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         payload_producers = self.global_params.get("payload_producers")
         if payload_producers:
+            skip_global_producers = set()
+            btag_cfg = self.global_params.get("corrections", {}).get("btag", {})
+            if not btag_cfg.get("wantShape", True):
+                skip = btag_cfg.get("normCacheProducer")
+                if skip:
+                    skip_global_producers.add(skip)
             for producer_name, producer_cfg in payload_producers.items():
                 if not producer_cfg.get("is_global", False):
+                    continue
+                if producer_name in skip_global_producers:
                     continue
                 if producer_cfg.get("needs_aggregation", False):
                     aggregate_list.append(producer_name)

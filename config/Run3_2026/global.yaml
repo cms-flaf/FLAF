@@ -1,5 +1,5 @@
 era: Run3_2026
-luminosity: 27987  # pb-1, approximate (110:111:28 of 2024:2025:2026)
+luminosity: 25843.26  # pb-1, brilcalc lumi -b "STABLE BEAMS" -u /pb -i Cert_Collisions2026_401624_403937_Golden.json (no normtag available)
 # Same Summer24 MC as 2024. Some 2026 corrections are not yet available.
 # shared_mc is inherited from reuse_mc_from_era. 2026 data is PromptReco NanoAOD.
 reuse_mc_from_era: Run3_2024
@@ -15,4 +15,4 @@ MET_flags:  # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersR
   - Flag_hfNoisyHitsFilter
   - Flag_eeBadScFilter
   - Flag_ecalBadCalibFilter
-# lumiFile: 2026 golden JSON not yet available
+lumiFile: Corrections/data/golden_json/Cert_Collisions2026_401624_403937_Golden.json

@@ -49,7 +49,7 @@ variables:
   HH_bbtautau_active: "1"          # "1" = run this analysis, "0" = skip
   HH_bbtautau_task: "FLAF.Analysis.tasks.HistPlotTask"
   HH_bbtautau_args: "--branches 0 --test 1000"
-  HH_bbtautau_eras: "Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix"
+  HH_bbtautau_eras: "Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025 Run3_2026"
   HH_bbtautau_processes: "custom_CI_Signal custom_CI_Background custom_CI_Data"
   TEST_TIMEOUT: "4h"
 ```
@@ -60,7 +60,7 @@ variables:
 | `<ana>_version` / `<pkg>_version` | Which version of a repo to use; `default` keeps the pipeline's current value. |
 | `<ana>_task` | The target task (the pipeline runs everything up to it). |
 | `<ana>_args` | Extra `law run` arguments (e.g. `--branches 0 --test 1000`). |
-| `<ana>_eras` | Eras to test (space-separated, or `ALL`). |
+| `<ana>_eras` | Eras to test (space-separated explicit list). |
 | `<ana>_processes` | The processes to test (space-separated). **Required** for an active analysis — there is no default. |
 
 !!! warning "`<ana>_processes` must be set for an active analysis"

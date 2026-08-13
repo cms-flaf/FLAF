@@ -72,7 +72,7 @@ Each sub-era has its own corrections and luminosity, which is exactly why the
 
 A task runs **one era at a time**. To cover multiple eras, launch the task once per era (often
 scripted), or, in CI, list them in the `*_eras` variable (e.g.
-`Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix`, or `ALL`). See the
+`Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025 Run3_2026`). See the
 [integration pipeline](../ci/integration-pipeline.md). For a 2024+2025+2026
 combination, run each era with `weight_base_branch: weight_base_cmb` and add
 the histograms.

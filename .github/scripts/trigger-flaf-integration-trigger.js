@@ -11,12 +11,7 @@ module.exports = async ({ github, context, core, process, fetch, JSON, URLSearch
     }
 
     const inputs = {
-      analyses: JSON.stringify(activeAnalyses),
       variables: JSON.stringify(variables),
-      flaf_version: variables['FLAF_version'] || 'default',
-      plotkit_version: variables['PlotKit_version'] || 'default',
-      corrections_version: variables['Corrections_version'] || 'default',
-      statinference_version: variables['StatInference_version'] || 'default',
       github_notify_url: variables.github_notify_url || '',
     };
 

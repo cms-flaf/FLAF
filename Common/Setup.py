@@ -658,18 +658,34 @@ class Setup:
             host = cfg.get("remotePathCacheHost", None)
             port = cfg.get("remotePathCachePort", None)
             # cms-flaf.cern.ch is behind the CERN firewall; CRAB workers at other
-            # sites cannot reach it. Fall back to the in-process PathCache.
-            if os.environ.get("LAW_CRAB_JOB_NUMBER") or os.environ.get("CRAB_Id"):
+            # sites cannot reach it. Use the in-process PathCache, seeded from the
+            # snapshot shipped at submit, with a longer TTL so many jobs do not
+            # re-stat the same remote paths.
+            on_crab_worker = bool(
+                os.environ.get("LAW_CRAB_JOB_NUMBER") or os.environ.get("CRAB_Id")
+            )
+            if on_crab_worker:
                 host = None
                 port = None
+                cache_validity = int(
+                    cfg.get(
+                        "crabLocalPathCacheValidity",
+                        max(cache_validity * 24, 86400),
+                    )
+                )
             verbose = cfg.get("verbose", 0)
-            return WLCGFileSystem(
+            fs = WLCGFileSystem(
                 path_or_paths,
                 local_path_cache_validity_period=cache_validity,
                 path_cache_host=host,
                 path_cache_port=port,
                 verbose=verbose,
             )
+            if on_crab_worker:
+                from FLAF.RunKit.law_gfal import apply_shipped_path_cache
+
+                apply_shipped_path_cache(fs)
+            return fs
 
     def get_fs(self, fs_name, custom_paths=None):
         fs_instance = None
@@ -733,6 +749,9 @@ class Setup:
                 "FLAF_CMSSW_ARCH",
                 "LAW_CRAB_JOB_NUMBER",
                 "CRAB_Id",
+                "LAW_JOB_INIT_DIR",
+                "LAW_JOB_HOME",
+                "FLAF_SHIPPED_PATH_CACHE",
             ]:
                 if var in os.environ:
                     self.cmssw_env_[var] = os.environ[var]

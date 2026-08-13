@@ -188,6 +188,23 @@ class Task(law.Task):
             path=path, copy=True, share=True, render=False, increment=False
         )
 
+    def _stage_path_cache_input(self, config):
+        """Dump the submit-process path cache and ship it with the CRAB job."""
+        from law.job.base import JobInputFile
+        from FLAF.RunKit.law_gfal import (
+            SHIPPED_PATH_CACHE_BASENAME,
+            collect_setup_path_cache_entries,
+            write_path_cache_file,
+        )
+
+        out_dir = self.local_path()
+        os.makedirs(out_dir, exist_ok=True)
+        path = os.path.join(out_dir, SHIPPED_PATH_CACHE_BASENAME)
+        write_path_cache_file(path, collect_setup_path_cache_entries(self.setup))
+        config.input_files["path_cache"] = JobInputFile(
+            path=path, copy=True, share=True, render=False, increment=False
+        )
+
     # Process-local memoization of create_branch_map results, shared across task
     # instances. The same branch map is otherwise rebuilt many times during task
     # initialization because every `X.req(...).create_branch_map()` constructs a fresh
@@ -1277,6 +1294,7 @@ process.out = cms.EndPath(process.output)
         self._apply_bootstrap_path_render_variables(config)
         self._apply_bundle_render_variables(config)
         self._stage_user_custom_input(config)
+        self._stage_path_cache_input(config)
 
         log_remote_base_url = self._log_remote_base_url()
         config.render_variables["log_remote_base_url"] = log_remote_base_url

@@ -121,10 +121,12 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
     CRAB polls through MyProxy. Delegate a long-lived proxy before large campaigns
     (`myproxy-init` as in Prerequisites).
 
-!!! note "Path-existence cache is local on CRAB workers"
+!!! note "Path-existence cache is shipped with the job"
     `WLCGFileSystem.remotePathCacheHost` (`cms-flaf.cern.ch`) is behind the CERN
-    firewall, so CRAB workers do not use it. Existence checks use the in-process
-    cache and gfal only.
+    firewall, so CRAB workers do not use it. At submit time FLAF dumps the
+    in-process path cache and ships it with the job; the worker loads that
+    snapshot and uses a longer local TTL (`24 × localPathCacheValidity`, at
+    least 24 h) so concurrent jobs do not re-stat the same remote paths.
 
 !!! warning "First-time CRAB / grid mapfile"
     New users may need a CRAB username mapping and write access to the chosen storage site

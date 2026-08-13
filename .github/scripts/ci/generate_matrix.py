@@ -11,7 +11,14 @@ DATASET_TASKS = [
     "FLAF.Analysis.tasks.HistFromNtupleProducerTask",
 ]
 
-AVAILABLE_ERAS = ["Run3_2022", "Run3_2022EE", "Run3_2023", "Run3_2023BPix", "Run3_2024", "Run3_2025"]
+AVAILABLE_ERAS = [
+    "Run3_2022",
+    "Run3_2022EE",
+    "Run3_2023",
+    "Run3_2023BPix",
+    "Run3_2024",
+    "Run3_2025",
+]
 ANALYSES = ["HH_bbWW", "HH_bbtautau", "H_mumu"]
 
 
@@ -28,8 +35,12 @@ def parse_eras(raw_value):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate GitHub Actions matrix definitions.")
-    parser.add_argument("--variables", default=None, help="JSON-serialized variables map.")
+    parser = argparse.ArgumentParser(
+        description="Generate GitHub Actions matrix definitions."
+    )
+    parser.add_argument(
+        "--variables", default=None, help="JSON-serialized variables map."
+    )
     args = parser.parse_args()
 
     raw_vars = args.variables or os.environ.get("VARIABLES", "{}")
@@ -52,7 +63,9 @@ def main():
         eras = parse_eras(variables.get(f"{ana}_eras", "Run3_2022EE"))
         target_task = variables.get(f"{ana}_task", "FLAF.Analysis.tasks.HistPlotTask")
         task_args = variables.get(f"{ana}_args", "--test 1000")
-        procs_str = variables.get(f"{ana}_processes", "custom_CI_Signal custom_CI_Background custom_CI_Data")
+        procs_str = variables.get(
+            f"{ana}_processes", "custom_CI_Signal custom_CI_Background custom_CI_Data"
+        )
         procs = procs_str.split() if procs_str else []
 
         dataset_task = ""
@@ -73,29 +86,30 @@ def main():
             if dataset_task:
                 for proc in procs:
                     proc_safe = proc.replace("/", "_").replace("-", "_")
-                    process_matrix.append({
-                        "analysis": ana,
-                        "era": era,
-                        "process": proc,
-                        "proc_safe": proc_safe,
-                        "task": dataset_task,
-                        "args": f"{task_args} --process {proc}"
-                    })
+                    process_matrix.append(
+                        {
+                            "analysis": ana,
+                            "era": era,
+                            "process": proc,
+                            "proc_safe": proc_safe,
+                            "task": dataset_task,
+                            "args": f"{task_args} --process {proc}",
+                        }
+                    )
             if era_task:
-                era_matrix.append({
-                    "analysis": ana,
-                    "era": era,
-                    "task": era_task,
-                    "args": task_args
-                })
+                era_matrix.append(
+                    {"analysis": ana, "era": era, "task": era_task, "args": task_args}
+                )
 
         if multi_era_task:
-            multi_era_matrix.append({
-                "analysis": ana,
-                "task": multi_era_task,
-                "args": task_args,
-                "era": eras[0] if eras else "Run3_2022EE"
-            })
+            multi_era_matrix.append(
+                {
+                    "analysis": ana,
+                    "task": multi_era_task,
+                    "args": task_args,
+                    "era": eras[0] if eras else "Run3_2022EE",
+                }
+            )
 
     if not analyses_matrix:
         analyses_matrix = ["HH_bbtautau"]
@@ -108,7 +122,7 @@ def main():
         "multi_eras": multi_era_matrix,
         "has_processes": len(process_matrix) > 0,
         "has_eras": len(era_matrix) > 0,
-        "has_multi_eras": len(multi_era_matrix) > 0
+        "has_multi_eras": len(multi_era_matrix) > 0,
     }
 
     if output_file:
@@ -119,7 +133,9 @@ def main():
             f.write(f"multi_eras={json.dumps(multi_era_matrix)}\n")
             f.write(f"has_processes={'true' if len(process_matrix) > 0 else 'false'}\n")
             f.write(f"has_eras={'true' if len(era_matrix) > 0 else 'false'}\n")
-            f.write(f"has_multi_eras={'true' if len(multi_era_matrix) > 0 else 'false'}\n")
+            f.write(
+                f"has_multi_eras={'true' if len(multi_era_matrix) > 0 else 'false'}\n"
+            )
 
     print(json.dumps(results, indent=2))
 

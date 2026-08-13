@@ -3,91 +3,20 @@ name: FLAF Integration Test (GitHub Actions)
 on:
   workflow_dispatch:
     inputs:
-      analysis_name:
-        description: 'Analysis name (HH_bbtautau, HH_bbWW, H_mumu)'
-        required: true
-        default: 'HH_bbtautau'
-      analysis_version:
-        description: 'Analysis version/branch/PR (e.g. main, PR_123)'
+      variables:
+        description: 'JSON-serialized variables object'
         required: false
-        default: 'main'
-      flaf_version:
-        description: 'FLAF version/branch/PR'
-        required: false
-        default: 'default'
-      plotkit_version:
-        description: 'PlotKit version'
-        required: false
-        default: 'default'
-      corrections_version:
-        description: 'Corrections version'
-        required: false
-        default: 'default'
-      statinference_version:
-        description: 'StatInference version'
-        required: false
-        default: 'default'
-      eras:
-        description: 'Eras to test (space-separated or ALL)'
-        required: false
-        default: 'Run3_2022EE'
-      processes:
-        description: 'Processes to test (space-separated, e.g. custom_CI_Signal custom_CI_Background custom_CI_Data)'
-        required: false
-        default: 'custom_CI_Signal custom_CI_Background custom_CI_Data'
-      task:
-        description: 'Analysis Task'
-        required: false
-        default: 'FLAF.Analysis.tasks.HistPlotTask'
-      args:
-        description: 'Task args'
-        required: false
-        default: '--test 1000'
+        default: '{}'
       github_notify_url:
         description: 'GitHub comment URL to report results back'
         required: false
         default: ''
   workflow_call:
     inputs:
-      analysis_name:
-        type: string
-        required: true
-      analysis_version:
+      variables:
         type: string
         required: false
-        default: 'main'
-      flaf_version:
-        type: string
-        required: false
-        default: 'default'
-      plotkit_version:
-        type: string
-        required: false
-        default: 'default'
-      corrections_version:
-        type: string
-        required: false
-        default: 'default'
-      statinference_version:
-        type: string
-        required: false
-        default: 'default'
-      eras:
-        type: string
-        required: false
-        default: 'Run3_2022EE'
-      processes:
-        type: string
-        required: false
-        default: 'custom_CI_Signal custom_CI_Background custom_CI_Data'
-      task:
-        type: string
-        required: false
-        default: 'FLAF.Analysis.tasks.HistPlotTask'
-      args:
-        type: string
-        required: false
-        default: '--test 1000'
+        default: '{}'
       github_notify_url:
         type: string
         required: false
@@ -105,9 +34,35 @@ on:
         required: false
 
 jobs:
-  run-integration-test:
+  prepare-matrix:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    outputs:
+      analyses: ${{ steps.gen-matrix.outputs.analyses }}
+      processes: ${{ steps.gen-matrix.outputs.processes }}
+      eras: ${{ steps.gen-matrix.outputs.eras }}
+      multi_eras: ${{ steps.gen-matrix.outputs.multi_eras }}
+      has_processes: ${{ steps.gen-matrix.outputs.has_processes }}
+      has_eras: ${{ steps.gen-matrix.outputs.has_eras }}
+      has_multi_eras: ${{ steps.gen-matrix.outputs.has_multi_eras }}
+    steps:
+      - name: Checkout FLAF
+        uses: actions/checkout@v4
+
+      - name: Generate matrix
+        id: gen-matrix
+        env:
+          VARIABLES: ${{ inputs.variables }}
+        run: |
+          python3 .github/scripts/ci/generate_matrix.py
+
+  build:
+    needs: prepare-matrix
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        analysis: ${{ fromJson(needs.prepare-matrix.outputs.analyses) }}
     steps:
       - name: Checkout FLAF
         uses: actions/checkout@v4
@@ -117,24 +72,14 @@ jobs:
         with:
           cvmfs_repositories: 'cms.cern.ch,grid.cern.ch,sft.cern.ch'
 
-      - name: Run Integration Build and Test
+      - name: Build Analysis
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           GRID_USERCERT: ${{ secrets.GRID_USERCERT }}
           GRID_USERKEY: ${{ secrets.GRID_USERKEY }}
           GRID_PASSWORD: ${{ secrets.GRID_PASSWORD }}
-          ANALYSIS_NAME: ${{ inputs.analysis_name }}
-          ANALYSIS_VERSION: ${{ inputs.analysis_version }}
-          FLAF_version: ${{ inputs.flaf_version }}
-          PlotKit_version: ${{ inputs.plotkit_version }}
-          Corrections_version: ${{ inputs.corrections_version }}
-          StatInference_version: ${{ inputs.statinference_version }}
-          ERAS: ${{ inputs.eras }}
-          PROCESSES: ${{ inputs.processes }}
-          ANALYSIS_TASK: ${{ inputs.task }}
-          ANALYSIS_ARGS: ${{ inputs.args }}
-          GITHUB_NOTIFY_URL: ${{ inputs.github_notify_url }}
-          FLAF_GITHUB_TOKEN: ${{ secrets.FLAF_GITHUB_TOKEN }}
+          ANALYSIS_NAME: ${{ matrix.analysis }}
+          VARIABLES: ${{ inputs.variables }}
         run: |
           docker run --rm \
             --privileged \
@@ -146,17 +91,262 @@ jobs:
             -e GRID_USERKEY \
             -e GRID_PASSWORD \
             -e ANALYSIS_NAME \
-            -e ANALYSIS_VERSION \
-            -e FLAF_version \
-            -e PlotKit_version \
-            -e Corrections_version \
-            -e StatInference_version \
-            -e ERAS \
-            -e PROCESSES \
-            -e ANALYSIS_TASK \
-            -e ANALYSIS_ARGS \
-            -e GITHUB_NOTIFY_URL \
-            -e FLAF_GITHUB_TOKEN \
+            -e VARIABLES \
             -e GITHUB_RUN_ID \
             kandrosov/flaf:latest \
-            bash .github/scripts/ci/run_gha_integration.sh
+            bash .github/scripts/ci/build_analysis.sh
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ matrix.analysis }}
+          path: ${{ matrix.analysis }}.tar.bz2
+          retention-days: 1
+
+  test-dataset:
+    needs: [ prepare-matrix, build ]
+    if: ${{ needs.prepare-matrix.outputs.has_processes == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare-matrix.outputs.processes) }}
+    steps:
+      - name: Checkout FLAF
+        uses: actions/checkout@v4
+
+      - name: Set up CVMFS
+        uses: cvmfs-contrib/github-action-cvmfs@v4
+        with:
+          cvmfs_repositories: 'cms.cern.ch,grid.cern.ch,sft.cern.ch'
+
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ matrix.analysis }}
+          path: .
+
+      - name: Run Dataset Test
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          GRID_USERCERT: ${{ secrets.GRID_USERCERT }}
+          GRID_USERKEY: ${{ secrets.GRID_USERKEY }}
+          GRID_PASSWORD: ${{ secrets.GRID_PASSWORD }}
+          ANALYSIS_NAME: ${{ matrix.analysis }}
+          ANALYSIS_TASK: ${{ matrix.task }}
+          ANALYSIS_ARGS: ${{ matrix.args }}
+          ERA: ${{ matrix.era }}
+        run: |
+          docker run --rm \
+            --privileged \
+            -v /cvmfs:/cvmfs:shared \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            -e SSH_PRIVATE_KEY \
+            -e GRID_USERCERT \
+            -e GRID_USERKEY \
+            -e GRID_PASSWORD \
+            -e ANALYSIS_NAME \
+            -e ANALYSIS_TASK \
+            -e ANALYSIS_ARGS \
+            -e ERA \
+            -e GITHUB_RUN_ID \
+            kandrosov/flaf:latest \
+            bash .github/scripts/ci/test_analysis.sh
+
+      - name: Upload Process Artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: dataset-${{ matrix.analysis }}-${{ matrix.era }}-${{ matrix.proc_safe }}
+          path: outputs/
+          if-no-files-found: ignore
+          retention-days: 1
+
+  test-era:
+    needs: [ prepare-matrix, build, test-dataset ]
+    if: ${{ always() && !contains(needs.build.result, 'failure') && !contains(needs.build.result, 'cancelled') && !contains(needs.test-dataset.result, 'failure') && !contains(needs.test-dataset.result, 'cancelled') && needs.prepare-matrix.outputs.has_eras == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare-matrix.outputs.eras) }}
+    steps:
+      - name: Checkout FLAF
+        uses: actions/checkout@v4
+
+      - name: Set up CVMFS
+        uses: cvmfs-contrib/github-action-cvmfs@v4
+        with:
+          cvmfs_repositories: 'cms.cern.ch,grid.cern.ch,sft.cern.ch'
+
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ matrix.analysis }}
+          path: .
+
+      - name: Download Dataset Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dataset-${{ matrix.analysis }}-${{ matrix.era }}-*
+          path: inputs
+          merge-multiple: true
+
+      - name: Run Era Test
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          GRID_USERCERT: ${{ secrets.GRID_USERCERT }}
+          GRID_USERKEY: ${{ secrets.GRID_USERKEY }}
+          GRID_PASSWORD: ${{ secrets.GRID_PASSWORD }}
+          ANALYSIS_NAME: ${{ matrix.analysis }}
+          ANALYSIS_TASK: ${{ matrix.task }}
+          ANALYSIS_ARGS: ${{ matrix.args }}
+          ERA: ${{ matrix.era }}
+        run: |
+          docker run --rm \
+            --privileged \
+            -v /cvmfs:/cvmfs:shared \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            -e SSH_PRIVATE_KEY \
+            -e GRID_USERCERT \
+            -e GRID_USERKEY \
+            -e GRID_PASSWORD \
+            -e ANALYSIS_NAME \
+            -e ANALYSIS_TASK \
+            -e ANALYSIS_ARGS \
+            -e ERA \
+            -e GITHUB_RUN_ID \
+            kandrosov/flaf:latest \
+            bash .github/scripts/ci/test_analysis.sh
+
+      - name: Upload Era Artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: era-${{ matrix.analysis }}-${{ matrix.era }}
+          path: outputs/
+          if-no-files-found: ignore
+          retention-days: 1
+
+  test-multi-era:
+    needs: [ prepare-matrix, build, test-era ]
+    if: ${{ always() && !contains(needs.build.result, 'failure') && !contains(needs.build.result, 'cancelled') && !contains(needs.test-era.result, 'failure') && !contains(needs.test-era.result, 'cancelled') && needs.prepare-matrix.outputs.has_multi_eras == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare-matrix.outputs.multi_eras) }}
+    steps:
+      - name: Checkout FLAF
+        uses: actions/checkout@v4
+
+      - name: Set up CVMFS
+        uses: cvmfs-contrib/github-action-cvmfs@v4
+        with:
+          cvmfs_repositories: 'cms.cern.ch,grid.cern.ch,sft.cern.ch'
+
+      - name: Download Build Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-${{ matrix.analysis }}
+          path: .
+
+      - name: Download All Era Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: era-${{ matrix.analysis }}-*
+          path: inputs
+          merge-multiple: true
+
+      - name: Run Multi-Era Test
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          GRID_USERCERT: ${{ secrets.GRID_USERCERT }}
+          GRID_USERKEY: ${{ secrets.GRID_USERKEY }}
+          GRID_PASSWORD: ${{ secrets.GRID_PASSWORD }}
+          ANALYSIS_NAME: ${{ matrix.analysis }}
+          ANALYSIS_TASK: ${{ matrix.task }}
+          ANALYSIS_ARGS: ${{ matrix.args }}
+          ERA: ${{ matrix.era }}
+        run: |
+          docker run --rm \
+            --privileged \
+            -v /cvmfs:/cvmfs:shared \
+            -v ${{ github.workspace }}:/workspace \
+            -w /workspace \
+            -e SSH_PRIVATE_KEY \
+            -e GRID_USERCERT \
+            -e GRID_USERKEY \
+            -e GRID_PASSWORD \
+            -e ANALYSIS_NAME \
+            -e ANALYSIS_TASK \
+            -e ANALYSIS_ARGS \
+            -e ERA \
+            -e GITHUB_RUN_ID \
+            kandrosov/flaf:latest \
+            bash .github/scripts/ci/test_analysis.sh
+
+      - name: Upload Multi-Era Artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: multi-era-${{ matrix.analysis }}
+          path: outputs/
+          if-no-files-found: ignore
+          retention-days: 1
+
+  notify:
+    needs: [ prepare-matrix, build, test-dataset, test-era, test-multi-era ]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post PR notification
+        uses: actions/github-script@v6
+        env:
+          BUILD_RESULT: ${{ needs.build.result }}
+          DATASET_RESULT: ${{ needs.test-dataset.result }}
+          ERA_RESULT: ${{ needs.test-era.result }}
+          MULTI_ERA_RESULT: ${{ needs.test-multi-era.result }}
+          GITHUB_NOTIFY_URL: ${{ inputs.github_notify_url }}
+          FLAF_GITHUB_TOKEN: ${{ secrets.FLAF_GITHUB_TOKEN }}
+        with:
+          github-token: ${{ secrets.FLAF_GITHUB_TOKEN }}
+          script: |
+            const notifyUrl = process.env.GITHUB_NOTIFY_URL;
+            if (!notifyUrl) {
+              console.log('No GITHUB_NOTIFY_URL provided. Skipping PR comment.');
+              return;
+            }
+
+            const results = [
+              process.env.BUILD_RESULT,
+              process.env.DATASET_RESULT,
+              process.env.ERA_RESULT,
+              process.env.MULTI_ERA_RESULT
+            ].filter(r => r && r !== 'skipped');
+
+            const isSuccess = results.every(r => r === 'success');
+            const runUrl = `https://github.com/cms-flaf/FLAF/actions/runs/${context.runId}`;
+            const msg = isSuccess
+              ? `✅ [GitHub Actions integration pipeline](${runUrl}) passed.`
+              : `❌ [GitHub Actions integration pipeline](${runUrl}) failed.`;
+
+            const [owner, repo, , pullNumber] = notifyUrl.replace('https://api.github.com/repos/', '').split('/');
+            console.log(`Posting notification to ${notifyUrl}: ${msg}`);
+
+            const token = process.env.FLAF_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
+            await fetch(notifyUrl, {
+              method: 'POST',
+              headers: {
+                'Accept': 'application/vnd.github+json',
+                'Authorization': `Bearer ${token}`,
+                'X-GitHub-Api-Version': '2022-11-28',
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ body: msg })
+            });

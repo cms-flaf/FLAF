@@ -20,6 +20,18 @@ ANALYSIS_ARGS="${ANALYSIS_ARGS:---test 1000}"
 GITHUB_NOTIFY_URL="${GITHUB_NOTIFY_URL:-}"
 FLAF_GITHUB_TOKEN="${FLAF_GITHUB_TOKEN:-}"
 
+if [[ -n "${VARIABLES:-}" ]]; then
+  ANALYSIS_VERSION=$(python3 -c "import json, os; vars=json.loads(os.environ.get('VARIABLES', '{}')); print(vars.get('${ANALYSIS_NAME}_version', '${ANALYSIS_VERSION}'))")
+  FLAF_version=$(python3 -c "import json, os; vars=json.loads(os.environ.get('VARIABLES', '{}')); print(vars.get('FLAF_version', '${FLAF_version}'))")
+  PlotKit_version=$(python3 -c "import json, os; vars=json.loads(os.environ.get('VARIABLES', '{}')); print(vars.get('PlotKit_version', '${PlotKit_version}'))")
+  Corrections_version=$(python3 -c "import json, os; vars=json.loads(os.environ.get('VARIABLES', '{}')); print(vars.get('Corrections_version', '${Corrections_version}'))")
+  StatInference_version=$(python3 -c "import json, os; vars=json.loads(os.environ.get('VARIABLES', '{}')); print(vars.get('StatInference_version', '${StatInference_version}'))")
+  ERAS=$(python3 -c "import json, os; vars=json.loads(os.environ.get('VARIABLES', '{}')); print(vars.get('${ANALYSIS_NAME}_eras', '${ERAS}'))")
+  PROCESSES=$(python3 -c "import json, os; vars=json.loads(os.environ.get('VARIABLES', '{}')); print(vars.get('${ANALYSIS_NAME}_processes', '${PROCESSES}'))")
+  ANALYSIS_TASK=$(python3 -c "import json, os; vars=json.loads(os.environ.get('VARIABLES', '{}')); print(vars.get('${ANALYSIS_NAME}_task', '${ANALYSIS_TASK}'))")
+  ANALYSIS_ARGS=$(python3 -c "import json, os; vars=json.loads(os.environ.get('VARIABLES', '{}')); print(vars.get('${ANALYSIS_NAME}_args', '${ANALYSIS_ARGS}'))")
+fi
+
 post_github_notification() {
   local status_text=$1
   if [[ -n "${GITHUB_NOTIFY_URL}" && -n "${FLAF_GITHUB_TOKEN}" ]]; then

@@ -36,16 +36,33 @@ init_env() {
 }
 
 init_ssh() {
-  if [[ -z ${SSH_PRIVATE_KEY:-} ]]; then
-    echo "SSH_PRIVATE_KEY not set. Relying on public HTTPS git access."
-    git config --global url."https://github.com/".insteadOf "git@github.com:"
-    return 0
-  fi
-
   mkdir -p "${HOME}/.ssh"
   chmod 700 "${HOME}/.ssh"
-  printf '%s' "${SSH_PRIVATE_KEY}" | base64 -d > "${HOME}/.ssh/id_ed25519" 2>/dev/null || printf '%s' "${SSH_PRIVATE_KEY}" > "${HOME}/.ssh/id_ed25519"
-  chmod 400 "${HOME}/.ssh/id_ed25519"
+
+  cat << 'EOF' > "${HOME}/.ssh/config"
+Host github.com
+    HostName github.com
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+
+Host gitlab.cern.ch
+    HostName gitlab.cern.ch
+    Port 7999
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+EOF
+  chmod 600 "${HOME}/.ssh/config"
+
+  if [[ -n ${SSH_PRIVATE_KEY:-} ]]; then
+    printf '%s' "${SSH_PRIVATE_KEY}" | base64 -d > "${HOME}/.ssh/id_ed25519" 2>/dev/null || printf '%s' "${SSH_PRIVATE_KEY}" > "${HOME}/.ssh/id_ed25519"
+    chmod 400 "${HOME}/.ssh/id_ed25519"
+    eval "$(ssh-agent -s)" 2>/dev/null || true
+    ssh-add "${HOME}/.ssh/id_ed25519" 2>/dev/null || true
+  else
+    echo "WARNING: SSH_PRIVATE_KEY is not set in GitHub Secrets. GitLab SSH submodules (e.g. inference) require SSH_PRIVATE_KEY."
+    git config --global url."https://github.com/".insteadOf "git@github.com:"
+  fi
+
   retry 3 3 _scan_known_hosts
   git config --global user.email "cms-flaf@proton.me"
   git config --global user.name "CMS FLAF Integration Bot"
@@ -53,8 +70,8 @@ init_ssh() {
 }
 
 _scan_known_hosts() {
-  ssh-keyscan github.com > "${HOME}/.ssh/known_hosts" 2>/dev/null \
-    && ssh-keyscan -p 7999 gitlab.cern.ch >> "${HOME}/.ssh/known_hosts" 2>/dev/null || true
+  ssh-keyscan github.com >> "${HOME}/.ssh/known_hosts" 2>/dev/null || true
+  ssh-keyscan -p 7999 gitlab.cern.ch >> "${HOME}/.ssh/known_hosts" 2>/dev/null || true
 }
 
 init_voms() {

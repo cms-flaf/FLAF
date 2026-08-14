@@ -1,0 +1,111 @@
+name: 'Run FLAF CI script'
+description: >
+  Runs a script from .github/scripts/ci inside the FLAF container with CVMFS and the
+  shared build area mounted. All jobs of the integration pipeline go through this action
+  so that the build area is always mounted under the same path in the container: the
+  environment installed by the build job (flaf_env, CMSSW, combine) is not relocatable.
+
+inputs:
+  script:
+    description: 'Script in .github/scripts/ci to run inside the container.'
+    required: true
+  analysis:
+    description: 'Analysis name (HH_bbtautau, HH_bbWW, H_mumu).'
+    required: true
+  task:
+    description: 'Law task to run (test stages only).'
+    required: false
+    default: ''
+  args:
+    description: 'Additional arguments for the law task.'
+    required: false
+    default: ''
+  era:
+    description: 'Era for which the task is run.'
+    required: false
+    default: ''
+  variables:
+    description: 'JSON-serialized variables object (requested revisions, build stage).'
+    required: false
+    default: '{}'
+  law_workers:
+    description: 'Number of parallel law workers.'
+    required: false
+    default: '4'
+  build_cache_refresh:
+    description: 'Rebuild the reference checkout published to the build cache (build stage).'
+    required: false
+    default: '0'
+  ssh_private_key:
+    description: 'SSH key used to clone the GitLab submodules.'
+    required: false
+    default: ''
+  grid_usercert:
+    description: 'Grid user certificate used to create the VOMS proxy.'
+    required: false
+    default: ''
+  grid_userkey:
+    description: 'Grid user key used to create the VOMS proxy.'
+    required: false
+    default: ''
+  grid_password:
+    description: 'Password of the grid user key.'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Set up CVMFS
+      uses: cvmfs-contrib/github-action-cvmfs@v4
+      with:
+        cvmfs_repositories: 'cms.cern.ch,grid.cern.ch,sft.cern.ch'
+
+    - name: Prepare build area
+      shell: bash
+      run: |
+        # The checkout with its installed environment needs more space than the root
+        # partition of a GitHub runner comfortably provides, so keep it on the temp disk.
+        host_dir=/mnt/flaf_ci
+        sudo mkdir -p "${host_dir}" && sudo chmod 0777 "${host_dir}" \
+          || host_dir="${GITHUB_WORKSPACE}/ci_root"
+        mkdir -p "${host_dir}"
+        echo "FLAF_CI_HOST_DIR=${host_dir}" >> "${GITHUB_ENV}"
+        df -h "${host_dir}" "${GITHUB_WORKSPACE}" | tail -2
+
+    - name: Run ${{ inputs.script }}
+      shell: bash
+      env:
+        CI_SCRIPT: ${{ inputs.script }}
+        ANALYSIS_NAME: ${{ inputs.analysis }}
+        ANALYSIS_TASK: ${{ inputs.task }}
+        ANALYSIS_ARGS: ${{ inputs.args }}
+        ERA: ${{ inputs.era }}
+        VARIABLES: ${{ inputs.variables }}
+        LAW_WORKERS: ${{ inputs.law_workers }}
+        BUILD_CACHE_REFRESH: ${{ inputs.build_cache_refresh }}
+        SSH_PRIVATE_KEY: ${{ inputs.ssh_private_key }}
+        GRID_USERCERT: ${{ inputs.grid_usercert }}
+        GRID_USERKEY: ${{ inputs.grid_userkey }}
+        GRID_PASSWORD: ${{ inputs.grid_password }}
+      run: |
+        docker run --rm \
+          --privileged \
+          -v /cvmfs:/cvmfs:shared \
+          -v "${GITHUB_WORKSPACE}:/workspace" \
+          -v "${FLAF_CI_HOST_DIR}:/flaf_ci" \
+          -w /workspace \
+          -e SSH_PRIVATE_KEY \
+          -e GRID_USERCERT \
+          -e GRID_USERKEY \
+          -e GRID_PASSWORD \
+          -e ANALYSIS_NAME \
+          -e ANALYSIS_TASK \
+          -e ANALYSIS_ARGS \
+          -e ERA \
+          -e VARIABLES \
+          -e LAW_WORKERS \
+          -e BUILD_CACHE_REFRESH \
+          -e GITHUB_RUN_ID \
+          kandrosov/flaf:latest \
+          bash ".github/scripts/ci/${CI_SCRIPT}"

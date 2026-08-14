@@ -88,6 +88,9 @@ Run it after editing any `datasets.yaml`. Known, intentional exceptions live in
    JIT-compiles `Period::<era>` (`anaTupleProducer.py`); a missing enumerator fails
    immediately with `no member named '<era>' in 'Period'`.
 3. Create `<analysis>/config/<new_era>/` with the analysis-specific overrides and signals.
+   In `triggers.yaml`, every `jsonTRGcorrection_key` map must include the
+   Corrections period name (`2026_Summer24` for `Run3_2026`). Missing keys
+   fail MC jobs with `KeyError` in `TrigCorrProducer`.
 4. Add the era to `test-setup-loading.yaml` in each affected analysis (so CI loads `Setup.py` for
    it and catches config errors early).
 5. Add the era to the `*_eras` variable in the relevant `.github/integration_cfg.yaml` if it

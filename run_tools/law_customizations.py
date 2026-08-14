@@ -1146,8 +1146,8 @@ class CrabWorkflow(law.cms.CrabWorkflow):
 
     Law would inject dummy ``userInputFiles`` when ``Data.inputDataset`` is empty,
     and the CRAB client then requires ``Site.whitelist``. Set
-    ``crab.input_dataset`` in ``global.yaml`` to a real official sample (dataset
-    key such as ``TTto2L2Nu``, or a DAS path). Combined with
+    ``crab.input_dataset`` in ``global.yaml`` to a real official DAS path (a
+    placeholder only; FLAF does not read it). Combined with
     ``ignoreLocality = True``, jobs are not tied to that sample's sites and no
     whitelist is required. Optional ``crab.whitelist`` / ``crab.blacklist``
     still restrict or exclude sites.
@@ -1158,7 +1158,7 @@ class CrabWorkflow(law.cms.CrabWorkflow):
     Config (``global.yaml``)::
 
         crab:
-          input_dataset: TTto2L2Nu
+          input_dataset: /TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/.../NANOAODSIM
           # whitelist: [T2_CH_CERN]
           # blacklist: [T2_US_MIT]
     """
@@ -1181,48 +1181,26 @@ class CrabWorkflow(law.cms.CrabWorkflow):
         return self.global_params.get("crab") or {}
 
     def _crab_input_dataset(self):
-        """Resolve ``crab.input_dataset`` from global.yaml to a DAS path.
+        """Return the official DAS path from ``crab.input_dataset`` in global.yaml.
 
-        The value is a datasets.yaml key (e.g. ``TTto2L2Nu``) or a full DAS path.
-        FLAF never reads these files; they only satisfy CRAB's Analysis plugin.
+        Placeholder for CRAB's Analysis plugin only; FLAF never reads these files.
         """
         spec = self._crab_cfg().get("input_dataset")
         if not spec:
             raise RuntimeError(
-                "CRAB requires crab.input_dataset in global.yaml (a datasets.yaml "
-                "key such as TTto2L2Nu, or a DAS path). Example:\n"
-                "  crab:\n    input_dataset: TTto2L2Nu"
+                "CRAB requires crab.input_dataset in global.yaml as a full DAS "
+                "path. Example:\n"
+                "  crab:\n"
+                "    input_dataset: /TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/"
+                "Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM"
             )
         spec = str(spec).strip()
-        if spec.startswith("/"):
-            return spec
-        datasets = getattr(self.setup, "datasets", None)
-        if datasets is None:
+        if not spec.startswith("/"):
             raise RuntimeError(
-                "CRAB crab.input_dataset=%r needs Setup.datasets to resolve a "
-                "datasets.yaml key." % spec
+                "CRAB crab.input_dataset must be a full DAS path starting with "
+                "'/', not a datasets.yaml key. Got: %r" % spec
             )
-        try:
-            entry = datasets[spec]
-        except KeyError:
-            raise RuntimeError(
-                "CRAB crab.input_dataset=%r is not a DAS path and was not found "
-                "in datasets.yaml for this era." % spec
-            )
-        nano = entry.get("nanoAOD") if isinstance(entry, dict) else None
-        if isinstance(nano, dict):
-            candidates = nano.values()
-        elif isinstance(nano, (list, tuple)):
-            candidates = nano
-        else:
-            candidates = [nano]
-        for path in candidates:
-            if isinstance(path, str) and path.startswith("/"):
-                return path
-        raise RuntimeError(
-            "CRAB crab.input_dataset=%r has no nanoAOD DAS path in datasets.yaml "
-            "for this era." % spec
-        )
+        return spec
 
     def _ensure_crab_pset(self, n_threads):
         """Write a minimal CRAB PSet with numberOfThreads matching JobType.numCores."""

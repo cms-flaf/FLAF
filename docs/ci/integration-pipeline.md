@@ -69,14 +69,16 @@ variables:
 | `<ana>_version` / `<pkg>_version` | Which version of a repo to use; `default` keeps the pipeline's current value. |
 | `<ana>_task` | The target task (the pipeline runs everything up to it). |
 | `<ana>_args` | Extra `law run` arguments (e.g. `--branches 0 --test 1000`). |
-| `<ana>_eras` | Eras to test (space-separated, or `ALL`). |
+| `<ana>_eras` | Eras to test (explicit space-separated list). **Required** for an active analysis. |
 | `<ana>_processes` | The processes to test (space-separated). **Required** for an active analysis — there is no default. |
 | `ci_backend` | CI execution engine: `gitlab` (default, CERN GitLab pipeline) or `github` (GitHub Actions with CVMFS). |
 
-!!! warning "`<ana>_processes` must be set for an active analysis"
-    The pipeline **errors at generation time** if an active analysis has no `processes`. The values
-    live in each repo's `integration_cfg.yaml` (capitalised for HH analyses, lower-case for H→μμ —
-    see [Processes & models](../configuration/processes-and-models.md)). They are declared but left
+!!! warning "`<ana>_processes` and `<ana>_eras` must be set for an active analysis"
+    Generation **errors out** if an active analysis has no `processes` or no `eras`, if an era name
+    is not one of the available ones, or if no analysis is active at all — a misconfigured trigger
+    fails instead of quietly testing something else. The process values live in
+    `integration_cfg.yaml` (capitalised for HH analyses, lower-case for H→μμ — see
+    [Processes & models](../configuration/processes-and-models.md)). They are declared but left
     empty in `flaf_integration/.gitlab-ci.yml`, so the trigger accepts them while the real values
     come from the triggering repo.
 

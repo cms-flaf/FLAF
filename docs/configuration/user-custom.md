@@ -37,6 +37,7 @@ Replace `<initial>`/`<user>` with yours (e.g. `k` / `kandroso`). With just this,
 | `store_noncentral` | bool | Whether to keep the non-central (systematic-shift) outputs, not just the central one. |
 | `remove_merged_inputs` | bool | If `true`, `HistMergerTask` deletes each variable's per-chunk split histograms (`HistFromNtupleProducerTask` outputs) after merging, to save space, leaving a tiny per-chunk `.merged` marker in place of each. Safe: the producer stays "complete" for exactly the chunks that were merged (it finds the split *or* its marker), so the task graph stays consistent (no re-run); a chunk that was never produced has no marker and is still produced. Default `false` — intermediates are kept. |
 | `variables` | list | Restrict which variables are produced/plotted. Omit for the full set. |
+| `hist_from_ntuple_max_hists` | int | Max histograms `HistFromNtupleProducerTask` books in one RDataFrame pass. The count is variables × selections × (Central + every Up/Down). Default `4000`; `0` disables batching. Lower this (do not raise CI memory) if a job OOMs. |
 
 !!! tip "`TestModel` is the fast path"
     `TestModel` selects a reduced set of processes so the pipeline runs quickly end-to-end. Use it

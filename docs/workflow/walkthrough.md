@@ -76,8 +76,9 @@ law run FLAF.Analysis.tasks.HistTupleProducerTask --period $ERA --version $VER -
 ## Stage 3 — Fill and merge histograms
 
 `HistFromNtupleProducerTask` fills **histograms** of the requested variables from the histTuples —
-**one branch per (dataset, file-chunk)**, filling all variables in a single pass — including
-systematic variations. `HistMergerTask` merges the pieces into per-process histograms ready for
+**one branch per (dataset, file-chunk)**, including systematic variations. If the booked
+histogram count (with Up/Down) exceeds `hist_from_ntuple_max_hists`, the producer fills them
+in batches. `HistMergerTask` merges the pieces into per-process histograms ready for
 plotting and fitting.
 
 ```sh

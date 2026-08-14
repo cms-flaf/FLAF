@@ -9,6 +9,8 @@ import shutil
 import subprocess
 import tempfile
 
+from collections import OrderedDict
+
 from law.parser import global_cmdline_values
 
 from FLAF.RunKit.run_tools import natural_sort
@@ -1051,7 +1053,86 @@ class FLAFCrabJobFileFactory(law.cms.CrabJobFileFactory):
 _FLAFCrabWorkflowProxyBase = law.cms.CrabWorkflow.workflow_proxy_cls
 
 
+_CRAB_DEFAULT_PARALLEL_JOBS = 5000
+_CRAB_DEFAULT_REFILL_FRACTION = 0.2
+
+
+def _cli_has_parallel_jobs():
+    """True when the user passed ``--parallel-jobs`` (or a task-prefixed form)."""
+    parser = luigi.cmdline_parser.CmdlineParser.get_instance()
+    tokens = list(getattr(parser, "cmdline_args", None) or [])
+    for tok in tokens:
+        if tok in ("--parallel-jobs", "--parallel_jobs"):
+            return True
+        if tok.startswith("--parallel-jobs=") or tok.startswith("--parallel_jobs="):
+            return True
+        if tok.endswith("-parallel-jobs") or tok.endswith("-parallel_jobs"):
+            return True
+        if "-parallel-jobs=" in tok or "-parallel_jobs=" in tok:
+            return True
+    return False
+
+
 class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
+    def __init__(self, *args, **kwargs):
+        super(_FLAFCrabWorkflowProxy, self).__init__(*args, **kwargs)
+        self._apply_crab_parallel_jobs()
+
+    def _crab_refill_fraction(self):
+        raw = self.task._crab_cfg().get(
+            "refill_fraction", _CRAB_DEFAULT_REFILL_FRACTION
+        )
+        try:
+            frac = float(raw)
+        except (TypeError, ValueError):
+            frac = _CRAB_DEFAULT_REFILL_FRACTION
+        return min(max(frac, 0.0), 1.0)
+
+    def _apply_crab_parallel_jobs(self):
+        """CRAB default is 5000 jobs in flight; yaml then CLI override.
+
+        Multi-workflow tasks inherit HTCondor's unlimited ``parallel_jobs``, so
+        the CrabWorkflow class default never wins. Apply the CRAB default here.
+        """
+        if _cli_has_parallel_jobs():
+            return
+        yaml_n = self.task._crab_cfg().get("parallel_jobs")
+        if yaml_n is not None:
+            self._set_parallel_jobs(int(yaml_n))
+            return
+        if self.poll_data.n_parallel == self.n_parallel_max:
+            self._set_parallel_jobs(_CRAB_DEFAULT_PARALLEL_JOBS)
+
+    def _should_submit_crab_group(self):
+        """Refill only when enough slots are free (default 20% of parallel_jobs).
+
+        The first wave always submits. Unlimited ``parallel_jobs`` keeps law's
+        original behaviour (one group with every remaining job).
+        """
+        n_parallel = self.poll_data.n_parallel
+        if n_parallel >= self.n_parallel_max:
+            return True
+        is_first_wave = (not self.job_data.jobs) and (not self._submitted)
+        if is_first_wave:
+            return True
+        free = n_parallel - self.poll_data.n_active
+        return free >= self._crab_refill_fraction() * n_parallel
+
+    def submit(self, retry_jobs=None):
+        if self._should_submit_crab_group():
+            return super(_FLAFCrabWorkflowProxy, self).submit(retry_jobs)
+
+        # Park retries as unsubmitted so the next eligible refill picks them up
+        # as one larger CRAB task instead of a 1-job task now.
+        if retry_jobs:
+            for job_num, branches in retry_jobs.items():
+                if self._can_skip_job(job_num, branches):
+                    continue
+                self.job_data.jobs.pop(job_num, None)
+                self.job_data.unsubmitted_jobs[job_num] = branches
+            self.dump_job_data()
+        return OrderedDict()
+
     def setup_job_manager(self):
         """Require a valid VOMS proxy and a MyProxy credential (>= 5 days)."""
         proxy = os.environ.get("X509_USER_PROXY", "")
@@ -1158,6 +1239,8 @@ class CrabWorkflow(law.cms.CrabWorkflow):
         crab:
           # whitelist: [T2_CH_CERN]   # omit to use all T1/T2/T3 sites
           # blacklist: [T2_US_MIT]
+          # parallel_jobs: 5000       # --parallel-jobs default; CLI wins
+          # refill_fraction: 0.2      # refill when free slots >= this * parallel_jobs
     """
 
     # Re-declare in the class body so law's metaclass sets _defined_workflow_proxy=True

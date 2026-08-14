@@ -64,6 +64,8 @@ to, in `global.yaml` / `user_custom.yaml`:
 crab:
   # whitelist: [T2_CH_CERN]   # omit to use all T1/T2/T3 sites
   # blacklist: [T2_US_MIT]
+  # parallel_jobs: 5000       # default --parallel-jobs; CLI wins if set
+  # refill_fraction: 0.2      # new CRAB task only when this fraction of slots is free
 ```
 
 Memory is `2 GB * n_cpus` (the existing `--n-cpus` parameter). There is no separate
@@ -79,6 +81,8 @@ crab checkwrite --site=T3_CH_CERNBOX --lfn=/store/user/$USER
 |---|---|
 | `whitelist` | Optional. Restricts `Site.whitelist`. Default: `T1_*`, `T2_*`, `T3_*`. |
 | `blacklist` | Optional. CRAB `Site.blacklist` (applied on top of the whitelist). |
+| `parallel_jobs` | Optional. Default for `--parallel-jobs` on CRAB (CLI wins). Default: `5000`. Caps how many CRAB jobs are in flight and thus the size of each CRAB task. CRAB itself refuses more than 10 000 jobs in one task. |
+| `refill_fraction` | Optional. Submit a new CRAB task only when `parallel_jobs - n_active >= refill_fraction * parallel_jobs`. Default: `0.2`. Prevents a 1-job task every time a single job finishes. |
 
 ## Submit
 
@@ -94,6 +98,7 @@ law run FLAF.Analysis.tasks.HistTupleProducerTask \
 | Option | Why |
 |---|---|
 | `--workflow crab` | Submit via CRAB instead of local/HTCondor. |
+| `--parallel-jobs` | Jobs in flight (default **5000** on CRAB, unlimited on HTCondor). Each refill is one CRAB task. Also `crab.parallel_jobs` in `global.yaml`. |
 | `--max-runtime` / `--n-cpus` | Same as HTCondor; mapped to CRAB `maxJobRuntimeMin` / `numCores` / memory (`2 GB * n_cpus`). |
 | `--transfer-logs` | On by default; enables remote log stageout when `fs_default` is WLCG. |
 

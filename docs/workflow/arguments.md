@@ -28,7 +28,7 @@ also provides built-in options for status and cleanup.
 | Option | Default | Meaning |
 |---|---|---|
 | `--transfer-logs` | off | Bring job logs back to `data/`. Recommended. |
-| `--parallel-jobs` | *(unbounded)* | Cap concurrent branches, e.g. `--parallel-jobs 100`. |
+| `--parallel-jobs` | unbounded (HTCondor) / **5000** (CRAB) | Cap concurrent jobs. On CRAB this is also the max size of each CRAB task. |
 | `--max-runtime` | *(task default)* | Per-job wall-clock limit. |
 | `--n-cpus` | `1` | CPUs requested per job. |
 | `--priority` | `0` | Job priority (HTCondor). |
@@ -42,8 +42,10 @@ also provides built-in options for status and cleanup.
 | `--workflow crab` | — | Submit branches via CMS CRAB (WLCG). See [CRAB](crab.md). |
 
 Optional site white/black lists go in `global.yaml` under `crab:` (not CLI flags).
-Unset whitelist ⇒ all T1/T2/T3 sites. `Site.storageSite` / `Data.outLFNDirBase`
-are derived from `fs_default`. Memory is `2 GB * n_cpus`.
+Unset whitelist ⇒ all T1/T2/T3 sites. Default `--parallel-jobs` on CRAB is 5000
+(`crab.parallel_jobs`); a new CRAB task is submitted only when at least
+`crab.refill_fraction` (default 0.2) of those slots are free. `Site.storageSite`
+/ `Data.outLFNDirBase` are derived from `fs_default`. Memory is `2 GB * n_cpus`.
 
 ## Status & cleanup (LAW built-ins)
 

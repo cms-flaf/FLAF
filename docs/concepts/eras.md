@@ -67,6 +67,9 @@ Each sub-era has its own corrections and luminosity, which is exactly why the
   `BtagShape` cache. `modes.<stage>: none` still loads the correction (needed
   for WP-id branches) but does not apply scale factors. Missing
   `uncs_to_exclude` era keys default to an empty list.
+  The 2026 EGM folder has scale/smear files but no `electron.json`, so
+  Electron-ID-SF is loaded from the 2025 file and evaluated with year
+  `2025Prompt` (not `2026Prompt`).
 
 ## Running several eras
 

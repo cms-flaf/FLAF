@@ -90,7 +90,11 @@ Run it after editing any `datasets.yaml`. Known, intentional exceptions live in
 3. Create `<analysis>/config/<new_era>/` with the analysis-specific overrides and signals.
    In `triggers.yaml`, every `jsonTRGcorrection_key` map must include the
    Corrections period name (`2026_Summer24` for `Run3_2026`). Missing keys
-   fail MC jobs with `KeyError` in `TrigCorrProducer`.
+   fail MC jobs with `KeyError` in `TrigCorrProducer`. Until a 2026
+   Electron-ID-SF JSON is published, `EleCorrProducer` evaluates that
+   correction with year `2025Prompt` (the only year key in the 2025 file
+   that `2026_Summer24` loads). A raw `2026Prompt` key fails HistTuple
+   with `Index not available in Category`.
 4. Add the era to `test-setup-loading.yaml` in each affected analysis (so CI loads `Setup.py` for
    it and catches config errors early).
 5. Add the era to the `*_eras` variable in the relevant `.github/integration_cfg.yaml` if it

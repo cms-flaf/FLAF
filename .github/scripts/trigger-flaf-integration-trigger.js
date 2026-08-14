@@ -1,5 +1,54 @@
-module.exports = async ({ core, process, fetch, JSON, URLSearchParams, console }) => {
+module.exports = async ({ github, context, core, process, fetch, JSON, URLSearchParams, console }) => {
   const variables = JSON.parse(process.env.VARIABLES);
+  const ciBackend = (process.env.CI_BACKEND || variables.ci_backend || 'gitlab').toLowerCase();
+
+  if (ciBackend === 'github') {
+    console.log('Triggering GitHub Actions integration test workflow...');
+    const rootPackages = Object.keys(variables).filter(k => k.endsWith('_active')).map(k => k.slice(0, -7));
+    const activeAnalyses = rootPackages.filter(pkg => variables[`${pkg}_active`] === '1');
+    if (activeAnalyses.length === 0) {
+      activeAnalyses.push('HH_bbtautau');
+    }
+
+    const inputs = {
+      variables: JSON.stringify(variables),
+      github_notify_url: variables.github_notify_url || '',
+    };
+
+    console.log('Dispatching integration-test.yaml with inputs:');
+    for (const [key, value] of Object.entries(inputs)) {
+      console.log(`\t${key}: ${value}`);
+    }
+
+    const token = process.env.FLAF_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
+    const response = await fetch('https://api.github.com/repos/cms-flaf/FLAF/actions/workflows/integration-test.yaml/dispatches', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/vnd.github+json',
+        'Authorization': `Bearer ${token}`,
+        'X-GitHub-Api-Version': '2022-11-28',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ref: 'main',
+        inputs: inputs,
+      }),
+    });
+
+    if (response.status === 204) {
+      console.log('GitHub Actions integration workflow dispatched successfully.');
+      const workflowUrl = 'https://github.com/cms-flaf/FLAF/actions/workflows/integration-test.yaml';
+      const message = `[GitHub Actions integration workflow](${workflowUrl}) dispatched for **${activeAnalyses.join(', ')}**`;
+      core.setOutput('send_message', 'true');
+      core.setOutput('message', message);
+      return;
+    }
+
+    console.log(`Failed to dispatch GitHub workflow: ${response.status}`);
+    const responseText = await response.text();
+    console.log(responseText);
+    throw new Error(`Failed to dispatch GitHub workflow: ${response.status} - ${responseText}`);
+  }
 
   const data = {
     token: '****',
@@ -44,3 +93,4 @@ module.exports = async ({ core, process, fetch, JSON, URLSearchParams, console }
   console.log(responseText);
   throw new Error(`Failed to trigger pipeline: ${response.status} - ${responseText}`);
 };
+

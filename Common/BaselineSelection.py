@@ -200,6 +200,12 @@ def CreateRecoP4(df, suffix="nano", nano_version="v12"):
                     f"{obj}_p4_bsConstrainedPt",
                     f"GetP4({obj}_bsConstrainedPt, {obj}_eta, {obj}_phi, {obj}_mass, {obj}_idx)",
                 )
+            if obj == "Electron":
+                if f"{obj}_superclusterEta" not in df.GetColumnNames():
+                    df = df.Define(
+                        f"{obj}_superclusterEta",
+                        f"Electron_eta + Electron_deltaEtaSC",
+                    )
     return df
 
 

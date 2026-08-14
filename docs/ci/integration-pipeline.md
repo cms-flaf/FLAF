@@ -36,6 +36,14 @@ Repos with the trigger enabled: HH_bbtautau, HH_bbWW, H_mumu, FLAF, Corrections,
     pins the `FLAF/PlotKit` sub-sub-module, which is switched after `FLAF` (so it overrides whatever
     commit the requested `FLAF` pins).
 
+!!! tip "Running on GitHub Actions (as a backup when CERN GitLab has issues)"
+    To run the integration tests directly on GitHub Actions instead of CERN GitLab:
+    ```text
+    @cms-flaf-bot please test
+    - ci_backend = github
+    ```
+    (Aliases `- backend=github` and `- provider=github` are also accepted).
+
 ## `integration_cfg.yaml`
 
 Each participating repo has `.github/integration_cfg.yaml`. It lists who may trigger, the accepted
@@ -51,6 +59,7 @@ variables:
   HH_bbtautau_args: "--branches 0 --test 1000"
   HH_bbtautau_eras: "Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025 Run3_2026"
   HH_bbtautau_processes: "custom_CI_Signal custom_CI_Background custom_CI_Data"
+  ci_backend: "gitlab"             # "gitlab" (default) or "github"
   TEST_TIMEOUT: "4h"
 ```
 
@@ -62,6 +71,7 @@ variables:
 | `<ana>_args` | Extra `law run` arguments (e.g. `--branches 0 --test 1000`). |
 | `<ana>_eras` | Eras to test (space-separated explicit list). |
 | `<ana>_processes` | The processes to test (space-separated). **Required** for an active analysis — there is no default. |
+| `ci_backend` | CI execution engine: `gitlab` (default, CERN GitLab pipeline) or `github` (GitHub Actions with CVMFS). |
 
 !!! warning "`<ana>_processes` must be set for an active analysis"
     The pipeline **errors at generation time** if an active analysis has no `processes`. The values

@@ -83,10 +83,14 @@ Run it after editing any `datasets.yaml`. Known, intentional exceptions live in
 ## Adding a new era
 
 1. Create `FLAF/config/<new_era>/` with at least `datasets.yaml` and `global.yaml`.
-2. Create `<analysis>/config/<new_era>/` with the analysis-specific overrides and signals.
-3. Add the era to `test-setup-loading.yaml` in each affected analysis (so CI loads `Setup.py` for
+2. Add the era to the C++ `Period` enum in `FLAF/include/AnalysisTools.h` and to the
+   `PeriodToHHbTagInput` maps in `FLAF/include/HHbTagScores.h`. AnaTuple production
+   JIT-compiles `Period::<era>` (`anaTupleProducer.py`); a missing enumerator fails
+   immediately with `no member named '<era>' in 'Period'`.
+3. Create `<analysis>/config/<new_era>/` with the analysis-specific overrides and signals.
+4. Add the era to `test-setup-loading.yaml` in each affected analysis (so CI loads `Setup.py` for
    it and catches config errors early).
-4. Add the era to the `*_eras` variable in the relevant `.github/integration_cfg.yaml` if it
+5. Add the era to the `*_eras` variable in the relevant `.github/integration_cfg.yaml` if it
    should be part of CI runs. See [Integration pipeline](../ci/integration-pipeline.md).
 
 See also [Eras & periods](../concepts/eras.md).

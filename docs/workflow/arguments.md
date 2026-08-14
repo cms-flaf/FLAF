@@ -41,10 +41,9 @@ also provides built-in options for status and cleanup.
 |---|---|---|
 | `--workflow crab` | — | Submit branches via CMS CRAB (WLCG). See [CRAB](crab.md). |
 
-Set `crab.input_dataset` in `global.yaml` to a full DAS path. Combined with
-`ignoreLocality`, no site whitelist is required. Optional white/black lists
-also go under `crab:`. `Site.storageSite` / `Data.outLFNDirBase` are derived
-from `fs_default`. Memory is `2 GB * n_cpus`.
+Optional site white/black lists go in `global.yaml` under `crab:` (not CLI flags).
+Unset whitelist ⇒ all T1/T2/T3 sites. `Site.storageSite` / `Data.outLFNDirBase`
+are derived from `fs_default`. Memory is `2 GB * n_cpus`.
 
 ## Status & cleanup (LAW built-ins)
 

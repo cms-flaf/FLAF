@@ -1144,22 +1144,19 @@ class CrabWorkflow(law.cms.CrabWorkflow):
     ``Site.storageSite`` / ``Data.outLFNDirBase`` are derived from ``fs_default``
     (submit-time write check only). Memory is ``2 GB * n_cpus``.
 
-    Law would inject dummy ``userInputFiles`` when ``Data.inputDataset`` is empty,
-    and the CRAB client then requires ``Site.whitelist``. Set
-    ``crab.input_dataset`` in ``global.yaml`` to a real official DAS path (a
-    placeholder only; FLAF does not read it). Combined with
-    ``ignoreLocality = True``, jobs are not tied to that sample's sites and no
-    whitelist is required. Optional ``crab.whitelist`` / ``crab.blacklist``
-    still restrict or exclude sites.
+    Law injects dummy ``userInputFiles`` when ``Data.inputDataset`` is empty,
+    and the CRAB client then requires ``Site.whitelist``. If ``crab.whitelist``
+    is unset, FLAF defaults to ``T1_*`` / ``T2_*`` / ``T3_*`` so jobs can run
+    at every CMS processing site. Optional ``crab.blacklist`` still excludes
+    sites.
 
     CRAB workers have no AFS, so code is always shipped via the existing BundleTask
     mechanism (same as ``--bundle`` on HTCondor). Tasks must declare ``bundle_flavours``.
 
-    Config (``global.yaml``)::
+    Config (``global.yaml`` / user_custom YAML), all optional::
 
         crab:
-          input_dataset: /TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/.../NANOAODSIM
-          # whitelist: [T2_CH_CERN]
+          # whitelist: [T2_CH_CERN]   # omit to use all T1/T2/T3 sites
           # blacklist: [T2_US_MIT]
     """
 
@@ -1179,28 +1176,6 @@ class CrabWorkflow(law.cms.CrabWorkflow):
 
     def _crab_cfg(self):
         return self.global_params.get("crab") or {}
-
-    def _crab_input_dataset(self):
-        """Return the official DAS path from ``crab.input_dataset`` in global.yaml.
-
-        Placeholder for CRAB's Analysis plugin only; FLAF never reads these files.
-        """
-        spec = self._crab_cfg().get("input_dataset")
-        if not spec:
-            raise RuntimeError(
-                "CRAB requires crab.input_dataset in global.yaml as a full DAS "
-                "path. Example:\n"
-                "  crab:\n"
-                "    input_dataset: /TTto2L2Nu_TuneCP5_13p6TeV_powheg-pythia8/"
-                "Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM"
-            )
-        spec = str(spec).strip()
-        if not spec.startswith("/"):
-            raise RuntimeError(
-                "CRAB crab.input_dataset must be a full DAS path starting with "
-                "'/', not a datasets.yaml key. Got: %r" % spec
-            )
-        return spec
 
     def _ensure_crab_pset(self, n_threads):
         """Write a minimal CRAB PSet with numberOfThreads matching JobType.numCores."""
@@ -1351,15 +1326,16 @@ process.out = cms.EndPath(process.output)
                 # Older CRAB clients may not support maxJobRuntimeMin; ignore if rejected later.
                 pass
 
-        # crab.input_dataset (global.yaml) so law does not add dummy
-        # userInputFiles (that path forces Site.whitelist). ignoreLocality=True:
-        # do not pin jobs to that sample's Rucio sites; FLAF I/O ignores these files.
-        config.crab.Data.inputDataset = self._crab_input_dataset()
-        config.crab.Data.ignoreLocality = True
+        # Law always sets dummy userInputFiles (no inputDataset). The CRAB client
+        # then requires Site.whitelist. Default to every CMS processing site so
+        # analyses need not pin T2_CH_CERN. An explicit crab.whitelist still
+        # restricts; crab.blacklist excludes sites on top of the list used.
         whitelist = list(self._crab_cfg().get("whitelist") or [])
         blacklist = list(self._crab_cfg().get("blacklist") or [])
-        if whitelist:
-            config.crab.Site.whitelist = [str(s) for s in whitelist]
+        if not whitelist:
+            whitelist = ["T1_*", "T2_*", "T3_*"]
+        config.crab.Site.whitelist = [str(s) for s in whitelist]
+        config.crab.Data.ignoreLocality = True
         if blacklist:
             config.crab.Site.blacklist = [str(s) for s in blacklist]
 

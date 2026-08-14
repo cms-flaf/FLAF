@@ -1142,16 +1142,20 @@ class CrabWorkflow(law.cms.CrabWorkflow):
     nothing is duplicated onto CRAB's stageout area.
 
     ``Site.storageSite`` / ``Data.outLFNDirBase`` are derived from ``fs_default``
-    (submit-time write check only). Site white/black lists come from the ``crab:``
-    section of ``global.yaml``. Memory is ``2 GB * n_cpus``.
+    (submit-time write check only). Memory is ``2 GB * n_cpus``.
+
+    CRAB's client requires ``Site.whitelist`` when law uses dummy ``userInputFiles``.
+    If ``crab.whitelist`` is unset, FLAF defaults to ``T1_*`` / ``T2_*`` / ``T3_*``
+    so jobs can run at every CMS processing site. Optional ``crab.blacklist``
+    still excludes sites.
 
     CRAB workers have no AFS, so code is always shipped via the existing BundleTask
     mechanism (same as ``--bundle`` on HTCondor). Tasks must declare ``bundle_flavours``.
 
-    Config (``global.yaml`` / user_custom YAML)::
+    Config (``global.yaml`` / user_custom YAML), all optional::
 
         crab:
-          whitelist: [T2_CH_CERN]
+          # whitelist: [T2_CH_CERN]   # omit to use all T1/T2/T3 sites
           # blacklist: [T2_US_MIT]
     """
 
@@ -1321,22 +1325,17 @@ process.out = cms.EndPath(process.output)
                 # Older CRAB clients may not support maxJobRuntimeMin; ignore if rejected later.
                 pass
 
-        # Site white/black lists come from global.yaml ``crab:`` (no CLI overrides).
-        # CRAB requires a whitelist when jobs use synthetic userInputFiles (no
-        # inputDataset), which is always the case for law CRAB workflows.
+        # Law always sets dummy userInputFiles (no inputDataset). The CRAB client
+        # then requires Site.whitelist. Default to every CMS processing site so
+        # analyses need not pin T2_CH_CERN. An explicit crab.whitelist still
+        # restricts; crab.blacklist excludes sites on top of the list used.
         whitelist = list(self._crab_cfg().get("whitelist") or [])
         blacklist = list(self._crab_cfg().get("blacklist") or [])
-        if not whitelist and not blacklist:
-            raise RuntimeError(
-                "CRAB requires crab.whitelist (or crab.blacklist) in global.yaml "
-                "under the crab: section. Example:\n"
-                "  crab:\n    whitelist: [T2_CH_CERN]"
-            )
-        if whitelist:
-            config.crab.Site.whitelist = [str(s) for s in whitelist]
-            config.crab.Site.ignoreGlobalBlacklist = True
-            config.crab.Data.ignoreLocality = True
-        elif blacklist:
+        if not whitelist:
+            whitelist = ["T1_*", "T2_*", "T3_*"]
+        config.crab.Site.whitelist = [str(s) for s in whitelist]
+        config.crab.Data.ignoreLocality = True
+        if blacklist:
             config.crab.Site.blacklist = [str(s) for s in blacklist]
 
         return config

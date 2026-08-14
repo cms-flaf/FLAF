@@ -55,11 +55,14 @@ CRAB's write-check site is taken from `fs_default`:
 | `T3_CH_CERNBOX:/store/user/<you>/...` | as written |
 | `davs://eoshome-<initial>.cern.ch:.../eos/user/<initial>/<you>/...` | `T3_CH_CERNBOX` + `/store/user/<you>/...` |
 
-Site lists belong in `global.yaml` (or `user_custom.yaml`) under `crab:`:
+The CRAB client requires `Site.whitelist` because law uses dummy `userInputFiles`
+(no input dataset). FLAF defaults that list to `T1_*`, `T2_*`, `T3_*` so jobs
+can run at every CMS processing site. Restrict or exclude sites only if you need
+to, in `global.yaml` / `user_custom.yaml`:
 
 ```yaml
 crab:
-  whitelist: [T2_CH_CERN]   # where jobs run (required)
+  # whitelist: [T2_CH_CERN]   # omit to use all T1/T2/T3 sites
   # blacklist: [T2_US_MIT]
 ```
 
@@ -74,8 +77,8 @@ crab checkwrite --site=T3_CH_CERNBOX --lfn=/store/user/$USER
 
 | Key | Meaning |
 |---|---|
-| `whitelist` | CRAB `Site.whitelist`. Required (or set `blacklist`) when submitting. |
-| `blacklist` | CRAB `Site.blacklist`. Used only when `whitelist` is empty. |
+| `whitelist` | Optional. Restricts `Site.whitelist`. Default: `T1_*`, `T2_*`, `T3_*`. |
+| `blacklist` | Optional. CRAB `Site.blacklist` (applied on top of the whitelist). |
 
 ## Submit
 

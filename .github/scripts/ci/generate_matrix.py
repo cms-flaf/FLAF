@@ -22,16 +22,24 @@ AVAILABLE_ERAS = [
 ANALYSES = ["HH_bbWW", "HH_bbtautau", "H_mumu"]
 
 
-def parse_eras(raw_value):
+ALL_ERAS = ["Run3_2022", "Run3_2022EE", "Run3_2023", "Run3_2023BPix"]
+
+
+def parse_eras(analysis, raw_value):
     if not raw_value or raw_value == "ALL":
-        return ["Run3_2022", "Run3_2022EE", "Run3_2023", "Run3_2023BPix"]
+        return list(ALL_ERAS)
     seen = []
     for era in raw_value.split():
         if era == "ALL":
-            return ["Run3_2022", "Run3_2022EE", "Run3_2023", "Run3_2023BPix"]
-        if era in AVAILABLE_ERAS and era not in seen:
+            return list(ALL_ERAS)
+        if era not in AVAILABLE_ERAS:
+            raise ValueError(
+                f"Unknown era '{era}' requested for '{analysis}'. "
+                f"Available eras: {' '.join(AVAILABLE_ERAS)}."
+            )
+        if era not in seen:
             seen.append(era)
-    return seen if seen else ["Run3_2022EE"]
+    return seen
 
 
 def main():
@@ -60,13 +68,19 @@ def main():
             continue
 
         analyses_matrix.append(ana)
-        eras = parse_eras(variables.get(f"{ana}_eras", "Run3_2022EE"))
+        eras = parse_eras(ana, variables.get(f"{ana}_eras", ""))
         target_task = variables.get(f"{ana}_task", "FLAF.Analysis.tasks.HistPlotTask")
         task_args = variables.get(f"{ana}_args", "--test 1000")
-        procs_str = variables.get(
-            f"{ana}_processes", "custom_CI_Signal custom_CI_Background custom_CI_Data"
-        )
-        procs = procs_str.split() if procs_str else []
+        # The process names differ per analysis (capitalised for the HH analyses,
+        # lower-case for H_mumu), so there is no meaningful default: they have to come
+        # from the triggering repo's integration_cfg.yaml.
+        procs = variables.get(f"{ana}_processes", "").split()
+        if not procs:
+            raise ValueError(
+                f"No processes specified for active analysis '{ana}'. Set "
+                f"'{ana}_processes' (space-separated list of process names) in the "
+                "triggering variables."
+            )
 
         dataset_task = ""
         era_task = ""

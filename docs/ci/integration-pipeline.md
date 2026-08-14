@@ -69,14 +69,17 @@ variables:
 | `<ana>_version` / `<pkg>_version` | Which version of a repo to use; `default` keeps the pipeline's current value. |
 | `<ana>_task` | The target task (the pipeline runs everything up to it). |
 | `<ana>_args` | Extra `law run` arguments (e.g. `--branches 0 --test 1000`). |
-| `<ana>_eras` | Eras to test (space-separated, or `ALL`). |
+| `<ana>_eras` | Eras to test (explicit space-separated list). **Required** for an active analysis. |
 | `<ana>_processes` | The processes to test (space-separated). **Required** for an active analysis — there is no default. |
 | `ci_backend` | CI execution engine: `gitlab` (default, CERN GitLab pipeline) or `github` (GitHub Actions with CVMFS). |
 
-!!! warning "`<ana>_processes` must be set for an active analysis"
-    The pipeline **errors at generation time** if an active analysis has no `processes`. The values
-    live in each repo's `integration_cfg.yaml` (capitalised for HH analyses, lower-case for H→μμ —
-    see [Processes & models](../configuration/processes-and-models.md)). They are declared but left
+!!! warning "`<ana>_processes` and `<ana>_eras` must be set for an active analysis"
+    Generation **errors out** if an active analysis has no `processes` or no `eras`, or if no
+    analysis is active at all — a misconfigured trigger fails instead of quietly testing something
+    else. Whether an analysis supports a requested era is decided by its own configuration, so an
+    unsupported era fails in the job that runs the task. The process values live in
+    `integration_cfg.yaml` (capitalised for HH analyses, lower-case for H→μμ — see
+    [Processes & models](../configuration/processes-and-models.md)). They are declared but left
     empty in `flaf_integration/.gitlab-ci.yml`, so the trigger accepts them while the real values
     come from the triggering repo.
 
@@ -109,6 +112,29 @@ flowchart LR
   process/era on tiny inputs (`--test`), and finally notifies GitHub of success/failure.
 - Disabled analyses/eras are simply not emitted; jobs are non-interruptible so parallel pipelines
   on the same branch don't cancel each other.
+
+### The GitHub Actions backend
+
+With `ci_backend: github` the same stages run as GitHub Actions jobs
+(`FLAF/.github/workflows/integration-test.yaml`, scripts in `FLAF/.github/scripts/ci/`), inside the
+`kandrosov/flaf` container with CVMFS mounted:
+
+- **build** (one job per analysis) assembles the checkout at the requested revisions *and installs
+  the analysis environment* (`flaf_env`, CMSSW, combine) into `soft/`. The result is passed to the
+  test jobs as a single compressed **tar** archive — a plain directory artifact is a zip and would
+  lose the symlinks (`flaf_env` links into CVMFS) and the executable bits.
+- **test jobs** unpack that archive and run with `FLAF_NO_INSTALL=1`, so they reuse the
+  environment instead of re-installing it (which used to cost ~20 min per job) and fail loudly if
+  anything is missing.
+- The build itself is cached across runs, like the install cache on EOS used by the GitLab
+  pipeline: a *reference* checkout (default branches, environment installed) is kept in the GitHub
+  Actions cache under a weekly key, and the requested revisions are applied on top of it. Set
+  `rebuild_cache: "1"` in the trigger variables to force a rebuild from scratch.
+- The build area is mounted at the same path (`/flaf_ci`) in every job, because the installed
+  virtualenv and the CMSSW/SCRAM areas record their own location and cannot be relocated.
+- `fs_default` from `ci_custom.yaml` points at the GitLab job directory, so the test script passes
+  a generated `--user-custom` overlay that redirects the CI output area into the shared build
+  volume; each stage uploads `output/` and `data/CI` as artifacts for the next one.
 
 ## Reproducing CI locally
 

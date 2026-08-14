@@ -55,15 +55,15 @@ CRAB's write-check site is taken from `fs_default`:
 | `T3_CH_CERNBOX:/store/user/<you>/...` | as written |
 | `davs://eoshome-<initial>.cern.ch:.../eos/user/<initial>/<you>/...` | `T3_CH_CERNBOX` + `/store/user/<you>/...` |
 
-FLAF sets a real TT NanoAOD `Data.inputDataset` (from this era's `TTto2L2Nu` /
-`TT`, or `crab.input_dataset`) and `ignoreLocality: True`. That stops law from
-injecting dummy `userInputFiles`, so **no site whitelist is required** and jobs
-are not limited to the TT sample's sites. Restrict or exclude sites only if you
-need to:
+Set `crab.input_dataset` in `global.yaml` to a real official sample (a
+`datasets.yaml` key, or a DAS path). FLAF passes that as `Data.inputDataset`
+with `ignoreLocality: True`, so law does not inject dummy `userInputFiles` and
+**no site whitelist is required**. Jobs are not limited to that sample's sites.
+Restrict or exclude sites only if you need to:
 
 ```yaml
 crab:
-  # input_dataset: /TTto2L2Nu_.../NANOAODSIM
+  input_dataset: TTto2L2Nu
   # whitelist: [T2_CH_CERN]
   # blacklist: [T2_US_MIT]
 ```
@@ -79,7 +79,7 @@ crab checkwrite --site=T3_CH_CERNBOX --lfn=/store/user/$USER
 
 | Key | Meaning |
 |---|---|
-| `input_dataset` | Optional. Official DAS dataset used only so CRAB has an `inputDataset`. Default: this era's `TTto2L2Nu` / `TT` NanoAOD. |
+| `input_dataset` | Required. `datasets.yaml` key (e.g. `TTto2L2Nu`) or a DAS path. Used only so CRAB has an `inputDataset`. |
 | `whitelist` | Optional. Restricts `Site.whitelist`. Omit to leave sites unrestricted. |
 | `blacklist` | Optional. CRAB `Site.blacklist`. |
 

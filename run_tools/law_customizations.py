@@ -1144,10 +1144,12 @@ class CrabWorkflow(law.cms.CrabWorkflow):
     ``Site.storageSite`` / ``Data.outLFNDirBase`` are derived from ``fs_default``
     (submit-time write check only). Memory is ``2 GB * n_cpus``.
 
-    CRAB's client requires ``Site.whitelist`` when law uses dummy ``userInputFiles``.
-    If ``crab.whitelist`` is unset, FLAF defaults to ``T1_*`` / ``T2_*`` / ``T3_*``
-    so jobs can run at every CMS processing site. Optional ``crab.blacklist``
-    still excludes sites.
+    Law would inject dummy ``userInputFiles`` when ``Data.inputDataset`` is empty,
+    and the CRAB client then requires ``Site.whitelist``. FLAF sets a real TT
+    NanoAOD ``inputDataset`` from this era (override with ``crab.input_dataset``)
+    and ``ignoreLocality = True`` so jobs are not tied to that sample's sites and
+    no whitelist is required. Optional ``crab.whitelist`` / ``crab.blacklist``
+    still restrict or exclude sites.
 
     CRAB workers have no AFS, so code is always shipped via the existing BundleTask
     mechanism (same as ``--bundle`` on HTCondor). Tasks must declare ``bundle_flavours``.
@@ -1155,7 +1157,8 @@ class CrabWorkflow(law.cms.CrabWorkflow):
     Config (``global.yaml`` / user_custom YAML), all optional::
 
         crab:
-          # whitelist: [T2_CH_CERN]   # omit to use all T1/T2/T3 sites
+          # input_dataset: /TTto2L2Nu_.../NANOAODSIM
+          # whitelist: [T2_CH_CERN]
           # blacklist: [T2_US_MIT]
     """
 
@@ -1175,6 +1178,43 @@ class CrabWorkflow(law.cms.CrabWorkflow):
 
     def _crab_cfg(self):
         return self.global_params.get("crab") or {}
+
+    def _crab_input_dataset(self):
+        """Return a real official DAS dataset so law does not inject userInputFiles.
+
+        FLAF never reads these files (remote I/O is via ``fs_*``). The name only
+        satisfies CRAB's Analysis plugin / DBS lookup. Prefer ``crab.input_dataset``,
+        else the first NanoAOD path of TTto2L2Nu / TT / TTtoLNu2Q / TTto4Q.
+        """
+        override = self._crab_cfg().get("input_dataset")
+        if override:
+            return str(override)
+        datasets = getattr(self.setup, "datasets", None)
+        if datasets is None:
+            raise RuntimeError(
+                "CRAB needs a real Data.inputDataset; Setup.datasets is missing. "
+                "Set crab.input_dataset in global.yaml."
+            )
+        for key in ("TTto2L2Nu", "TT", "TTtoLNu2Q", "TTto4Q"):
+            try:
+                entry = datasets[key]
+            except KeyError:
+                continue
+            nano = entry.get("nanoAOD") if isinstance(entry, dict) else None
+            if isinstance(nano, dict):
+                candidates = nano.values()
+            elif isinstance(nano, (list, tuple)):
+                candidates = nano
+            else:
+                candidates = [nano]
+            for path in candidates:
+                if isinstance(path, str) and path.startswith("/"):
+                    return path
+        raise RuntimeError(
+            "CRAB needs a real Data.inputDataset so law does not inject dummy "
+            "userInputFiles. Set crab.input_dataset or add TTto2L2Nu/TT to "
+            "datasets.yaml for this era."
+        )
 
     def _ensure_crab_pset(self, n_threads):
         """Write a minimal CRAB PSet with numberOfThreads matching JobType.numCores."""
@@ -1325,16 +1365,15 @@ process.out = cms.EndPath(process.output)
                 # Older CRAB clients may not support maxJobRuntimeMin; ignore if rejected later.
                 pass
 
-        # Law always sets dummy userInputFiles (no inputDataset). The CRAB client
-        # then requires Site.whitelist. Default to every CMS processing site so
-        # analyses need not pin T2_CH_CERN. An explicit crab.whitelist still
-        # restricts; crab.blacklist excludes sites on top of the list used.
+        # Real TT NanoAOD so law does not add dummy userInputFiles (that path
+        # forces Site.whitelist). ignoreLocality=True: do not pin jobs to the
+        # sample's Rucio sites; FLAF I/O does not use these files.
+        config.crab.Data.inputDataset = self._crab_input_dataset()
+        config.crab.Data.ignoreLocality = True
         whitelist = list(self._crab_cfg().get("whitelist") or [])
         blacklist = list(self._crab_cfg().get("blacklist") or [])
-        if not whitelist:
-            whitelist = ["T1_*", "T2_*", "T3_*"]
-        config.crab.Site.whitelist = [str(s) for s in whitelist]
-        config.crab.Data.ignoreLocality = True
+        if whitelist:
+            config.crab.Site.whitelist = [str(s) for s in whitelist]
         if blacklist:
             config.crab.Site.blacklist = [str(s) for s in blacklist]
 

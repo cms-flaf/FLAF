@@ -11,35 +11,21 @@ DATASET_TASKS = [
     "FLAF.Analysis.tasks.HistFromNtupleProducerTask",
 ]
 
-# Keep in sync with AVAILABLE_ERAS in flaf_integration/.gitlab-ci.yml: both backends are
-# driven by the same <ana>_eras variables from FLAF_ci/integration_cfg.yaml.
-AVAILABLE_ERAS = [
-    "Run3_2022",
-    "Run3_2022EE",
-    "Run3_2023",
-    "Run3_2023BPix",
-    "Run3_2024",
-    "Run3_2025",
-    "Run3_2026",
-]
 ANALYSES = ["HH_bbWW", "HH_bbtautau", "H_mumu"]
 
 
+# Era names are not validated here: whether an analysis supports an era is decided by
+# its configuration, and the job running the task fails if it does not.
 def parse_eras(analysis, raw_value):
     seen = []
     for era in raw_value.split():
-        if era not in AVAILABLE_ERAS:
-            raise ValueError(
-                f"Unknown era '{era}' requested for '{analysis}'. "
-                f"Available eras: {' '.join(AVAILABLE_ERAS)}."
-            )
         if era not in seen:
             seen.append(era)
     if not seen:
         raise ValueError(
             f"No eras specified for active analysis '{analysis}'. Set "
-            f"'{analysis}_eras' to an explicit space-separated list of eras "
-            f"({' '.join(AVAILABLE_ERAS)}) in the triggering variables."
+            f"'{analysis}_eras' to an explicit space-separated list of eras in the "
+            "triggering variables."
         )
     return seen
 
@@ -123,7 +109,7 @@ def main():
                     "analysis": ana,
                     "task": multi_era_task,
                     "args": task_args,
-                    "era": eras[0] if eras else "Run3_2022EE",
+                    "era": eras[0],
                 }
             )
 

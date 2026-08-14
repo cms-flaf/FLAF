@@ -74,9 +74,10 @@ variables:
 | `ci_backend` | CI execution engine: `gitlab` (default, CERN GitLab pipeline) or `github` (GitHub Actions with CVMFS). |
 
 !!! warning "`<ana>_processes` and `<ana>_eras` must be set for an active analysis"
-    Generation **errors out** if an active analysis has no `processes` or no `eras`, if an era name
-    is not one of the available ones, or if no analysis is active at all — a misconfigured trigger
-    fails instead of quietly testing something else. The process values live in
+    Generation **errors out** if an active analysis has no `processes` or no `eras`, or if no
+    analysis is active at all — a misconfigured trigger fails instead of quietly testing something
+    else. Whether an analysis supports a requested era is decided by its own configuration, so an
+    unsupported era fails in the job that runs the task. The process values live in
     `integration_cfg.yaml` (capitalised for HH analyses, lower-case for H→μμ — see
     [Processes & models](../configuration/processes-and-models.md)). They are declared but left
     empty in `flaf_integration/.gitlab-ci.yml`, so the trigger accepts them while the real values

@@ -12,7 +12,8 @@ data-taking period; choosing one selects the matching datasets, corrections and 
 | `Run3_2023` | 2023, pre-BPix | 13.6 TeV | v13 |
 | `Run3_2023BPix` | 2023, post-BPix install | 13.6 TeV | v13 |
 | `Run3_2024` | 2024 | 13.6 TeV | v15 |
-| `Run3_2025` | 2025 (future) | 13.6 TeV | — |
+| `Run3_2025` | 2025 | 13.6 TeV | v15 |
+| `Run3_2026` | 2026 | 13.6 TeV | v15 |
 
 ## Run 2 eras (legacy)
 
@@ -37,15 +38,47 @@ Each sub-era has its own corrections and luminosity, which is exactly why the
   the correct NanoAOD version path on DAS.
 - **NanoAOD version** — the table above; the dataset entries point at the right `vNN` campaign.
 - **Corrections** — pileup, b-tagging, trigger and other scale factors are era-specific.
-- **Signals** — resonant/non-resonant signals exist for some eras and not others (for instance,
-  several signal families are not produced for `Run3_2024`).
+- **Signals** — resonant/non-resonant signals exist for some eras and not others. For
+  `Run3_2024`, VBF and non-resonant ggF HH are on DAS (new `Par-` naming); resonant
+  Radion/BulkGraviton and X→YH→2B2W are not.
+- **2024/2025/2026 shared MC** — there is no dedicated 2025 or 2026 MC campaign.
+  All three years use the Summer24 NanoAOD, but **jet, PU and tau corrections
+  differ**, so AnaTuple production runs once per era. `Run3_2025` and `Run3_2026`
+  set `reuse_mc_from_era: Run3_2024` so the 2024 MC dataset list (and the
+  `shared_mc` split) is reused. Each production stores `weight_base` (all events,
+  this year's luminosity; use for a single-year run) and `weight_base_cmb` (the
+  same events split by residue between 2024, 2025 and 2026; use for a combined
+  run). The split applies only to MC; data keeps the full year in
+  `weight_base_cmb`. Select which branch histograms use with
+  `weight_base_branch`.
+  `shared_mc` lives only on the source era (`Run3_2024`): a 17:17:4 residue
+  *target* over modulus 38 (`Run3_2024: [ 0, 16 ]`, `Run3_2025: [ 17, 33 ]`,
+  `Run3_2026: [ 34, 37 ]`), matching the recorded luminosities
+  109948.18 : 110730.86 : 25843.26. The actual event split need not match
+  that target. AnaTupleFileTask therefore stores two denominators: the
+  full-sample sum (for `weight_base`) and the in-era sum (for
+  `weight_base_cmb`). Each weight is
+  `gen × lumi × xs × PU / its_denominator`, so both yields stay `L·σ`.
+  HistTuple multiplies the AnaTuple column named by `weight_base_branch`
+  (`weight_base` for a single-year run, `weight_base_cmb` for the combined
+  24+25+26 run).
+  Until official UParTAK4 shape files exist, 2024+ era overlays omit
+  `btag.normCacheProducer`, so HistTuple does not depend on the global
+  `BtagShape` cache. `modes.<stage>: none` still loads the correction (needed
+  for WP-id branches) but does not apply scale factors. Missing
+  `uncs_to_exclude` era keys default to an empty list.
+  The 2026 EGM folder has scale/smear files but no `electron.json`, so
+  Electron-ID-SF is loaded from the 2025 file and evaluated with year
+  `2025Prompt` (not `2026Prompt`).
 
 ## Running several eras
 
 A task runs **one era at a time**. To cover multiple eras, launch the task once per era (often
 scripted), or, in CI, list them in the `*_eras` variable (e.g.
-`Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix`, or `ALL`). See the
-[integration pipeline](../ci/integration-pipeline.md).
+`Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025 Run3_2026`). See the
+[integration pipeline](../ci/integration-pipeline.md). For a 2024+2025+2026
+combination, run each era with `weight_base_branch: weight_base_cmb` and add
+the histograms.
 
 !!! warning "`--period` must match an existing era directory"
     If you pass an era that has no `config/<era>/` (or whose datasets are not defined), config

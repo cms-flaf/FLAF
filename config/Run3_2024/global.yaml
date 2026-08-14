@@ -1,5 +1,17 @@
 era: Run3_2024
 luminosity: 109948.18  # pb-1, https://twiki.cern.ch/twiki/bin/view/CMS/PdmVRun3Analysis#DATA_AN2 command brilcalc lumi -b "STABLE BEAMS" --normtag /cvmfs/cms-bril.cern.ch/cms-lumi-pog/Normtags/normtag_PHYSICS.json -u /pb -i Cert_Collisions2024_378981_386951_Golden.json
+# Same Summer24 MC is processed once per year (jet/PU/tau corrections differ).
+# weight_base = all events, this year's lumi, full-sample denominator.
+# weight_base_cmb = in-era events, in-era denominator; 0 otherwise.
+# Residue map 17:17:4 / 38 matches recorded lumis (109948.18 : 110730.86 : 25843.26)
+# better than 9:9:2 / 20 (2026 was 4.6% low). Actual event split is not assumed.
+shared_mc:
+  split_modulus: 38
+  eras:
+    Run3_2024: [ 0, 16 ]
+    Run3_2025: [ 17, 33 ]
+    Run3_2026: [ 34, 37 ]
+weight_base_branch: weight_base
 nano_version: v15
 crossSectionsFile: FLAF/config/crossSections13p6TeV.yaml
 MET_flags:  # https://twiki.cern.ch/twiki/bin/view/CMS/MissingETOptionalFiltersRun2#Run_3_2024_data_and_MC_Recommend

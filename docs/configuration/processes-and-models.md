@@ -50,7 +50,9 @@ by `phys_model` in [`user_custom.yaml`](user-custom.md) (or `--model`).
 ### `TestModel` vs the production model
 
 - **`TestModel`** — a deliberately small set of processes, so the whole pipeline runs fast
-  end-to-end. Use it for development, local testing and CI.
+  end-to-end. Use it for development, local testing and CI. Every Run 3 era
+  (`Run3_2022` … `Run3_2026`) defines one background, one signal and one data
+  process under the CI names below.
 - **`BaseModel`** (or the analysis's named production model) — the full set used for real results.
 
 !!! tip "Process names differ slightly between analyses"

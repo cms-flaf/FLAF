@@ -37,5 +37,5 @@ the [walkthrough](workflow/walkthrough.md#stage-2-compute-analysis-observables-h
 ## H→μμ
 
 A single-Higgs analysis with the leanest submodule set (no `StatInference`/`inference`). Its CI
-runs over **all** Run 3 eras (`H_mumu_eras: ALL`), and its CI process names are lower-case
+runs over every Run 3 era (explicit `*_eras` list), and its CI process names are lower-case
 (`custom_CI_signal`, …) — see [Processes & models](configuration/processes-and-models.md).

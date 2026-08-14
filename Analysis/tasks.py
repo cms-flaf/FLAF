@@ -304,8 +304,15 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         payload_producers = self.global_params.get("payload_producers")
         if payload_producers:
+            needed_cache_producers = {
+                cfg["normCacheProducer"]
+                for cfg in self.global_params.get("corrections", {}).values()
+                if isinstance(cfg, dict) and cfg.get("normCacheProducer")
+            }
             for producer_name, producer_cfg in payload_producers.items():
                 if not producer_cfg.get("is_global", False):
+                    continue
+                if producer_name not in needed_cache_producers:
                     continue
                 if producer_cfg.get("needs_aggregation", False):
                     aggregate_list.append(producer_name)
@@ -512,13 +519,10 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 10.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     variables = luigi.Parameter(default="")
-    # Number of input ntuple files processed per job. A job reads its chunk of files once
-    # and fills the histograms for ALL active variables in a single RDataFrame event-loop
-    # pass (one traversal fills every booked histogram, so the dominant per-event cost --
-    # I/O + filter/define evaluation -- is shared across variables). Work is therefore split
-    # by FILES, never by variable: a per-variable split re-reads the same events once per
-    # variable batch, which is what made big datasets (e.g. TTtoLNu2Q with ~500 files read
-    # 10x) exceed the wall-time limit. Big datasets are parallelized by chunking their files.
+    # Number of input ntuple files processed per job. LAW branches stay split by
+    # files. If the booked-histogram count (variables x selections x unc/scale,
+    # including Up/Down) exceeds hist_from_ntuple_max_hists, the producer repeats
+    # the event loop in batches inside the same job.
     n_files_per_job = luigi.IntParameter(default=20)
 
     @property
@@ -611,13 +615,10 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
         ) in HistTupleBranchMap.items():
             dataset_to_branches.setdefault(histTuple_dataset_name, []).append(prod_br)
 
-        # Each (dataset, file-chunk) is its own branch/job: a job localizes its chunk of
-        # input files once and produces the histograms for ALL active variables in a single
-        # event-loop pass. Variables are NOT split across jobs (the event loop reads each
-        # event once and fills every booked histogram in that pass, so adding variables is
-        # nearly free; splitting them would instead re-read the same events per batch). Big
-        # datasets are parallelized by chunking their files into groups of n_files_per_job,
-        # so no single job has to read all ~500 files of e.g. TTtoLNu2Q.
+        # Each (dataset, file-chunk) is its own branch/job. Big datasets are
+        # parallelized by chunking files (n_files_per_job). Histogram-count
+        # batching, if needed, happens inside the producer — not as extra LAW
+        # branches — so inputs are localized once.
         n_files = max(1, self.n_files_per_job)
         idx = 0
         for dataset_name, prod_br_list in sorted(dataset_to_branches.items()):
@@ -701,10 +702,8 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 shutil.rmtree(job_home)
             return
 
-        # Localize this chunk's input files concurrently, then run the producer once over all
-        # of them. A chunk is small by construction (n_files_per_job), and the producer fills
-        # every variable in a single event-loop pass, writing one <var>.root per variable --
-        # so there is nothing to stage in waves or merge afterwards.
+        # Localize this chunk's input files concurrently, then run the producer
+        # over them. The producer may re-loop the same files in histogram batches.
         max_dl = max(1, int(self.global_params.get("max_simultaneous_downloads", 8)))
         out_dir = os.path.join(job_home, "hists")
         os.makedirs(out_dir, exist_ok=True)
@@ -752,6 +751,9 @@ class HistFromNtupleProducerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
                 cmd.extend(["--customisations", self.customisations])
             if self.user_custom:
                 cmd.extend(["--user-custom", self.user_custom])
+            max_hists = self.global_params.get("hist_from_ntuple_max_hists")
+            if max_hists is not None:
+                cmd.extend(["--max-hists", str(int(max_hists))])
             cmd.extend(local_inputs)
             ps_call(cmd, verbose=1)
 
@@ -888,10 +890,8 @@ class HistMergerTask(Task, HTCondorWorkflow, law.LocalWorkflow):
 
         uncNames = ["Central"]
         unc_cfg_dict = self.setup.weights_config
-        uncs_to_exclude = (
-            self.global_params["uncs_to_exclude"][self.period]
-            if "uncs_to_exclude" in self.global_params.keys()
-            else []
+        uncs_to_exclude = (self.global_params.get("uncs_to_exclude") or {}).get(
+            self.period, []
         )
         compute_unc_histograms = (
             customisation_dict["compute_unc_histograms"] == "True"

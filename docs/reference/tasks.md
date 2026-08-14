@@ -40,9 +40,15 @@ producers"), writing **histTuples**.
 ### `HistFromNtupleProducerTask`
 Fills **histograms** of the requested variables from the histTuples, including systematic
 variations. **Branches over (dataset, file-chunk):** each job reads its chunk of input files
-once and fills **all** active variables in a single event-loop pass. Large datasets are
-parallelized by splitting their files into chunks (work is never split per variable, which
-would re-read the same events once per variable).
+and fills the active variables. Large datasets are parallelized by splitting their files
+into chunks.
+
+If the number of histograms booked in one RDataFrame pass — variables × selections ×
+(Central + every Up/Down) — exceeds `hist_from_ntuple_max_hists` (default `4000`), the
+producer repeats the event loop in batches instead of holding every histogram at once.
+That keeps CI (8 GiB) from running out of memory when uncertainties are on. Set the
+threshold in `global.yaml` / `user_custom.yaml`, or pass `--max-hists` to the producer
+(`0` disables batching). LAW branches stay file-chunks; batching is inside the job.
 
 - **Parameters:** `--variables` (string; restrict which variables), `--n-files-per-job` (int,
   default `20`; input files processed per branch).

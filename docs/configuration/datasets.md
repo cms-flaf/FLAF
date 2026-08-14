@@ -14,6 +14,14 @@ framework and the analysis are concatenated, so all datasets for an era are avai
 
 This keeps the common SM samples in one shared place while each analysis owns its signals.
 
+`Run3_2025` and `Run3_2026` have no dedicated MC campaign. Set
+`reuse_mc_from_era: Run3_2024` in those eras' `FLAF/config/<era>/global.yaml` and
+Setup copies every 2024 MC (and analysis-signal) dataset that is not already
+defined and is not data (`eraLetter`), and inherits `shared_mc` from that era.
+Those `datasets.yaml` files therefore only need that year's data plus any
+era-local custom/CI samples. 2026 PromptReco NanoAOD (eras A–D) is listed in
+`FLAF/config/Run3_2026/datasets.yaml`.
+
 ## Dataset entry format
 
 ```yaml
@@ -66,7 +74,7 @@ resolvable cross-section, that names are well-formed, etc.:
 ```sh
 python3 test/checkDatasetConfigConsistency.py \
   --exception config/dataset_exceptions.yaml \
-  Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025
+  Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025 Run3_2026
 ```
 
 Run it after editing any `datasets.yaml`. Known, intentional exceptions live in
@@ -75,10 +83,21 @@ Run it after editing any `datasets.yaml`. Known, intentional exceptions live in
 ## Adding a new era
 
 1. Create `FLAF/config/<new_era>/` with at least `datasets.yaml` and `global.yaml`.
-2. Create `<analysis>/config/<new_era>/` with the analysis-specific overrides and signals.
-3. Add the era to `test-setup-loading.yaml` in each affected analysis (so CI loads `Setup.py` for
+2. Add the era to the C++ `Period` enum in `FLAF/include/AnalysisTools.h` and to the
+   `PeriodToHHbTagInput` maps in `FLAF/include/HHbTagScores.h`. AnaTuple production
+   JIT-compiles `Period::<era>` (`anaTupleProducer.py`); a missing enumerator fails
+   immediately with `no member named '<era>' in 'Period'`.
+3. Create `<analysis>/config/<new_era>/` with the analysis-specific overrides and signals.
+   In `triggers.yaml`, every `jsonTRGcorrection_key` map must include the
+   Corrections period name (`2026_Summer24` for `Run3_2026`). Missing keys
+   fail MC jobs with `KeyError` in `TrigCorrProducer`. Until a 2026
+   Electron-ID-SF JSON is published, `EleCorrProducer` evaluates that
+   correction with year `2025Prompt` (the only year key in the 2025 file
+   that `2026_Summer24` loads). A raw `2026Prompt` key fails HistTuple
+   with `Index not available in Category`.
+4. Add the era to `test-setup-loading.yaml` in each affected analysis (so CI loads `Setup.py` for
    it and catches config errors early).
-4. Add the era to the `*_eras` variable in the relevant `.github/integration_cfg.yaml` if it
+5. Add the era to the `*_eras` variable in the relevant `.github/integration_cfg.yaml` if it
    should be part of CI runs. See [Integration pipeline](../ci/integration-pipeline.md).
 
 See also [Eras & periods](../concepts/eras.md).

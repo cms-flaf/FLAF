@@ -57,7 +57,7 @@ variables:
   HH_bbtautau_active: "1"          # "1" = run this analysis, "0" = skip
   HH_bbtautau_task: "FLAF.Analysis.tasks.HistPlotTask"
   HH_bbtautau_args: "--branches 0 --test 1000"
-  HH_bbtautau_eras: "Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix"
+  HH_bbtautau_eras: "Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025 Run3_2026"
   HH_bbtautau_processes: "custom_CI_Signal custom_CI_Background custom_CI_Data"
   ci_backend: "gitlab"             # "gitlab" (default) or "github"
   TEST_TIMEOUT: "4h"

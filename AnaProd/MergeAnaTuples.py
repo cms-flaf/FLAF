@@ -55,17 +55,13 @@ ROOT.gInterpreter.Declare("""
     """)
 
 
-def combineAnaCaches(anaCaches, processors):
-    """
-    Combine multiple anaCaches into one.
-    Merges denominators, runtimes, and any processor-provided sections (like DY_stitching).
-    """
-    if len(anaCaches) == 0:
-        raise RuntimeError("addAnaCaches: no anaCaches provided")
+def _combine_denominator_map(anaCaches, processors, key):
     denominator = {}
     anaCache_processors = set()
     for anaCache in anaCaches:
-        for source, source_entry in anaCache["denominator"].items():
+        if key not in anaCache:
+            raise RuntimeError(f"combineAnaCaches: cache is missing '{key}'")
+        for source, source_entry in anaCache[key].items():
             if source not in denominator:
                 denominator[source] = {}
             for scale in getScales(source):
@@ -82,24 +78,35 @@ def combineAnaCaches(anaCaches, processors):
                 entries = []
                 for anaCache in anaCaches:
                     if (
-                        source in anaCache["denominator"]
-                        and scale in anaCache["denominator"][source]
-                        and processor in anaCache["denominator"][source][scale]
+                        source in anaCache[key]
+                        and scale in anaCache[key][source]
+                        and processor in anaCache[key][source][scale]
                     ):
-                        entries.append(
-                            anaCache["denominator"][source][scale][processor]
-                        )
+                        entries.append(anaCache[key][source][scale][processor])
                     else:
                         raise RuntimeError(
-                            f"combineAnaCaches: missing entry for {source}/{scale}/{processor} in one of the caches"
+                            f"combineAnaCaches: missing entry for {key}/{source}/{scale}/{processor} in one of the caches"
                         )
                 denominator[source][scale][processor] = processors[
                     processor
                 ].onAnaCache_combineAnaCaches(entries)
+    return denominator
 
+
+def combineAnaCaches(anaCaches, processors):
+    """
+    Combine multiple anaCaches into one.
+    Merges denominators, runtimes, and any processor-provided sections (like DY_stitching).
+    """
+    if len(anaCaches) == 0:
+        raise RuntimeError("addAnaCaches: no anaCaches provided")
     anaCacheSum = {
-        "denominator": denominator,
+        "denominator": _combine_denominator_map(anaCaches, processors, "denominator"),
     }
+    if any("denominator_cmb" in anaCache for anaCache in anaCaches):
+        anaCacheSum["denominator_cmb"] = _combine_denominator_map(
+            anaCaches, processors, "denominator_cmb"
+        )
     return anaCacheSum
 
 

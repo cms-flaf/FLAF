@@ -16,6 +16,7 @@ import FLAF.Common.Utilities as Utilities
 import FLAF.Common.ReportTools as ReportTools
 import FLAF.Common.triggerSel as Triggers
 from FLAF.Common.Setup import Setup
+from FLAF.Common.shared_mc import shared_mc_in_era_expr, shared_mc_split
 from Corrections.Corrections import Corrections
 from Corrections.lumi import LumiFilter
 from Corrections.CorrectionsCore import central, getScales, getSystName
@@ -180,19 +181,30 @@ def createAnatuple(
     if "pu" in corrections.to_apply and compute_unc_variations:
         shape_sources += puWeightProducer.uncSource
 
-    report["denominator"] = {}
-    for shape_unc_source in shape_sources:
-        report["denominator"][shape_unc_source] = {}
-        for shape_unc_scale in getScales(shape_unc_source):
-            report["denominator"][shape_unc_source][shape_unc_scale] = {}
-            for p_name, p_instance in processor_instances.items():
-                report["denominator"][shape_unc_source][shape_unc_scale][
-                    p_name
-                ] = p_instance.onAnaCache_initializeDenomEntry()
+    shared_mc = None if isData else setup.global_params.get("shared_mc")
+    shared_mc_expr = None
+    if shared_mc:
+        split_mod, lo, hi, _ = shared_mc_split(period, shared_mc)
+        shared_mc_expr = shared_mc_in_era_expr(split_mod, lo, hi)
+
+    def initializeDenomReport(key):
+        report[key] = {}
+        for shape_unc_source in shape_sources:
+            report[key][shape_unc_source] = {}
+            for shape_unc_scale in getScales(shape_unc_source):
+                report[key][shape_unc_source][shape_unc_scale] = {}
+                for p_name, p_instance in processor_instances.items():
+                    report[key][shape_unc_source][shape_unc_scale][
+                        p_name
+                    ] = p_instance.onAnaCache_initializeDenomEntry()
+
+    initializeDenomReport("denominator")
+    if shared_mc_expr:
+        initializeDenomReport("denominator_cmb")
 
     gen_weight_name = "weight_gen"
 
-    def updateDenomEntry(rdf):
+    def updateDenomEntry(rdf, report_key, branch_prefix):
         for p_instance in processor_instances.values():
             rdf = p_instance.onAnaCache_prepareDataFrame(rdf)
 
@@ -203,10 +215,10 @@ def createAnatuple(
                 if "pu" in corrections.to_apply:
                     weights_to_apply.append(f"weight_pu_{shape_unc_scale}")
                 for p_name, p_instance in processor_instances.items():
-                    output_branch_name = f"weight_denom_{p_name}_{shape_unc_name}"
-                    report["denominator"][shape_unc_source][shape_unc_scale][p_name] = (
+                    output_branch_name = f"{branch_prefix}_{p_name}_{shape_unc_name}"
+                    report[report_key][shape_unc_source][shape_unc_scale][p_name] = (
                         p_instance.onAnaCache_updateDenomEntry(
-                            report["denominator"][shape_unc_source][shape_unc_scale][
+                            report[report_key][shape_unc_source][shape_unc_scale][
                                 p_name
                             ],
                             rdf,
@@ -228,7 +240,14 @@ def createAnatuple(
             data_frame = data_frame.Define(gen_weight_name, genWeight_def)
             if "pu" in corrections.to_apply:
                 data_frame = corrections.pu.getWeight(data_frame)
-            updateDenomEntry(data_frame)
+            updateDenomEntry(data_frame, "denominator", "weight_denom")
+            if shared_mc_expr:
+                data_frame = data_frame.Define("__shared_mc_in_era", shared_mc_expr)
+                updateDenomEntry(
+                    data_frame.Filter("__shared_mc_in_era"),
+                    "denominator_cmb",
+                    "weight_denom_cmb",
+                )
     # if isData: json_dict_for_cache['RunLumi'] = unique_run_lumi
 
     if range is not None:
@@ -388,19 +407,23 @@ def createAnatuple(
 
     report["run_lumi_ranges"] = runLumiRanges
 
-    for shape_unc_source in shape_sources:
-        for shape_unc_scale in getScales(shape_unc_source):
-            for p_name, p_instance in processor_instances.items():
-                report["denominator"][shape_unc_source][shape_unc_scale][p_name] = (
-                    p_instance.onAnaCache_materializeDenomEntry(
-                        report["denominator"][shape_unc_source][shape_unc_scale][p_name]
+    denom_keys = ["denominator"]
+    if "denominator_cmb" in report:
+        denom_keys.append("denominator_cmb")
+    for denom_key in denom_keys:
+        for shape_unc_source in shape_sources:
+            for shape_unc_scale in getScales(shape_unc_source):
+                for p_name, p_instance in processor_instances.items():
+                    report[denom_key][shape_unc_source][shape_unc_scale][p_name] = (
+                        p_instance.onAnaCache_materializeDenomEntry(
+                            report[denom_key][shape_unc_source][shape_unc_scale][p_name]
+                        )
                     )
-                )
-                report["denominator"][shape_unc_source][shape_unc_scale][p_name] = (
-                    p_instance.onAnaCache_finalizeDenomEntry(
-                        report["denominator"][shape_unc_source][shape_unc_scale][p_name]
+                    report[denom_key][shape_unc_source][shape_unc_scale][p_name] = (
+                        p_instance.onAnaCache_finalizeDenomEntry(
+                            report[denom_key][shape_unc_source][shape_unc_scale][p_name]
+                        )
                     )
-                )
 
     hist_time = ROOT.TH1D(f"time", f"time", 1, 0, 1)
     end_time = datetime.datetime.now()

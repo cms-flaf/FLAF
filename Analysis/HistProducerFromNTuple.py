@@ -13,6 +13,12 @@ import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
 from FLAF.RunKit.run_tools import ps_call
 from FLAF.Analysis.HistTupleProducer import DefineBinnedColumn
+from FLAF.Analysis.histFromNtupleBatch import (
+    count_booked_hists,
+    iter_hist_batches,
+    n_cut_slots,
+    unc_scale_pairs,
+)
 
 
 def find_keys(inFiles_list):
@@ -185,6 +191,14 @@ if __name__ == "__main__":
     parser.add_argument("--LAWrunVersion", required=True, type=str)
     parser.add_argument("--nMT", type=int, default=8)
     parser.add_argument("--user-custom", type=str, default=None)
+    parser.add_argument(
+        "--max-hists",
+        type=int,
+        default=None,
+        help="Max histograms booked in one RDataFrame pass, counting every "
+        "(variable, selection, unc, scale) including Up/Down. "
+        "0 disables batching. Default: hist_from_ntuple_max_hists from config, else 4000.",
+    )
     args = parser.parse_args()
 
     ROOT.EnableImplicitMT(args.nMT)
@@ -281,33 +295,62 @@ if __name__ == "__main__":
                     )
 
     if all_trees:
-        # Open a tmp ROOT file per variable, then register all histogram actions sharing one
-        # filtered RDataFrame node per selection across variables (see BuildAllHistActions).
-        # Collecting every action before triggering lets ROOT execute them in a single
-        # event-loop pass over the input files.
-        # Write each variable's histograms directly into its final, compressed output file.
-        # SaveHist persists objects via WriteTObject as the actions run, so once the single
-        # event loop has executed we just close the files -- no per-variable hadd recompress
-        # pass (209 == LZMA level 9, matching the previous `hadd -f209` output compression).
+        # Open one compressed output file per variable. SaveHist writes into it as
+        # each batch's event loop runs (209 == LZMA level 9).
         var_tmp_files = {}
         for var in vars_to_process:
             out_path = os.path.join(args.outDir, f"{var}.root")
             out_root_file = ROOT.TFile(out_path, "RECREATE", "", 209)
             var_tmp_files[var] = (out_path, out_root_file)
 
-        all_save_fns = BuildAllHistActions(
-            uncs_to_compute,
-            unc_cfg_dict,
-            all_trees,
-            vars_to_process,
-            key_filter_dict,
-            further_cuts,
-            treeName,
-            var_tmp_files,
+        if args.max_hists is not None:
+            max_hists = args.max_hists
+        else:
+            max_hists = int(setup.global_params.get("hist_from_ntuple_max_hists", 4000))
+        n_total = count_booked_hists(
+            max(1, len(vars_to_process)),
+            max(1, len(key_filter_dict)),
+            n_cut_slots(further_cuts),
+            max(1, len(unc_scale_pairs(uncs_to_compute))),
+        )
+        batches = list(
+            iter_hist_batches(
+                uncs_to_compute,
+                key_filter_dict,
+                further_cuts,
+                vars_to_process,
+                max_hists,
+            )
+        )
+        print(
+            f"Booking {n_total} histograms "
+            f"({len(vars_to_process)} vars × {len(key_filter_dict)} keys × "
+            f"{n_cut_slots(further_cuts)} cuts × "
+            f"{len(unc_scale_pairs(uncs_to_compute))} unc/scales); "
+            f"max_hists={max_hists} → {len(batches)} batch(es)"
         )
 
-        for fn in all_save_fns:
-            fn()
+        for batch_idx, (b_uncs, b_keys, b_cuts, b_vars) in enumerate(batches, start=1):
+            n_batch = count_booked_hists(
+                max(1, len(b_vars)),
+                max(1, len(b_keys)),
+                n_cut_slots(b_cuts),
+                max(1, len(unc_scale_pairs(b_uncs))),
+            )
+            print(f"Histogram batch {batch_idx}/{len(batches)}: {n_batch} hists")
+            save_fns = BuildAllHistActions(
+                b_uncs,
+                unc_cfg_dict,
+                all_trees,
+                b_vars,
+                b_keys,
+                b_cuts,
+                treeName,
+                var_tmp_files,
+            )
+            for fn in save_fns:
+                fn()
+            del save_fns
 
         for var in vars_to_process:
             _, out_root_file = var_tmp_files[var]

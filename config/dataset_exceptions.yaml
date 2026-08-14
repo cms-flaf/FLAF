@@ -1,24 +1,42 @@
-# no MC for 2025:
+# no MC for 2025/2026 (reuse_mc_from_era):
 # ^(A-Z)*.:
 #   - Run3_2025
+#   - Run3_2026
 # DY
 ^DYto2(E|Mu|Tau)_M_50_[012]J_amcatnloFXFX:
   - Run3_2025
-^DYto2(E|Mu|Tau)_M_(10to50|50)_amcatnloFXFX:
+  - Run3_2026
+^DYto2(E|Mu)_M_(10to50|50)_amcatnloFXFX:
   - Run3_2025
+  - Run3_2026
+^DYto2Tau_M_10to50_amcatnloFXFX:
+  - Run3_2025
+  - Run3_2026
+DYto2Tau_M_50_amcatnloFXFX:
+  - Run3_2022
+  - Run3_2022EE
+  - Run3_2023
+  - Run3_2023BPix
+  - Run3_2025
+  - Run3_2026
 ^DYto2(E|Mu|Tau)_MLL_*.:
   - Run3_2025
+  - Run3_2026
 ^DYto2L_M_50_PTLL_*.:
   - Run3_2025
+  - Run3_2026
 ^DYto2L_M_(10to50|50)_amcatnloFXFX:
   - Run3_2024
   - Run3_2025
+  - Run3_2026
 ^DYto2L_M_50_[012]J_amcatnloFXFX:
   - Run3_2024
   - Run3_2025
+  - Run3_2026
 ^DYto2(E|Mu)_M_50_PTLL_.*_amcatnloFXFX:
   - Run3_2024
   - Run3_2025
+  - Run3_2026
 ^DYto2.*_M_50_amcatnloFXFX_ext1:
   - Run3_2023
   - Run3_2023BPix
@@ -26,10 +44,12 @@
 ^DYto2Tau_M_50_(0|1|2)J_Filtered_amcatnloFXFX:
   - Run3_2024
   - Run3_2025
+  - Run3_2026
 
 ^DYto2L_MLL_10to50_madgraphMLM:
   - Run3_2024
   - Run3_2025
+  - Run3_2026
 ^DYto2(E|Mu|Tau)_MLL_10to50_madgraphMLM:
   - Run3_2022
   - Run3_2022EE
@@ -39,6 +59,7 @@
 # H
 ^GluGluH*.:
   - Run3_2025
+  - Run3_2026
 GluGluHto2B_M125_ext1:
   - Run3_2022
   - Run3_2022EE
@@ -49,17 +70,21 @@ GluGluHto2Tau_M125:
   - Run3_2023
 ^ggZH_.*:
   - Run3_2025
+  - Run3_2026
 ^ggZH_.*_ext1:
   - Run3_2023
   - Run3_2023BPix
   - Run3_2024
-^GluGlutoContinto.*:
+^GluGlutoContinto2Zto2(E2Mu|E2Nu|E2Tau|Mu2Nu|Mu2Tau):
   - Run3_2022
   - Run3_2024
+^GluGlutoContinto2Zto4(E|Mu|Tau):
+  - Run3_2022
 GluGlutoContinto2Zto2Mu2Tau:
   - Run3_2023
 ^VBFH*.:
   - Run3_2025
+  - Run3_2026
 VBFHto2B_M125_ext1:
   - Run3_2022
   - Run3_2022EE
@@ -72,12 +97,12 @@ VBFHto2B_M125_ext1:
   - Run3_2024
 ^ZH.*:
   - Run3_2025
+  - Run3_2026
 ^ZH_Hto2B.*_ext1:
   - Run3_2023
   - Run3_2023BPix
   - Run3_2024
-^W(plus|minus)H_Hto2B_Wto2Q$:
-  - Run3_2024
+
 
 # QCD
 QCD_HT40to70_MLM:
@@ -91,8 +116,10 @@ QCD_PT_300_EMEnriched:
 ^QCD_PT_.*:
   - Run3_2024
   - Run3_2025
+  - Run3_2026
 ^QCD_HT.*:
   - Run3_2025
+  - Run3_2026
 # ST
 ^T(bar|)W.*_ext1:
   - Run3_2023
@@ -103,12 +130,14 @@ TT:
   - Run3_2023
   - Run3_2024
   - Run3_2025
+  - Run3_2026
 TT_ext1:
   - Run3_2022EE
   - Run3_2023
   - Run3_2023BPix
   - Run3_2024
   - Run3_2025
+  - Run3_2026
 TTto2L2Nu_ext1:
   - Run3_2023
   - Run3_2023BPix
@@ -123,31 +152,39 @@ TTtoLNu2Q_ext1:
   - Run3_2024
 ^TTto(2L2Nu|LNu2Q|4Q):
   - Run3_2025
+  - Run3_2026
 TTZ_Zto2Q:
   - Run3_2023
   - Run3_2023BPix
   - Run3_2025
+  - Run3_2026
 TTWZ:
   - Run3_2022
   - Run3_2025
+  - Run3_2026
 ^TTZ(Z|H)_Z(Z|H)to4B:
   - Run3_2022
   - Run3_2022EE
   - Run3_2023
   - Run3_2023BPix
   - Run3_2025
+  - Run3_2026
 TTZZ:
   - Run3_2024
   - Run3_2025
+  - Run3_2026
 TTZH:
   - Run3_2024
   - Run3_2025
+  - Run3_2026
 
 ^TT(WH|WW):
   - Run3_2025
+  - Run3_2026
 
 ^TTHto*:
   - Run3_2025
+  - Run3_2026
 
 # VBF
 VBFHto2Tau_M125:
@@ -156,6 +193,7 @@ VBFHto2Tau_M125:
 # W
 ^W(minus|plus|to)*.:
   - Run3_2025
+  - Run3_2026
 WtoLNu_madgraphMLM_ext1:
   - Run3_2023
   - Run3_2023BPix
@@ -164,13 +202,15 @@ WtoLNu_madgraphMLM:
   - Run3_2024
 WtoLNu_amcatnloFXFX:
   - Run3_2024
-^WtoLNu_(0|1)J_amcatnloFXFX:
+^WtoLNu_(0|1|2)J_amcatnloFXFX:
   - Run3_2024
 # VV
 ZZ:
   - Run3_2025
+  - Run3_2026
 ^ZZto*.:
   - Run3_2025
+  - Run3_2026
 ^WW.*_ext1:
   - Run3_2023
   - Run3_2023BPix
@@ -186,6 +226,7 @@ ZZ:
 # VVV
 ZZZ:
   - Run3_2025
+  - Run3_2026
 # change name in W samples..
 WtoENu_amcatnloFXFX:
   - Run3_2022
@@ -214,19 +255,22 @@ WtoTauNu_amcatnloFXFX:
   - Run3_2023
   - Run3_2023BPix
   - Run3_2025
+  - Run3_2026
 ^T(barB|Bbar)toL(minus|plus)Nu(B|Bbar)_s_channel_4FS:
   - Run3_2025
+  - Run3_2026
 ^T(barBQ|BbarQ)_t_channel_4FS:
   - Run3_2025
+  - Run3_2026
 
 ^T(barWplus|Wminus)to(2L2Nu|4Q|LNu2Q):
   - Run3_2025
+  - Run3_2026
 
-ZHto2Tau_UncorrelatedDecay_UnFiltered:
-  - Run3_2024
 ^Zto2Q_HT_(400to600|600to800|800toInf|200to400):
   - Run3_2024
   - Run3_2025
+  - Run3_2026
 
 ^Zto2Q_HT_(100to400|400to800|800to1500|1500to2500|2500toInf):
   - Run3_2022
@@ -234,6 +278,8 @@ ZHto2Tau_UncorrelatedDecay_UnFiltered:
   - Run3_2023
   - Run3_2023BPix
   - Run3_2025
+  - Run3_2026
 
 ^Zto2Nu_HT*.:
   - Run3_2025
+  - Run3_2026

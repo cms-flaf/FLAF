@@ -55,7 +55,7 @@ the current run, so all tasks see a consistent configuration.
 | File | Lives in | Holds |
 |---|---|---|
 | `user_custom.yaml` | analysis `config/` | **Your** personal, uncommitted settings: storage, model, options. [Guide](../configuration/user-custom.md). |
-| `global.yaml` | both layers | Global settings: anaTuple/histTuple definitions, corrections, payload producers, signal types. |
+| `global.yaml` | both layers | Global settings: anaTuple/histTuple definitions, corrections, payload producers, signal types. For 2024+ this also holds `weight_base_branch` (`weight_base` for a single year, `weight_base_cmb` for the 24+25+26 combination). `shared_mc` is declared on `Run3_2024` and inherited when `reuse_mc_from_era` is set. |
 | `datasets.yaml` | per-era, both layers | Dataset (sample) definitions. [Guide](../configuration/datasets.md). |
 | `processes.yaml` | analysis `config/` | Logical processes built from datasets. [Guide](../configuration/processes-and-models.md). |
 | `phys_models.yaml` | analysis `config/` | Which processes are background/signal/data for a model. [Guide](../configuration/processes-and-models.md). |

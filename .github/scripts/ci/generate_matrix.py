@@ -112,7 +112,10 @@ def main():
             )
 
     if not analyses_matrix:
-        analyses_matrix = ["HH_bbtautau"]
+        raise ValueError(
+            "No active analyses requested; nothing to run. Set '<analysis>_active' to '1' "
+            f"for at least one of {', '.join(ANALYSES)} in the triggering variables."
+        )
 
     output_file = os.environ.get("GITHUB_OUTPUT")
     results = {

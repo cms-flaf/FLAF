@@ -10,6 +10,57 @@ from FLAF.RunKit.law_wlcg import WLCGFileSystem
 from FLAF.Common.Utilities import create_processor_instances
 
 
+def resolve_user_custom_path(user_custom):
+    """Resolve --user-custom on the submit host or a remote worker.
+
+    Absolute submit-host paths are missing on CRAB/HTCondor bundle workers.
+    Jobs stage the file as a job input; law renames it with a content-hash
+    suffix (``name_<hash>.yaml``). Search common job dirs for the basename or
+    a hashed variant. Returns an absolute path when a file is found.
+    """
+
+    def _abs_if_file(p):
+        if p and os.path.isfile(p):
+            return os.path.abspath(p)
+        return None
+
+    if not user_custom:
+        return user_custom
+    path = user_custom
+    if not os.path.isabs(path):
+        ana = os.getenv("ANALYSIS_PATH") or ""
+        path = os.path.join(ana, path) if ana else path
+    found = _abs_if_file(path)
+    if found:
+        return found
+    base = os.path.basename(user_custom)
+    stem, ext = os.path.splitext(base)
+    search_dirs = [
+        os.environ.get("LAW_JOB_INIT_DIR", ""),
+        os.environ.get("LAW_JOB_HOME", ""),
+        "/srv",
+        os.getcwd(),
+        os.getenv("ANALYSIS_PATH") or "",
+    ]
+    for d in search_dirs:
+        if not d:
+            continue
+        found = _abs_if_file(os.path.join(d, base))
+        if found:
+            return found
+        if not os.path.isdir(d):
+            continue
+        try:
+            for name in os.listdir(d):
+                if name.startswith(stem + "_") and name.endswith(ext):
+                    found = _abs_if_file(os.path.join(d, name))
+                    if found:
+                        return found
+        except OSError:
+            pass
+    return path
+
+
 def select_items(all_items, filters):
     def name_match(name, pattern):
         if pattern[0] == "^":
@@ -265,12 +316,12 @@ class Setup:
         self.period = period
         self.law_run_version = law_run_version
 
-        # Resolve a relative user_custom file against the analysis path. The path is passed
-        # through to subprocesses (e.g. HistTupleProducer.py) verbatim, where the working
-        # directory is not the analysis directory (on HTCondor it is the job scratch dir), so
-        # it must be made absolute here for every caller, not only in Task.__init__.
-        if user_custom_file is not None and not os.path.isabs(user_custom_file):
-            user_custom_file = os.path.join(ana_path, user_custom_file)
+        # Resolve user_custom for every caller (Task and standalone scripts). Relative
+        # paths are rooted under ANALYSIS_PATH; absolute submit-host paths that are
+        # missing on remote workers are remapped to staged job inputs (see
+        # resolve_user_custom_path).
+        if user_custom_file:
+            user_custom_file = resolve_user_custom_path(user_custom_file)
 
         self.config_path_order = [
             os.path.join(ana_path, "FLAF", "config"),
@@ -375,12 +426,37 @@ class Setup:
 
         self.histTuple_flavor = self.global_params["histTuple_flavor"]
         print(f"Using histTuple flavor {self.histTuple_flavor}")
-        self.histTuple_plot_vars = self.global_params["histTuple_flavors"][
-            self.histTuple_flavor
-        ]["variables"]
-        self.histTuple_fullres_vars = self.global_params["histTuple_flavors"][
-            self.histTuple_flavor
-        ]["fullResolution_variables"]
+        self.histTuple_plot_vars = list(
+            self.global_params["histTuple_flavors"][self.histTuple_flavor]["variables"]
+        )
+        self.histTuple_fullres_vars = list(
+            self.global_params["histTuple_flavors"][self.histTuple_flavor][
+                "fullResolution_variables"
+            ]
+        )
+
+        # Optional top-level `variables:` from user_custom / global.yaml.
+        # - When the active flavor already lists variables: treat as a restriction
+        #   (keep only names in the list) — used by CI user_custom flavors.
+        # - When the flavor list is empty (e.g. H_mumu default): use the list as the
+        #   active plot/full-res set so user_custom alone can drive a short CI chain
+        #   without requiring histTuple_flavor: CI.
+        user_vars = self.global_params.get("variables")
+        if user_vars:
+
+            def _var_name(v):
+                return v["name"] if isinstance(v, dict) else v
+
+            selected = {_var_name(v) for v in user_vars}
+            if self.histTuple_plot_vars:
+                self.histTuple_plot_vars = [
+                    v for v in self.histTuple_plot_vars if _var_name(v) in selected
+                ]
+                self.histTuple_fullres_vars = [
+                    v for v in self.histTuple_fullres_vars if _var_name(v) in selected
+                ]
+            else:
+                self.histTuple_plot_vars = list(user_vars)
 
         # Whether up/down-variation histograms are produced. The histTuple flavor usually
         # dictates this (uncertainties are only needed for the limit-setting shape variable),
@@ -581,14 +657,35 @@ class Setup:
             cache_validity = cfg.get("localPathCacheValidity", 600)
             host = cfg.get("remotePathCacheHost", None)
             port = cfg.get("remotePathCachePort", None)
+            # cms-flaf.cern.ch is behind the CERN firewall; CRAB workers at other
+            # sites cannot reach it. Use the in-process PathCache, seeded from the
+            # snapshot shipped at submit, with a longer TTL so many jobs do not
+            # re-stat the same remote paths.
+            on_crab_worker = bool(
+                os.environ.get("LAW_CRAB_JOB_NUMBER") or os.environ.get("CRAB_Id")
+            )
+            if on_crab_worker:
+                host = None
+                port = None
+                cache_validity = int(
+                    cfg.get(
+                        "crabLocalPathCacheValidity",
+                        max(cache_validity * 24, 86400),
+                    )
+                )
             verbose = cfg.get("verbose", 0)
-            return WLCGFileSystem(
+            fs = WLCGFileSystem(
                 path_or_paths,
                 local_path_cache_validity_period=cache_validity,
                 path_cache_host=host,
                 path_cache_port=port,
                 verbose=verbose,
             )
+            if on_crab_worker:
+                from FLAF.RunKit.law_gfal import apply_shipped_path_cache
+
+                apply_shipped_path_cache(fs)
+            return fs
 
     def get_fs(self, fs_name, custom_paths=None):
         fs_instance = None
@@ -640,23 +737,49 @@ class Setup:
     @property
     def cmssw_env(self):
         if self.cmssw_env_ is None:
-            self.cmssw_env_ = get_cmsenv(cmssw_path=os.getenv("FLAF_CMSSW_BASE"))
+            flaf_cmssw = os.getenv("FLAF_CMSSW_BASE")
+            self.cmssw_env_ = get_cmsenv(cmssw_path=flaf_cmssw)
             for var in [
                 "HOME",
                 "FLAF_PATH",
+                "CORRECTIONS_PATH",
                 "ANALYSIS_PATH",
                 "ANALYSIS_DATA_PATH",
                 "X509_USER_PROXY",
                 "FLAF_CMSSW_BASE",
                 "FLAF_CMSSW_ARCH",
+                "PYTHONSAFEPATH",
+                "LAW_CRAB_JOB_NUMBER",
+                "CRAB_Id",
+                "LAW_JOB_INIT_DIR",
+                "LAW_JOB_HOME",
+                "FLAF_SHIPPED_PATH_CACHE",
             ]:
                 if var in os.environ:
                     self.cmssw_env_[var] = os.environ[var]
+            # scram runtime (inside get_cmsenv) may still emit the submit-host AFS
+            # CMSSW_BASE when ProjectRename failed on a CRAB worker. Force the
+            # relocated release path so CMSSW-dependent models / includeLibTool resolve
+            # inside the bundle, not /afs/...
+            if flaf_cmssw and os.path.isdir(flaf_cmssw):
+                self.cmssw_env_["CMSSW_BASE"] = flaf_cmssw
+                self.cmssw_env_["FLAF_CMSSW_BASE"] = flaf_cmssw
+            # Prepend overlay parents (if set) then ANALYSIS_PATH so `import FLAF`
+            # / `import Corrections` match env.sh. Without this, CMSSW python
+            # resolves the submodule copy and misses overlay-only modules.
+            py_prefix = [self.ana_path]
+            for env_key in ("FLAF_PATH", "CORRECTIONS_PATH"):
+                overlay = os.environ.get(env_key)
+                if overlay and os.path.isdir(overlay):
+                    parent = os.path.dirname(os.path.abspath(overlay))
+                    if parent and parent not in py_prefix:
+                        py_prefix.insert(0, parent)
+            py_prefix_str = ":".join(py_prefix)
             if "PYTHONPATH" not in self.cmssw_env_:
-                self.cmssw_env_["PYTHONPATH"] = self.ana_path
+                self.cmssw_env_["PYTHONPATH"] = py_prefix_str
             else:
                 self.cmssw_env_["PYTHONPATH"] = (
-                    f'{self.ana_path}:{self.cmssw_env["PYTHONPATH"]}'
+                    f"{py_prefix_str}:{self.cmssw_env_['PYTHONPATH']}"
                 )
         return self.cmssw_env_
 

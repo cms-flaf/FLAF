@@ -53,6 +53,10 @@ A batch worker needs your code and environment. FLAF supports two modes:
 For most work the defaults are correct; you only think about bundles when a stage explicitly needs
 one (e.g. it declares a CMSSW bundle flavour) or when AFS is not available on the target pool.
 
+For jobs that should run on the full CMS WLCG (not only CERN HTCondor), use
+[`--workflow crab`](crab.md) — that path always uses bundles.
+
+
 !!! tip "Your edits to FLAF *do* reach the workers"
     Thanks to the dev overlay, non-bundle jobs run your edited `FLAF`/`Corrections`, and bundle
     jobs include them in the tarball — so testing framework changes on HTCondor works without

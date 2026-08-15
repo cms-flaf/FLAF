@@ -1,3 +1,4 @@
+import json
 import time
 import os
 import sys
@@ -94,6 +95,28 @@ class PathCache:
     def get_many(self, paths):
         return {path: self.get(path)[0] for path in paths}
 
+    def iter_valid(self):
+        for path, entry in list(self.cache.items()):
+            if entry.is_valid():
+                yield path, entry.exists
+
+    def load_entries(self, entries):
+        """Refresh entries with this cache's validity period (snapshot has no timestamps)."""
+        negatives = []
+        positives = []
+        for item in entries:
+            path = item.get("path")
+            if not path:
+                continue
+            if item.get("exists"):
+                positives.append(path)
+            else:
+                negatives.append(path)
+        for path in negatives:
+            self.set(path, False)
+        for path in positives:
+            self.set(path, True)
+
     def invalidate(self, path):
         to_remove = []
         for p in self.cache:
@@ -183,6 +206,88 @@ class RemotePathCache:
             verbose=self.verbose,
         )
         self.local_cache.invalidate(path)
+
+
+SHIPPED_PATH_CACHE_BASENAME = "path_cache.json"
+SHIPPED_PATH_CACHE_ENV = "FLAF_SHIPPED_PATH_CACHE"
+
+_shipped_path_cache_entries = None
+
+
+def local_path_cache(fs):
+    """Return the in-process PathCache for a WLCG/GFAL filesystem, if any."""
+    fi = getattr(fs, "file_interface", None)
+    pc = getattr(fi, "path_cache", None)
+    if pc is None:
+        return None
+    return getattr(pc, "local_cache", pc)
+
+
+def collect_setup_path_cache_entries(setup):
+    """Union of valid path-cache entries from every FS the Setup has already created."""
+    entries = {}
+    for fs in getattr(setup, "fs_dict", {}).values():
+        pc = local_path_cache(fs)
+        if pc is None:
+            continue
+        for path, exists in pc.iter_valid():
+            entries[path] = exists
+    return [{"path": path, "exists": exists} for path, exists in entries.items()]
+
+
+def write_path_cache_file(path, entries):
+    with open(path, "w") as f:
+        json.dump({"entries": entries}, f)
+
+
+def _resolve_shipped_path_cache_file():
+    env_path = os.environ.get(SHIPPED_PATH_CACHE_ENV, "")
+    if env_path and os.path.isfile(env_path):
+        return env_path
+    stem, ext = os.path.splitext(SHIPPED_PATH_CACHE_BASENAME)
+    search_dirs = [
+        os.environ.get("LAW_JOB_INIT_DIR", ""),
+        os.environ.get("LAW_JOB_HOME", ""),
+        "/srv",
+        os.getcwd(),
+    ]
+    for d in search_dirs:
+        if not d:
+            continue
+        direct = os.path.join(d, SHIPPED_PATH_CACHE_BASENAME)
+        if os.path.isfile(direct):
+            return direct
+        if not os.path.isdir(d):
+            continue
+        try:
+            for name in os.listdir(d):
+                if name.startswith(stem + "_") and name.endswith(ext):
+                    cand = os.path.join(d, name)
+                    if os.path.isfile(cand):
+                        return cand
+        except OSError:
+            pass
+    return None
+
+
+def apply_shipped_path_cache(fs):
+    """Load a submit-time path-cache snapshot into ``fs`` (once per process)."""
+    global _shipped_path_cache_entries
+    if _shipped_path_cache_entries is None:
+        _shipped_path_cache_entries = []
+        path = _resolve_shipped_path_cache_file()
+        if path:
+            try:
+                with open(path) as f:
+                    data = json.load(f)
+                _shipped_path_cache_entries = data.get("entries") or []
+                os.environ[SHIPPED_PATH_CACHE_ENV] = path
+            except (OSError, ValueError, TypeError):
+                _shipped_path_cache_entries = []
+    pc = local_path_cache(fs)
+    if pc is None or not _shipped_path_cache_entries:
+        return
+    pc.load_entries(_shipped_path_cache_entries)
 
 
 class GFALFileInterface(RemoteFileInterface):

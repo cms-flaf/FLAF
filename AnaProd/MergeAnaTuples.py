@@ -209,6 +209,12 @@ def mergeAnaTuples(
     else:
         tree_list = [(central, central, "Events")]
 
+    if not tree_list:
+        raise RuntimeError(
+            f"No trees to merge for dataset {dataset_name} "
+            f"(empty or missing report tree lists)."
+        )
+
     if len(root_outputs) > 1 and len(tree_list) > 1:
         raise NotImplementedError(
             "Cannot write multiple output files when there are multiple uncertainties."

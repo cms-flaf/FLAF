@@ -202,6 +202,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
             "anaTuple": AnaTupleMergeTask.req(
                 self,
                 max_runtime=AnaTupleMergeTask.max_runtime._default,
+                n_cpus=AnaTupleMergeTask.n_cpus._default,
                 branch=prod_br,
                 branches=(prod_br,),
                 customisations=self.customisations,

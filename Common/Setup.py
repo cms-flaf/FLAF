@@ -742,11 +742,13 @@ class Setup:
             for var in [
                 "HOME",
                 "FLAF_PATH",
+                "CORRECTIONS_PATH",
                 "ANALYSIS_PATH",
                 "ANALYSIS_DATA_PATH",
                 "X509_USER_PROXY",
                 "FLAF_CMSSW_BASE",
                 "FLAF_CMSSW_ARCH",
+                "PYTHONSAFEPATH",
                 "LAW_CRAB_JOB_NUMBER",
                 "CRAB_Id",
                 "LAW_JOB_INIT_DIR",
@@ -762,11 +764,22 @@ class Setup:
             if flaf_cmssw and os.path.isdir(flaf_cmssw):
                 self.cmssw_env_["CMSSW_BASE"] = flaf_cmssw
                 self.cmssw_env_["FLAF_CMSSW_BASE"] = flaf_cmssw
+            # Prepend overlay parents (if set) then ANALYSIS_PATH so `import FLAF`
+            # / `import Corrections` match env.sh. Without this, CMSSW python
+            # resolves the submodule copy and misses overlay-only modules.
+            py_prefix = [self.ana_path]
+            for env_key in ("FLAF_PATH", "CORRECTIONS_PATH"):
+                overlay = os.environ.get(env_key)
+                if overlay and os.path.isdir(overlay):
+                    parent = os.path.dirname(os.path.abspath(overlay))
+                    if parent and parent not in py_prefix:
+                        py_prefix.insert(0, parent)
+            py_prefix_str = ":".join(py_prefix)
             if "PYTHONPATH" not in self.cmssw_env_:
-                self.cmssw_env_["PYTHONPATH"] = self.ana_path
+                self.cmssw_env_["PYTHONPATH"] = py_prefix_str
             else:
                 self.cmssw_env_["PYTHONPATH"] = (
-                    f'{self.ana_path}:{self.cmssw_env["PYTHONPATH"]}'
+                    f"{py_prefix_str}:{self.cmssw_env_['PYTHONPATH']}"
                 )
         return self.cmssw_env_
 

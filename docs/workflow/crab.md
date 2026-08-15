@@ -66,13 +66,14 @@ crab:
   # blacklist: [T2_US_MIT]
   # parallel_jobs: 5000       # default --parallel-jobs; CLI wins if set
   # refill_fraction: 0.2      # new CRAB task only when this fraction of slots is free
-  # memory_mb_per_cpu: 3000   # CRAB maxMemoryMB / n_cpus
+  # memory_mb_per_cpu: 2000   # CRAB maxMemoryMB / n_cpus
 ```
 
-Memory is `3000 MB * n_cpus` (override with `crab.memory_mb_per_cpu`), then capped
-at the CRAB client limit: 5000 MB for 1 core, `2500 MB * n_cpus` otherwise.
-There is no separate CRAB memory CLI flag. AnaTuple production defaults to
-4 cores (10 GB) so tautau CMSSW jobs fit; 2 cores only allow 5 GB.
+Memory is `2000 MB * n_cpus` (override with `crab.memory_mb_per_cpu`), matching
+the CRAB default that all sites guarantee per core. Then capped at the CRAB
+client limit: 5000 MB for 1 core, `2500 MB * n_cpus` otherwise. There is no
+separate CRAB memory CLI flag. AnaTuple production defaults to 4 cores (8 GB)
+so tautau CMSSW jobs fit; 2 cores only allow 5 GB.
 
 Verify write access before the first campaign:
 
@@ -86,7 +87,7 @@ crab checkwrite --site=T3_CH_CERNBOX --lfn=/store/user/$USER
 | `blacklist` | Optional. CRAB `Site.blacklist` (applied on top of the whitelist). |
 | `parallel_jobs` | Optional. Default for `--parallel-jobs` on CRAB (CLI wins). Default: `5000`. Caps how many CRAB jobs are in flight and thus the size of each CRAB task. CRAB itself refuses more than 10 000 jobs in one task. |
 | `refill_fraction` | Optional. Submit a new CRAB task only when `parallel_jobs - n_active >= refill_fraction * parallel_jobs`. Default: `0.2`. Prevents a 1-job task every time a single job finishes. |
-| `memory_mb_per_cpu` | Optional. CRAB `JobType.maxMemoryMB` is this times `--n-cpus`, capped at 5000 MB (1 core) or `2500 MB * n_cpus`. Default: `3000`. |
+| `memory_mb_per_cpu` | Optional. CRAB `JobType.maxMemoryMB` is this times `--n-cpus`, capped at 5000 MB (1 core) or `2500 MB * n_cpus`. Default: `2000` (CRAB / site-guaranteed per-core default). |
 
 ## Submit
 
@@ -103,7 +104,7 @@ law run FLAF.Analysis.tasks.HistTupleProducerTask \
 |---|---|
 | `--workflow crab` | Submit via CRAB instead of local/HTCondor. |
 | `--parallel-jobs` | Jobs in flight (default **5000** on CRAB, unlimited on HTCondor). Each refill is one CRAB task. Also `crab.parallel_jobs` in `global.yaml`. |
-| `--max-runtime` / `--n-cpus` | Same as HTCondor; mapped to CRAB `maxJobRuntimeMin` / `numCores` / memory (`3000 MB * n_cpus`, CRAB-capped). |
+| `--max-runtime` / `--n-cpus` | Same as HTCondor; mapped to CRAB `maxJobRuntimeMin` / `numCores` / memory (`2000 MB * n_cpus`, CRAB-capped). |
 | `--transfer-logs` | On by default; enables remote log stageout when `fs_default` is WLCG. |
 
 You do **not** need `--bundle` for CRAB — bundles are forced whenever the workflow is `crab`.

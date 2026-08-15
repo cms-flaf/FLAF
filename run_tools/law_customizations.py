@@ -1223,8 +1223,8 @@ class CrabWorkflow(law.cms.CrabWorkflow):
     nothing is duplicated onto CRAB's stageout area.
 
     ``Site.storageSite`` / ``Data.outLFNDirBase`` are derived from ``fs_default``
-    (submit-time write check only). Memory is ``3000 MB * n_cpus`` (override
-    with ``crab.memory_mb_per_cpu``).
+    (submit-time write check only). Memory is ``2000 MB * n_cpus`` (override
+    with ``crab.memory_mb_per_cpu``), matching the CRAB / site-guaranteed default.
 
     Law injects dummy ``userInputFiles`` when ``Data.inputDataset`` is empty,
     and the CRAB client then requires ``Site.whitelist``. If ``crab.whitelist``
@@ -1242,7 +1242,7 @@ class CrabWorkflow(law.cms.CrabWorkflow):
           # blacklist: [T2_US_MIT]
           # parallel_jobs: 5000       # --parallel-jobs default; CLI wins
           # refill_fraction: 0.2      # refill when free slots >= this * parallel_jobs
-          # memory_mb_per_cpu: 3000   # CRAB JobType.maxMemoryMB / n_cpus
+          # memory_mb_per_cpu: 2000   # CRAB JobType.maxMemoryMB / n_cpus
     """
 
     # Re-declare in the class body so law's metaclass sets _defined_workflow_proxy=True
@@ -1390,13 +1390,14 @@ process.out = cms.EndPath(process.output)
         config.render_variables["log_remote_base_url"] = log_remote_base_url
 
         # Cores + memory. CRAB requires JobType.numCores == PSet numberOfThreads.
-        # Default 3000 MB/CPU, then clamp to the CRAB client max
-        # (5000 MB for 1 core, 2500 MB * n_cpus otherwise).
+        # Default 2000 MB/CPU (CRAB default; all sites guarantee this per core),
+        # then clamp to the CRAB client max (5000 MB for 1 core, 2500 MB * n_cpus
+        # otherwise).
         n_cpus = max(1, int(getattr(self, "n_cpus", 1) or 1))
         try:
-            mb_per_cpu = int(self._crab_cfg().get("memory_mb_per_cpu", 3000))
+            mb_per_cpu = int(self._crab_cfg().get("memory_mb_per_cpu", 2000))
         except (TypeError, ValueError):
-            mb_per_cpu = 3000
+            mb_per_cpu = 2000
         # CRAB client cap: 5000 MB (1 core) or 2500 MB * n_cpus (multi-core).
         crab_max = 5000 if n_cpus == 1 else 2500 * n_cpus
         mem = min(n_cpus * max(mb_per_cpu, 1), crab_max)

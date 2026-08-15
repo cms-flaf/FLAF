@@ -118,7 +118,8 @@ class InputFileTask(Task, law.LocalWorkflow):
 
 class AnaTupleFileTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 40.0)
-    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
+    # tautau CMSSW AnaTuple used ~7.5 GB RSS on CRAB; 2 cores cap at 5000 MB.
+    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
 
     @property
     def bundle_flavours(self):

@@ -45,7 +45,9 @@ Optional site white/black lists go in `global.yaml` under `crab:` (not CLI flags
 Unset whitelist ⇒ all T1/T2/T3 sites. Default `--parallel-jobs` on CRAB is 5000
 (`crab.parallel_jobs`); a new CRAB task is submitted only when at least
 `crab.refill_fraction` (default 0.2) of those slots are free. `Site.storageSite`
-/ `Data.outLFNDirBase` are derived from `fs_default`. Memory is `2 GB * n_cpus`.
+/ `Data.outLFNDirBase` are derived from `fs_default`. Memory is
+`3000 MB * n_cpus` (`crab.memory_mb_per_cpu`), capped at the CRAB client
+limit (5000 MB for 1 core, `2500 MB * n_cpus` otherwise).
 
 ## Status & cleanup (LAW built-ins)
 

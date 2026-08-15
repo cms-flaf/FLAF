@@ -145,6 +145,18 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
     LFN. At CERN, prefer `T3_CH_CERNBOX` for `/store/user/...` (maps to personal EOS and
     usually passes `crab checkwrite`); `T2_CH_CERN /store/user` often does not exist.
 
+!!! note "Distant sites still read `fs_default`"
+    The default whitelist lets jobs run anywhere, but the bundle and outputs stay
+    on `fs_default`. Personal EOS (`davs://eoshome-*.cern.ch`) can fail or stall
+    from far-away sites (gfal 112, HTTP 404, hung DNN). Law retries usually
+    recover; set `crab.whitelist` closer to CERN if that I/O is a problem.
+
+!!! warning "Do not replace a live bundle mid-campaign"
+    `BundleTask` can stay DONE after `core.tar.bz2` is deleted because of the
+    path-existence cache. Workers then get HTTP 404. Rebuild into a sibling file
+    and `mv` it over the live path; do not `cp` onto a file jobs may be
+    downloading (a mid-copy can stage out 0 bytes).
+
 !!! note "Test small first"
     Validate with `--workflow local --branches 0 --test 1000`, then a single CRAB branch,
     before large submissions.

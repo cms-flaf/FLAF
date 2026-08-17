@@ -31,10 +31,28 @@ class PathCacheEntry:
         return self.expiration_time >= time.time()
 
 
+# Cache key marking that a directory has been listed and that the cached entries for it are
+# therefore complete. It is a key like any other, so it is shared through the cache server and
+# expires with the entries it covers. Only a successful listing writes it — unlike the plain
+# "this directory exists" entry, which is also (re)written when a parent is listed or when a
+# file is copied into the directory, and which therefore says nothing about the directory's
+# content.
+LISTING_MARKER = ".flaf_listed"
+
+
+def listing_marker(base_dir):
+    return os.path.join(base_dir, LISTING_MARKER)
+
+
 class PathCache:
     def __init__(self, validity_period):
         self.validity_period = validity_period
         self.cache = {}
+        # Directories listed by this process. A marker learned from the cache server means
+        # "the server's knowledge of this directory is complete", which does not hold for the
+        # subset of entries kept locally, so only markers backed by a listing taken here may
+        # be handed on in a snapshot (see iter_valid).
+        self.listed_dirs = set()
 
     @staticmethod
     def _iter_parents(path):
@@ -64,13 +82,16 @@ class PathCache:
         self.set(path, exists)
 
     def set_exists(self, base_dir, items):
+        # The marker is written first so that it can never outlive the entries it covers.
+        self.set(listing_marker(base_dir), True)
         for item in items:
             path = os.path.join(base_dir, item)
             self.set(path, True)
-        # Mark the directory itself as existing so that lookups of absent siblings can be
-        # answered from this cached listing without an extra round-trip (matches the
-        # behaviour of RemotePathCache.set_exists).
         self.set(base_dir, True)
+        self.listed_dirs.add(base_dir)
+
+    def has_listing(self, base_dir):
+        return self.get(listing_marker(base_dir))[0] is True
 
     def get(self, path):
         entry = self.cache.get(path)
@@ -97,8 +118,16 @@ class PathCache:
 
     def iter_valid(self):
         for path, entry in list(self.cache.items()):
-            if entry.is_valid():
-                yield path, entry.exists
+            if not entry.is_valid():
+                continue
+            if (
+                os.path.basename(path) == LISTING_MARKER
+                and os.path.dirname(path) not in self.listed_dirs
+            ):
+                # Shipping this marker would tell the receiver that the entries it got are a
+                # complete listing, which is only true for a listing taken by this process.
+                continue
+            yield path, entry.exists
 
     def load_entries(self, entries):
         """Refresh entries with this cache's validity period (snapshot has no timestamps)."""
@@ -151,7 +180,8 @@ class RemotePathCache:
         self.local_cache.set(path, exists)
 
     def set_exists(self, base_dir, items):
-        entries = []
+        # The marker is published first so that it can never outlive the entries it covers.
+        entries = [(listing_marker(base_dir), True)]
         for item in items:
             path = os.path.join(base_dir, item)
             entries.append((path, True))
@@ -160,6 +190,9 @@ class RemotePathCache:
             entries, self.host, self.port, self.timeout, verbose=self.verbose
         )
         self.local_cache.set_exists(base_dir, items)
+
+    def has_listing(self, base_dir):
+        return self.get(listing_marker(base_dir))[0] is True
 
     def get(self, path):
         local_result, _ = self.local_cache.get(path)
@@ -329,14 +362,15 @@ class GFALFileInterface(RemoteFileInterface):
         dir_uri = self.uri(path_dir, base=base)
         result = False
         cached_result, from_local_cache = self.path_cache.get(path_uri)
-        if cached_result is None:
-            cached_dir_result, from_local_cache = self.path_cache.get(dir_uri)
-            if cached_dir_result is not None:
-                cached_result = False
-                # The directory is known but does not contain this entry: memoize the
-                # negative result locally so repeated checks of the same path do not query
-                # the cache server again (a fresh TCP round-trip per call otherwise).
-                self.path_cache.set_local(path_uri, False)
+        if cached_result is None and self.path_cache.has_listing(dir_uri):
+            # The directory has been listed and its cached entries are therefore complete,
+            # so this path is absent. A listing is what proves absence: that the directory
+            # itself exists says nothing about its content. Memoize the negative result
+            # locally so repeated checks of the same path do not query the cache server
+            # again (a fresh TCP round-trip per call otherwise).
+            cached_result = False
+            from_local_cache = True
+            self.path_cache.set_local(path_uri, False)
         use_cache = cached_result is not None
 
         if use_cache:
@@ -346,7 +380,10 @@ class GFALFileInterface(RemoteFileInterface):
             dir_entries = self.listdir(path_dir, base=base, silent=True)
             result = path_name in dir_entries
             if not result:
-                self.path_cache.set(path_uri, False)
+                # Local-only: the listing just taken covers every absent sibling for this
+                # process, while a file-level negative published to the cache server would
+                # outlive the file's creation by a job whose own cache update is lost.
+                self.path_cache.set_local(path_uri, False)
 
         if self.verbose > 0:
             print(
@@ -392,7 +429,10 @@ class GFALFileInterface(RemoteFileInterface):
                 gfal_copy_safe(src_uri, dst_uri, voms_token=self.voms_token, verbose=0)
                 self.path_cache.set(dst_uri, True)
                 cached_dst_dir, _ = self.path_cache.get(dst_dir_uri)
-                if cached_dst_dir is not None and not cached_dst_dir:
+                if cached_dst_dir is not True:
+                    # The directory now exists. Record it also when it was simply unknown:
+                    # a listing of its parent taken before it was created would otherwise
+                    # answer "absent" for it until that listing expires.
                     self.path_cache.set(dst_dir_uri, True)
             return src_uri, dst_uris
         elif dst_local and not src_local:
@@ -436,6 +476,13 @@ class GFALFileInterface(RemoteFileInterface):
         entries = gfal_ls_safe(
             path_uri, voms_token=self.voms_token, catch_stderr=True, verbose=0
         )
+        if entries is None:
+            # A failed listing may be a transient error rather than an absent directory.
+            # Confirm before acting on it: the negative is published to the cache server and
+            # suppresses the whole subtree there for every client.
+            entries = gfal_ls_safe(
+                path_uri, voms_token=self.voms_token, catch_stderr=True, verbose=0
+            )
         if entries is None:
             if not silent:
                 gfal_ls_safe(

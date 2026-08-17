@@ -53,6 +53,28 @@ EOS is eventually consistent: a file you just wrote can be briefly invisible to 
 checks for freshly written outputs and intermittently "can't find" them, don't trust a single
 `exists()` — list the parent directory and retry a few times with a short delay.
 
+## `--print-status` reports outputs as missing although the files are on storage
+Existence checks go through a path cache (a per-process cache backed by the shared cache server
+configured under `WLCGFileSystem` in `global.yaml`), so a status check does not stat every file
+individually. A directory is listed once; that listing is published to the cache server, so every
+later check — in any process, including jobs — is answered from the cache without touching
+storage, and a file created afterwards is published by the job that writes it. Only a path that
+the cache knows nothing about, in a directory whose listing has expired, costs a real listing.
+That is also what makes the cache self-healing: if a job's own cache update is lost, its file
+becomes visible again as soon as the directory's cached listing expires.
+
+If a status check still disagrees with what you see on the storage element, list the directory
+yourself (`gfal-ls`) to establish the truth, and drop the cached entries for that subtree:
+
+```sh
+python3 $FLAF_PATH/RunKit/pathCacheClient.py --host cms-flaf.cern.ch --port 5000 \
+  --command invalidate_regex --path '.*/<version>/.*'
+```
+
+The pattern is matched against stored paths, which are normalised — repeated slashes are
+collapsed, so a pattern containing the URL scheme (`davs://…`) never matches. Match on the part
+of the path you care about, as above.
+
 ## Cross-analysis environment contamination
 The environment caches paths in variables (`FLAF_PATH`, `ANALYSIS_PATH`, `ANALYSIS_SOFT_PATH`, …).
 Reusing a shell that already set up a *different* analysis can pick up the wrong `flaf_env` and

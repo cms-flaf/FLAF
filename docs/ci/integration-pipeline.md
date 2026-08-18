@@ -109,7 +109,21 @@ flowchart LR
 - The **parent** pipeline runs `scripts/generate_child_pipeline.py`, which expands the active
   analyses × eras × processes into concrete jobs (pure Python, no PyYAML on the runner).
 - The **child** pipeline builds each active analysis once, then runs the requested task per
-  process/era on tiny inputs (`--test`), and finally notifies GitHub of success/failure.
+  process/era on tiny inputs (`--test`).
+- The **parent** then notifies GitHub of success/failure. The result comment is more than
+  pass/fail: it lists the active analysis and any non-default dependency (`FLAF`, `PlotKit`,
+  `Corrections`, `StatInference`) with the commit SHA resolved when the pipeline was triggered
+  (the PR head or branch tip), each linked to GitHub. That is the revision that was tested,
+  even if further commits were pushed to the PR while CI was still running. A SHA is omitted
+  only when it was not resolved (typically `_version: default`, or a failed GitHub lookup).
+  Example:
+
+    ```text
+    [pipeline#12345](https://gitlab.cern.ch/cms-flaf/flaf_integration/-/pipelines/12345) passed
+
+    - HH_bbtautau ([PR #87](https://github.com/cms-flaf/HH_bbtautau/pull/87)): [`0123456`](https://github.com/cms-flaf/HH_bbtautau/commit/0123456)
+    - FLAF ([PR #301](https://github.com/cms-flaf/FLAF/pull/301)): [`fedcba9`](https://github.com/cms-flaf/FLAF/commit/fedcba9)
+    ```
 - Disabled analyses/eras are simply not emitted; jobs are non-interruptible so parallel pipelines
   on the same branch don't cancel each other.
 

@@ -39,6 +39,31 @@ Replace `<initial>`/`<user>` with yours (e.g. `k` / `kandroso`). With just this,
 | `variables` | list | Restrict which variables are produced/plotted (applied to the active `histTuple_flavor` list). If that flavor's variable list is empty (e.g. H_mumu `default`), this list is used as the active set. Omit for the full flavor set. |
 | `histTuple_flavor` | string | Optional. Selects which `histTuple_flavors` entry drives the variable lists (e.g. `CI` for the short H_mumu CI set). |
 | `hist_from_ntuple_max_hists` | int | Max histograms `HistFromNtupleProducerTask` books in one RDataFrame pass. The count is variables × selections × (Central + every Up/Down). Default `4000`; `0` disables batching. Lower this (do not raise CI memory) if a job OOMs. |
+| `anaTuple_scheduling` | map | Tunes how `AnaTupleFileTask` branches are composed into HTCondor jobs. Every key has a default; see below. |
+
+### `anaTuple_scheduling`
+
+Optional. Controls the [cost-based job composition](../workflow/htcondor.md#how-branches-become-jobs)
+of AnaTuple production. Sensible defaults apply when the block is absent.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `target_job_hours` | `6.0` | Wall time a job is packed up to. A branch that costs more than this is submitted on its own. |
+| `max_units_per_job` | `50` | Upper bound on branches per job, whatever their cost. |
+| `runtime_safety` | `2.5` | The packing capacity never exceeds `max_runtime / runtime_safety`, so a packed job cannot be built into the wall clock. |
+| `parallel_jobs` | `2000` | Default queue footprint (also what creates the submission waves that let estimates improve mid-run). `--parallel-jobs` overrides it. |
+| `probe_enabled` | `true` | Whether to run [`AnaTupleCostProbeTask`](../reference/tasks.md#anatuplecostprobetask) before production. |
+| `probe_events` | `5000` | Events a probe scans per dataset. |
+| `overhead_sec` | `300` | Fixed per-job cost (worker setup, JIT, corrections); re-measured from the probes. |
+| `default_sec_per_event` | `0.02` | Per-event prior, used only until a dataset has been measured. |
+| `default_events_per_byte` | `4.5e-4` | Events-per-byte prior, used when neither an event count nor a measurement is available. |
+| `tier_safety` | see below | Divides the packing capacity according to how well the estimate is known: `job` 1.0, `probe`/`catalogue` 1.3, `process` 2.0, `group` 3.0, `default` 4.0. |
+| `retry_runtime_factor` / `retry_memory_factor` / `retry_max_factor` | `1.5` / `1.25` / `3.0` | Per-attempt escalation of a resubmitted job's runtime and memory, and the cap on both. |
+| `request_memory_mb` | *(unset)* | When set, requests this much memory explicitly instead of letting the site derive it from `--n-cpus`. |
+
+The calibration is stored in `data/<version>/AnaTupleCost/cost_model.json` and is keyed by
+**version, not era** — a version fixes the physics selection by convention, so a cost measured
+while producing one era is reused by the others. Delete the file to force a full recalibration.
 
 !!! tip "`TestModel` is the fast path"
     `TestModel` selects a reduced set of processes so the pipeline runs quickly end-to-end. Use it

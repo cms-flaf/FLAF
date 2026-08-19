@@ -17,6 +17,7 @@ import FLAF.Common.ReportTools as ReportTools
 import FLAF.Common.triggerSel as Triggers
 from FLAF.Common.Setup import Setup
 from FLAF.Common.shared_mc import shared_mc_in_era_expr, shared_mc_split
+from FLAF.AnaProd.CostModel import chunk_bounds, scaled_bounds
 from Corrections.Corrections import Corrections
 from Corrections.lumi import LumiFilter
 from Corrections.CorrectionsCore import central, getScales, getSystName
@@ -97,6 +98,9 @@ def createAnatuple(
     outputName,
     reportOutput=None,
     use_genWeight_sign_only=True,
+    chunk_index=0,
+    n_chunks=1,
+    max_scan_events=None,
 ):
     start_time = datetime.datetime.now()
     compression_settings = (
@@ -158,12 +162,41 @@ def createAnatuple(
         df_not_selected = None
 
     nEventsInFile = df.Count().GetValue()
+    # Attached to the unrestricted frame: the progress bar only accepts an RDataFrame or
+    # an RNode, and it reports on the shared loop manager either way.
     ROOT.RDF.Experimental.AddProgressBar(df)
+
+    # Restrict this job to its slice of the file.  This is applied here, before the
+    # denominator and the snapshots are booked, so that every quantity the job reports
+    # refers to the same slice and the sums over all chunks of a file reproduce the
+    # whole-file values exactly.
+    entry_begin, entry_end = chunk_bounds(nEventsInFile, chunk_index, n_chunks)
+    if max_scan_events is not None and max_scan_events > 0:
+        entry_end = min(entry_end, entry_begin + max_scan_events)
+    n_scanned_events = max(entry_end - entry_begin, 0)
+    if (entry_begin, entry_end) != (0, nEventsInFile):
+        print(
+            f"processing entries [{entry_begin}, {entry_end}) out of {nEventsInFile}"
+            f" (chunk {chunk_index + 1}/{n_chunks})"
+        )
+        df = df.Range(entry_begin, entry_end)
+        if df_not_selected is not None and nEventsInFile > 0:
+            # Slice the not-selected tree by the same fraction.  Consecutive chunks share
+            # a boundary by construction, so the slices are disjoint and cover the tree.
+            ns_begin, ns_end = scaled_bounds(
+                entry_begin, entry_end, nEventsInFile, tree_not_selected.GetEntries()
+            )
+            df_not_selected = ROOT.RDF.AsRNode(df_not_selected.Range(ns_begin, ns_end))
+        # Erased back to RNode so the rest of the producer sees the same node type it
+        # does for a whole file.
+        df = ROOT.RDF.AsRNode(df)
 
     report = {}
     report["nano_file_name"] = inFileName
     report["anaTuple_file_name"] = outputName
     report["n_original_events"] = nEventsInFile
+    report["n_scanned_events"] = n_scanned_events
+    report["entry_range"] = [entry_begin, entry_end]
     report["dataset_name"] = dataset_name
     report["output_files"] = []
 
@@ -394,7 +427,14 @@ def createAnatuple(
             dfw.df.Snapshot(treeName, outFileName, varToSave, snapshotOptions)
         )
 
+    setup_end_time = datetime.datetime.now()
     ROOT.RDF.RunGraphs(handles_to_run)
+    loop_end_time = datetime.datetime.now()
+    # Separated because job-cost estimation extrapolates the event loop only: the setup
+    # (JIT, corrections, the entry count) is a fixed cost that does not scale with events.
+    report["setup_seconds"] = (setup_end_time - start_time).total_seconds()
+    report["loop_seconds"] = (loop_end_time - setup_end_time).total_seconds()
+    report["n_trees"] = len(report["output_files"])
 
     runLumiRanges_cpp = runLumiTracker.getRunLumiRanges()
     runLumiRanges = {}
@@ -477,6 +517,24 @@ if __name__ == "__main__":
     parser.add_argument("--compressionAlgo", type=str, default="ZLIB")
     parser.add_argument("--channels", type=str, default=None)
     parser.add_argument("--nEvents", type=int, default=None)
+    parser.add_argument(
+        "--chunk-index",
+        type=int,
+        default=0,
+        help="index of the entry range to process (0-based)",
+    )
+    parser.add_argument(
+        "--n-chunks",
+        type=int,
+        default=1,
+        help="number of equal entry ranges the input file is split into",
+    )
+    parser.add_argument(
+        "--max-scan-events",
+        type=int,
+        default=None,
+        help="stop after this many entries; used to time a dataset cheaply",
+    )
     parser.add_argument("--evtIds", type=str, default="")
     parser.add_argument("--reportOutput", type=str, default=None)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
@@ -532,4 +590,7 @@ if __name__ == "__main__":
         channels=channels,
         reportOutput=args.reportOutput,
         outputName=args.output_name,
+        chunk_index=args.chunk_index,
+        n_chunks=args.n_chunks,
+        max_scan_events=args.max_scan_events,
     )

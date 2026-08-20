@@ -4,6 +4,7 @@ from .grid_tools import (
     copy_remote_file,
     rucio_list_files,
     rucio_list_replicas,
+    das_dataset_file_info,
 )
 
 
@@ -14,6 +15,7 @@ class RucioFileInterface(RemoteFileInterface):
         self.voms_token = get_voms_proxy_info()["path"]
         self.dataset_files = {}
         self.dataset_available_files = {}
+        self.dataset_event_counts = {}
         super(RucioFileInterface, self).__init__(base=["/"])
 
     def is_local(self, path):
@@ -37,8 +39,30 @@ class RucioFileInterface(RemoteFileInterface):
         return src, dst
 
     def listdir(self, path, base=None, silent=False, **kwargs):
+        return list(self._dataset_file_info(path).keys())
+
+    def listdir_info(self, path, base=None, silent=True, **kwargs):
+        """``{lfn: {"size": bytes, "n_events": int|None}}`` for a dataset.
+
+        Rucio always knows the size but leaves the CMS ``events`` field empty, so the
+        event counts come from a single DAS query per dataset.  Both are optional inputs
+        to job-cost estimation, so a DAS failure leaves ``n_events`` as None rather than
+        propagating.
+        """
+        info = dict(self._dataset_file_info(path))
+        if path not in self.dataset_event_counts:
+            self.dataset_event_counts[path] = das_dataset_file_info(path)
+        for name, das_info in self.dataset_event_counts[path].items():
+            if name in info and das_info.get("n_events"):
+                info[name]["n_events"] = das_info["n_events"]
+        return info
+
+    def _dataset_file_info(self, path):
         if path not in self.dataset_files:
-            self.dataset_files[path] = [f["name"] for f in rucio_list_files(path)]
+            self.dataset_files[path] = {
+                f["name"]: {"size": f.get("bytes"), "n_events": None}
+                for f in rucio_list_files(path)
+            }
         return self.dataset_files[path]
 
     def is_available(self, dataset, file, verbose=0):

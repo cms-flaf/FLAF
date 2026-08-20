@@ -23,6 +23,7 @@ from FLAF.run_tools.law_customizations import (
 )
 from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 from .AnaTupleFileList import CreateMergePlan
+from .CostModel import CostModel, entry_key, merged_params
 from .MergeAnaTuples import mergeAnaTuples
 
 
@@ -53,9 +54,13 @@ class InputFileTask(Task, law.LocalWorkflow):
         nano_version = self.get_nano_version(dataset_name)
         pattern_dict = self.datasets[dataset_name].get("fileNamePattern", {})
         pattern = pattern_dict.get(nano_version, r".*\.root$")
+        entries = fs_nanoAOD.listdir(folder_name)
+        # After the listing, so the metadata comes from it instead of a second query.
+        listing_info = self.list_file_info(fs_nanoAOD, folder_name)
         input_files = []
         inactive_files = []
-        for file in fs_nanoAOD.listdir(folder_name):
+        file_info = {}
+        for file in entries:
             if not re.match(pattern, file):
                 continue
             file_path = os.path.join(folder_name, file) if include_folder_name else file
@@ -74,6 +79,9 @@ class InputFileTask(Task, law.LocalWorkflow):
                         else:
                             raise RuntimeError(f"No sites found for {file_path}")
             input_files.append(file_path)
+            info = listing_info.get(file)
+            if info:
+                file_info[file_path] = info
 
         if len(input_files) == 0:
             raise RuntimeError(f"No input files found for {dataset_name}")
@@ -82,6 +90,7 @@ class InputFileTask(Task, law.LocalWorkflow):
         output = {
             "input_files": input_files,
             "inactive_files": inactive_files,
+            "file_info": file_info,
         }
         with self.output().localize("w") as out_local_file:
             with open(out_local_file.abspath, "w") as f:
@@ -89,19 +98,45 @@ class InputFileTask(Task, law.LocalWorkflow):
 
         print(f"{dataset_name}: {len(input_files)} input files are found.")
 
+    @staticmethod
+    def list_file_info(fs, folder_name):
+        """``{file_name: {"size": .., "n_events": ..}}`` for one input folder.
+
+        The size comes from the directory listing that the file interface performs
+        anyway; ``n_events`` is filled in only where the backend can supply it cheaply
+        (DAS, for Rucio-discovered datasets).  Purely advisory: any failure yields an
+        empty mapping and job-cost estimation falls back to coarser tiers.
+        """
+        interface = getattr(fs, "file_interface", None)
+        if interface is None or not hasattr(interface, "listdir_info"):
+            return {}
+        try:
+            return interface.listdir_info(folder_name)
+        except Exception as e:
+            print(f"{folder_name}: unable to collect input file metadata: {e}")
+            return {}
+
     input_file_cache = {}
 
     @staticmethod
-    def load_input_files(input_file_list, test=False):
+    def _load(input_file_list):
         if input_file_list not in InputFileTask.input_file_cache:
             with open(input_file_list, "r") as f:
-                input_files = json.load(f)["input_files"]
-            InputFileTask.input_file_cache[input_file_list] = input_files
-        input_files = InputFileTask.input_file_cache[input_file_list]
+                InputFileTask.input_file_cache[input_file_list] = json.load(f)
+        return InputFileTask.input_file_cache[input_file_list]
+
+    @staticmethod
+    def load_input_files(input_file_list, test=False):
+        input_files = InputFileTask._load(input_file_list)["input_files"]
         active_files = (
             [input_files[0]] if test and len(input_files) > 0 else input_files
         )
         return active_files
+
+    @staticmethod
+    def load_file_info(input_file_list):
+        """Per-file metadata, empty for lists produced before it was recorded."""
+        return InputFileTask._load(input_file_list).get("file_info", {})
 
     WF = None
     WF_complete_ = False
@@ -116,10 +151,8 @@ class InputFileTask(Task, law.LocalWorkflow):
         return InputFileTask.WF_complete_
 
 
-class AnaTupleFileTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
-    max_runtime = copy_param(HTCondorWorkflow.max_runtime, 40.0)
-    # tautau CMSSW AnaTuple used ~7.5 GB RSS on CRAB; 2 cores cap at 5000 MB.
-    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
+class AnaTupleProducerMixin:
+    """Shared invocation of `anaTupleProducer.py` (production jobs and cost probes)."""
 
     @property
     def bundle_flavours(self):
@@ -128,13 +161,265 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
             flavours.append("cmssw")
         return flavours
 
+    def producer_settings(self):
+        customisation_dict = getCustomisationSplit(self.customisations)
+        channels = (
+            customisation_dict["channels"]
+            if "channels" in customisation_dict.keys()
+            else self.global_params["channelSelection"]
+        )
+        if type(channels) == list:
+            channels = ",".join(channels)
+        store_noncentral = (
+            customisation_dict["store_noncentral"] == "True"
+            if "store_noncentral" in customisation_dict.keys()
+            else self.global_params.get("store_noncentral", False)
+        )
+        compute_unc_variations = (
+            customisation_dict["compute_unc_variations"] == "True"
+            if "compute_unc_variations" in customisation_dict.keys()
+            else self.global_params.get("compute_unc_variations", False)
+        )
+        return channels, store_noncentral, compute_unc_variations
+
+    def cost_params(self):
+        """Scheduling parameters from `anaTuple_scheduling` in the global config."""
+        return merged_params(self.global_params.get("anaTuple_scheduling"))
+
+    def producer_env(self):
+        if self.global_params.get("use_cmssw_env_AnaTupleProduction", False):
+            return self.cmssw_env
+        return None
+
+    def anatuple_cmd(
+        self,
+        dataset_name,
+        local_input,
+        in_file_name,
+        out_dir,
+        output_name,
+        report_path,
+        extra_args=None,
+    ):
+        channels, store_noncentral, compute_unc_variations = self.producer_settings()
+        cmd = [
+            "python3",
+            "-u",
+            os.path.join(self._flaf_root(), "AnaProd", "anaTupleProducer.py"),
+            "--period",
+            self.period,
+            "--inFile",
+            local_input,
+            "--outDir",
+            out_dir,
+            "--dataset",
+            dataset_name,
+            "--anaTupleDef",
+            os.path.join(self.ana_path(), self.global_params["anaTupleDef"]),
+            "--channels",
+            channels,
+            "--inFileName",
+            in_file_name,
+            "--reportOutput",
+            report_path,
+            "--LAWrunVersion",
+            self.version,
+            "--output-name",
+            output_name,
+        ]
+        if compute_unc_variations:
+            cmd.append("--compute-unc-variations")
+        if store_noncentral:
+            cmd.append("--store-noncentral")
+        if self.test > 0:
+            cmd.extend(["--nEvents", str(self.test)])
+        if self.user_custom:
+            cmd.extend(["--user-custom", self.user_custom])
+        cmd.extend(extra_args or [])
+        return cmd
+
+
+class AnaTupleFileTask(
+    AnaTupleProducerMixin, Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow
+):
+    max_runtime = copy_param(HTCondorWorkflow.max_runtime, 40.0)
+    # tautau CMSSW AnaTuple used ~7.5 GB RSS on CRAB; 2 cores cap at 5000 MB.
+    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
+
     def workflow_requires(self):
         reqs = super().workflow_requires()
         reqs["inputFile"] = InputFileTask.req(self, branches=())
+        if self.cost_params()["probe_enabled"]:
+            reqs["costProbe"] = AnaTupleCostProbeTask.req(
+                self,
+                branches=(),
+                max_runtime=AnaTupleCostProbeTask.max_runtime._default,
+                n_cpus=AnaTupleCostProbeTask.n_cpus._default,
+            )
         return reqs
 
     def requires(self):
         return []
+
+    # ------------------------------------------------------------ cost-aware packing
+    #
+    # The HTCondor workflow proxy calls these to build jobs of bounded duration instead
+    # of fixed-size groups of branches. A task that does not define them keeps law's
+    # default `tasks_per_job` chunking.
+
+    def cost_model_path(self):
+        """Location of the calibration store.
+
+        Keyed by version only, not by era: a version fixes the physics selection, so a
+        cost measured while producing one era applies to the others and a multi-era
+        production is calibrated once.
+        """
+        return os.path.join(
+            self.ana_data_path(), self.version, "AnaTupleCost", "cost_model.json"
+        )
+
+    _dataset_peers_cache = None
+
+    def _dataset_peers(self):
+        """(by_process, by_group): dataset names sharing a process / process group."""
+        if self._dataset_peers_cache is None:
+            by_process = {}
+            by_group = {}
+            for _, dataset_name in self.iter_datasets():
+                dataset = self.datasets[dataset_name]
+                by_process.setdefault(dataset["process_name"], []).append(dataset_name)
+                by_group.setdefault(dataset["process_group"], []).append(dataset_name)
+            self._dataset_peers_cache = (by_process, by_group)
+        return self._dataset_peers_cache
+
+    def _input_file_info(self, dataset_name):
+        input_file_list = (
+            InputFileTask.req(
+                self, branch=self.get_dataset_id(dataset_name), branches=()
+            )
+            .output()
+            .abspath
+        )
+        return InputFileTask.load_file_info(input_file_list)
+
+    _cost_model = None
+
+    def load_cost_model(self):
+        """Calibration store, refreshed once per process with any probe results it has
+        not seen yet.  Kept on the instance because the probe lookup goes to remote
+        storage and because everything in this process must share one writer."""
+        if self._cost_model is not None:
+            return self._cost_model
+        model = CostModel.load(self.cost_model_path(), self.cost_params())
+        self._cost_model = model
+        failed = []
+        for _, dataset_name in self.iter_datasets():
+            nano_version = self.get_nano_version(dataset_name)
+            if entry_key(nano_version, dataset_name) in model.entries:
+                continue
+            target = AnaTupleCostProbeTask.probe_target(self, dataset_name)
+            try:
+                if not target.exists():
+                    continue
+                with target.localize("r") as local_probe:
+                    with open(local_probe.abspath, "r") as f:
+                        probe = json.load(f)
+            except Exception as e:
+                print(f"{dataset_name}: unable to read the cost probe: {e}")
+                continue
+            if not model.set_from_probe(nano_version, dataset_name, probe):
+                failed.append(dataset_name)
+        if failed:
+            print(
+                f"cost model: no usable probe for {len(failed)} dataset(s), falling back "
+                f"to a coarser estimate: {', '.join(sorted(failed)[:10])}"
+                + (" ..." if len(failed) > 10 else "")
+            )
+        if model.dirty:
+            model.save(self.cost_model_path())
+        return model
+
+    def branch_cost_map(self):
+        """{branch -> (estimated seconds, tier)} for every branch of this workflow."""
+        model = self.load_cost_model()
+        by_process, by_group = self._dataset_peers()
+        file_info = {}
+        costs = {}
+        for branch, (dataset_name, input_file, _) in self.branch_map.items():
+            if dataset_name not in file_info:
+                info = self._input_file_info(dataset_name)
+                file_info[dataset_name] = info
+                model.set_events_per_byte_from_catalogue(
+                    self.get_nano_version(dataset_name), dataset_name, info
+                )
+            dataset = self.datasets[dataset_name]
+            costs[branch] = model.estimate(
+                self.get_nano_version(dataset_name),
+                dataset_name,
+                file_info[dataset_name].get(input_file),
+                peers=by_process.get(dataset["process_name"]),
+                group_peers=by_group.get(dataset["process_group"]),
+                max_events=self.test if self.test > 0 else None,
+            )
+        if model.dirty:
+            model.save(self.cost_model_path())
+        return costs
+
+    def cost_capacity_seconds(self):
+        """Packing capacity: the target job duration, never so large that a job built up
+        to it could run into `max_runtime`."""
+        params = self.cost_params()
+        target = float(params["target_job_hours"]) * 3600.0
+        safety = max(float(params["runtime_safety"]), 1.0)
+        return max(min(target, float(self.max_runtime) * 3600.0 / safety), 60.0)
+
+    def record_job_durations(self, samples):
+        """Fold observed job durations into the calibration.
+
+        *samples* is an iterable of ``(branches, seconds)``. Only groups whose branches
+        all belong to one dataset are used, since a mixed group cannot be attributed.
+        Returns True when something changed, so the caller can re-pack what is still
+        unsubmitted.
+
+        A ``--test`` run records nothing: it processes a prefix of every file, so its
+        durations say nothing about the cost of the whole one, and the store is shared
+        with the production runs of the same version.
+        """
+        if self.test > 0:
+            return False
+        model = self.load_cost_model()
+        branch_map = self.branch_map
+        file_info = {}
+        changed = False
+        for branches, seconds in samples:
+            datasets = {branch_map[b][0] for b in branches if b in branch_map}
+            if len(datasets) != 1:
+                continue
+            dataset_name = datasets.pop()
+            nano_version = self.get_nano_version(dataset_name)
+            if dataset_name not in file_info:
+                file_info[dataset_name] = self._input_file_info(dataset_name)
+            n_events = 0.0
+            for b in branches:
+                if b not in branch_map:
+                    continue
+                events, _ = model.n_events(
+                    nano_version,
+                    dataset_name,
+                    file_info[dataset_name].get(branch_map[b][1]),
+                )
+                if events is None:
+                    n_events = 0.0
+                    break
+                n_events += events
+            if n_events <= 0:
+                continue
+            changed |= model.add_measurement(
+                nano_version, dataset_name, seconds, n_events
+            )
+        if changed:
+            model.save(self.cost_model_path())
+        return changed
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
@@ -180,28 +465,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
             dataset_name, input_file_name, output_name = self.branch_data
             dataset = self.datasets[dataset_name]
             process_group = dataset["process_group"]
-            producer_anatuples = os.path.join(
-                self._flaf_root(), "AnaProd", "anaTupleProducer.py"
-            )
-
-            customisation_dict = getCustomisationSplit(self.customisations)
-            channels = (
-                customisation_dict["channels"]
-                if "channels" in customisation_dict.keys()
-                else self.global_params["channelSelection"]
-            )
-            if type(channels) == list:
-                channels = ",".join(channels)
-            store_noncentral = (
-                customisation_dict["store_noncentral"] == "True"
-                if "store_noncentral" in customisation_dict.keys()
-                else self.global_params.get("store_noncentral", False)
-            )
-            compute_unc_variations = (
-                customisation_dict["compute_unc_variations"] == "True"
-                if "compute_unc_variations" in customisation_dict.keys()
-                else self.global_params.get("compute_unc_variations", False)
-            )
 
             fs_nanoAOD, _, _ = self.get_fs_nanoAOD(dataset_name)
             input_file = self.remote_target(input_file_name, fs=fs_nanoAOD)
@@ -213,9 +476,6 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 
             print("step 1: nanoAOD -> raw anaTuples")
             outdir_anatuples = os.path.join(job_home, "rawAnaTuples")
-            anaTupleDef = os.path.join(
-                self.ana_path(), self.global_params["anaTupleDef"]
-            )
             reportFileName = "report.json"
             rawReportPath = os.path.join(outdir_anatuples, reportFileName)
             input_ok = True
@@ -233,47 +493,16 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                         "Will create empty anaTuple and report."
                     )
                 else:
-                    anatuple_cmd = [
-                        "python3",
-                        "-u",
-                        producer_anatuples,
-                        "--period",
-                        self.period,
-                        "--inFile",
-                        local_input,
-                        "--outDir",
-                        outdir_anatuples,
-                        "--dataset",
+                    anatuple_cmd = self.anatuple_cmd(
                         dataset_name,
-                        "--anaTupleDef",
-                        anaTupleDef,
-                        "--channels",
-                        channels,
-                        "--inFileName",
+                        local_input,
                         inFileName,
-                        "--reportOutput",
-                        rawReportPath,
-                        "--LAWrunVersion",
-                        self.version,
-                        "--output-name",
+                        outdir_anatuples,
                         output_name,
-                    ]
-                    if compute_unc_variations:
-                        anatuple_cmd.append("--compute-unc-variations")
-                    if store_noncentral:
-                        anatuple_cmd.append("--store-noncentral")
-
-                    if self.test > 0:
-                        anatuple_cmd.extend(["--nEvents", str(self.test)])
-                    if self.user_custom:
-                        anatuple_cmd.extend(["--user-custom", self.user_custom])
-                    env = None
-                    if self.global_params.get(
-                        "use_cmssw_env_AnaTupleProduction", False
-                    ):
-                        env = self.cmssw_env
+                        rawReportPath,
+                    )
                     try:
-                        ps_call(anatuple_cmd, env=env, verbose=1)
+                        ps_call(anatuple_cmd, env=self.producer_env(), verbose=1)
                     except PsCallError as e:
                         print(f"anaTupleProducer failed: {e}")
                         print("Checking input file integrity...")
@@ -329,6 +558,146 @@ class AnaTupleFileTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 
             if remove_job_home:
                 shutil.rmtree(job_home)
+
+
+class AnaTupleCostProbeTask(
+    AnaTupleProducerMixin, Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow
+):
+    """Times the AnaTuple producer on a short prefix of one file per dataset.
+
+    The per-event cost of a dataset spans more than an order of magnitude (a dilepton skim
+    selects half of its events, a hadronic one a few percent) and depends on the analysis
+    selection, so `AnaTupleFileTask` measures it instead of guessing: a few thousand events
+    take minutes and turn a blind packing into an informed one.
+
+    Outputs are keyed by version and nano source but deliberately not by era, so a
+    multi-era production probes each dataset once and the later eras skip this stage.
+    A probe that fails still writes a result, marked not ok: calibration is an
+    optimisation and must never block production.
+    """
+
+    max_runtime = copy_param(HTCondorWorkflow.max_runtime, 3.0)
+    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
+
+    @staticmethod
+    def probe_target(task, dataset_name):
+        return task.remote_target(
+            task.version,
+            "AnaTupleCost",
+            task.get_nano_version(dataset_name),
+            f"{dataset_name}.json",
+            fs=task.fs_anaTuple,
+        )
+
+    def workflow_requires(self):
+        reqs = super().workflow_requires()
+        reqs["inputFile"] = InputFileTask.req(self, branches=())
+        return reqs
+
+    def requires(self):
+        return []
+
+    def create_branch_map(self):
+        return {
+            idx: dataset_name
+            for idx, (_, dataset_name) in enumerate(self.iter_datasets())
+        }
+
+    def output(self):
+        return AnaTupleCostProbeTask.probe_target(self, self.branch_data)
+
+    def probe_input(self, dataset_name):
+        """(file name, metadata) of the file to time: the median-sized one when sizes are
+        known, so a truncated first file does not distort events-per-byte."""
+        input_file_list = (
+            InputFileTask.req(
+                self, branch=self.get_dataset_id(dataset_name), branches=()
+            )
+            .output()
+            .abspath
+        )
+        input_files = InputFileTask.load_input_files(
+            input_file_list, test=self.test > 0
+        )
+        if not input_files:
+            raise RuntimeError(f"no input files for {dataset_name}")
+        file_info = InputFileTask.load_file_info(input_file_list)
+        sized = sorted(
+            (info["size"], name)
+            for name, info in file_info.items()
+            if name in set(input_files) and info.get("size")
+        )
+        name = sized[len(sized) // 2][1] if sized else input_files[0]
+        return name, file_info.get(name, {})
+
+    def run(self):
+        dataset_name = self.branch_data
+        probe_events = int(self.cost_params()["probe_events"])
+        if self.test > 0:
+            probe_events = min(probe_events, self.test)
+        result = {
+            "ok": False,
+            "dataset_name": dataset_name,
+            "era": self.period,
+            "probe_events": probe_events,
+        }
+        job_home, remove_job_home = self.law_job_home()
+        try:
+            input_file_name, info = self.probe_input(dataset_name)
+            result["input_file"] = input_file_name
+            result["input_size"] = info.get("size")
+            fs_nanoAOD, _, _ = self.get_fs_nanoAOD(dataset_name)
+            input_file = self.remote_target(input_file_name, fs=fs_nanoAOD)
+            out_dir = os.path.join(job_home, "probe")
+            report_path = os.path.join(out_dir, "report.json")
+            with input_file.localize("r") as local_file:
+                cmd = self.anatuple_cmd(
+                    dataset_name,
+                    local_file.abspath,
+                    os.path.basename(input_file.abspath),
+                    out_dir,
+                    "probe",
+                    report_path,
+                    extra_args=["--max-scan-events", str(probe_events)],
+                )
+                # Retried once: a probe result is written even when it fails, and it is
+                # reused by every era of this version, so a transient failure would
+                # otherwise cost the dataset its calibration for the whole production.
+                for attempt in range(2):
+                    try:
+                        ps_call(cmd, env=self.producer_env(), verbose=1)
+                        break
+                    except PsCallError:
+                        if attempt == 1:
+                            raise
+                        print(
+                            f"{dataset_name}: probe attempt {attempt + 1} failed, retrying"
+                        )
+            with open(report_path, "r") as f:
+                report = json.load(f)
+            for key in (
+                "n_scanned_events",
+                "n_original_events",
+                "loop_seconds",
+                "setup_seconds",
+                "n_trees",
+            ):
+                result[key] = report.get(key)
+            result["ok"] = bool(result["n_scanned_events"]) and bool(
+                result["loop_seconds"]
+            )
+        except Exception as e:
+            result["error"] = str(e)
+            print(
+                f"!!! cost probe failed for {dataset_name}: {e}\n"
+                "!!! production will fall back to a coarser cost estimate for it."
+            )
+
+        with self.output().localize("w") as local_output:
+            with open(local_output.abspath, "w") as f:
+                json.dump(result, f, indent=2)
+        if remove_job_home:
+            shutil.rmtree(job_home, ignore_errors=True)
 
 
 class AnaTupleFileListBuilderTask(

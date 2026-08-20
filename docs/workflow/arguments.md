@@ -28,8 +28,9 @@ also provides built-in options for status and cleanup.
 | Option | Default | Meaning |
 |---|---|---|
 | `--transfer-logs` | off | Bring job logs back to `data/`. Recommended. |
-| `--parallel-jobs` | unbounded (HTCondor) / **5000** (CRAB) | Cap concurrent jobs. On CRAB this is also the max size of each CRAB task. |
-| `--max-runtime` | *(task default)* | Per-job wall-clock limit. |
+| `--parallel-jobs` | unbounded (HTCondor) / **2000** (`AnaTupleFileTask`) / **5000** (CRAB) | Cap concurrent jobs. On CRAB this is also the max size of each CRAB task. |
+| `--tasks-per-job` | `1` (`10` for several analysis tasks) | Branches per job. On `AnaTupleFileTask`, jobs are normally composed by [estimated cost](htcondor.md#how-branches-become-jobs) instead; passing this option explicitly restores fixed-size chunking. |
+| `--max-runtime` | *(task default)* | Per-job wall-clock limit. Extended on each resubmission of a failed job. |
 | `--n-cpus` | `1` | CPUs requested per job. |
 | `--priority` | `0` | Job priority (HTCondor). |
 | `--bundle` | off | Ship a code/environment tarball to the worker. See [HTCondor → bundles](htcondor.md#bundles-shipping-the-code-to-workers). Always on for `--workflow crab`. |

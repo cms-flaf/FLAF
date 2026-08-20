@@ -26,6 +26,53 @@ law run FLAF.AnaProd.tasks.AnaTupleFileTask \
 Other HTCondor parameters available on every workflow task: `--max-runtime`, `--n-cpus`,
 `--priority`, `--htcondor-spool`. See [Command arguments](arguments.md).
 
+## How branches become jobs
+
+By default LAW puts a fixed number of consecutive branches into each job (`--tasks-per-job`). That
+works when branches cost about the same. AnaTuple production is not like that: a dilepton-skim file
+where half the events are selected costs twenty times what a hadronic one does, and because
+branches are ordered by dataset the expensive ones are neighbours — so fixed-size chunks collect
+them into the same job, which then runs into `--max-runtime`, is removed by HTCondor, and is
+retried with exactly the same grouping.
+
+`AnaTupleFileTask` therefore composes jobs by **estimated cost**:
+
+```
+seconds(file) = overhead + sec_per_event(dataset) x n_events(file)
+```
+
+- `sec_per_event` is measured, not configured — first by [`AnaTupleCostProbeTask`](../reference/tasks.md#anatuplecostprobetask),
+  then refined from the durations of the production jobs themselves, which are recorded as they
+  finish and used by the next run.
+- `n_events` comes from `InputFileTask`'s catalogue, or is inferred from the file size when the
+  storage does not report event counts.
+
+Branches are then packed into jobs up to `target_job_hours`, largest first. A file that costs more
+than that on its own gets a job to itself; cheap ones are combined until the target is reached.
+Where the estimate is a guess rather than a measurement (a dataset the probe could not reach, a new
+sample), the packing is deliberately more conservative, so a wrong guess cannot rebuild an
+over-long job.
+
+Three consequences worth knowing:
+
+- **Each resubmission of a failed job gets more runtime and, if configured, more memory**, up to
+  `retry_max_factor`.
+- **Jobs are grouped once per run, from everything measured so far**, and never regrouped while
+  that run is polling: LAW fixes the total job count when polling starts, so changing it mid-run
+  would corrupt its accounting. Durations observed during a run are recorded and applied by the
+  *next* one — including a plain resume of the same version, which regroups whatever is still
+  unsubmitted before it resumes polling. So restarting is how an over-long group gets broken up,
+  and unlike the manual `--tasks-per-job 1` restart it replaces, the regrouping is automatic and
+  applies only where the measurements say it is needed. A resume only regroups what is still
+  *unsubmitted*, though: a group already recorded in the jobs file comes back with its original
+  composition, so use `--ignore-submission` to regroup those as well.
+- **`--parallel-jobs` defaults to 2000** for this task, which is good queue hygiene.
+
+Passing `--tasks-per-job` (or `--AnaTupleFileTask-tasks-per-job`) turns the cost-aware grouping
+and the per-attempt escalation off for that task and restores plain fixed-size chunking — the
+escape hatch if an estimate ever misbehaves.
+Setting the option for a *different* task does not affect it.
+
 ## Monitor and resume
 
 LAW tracks which branches have finished (by checking their outputs), so a re-run only resubmits the

@@ -345,6 +345,9 @@ class GFALFileInterface(RemoteFileInterface):
                 verbose=verbose,
             )
         self.verbose = verbose
+        # Sizes from the most recent listing of each directory, so that collecting input
+        # file metadata does not cost a second gfal-ls.
+        self.listing_sizes = {}
         super(GFALFileInterface, self).__init__(base=base)
 
     def is_local(self, path):
@@ -498,7 +501,38 @@ class GFALFileInterface(RemoteFileInterface):
         else:
             entry_names = [entry.name for entry in entries]
             self.path_cache.set_exists(path_uri, entry_names)
+            self._cache_listing_sizes(path_uri, entries)
         return entry_names
+
+    def _cache_listing_sizes(self, path_uri, entries):
+        self.listing_sizes[path_uri] = {
+            entry.name: {"size": entry.size}
+            for entry in entries
+            if not entry.is_dir and entry.name not in (".", "..")
+        }
+
+    def listdir_info(self, path, base=None, silent=True, **kwargs):
+        """``{name: {"size": bytes}}`` for a directory.
+
+        ``gfal-ls --long`` (which :py:func:`gfal_ls` already runs) reports the size of
+        every entry, but :py:meth:`listdir` returns only the names.  Sizes are what
+        job-cost estimation needs, so keep them from whichever listing happened first
+        rather than paying for a second one.  Returns an empty dict when the listing
+        fails: callers treat that as "no metadata available".
+        """
+        path_uri = self.uri(path, base=base)
+        if path_uri not in self.listing_sizes:
+            entries = gfal_ls_safe(
+                path_uri, voms_token=self.voms_token, catch_stderr=True, verbose=0
+            )
+            if entries is None:
+                if not silent:
+                    raise GfalError(
+                        f"GFALFileInterface: failed to list directory {path}"
+                    )
+                return {}
+            self._cache_listing_sizes(path_uri, entries)
+        return self.listing_sizes[path_uri]
 
     def _mark_absent_ancestors(self, dir_uri, max_climb=32):
         # A directory was found absent. Walk upward to record the highest absent ancestor

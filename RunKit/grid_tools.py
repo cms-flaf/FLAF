@@ -705,6 +705,40 @@ def run_dasgoclient(
     return [line.strip() for line in output if len(line.strip()) > 0]
 
 
+def das_dataset_file_info(dataset, inputDBS="global", timeout=600, verbose=0):
+    """Per-file event counts and sizes of a CMS dataset, ``{lfn: {n_events, size}}``.
+
+    Rucio reports file sizes but leaves the CMS ``events`` field empty, so this is the
+    only cheap source of event counts for centrally produced NanoAOD.  One query covers
+    a whole dataset (~1 s for 3k files).  Returns an empty dict on any failure: event
+    counts are an optimisation for job-cost estimation, never a requirement.
+    """
+    try:
+        entries = run_dasgoclient(
+            f"file dataset={dataset}",
+            inputDBS=inputDBS,
+            json_output=True,
+            timeout=timeout,
+            verbose=verbose,
+        )
+    except Exception as e:
+        print(f"das_dataset_file_info: query for {dataset} failed: {e}")
+        return {}
+    info = {}
+    for entry in entries or []:
+        for file_entry in entry.get("file", []):
+            name = file_entry.get("name")
+            if not name:
+                continue
+            n_events = file_entry.get("nevents")
+            size = file_entry.get("size")
+            info[name] = {
+                "n_events": int(n_events) if n_events else None,
+                "size": int(size) if size else None,
+            }
+    return info
+
+
 def das_file_site_info(file, inputDBS="global", verbose=0):
     return run_dasgoclient(
         f"site file={file}", inputDBS=inputDBS, json_output=True, verbose=verbose

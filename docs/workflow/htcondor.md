@@ -53,6 +53,17 @@ A batch worker needs your code and environment. FLAF supports two modes:
 For most work the defaults are correct; you only think about bundles when a stage explicitly needs
 one (e.g. it declares a CMSSW bundle flavour) or when AFS is not available on the target pool.
 
+!!! warning "A symlink can send a bundle job back to AFS anyway"
+    Symlinks *inside* a packed directory are kept as symlinks — deliberately, so that the CVMFS
+    links in `soft/flaf_env` are not dereferenced into the tarball. An absolute symlink pointing
+    into the analysis area therefore still resolves to the submit host on the worker, and every
+    job reads that payload over AFS. A few thousand jobs pulling a model or a correction file this
+    way is enough for CERN to answer with *"Batch submission limited due to high AFS load"*, while
+    the jobs themselves fail on timeouts (`DEADLINE_EXCEEDED … Connection timed out`). Reference
+    the real content the bundle packs — for HH_bbtautau the HHbtag models are taken from
+    `$ANALYSIS_PATH/HHbtag/models`, not through `$CMSSW_BASE/src/HHTools/HHbtag`, which is such a
+    symlink.
+
 For jobs that should run on the full CMS WLCG (not only CERN HTCondor), use
 [`--workflow crab`](crab.md) — that path always uses bundles.
 

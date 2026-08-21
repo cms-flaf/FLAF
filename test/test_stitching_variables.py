@@ -19,6 +19,7 @@ if flaf_parent not in sys.path:
 
 import ROOT
 
+from FLAF.Processors.MCStitching import MCStitcher
 from FLAF.Processors.MCStitchingDYMll import DYMllStitcher
 from FLAF.Processors.MCStitchingDYtautau import DYtautauStitcher
 from FLAF.Processors.MCStitchingTT import TTStitcher
@@ -130,6 +131,64 @@ class TestStitchingVariables(unittest.TestCase):
         df = make_df({"DY_tautau_filter": "7", "TauTauInfo_passFilter": "true"})
         df = make_stitcher(DYtautauStitcher).defineVariables(df)
         self.assertEqual(values(df, "DY_tautau_filter"), [7] * 4)
+
+
+class FakeCrossSectionDB:
+    def __init__(self, values):
+        self.values = values
+
+    def getValue(self, name):
+        return self.values[name]
+
+
+class TestExtensionSamples(unittest.TestCase):
+    """Several datasets of one physics point (an extension sample, or a variant carrying LHE
+    weights) share a cross-section, so the denominator has to be summed over all of them —
+    otherwise each dataset is normalised on its own and the process is counted twice."""
+
+    def setUp(self):
+        self.stitcher = make_stitcher(MCStitcher)
+        self.datasets = {
+            "Signal": {"crossSection": "xs_signal"},
+            "Signal_ext1": {"crossSection": "xs_signal"},
+        }
+        self.xs_db = FakeCrossSectionDB({"xs_signal": 12.0})
+        # 400 and 100 generated events, all under the single "all" bin of the stitcher.
+        self.ana_caches = {
+            "Signal": {
+                "denominator": {"Central": {"Central": {"Stitcher": {"all": 400.0}}}}
+            },
+            "Signal_ext1": {
+                "denominator": {"Central": {"Central": {"Stitcher": {"all": 100.0}}}}
+            },
+        }
+
+    def weights(self, dataset):
+        df = ROOT.RDataFrame(2)
+        df = self.stitcher.onAnaTuple_defineCrossSection(
+            df, "weight_xs", self.xs_db, dataset, self.datasets[dataset]
+        )
+        df = self.stitcher.onAnaTuple_defineDenominator(
+            df, "denom", "Stitcher", dataset, "Central", "Central", self.ana_caches
+        )
+        return values(df, "weight_xs")[0], values(df, "denom")[0]
+
+    def test_denominator_is_summed_over_the_datasets_of_the_point(self):
+        for dataset in self.datasets:
+            xs, denom = self.weights(dataset)
+            self.assertAlmostEqual(xs, 12.0)
+            self.assertAlmostEqual(
+                denom, 500.0
+            )  # 400 + 100, not the dataset's own count
+
+    def test_the_point_is_not_counted_twice(self):
+        # Every generated event carries xs/denominator, so the two datasets together add up
+        # to exactly one cross-section.
+        total = sum(
+            n * self.weights(dataset)[0] / self.weights(dataset)[1]
+            for dataset, n in (("Signal", 400.0), ("Signal_ext1", 100.0))
+        )
+        self.assertAlmostEqual(total, 12.0)
 
 
 if __name__ == "__main__":

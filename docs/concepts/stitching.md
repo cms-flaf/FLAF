@@ -42,6 +42,30 @@ The bins must be **orthogonal and exhaustive**: an event that matches no bin abo
 and an event that matches two is counted twice. When `totalCrossSection` is given, the sum of
 the bin cross-sections is checked against it.
 
+## Several datasets, one physics point
+
+An extension sample (`_ext1`) or a variant of the same sample carrying LHE weights adds
+statistics to a point that is already there. Both belong to the same process, so each event
+must be normalised with the **combined** event count — normalising each dataset on its own
+would count the process twice. A stitcher with no bins does exactly that:
+
+```yaml
+processors:
+  - name: Stitcher
+    module: FLAF.Processors.MCStitching
+    class: MCStitcher
+    useDatasetCrossSection: true
+    stages: [ AnaTuple, AnaTupleMerge ]
+    dependency_level:
+      AnaTuple: file
+      AnaTupleMerge: process
+```
+
+`useDatasetCrossSection` takes the cross-section from the dataset entry (both datasets point
+at the same one) instead of a bin configuration, and the denominator is summed over every
+dataset of the process. A point that has a single dataset is unaffected: the sum is over that
+one dataset, which is what it was normalised with before.
+
 ## Variables the bins select on
 
 `LHE_Vpt`, `LHE_NpNLO` and friends are nanoAOD branches that the anaTuple keeps, so a bin can

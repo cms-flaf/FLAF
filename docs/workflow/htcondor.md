@@ -53,6 +53,35 @@ A batch worker needs your code and environment. FLAF supports two modes:
 For most work the defaults are correct; you only think about bundles when a stage explicitly needs
 one (e.g. it declares a CMSSW bundle flavour) or when AFS is not available on the target pool.
 
+### Bundles are named after what they contain
+
+A bundle's output is a path, and law treats an existing one as complete forever — so an edit
+made after it was first built would never reach the workers, which rebuild their branch map
+from the config *inside the tarball*. Adding one dataset shifts every branch index after it,
+and jobs then work on a different file than the one they were submitted for.
+
+Flavours therefore opt into a content hash in `global.yaml`:
+
+```yaml
+bundles:
+  core:            # code and configuration: small, edited often
+    hashed: true
+    patterns: [ FLAF, AnaProd, Analysis, config, env.sh, Corrections, include ]
+  soft:            # the installed environment: large, changes only on a reinstall
+    patterns: [ soft/flaf_env ]
+```
+
+A hashed flavour is published as `core_<hash>.tar.bz2`, so changing any packed file yields a
+new name, `BundleTask` sees a missing output and rebuilds, and the jobs are handed the URL of
+the bundle matching the code they were submitted with. Files up to 1 MB are hashed by their
+content and larger ones by size and modification time, which keeps the cost at a fraction of
+a second per submission even for an analysis shipping ~150 MB of models.
+
+Splitting a big immutable payload into its own unhashed flavour is what keeps it that cheap.
+The trade-off is that such a flavour is **not** rebuilt when its content changes: after
+reinstalling the environment, or changing anything else packed without a hash, delete the
+bundle so that the next submission recreates it.
+
 !!! warning "A symlink can send a bundle job back to AFS anyway"
     Symlinks *inside* a packed directory are kept as symlinks — deliberately, so that the CVMFS
     links in `soft/flaf_env` are not dereferenced into the tarball. An absolute symlink pointing

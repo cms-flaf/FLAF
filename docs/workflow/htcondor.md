@@ -53,6 +53,29 @@ A batch worker needs your code and environment. FLAF supports two modes:
 For most work the defaults are correct; you only think about bundles when a stage explicitly needs
 one (e.g. it declares a CMSSW bundle flavour) or when AFS is not available on the target pool.
 
+### A bundle waits for everything it packs
+
+A flavour that packs the output of a task declares it in `task_requires`, and a flavour that
+packs the output of *several* tasks lists all of them:
+
+```yaml
+  AnaTupleFileList:
+    patterns:
+      - data/{version}/AnaTupleFileListBuilderTask/{period}
+      - data/{version}/AnaTupleFileListTask/{period}
+    task_requires:
+      - module: FLAF.AnaProd.tasks
+        class: AnaTupleFileListBuilderTask
+      - module: FLAF.AnaProd.tasks
+        class: AnaTupleFileListTask
+```
+
+With only the first one listed the bundle is packed as soon as the builder is done, while the
+per-dataset lists of the second are still being written, and the jobs receive a tarball that
+is missing them. FLAF warns when a packed `data/<version>/<Task>/<period>` directory has no
+matching entry. The producers are requested with the workflow the submission was started
+with, so they are the same task instances the rest of the graph waits on.
+
 ### Bundles are named after what they contain
 
 A bundle's output is a path, and law treats an existing one as complete forever — so an edit

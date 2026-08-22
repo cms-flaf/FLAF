@@ -439,18 +439,59 @@ class BundleTask(Task):
     flavour = luigi.Parameter(
         description="bundle flavour (core, cmssw, inputFileList, AnaTupleFileList)"
     )
+    # The workflow the submission was started with, forwarded to the tasks whose output is
+    # packed so that they are the very instances the rest of the graph depends on. Without
+    # it they would be requested with the default workflow, and an incomplete one would be
+    # run a second time — locally. Insignificant, so it never affects the bundle's id.
+    upstream_workflow = luigi.Parameter(default=law.NO_STR, significant=False)
 
     def requires(self):
-        bundle_cfg = self.global_params.get("bundles", {}).get(self.flavour, {})
-        task_req_cfg = bundle_cfg.get("task_requires")
-        if task_req_cfg is None:
-            return {}
-        mod = importlib.import_module(task_req_cfg["module"])
-        task_cls = getattr(mod, task_req_cfg["class"])
-        return {"source": task_cls.req(self, branches=())}
+        """Every task whose output this bundle packs.
+
+        `task_requires` takes one entry or a list of them: a bundle that packs the outputs of
+        several tasks has to wait for all of them, or it is built from whatever happens to be
+        on disk when the first producer finishes.
+        """
+        reqs = {}
+        for entry in self.task_requires_entries():
+            mod = importlib.import_module(entry["module"])
+            task_cls = getattr(mod, entry["class"])
+            reqs[entry["class"]] = task_cls.req(
+                self, branches=(), workflow=self.upstream_workflow
+            )
+        self._warn_about_unrequired_producers(reqs)
+        return reqs
+
+    def task_requires_entries(self):
+        cfg = self.bundle_cfg().get("task_requires")
+        if cfg is None:
+            return []
+        return list(cfg) if isinstance(cfg, (list, tuple)) else [cfg]
+
+    def _warn_about_unrequired_producers(self, reqs):
+        """A packed `data/<version>/<Task>/<period>` directory whose task is not required
+        would be bundled while its jobs are still running."""
+        for pattern in self.bundle_patterns():
+            parts = pattern.strip("/").split("/")
+            if len(parts) < 3 or parts[0] != "data" or parts[-1] != str(self.period):
+                continue
+            producer = parts[-2]
+            if producer in reqs:
+                continue
+            key = (self.flavour, producer)
+            if key in BundleTask._missing_producer_reported:
+                continue
+            BundleTask._missing_producer_reported.add(key)
+            print(
+                f"bundle[{self.flavour}]: warning: '{pattern}' holds the output of "
+                f"{producer}, which is not listed in task_requires — the bundle can be "
+                "built before those jobs have finished",
+                file=sys.stderr,
+            )
 
     _source_hash_cache = {}
     _unconfigured_reported = set()
+    _missing_producer_reported = set()
 
     def bundle_cfg(self):
         return self.global_params.get("bundles", {}).get(self.flavour) or {}
@@ -820,7 +861,16 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
                     )
                 continue
             tasks.append(
-                (flavour, BundleTask.req(self, flavour=flavour, version=bversion))
+                (
+                    flavour,
+                    BundleTask.req(
+                        self,
+                        flavour=flavour,
+                        version=bversion,
+                        upstream_workflow=getattr(self, "workflow", law.NO_STR)
+                        or law.NO_STR,
+                    ),
+                )
             )
         return tasks
 

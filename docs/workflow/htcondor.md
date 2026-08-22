@@ -53,6 +53,69 @@ A batch worker needs your code and environment. FLAF supports two modes:
 For most work the defaults are correct; you only think about bundles when a stage explicitly needs
 one (e.g. it declares a CMSSW bundle flavour) or when AFS is not available on the target pool.
 
+### A bundle waits for everything it packs
+
+A flavour that packs the output of a task declares it in `task_requires`, and a flavour that
+packs the output of *several* tasks lists all of them:
+
+```yaml
+  AnaTupleFileList:
+    patterns:
+      - data/{version}/AnaTupleFileListBuilderTask/{period}
+      - data/{version}/AnaTupleFileListTask/{period}
+    task_requires:
+      - module: FLAF.AnaProd.tasks
+        class: AnaTupleFileListBuilderTask
+      - module: FLAF.AnaProd.tasks
+        class: AnaTupleFileListTask
+```
+
+With only the first one listed the bundle is packed as soon as the builder is done, while the
+per-dataset lists of the second are still being written, and the jobs receive a tarball that
+is missing them. FLAF warns when a packed `data/<version>/<Task>/<period>` directory has no
+matching entry. The producers are requested with the workflow the submission was started
+with, so they are the same task instances the rest of the graph waits on.
+
+### Bundles are named after what they contain
+
+A bundle's output is a path, and law treats an existing one as complete forever — so an edit
+made after it was first built would never reach the workers, which rebuild their branch map
+from the config *inside the tarball*. Adding one dataset shifts every branch index after it,
+and jobs then work on a different file than the one they were submitted for.
+
+Flavours therefore opt into a content hash in `global.yaml`:
+
+```yaml
+bundles:
+  core:            # code and configuration: small, edited often
+    hashed: true
+    patterns: [ FLAF, AnaProd, Analysis, config, env.sh, Corrections, include ]
+  soft:            # the installed environment: large, changes only on a reinstall
+    patterns: [ soft/flaf_env ]
+```
+
+A hashed flavour is published as `core_<hash>.tar.bz2`, so changing any packed file yields a
+new name, `BundleTask` sees a missing output and rebuilds, and the jobs are handed the URL of
+the bundle matching the code they were submitted with. Files up to 1 MB are hashed by their
+content and larger ones by size and modification time, which keeps the cost at a fraction of
+a second per submission even for an analysis shipping ~150 MB of models.
+
+Splitting a big immutable payload into its own unhashed flavour is what keeps it that cheap.
+The trade-off is that such a flavour is **not** rebuilt when its content changes: after
+reinstalling the environment, or changing anything else packed without a hash, delete the
+bundle so that the next submission recreates it.
+
+!!! warning "A symlink can send a bundle job back to AFS anyway"
+    Symlinks *inside* a packed directory are kept as symlinks — deliberately, so that the CVMFS
+    links in `soft/flaf_env` are not dereferenced into the tarball. An absolute symlink pointing
+    into the analysis area therefore still resolves to the submit host on the worker, and every
+    job reads that payload over AFS. A few thousand jobs pulling a model or a correction file this
+    way is enough for CERN to answer with *"Batch submission limited due to high AFS load"*, while
+    the jobs themselves fail on timeouts (`DEADLINE_EXCEEDED … Connection timed out`). Reference
+    the real content the bundle packs — for HH_bbtautau the HHbtag models are taken from
+    `$ANALYSIS_PATH/HHbtag/models`, not through `$CMSSW_BASE/src/HHTools/HHbtag`, which is such a
+    symlink.
+
 For jobs that should run on the full CMS WLCG (not only CERN HTCondor), use
 [`--workflow crab`](crab.md) — that path always uses bundles.
 

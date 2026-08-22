@@ -1,4 +1,5 @@
 import copy
+import hashlib
 import importlib
 import law
 import luigi
@@ -6,6 +7,7 @@ import math
 import os
 import re
 import shutil
+import sys
 import subprocess
 import tempfile
 
@@ -428,67 +430,179 @@ class Task(law.Task):
         )
 
 
+# Files up to this size are hashed by content when a bundle flavour is `hashed`; larger ones
+# by size and modification time (see BundleTask.source_hash).
+HASH_CONTENT_MAX_BYTES = 1024 * 1024
+
+
 class BundleTask(Task):
     flavour = luigi.Parameter(
         description="bundle flavour (core, cmssw, inputFileList, AnaTupleFileList)"
     )
+    # The workflow the submission was started with, forwarded to the tasks whose output is
+    # packed so that they are the very instances the rest of the graph depends on. Without
+    # it they would be requested with the default workflow, and an incomplete one would be
+    # run a second time — locally. Insignificant, so it never affects the bundle's id.
+    upstream_workflow = luigi.Parameter(default=law.NO_STR, significant=False)
 
     def requires(self):
-        bundle_cfg = self.global_params.get("bundles", {}).get(self.flavour, {})
-        task_req_cfg = bundle_cfg.get("task_requires")
-        if task_req_cfg is None:
-            return {}
-        mod = importlib.import_module(task_req_cfg["module"])
-        task_cls = getattr(mod, task_req_cfg["class"])
-        return {"source": task_cls.req(self, branches=())}
+        """Every task whose output this bundle packs.
+
+        `task_requires` takes one entry or a list of them: a bundle that packs the outputs of
+        several tasks has to wait for all of them, or it is built from whatever happens to be
+        on disk when the first producer finishes.
+        """
+        reqs = {}
+        for entry in self.task_requires_entries():
+            mod = importlib.import_module(entry["module"])
+            task_cls = getattr(mod, entry["class"])
+            reqs[entry["class"]] = task_cls.req(
+                self, branches=(), workflow=self.upstream_workflow
+            )
+        self._warn_about_unrequired_producers(reqs)
+        return reqs
+
+    def task_requires_entries(self):
+        cfg = self.bundle_cfg().get("task_requires")
+        if cfg is None:
+            return []
+        return list(cfg) if isinstance(cfg, (list, tuple)) else [cfg]
+
+    def _warn_about_unrequired_producers(self, reqs):
+        """A packed `data/<version>/<Task>/<period>` directory whose task is not required
+        would be bundled while its jobs are still running."""
+        for pattern in self.bundle_patterns():
+            parts = pattern.strip("/").split("/")
+            if len(parts) < 3 or parts[0] != "data" or parts[-1] != str(self.period):
+                continue
+            producer = parts[-2]
+            if producer in reqs:
+                continue
+            key = (self.flavour, producer)
+            if key in BundleTask._missing_producer_reported:
+                continue
+            BundleTask._missing_producer_reported.add(key)
+            print(
+                f"bundle[{self.flavour}]: warning: '{pattern}' holds the output of "
+                f"{producer}, which is not listed in task_requires — the bundle can be "
+                "built before those jobs have finished",
+                file=sys.stderr,
+            )
+
+    _source_hash_cache = {}
+    _unconfigured_reported = set()
+    _missing_producer_reported = set()
+
+    def bundle_cfg(self):
+        return self.global_params.get("bundles", {}).get(self.flavour) or {}
+
+    def bundle_patterns(self):
+        return [
+            p.format(version=self.version, period=self.period)
+            for p in self.bundle_cfg().get("patterns", [])
+        ]
+
+    def bundle_source(self, pattern):
+        """Where a pattern is read from.
+
+        "FLAF" and "Corrections" come from FLAF_PATH / CORRECTIONS_PATH. env.sh always sets
+        these (to the submodule copies in production, or to the edited top-level copies in a
+        FLAF_all workspace when flaf_dev.sh is used), so dev edits are packaged transparently.
+        The layout *inside* the tarball stays canonical (FLAF/, Corrections/ at the top) so
+        worker bootstrap is unaffected.
+        """
+        ana_path = os.getenv("ANALYSIS_PATH")
+        p = pattern.replace("\\", "/")
+        if p == "FLAF" or p.startswith("FLAF/"):
+            rel = p[5:] if p.startswith("FLAF/") else ""
+            base = os.getenv("FLAF_PATH") or os.path.join(ana_path, "FLAF")
+            return os.path.join(base, rel) if rel else base
+        if p == "Corrections" or p.startswith("Corrections/"):
+            rel = p[12:] if p.startswith("Corrections/") else ""
+            base = os.getenv("CORRECTIONS_PATH") or os.path.join(
+                ana_path, "Corrections"
+            )
+            return os.path.join(base, rel) if rel else base
+        return os.path.join(ana_path, pattern)
+
+    def source_hash(self):
+        """Digest of the state of what this flavour packs, so that an edit yields a
+        different bundle.
+
+        A bundle's output is otherwise just a path, and law treats an existing one as
+        complete forever: jobs would keep unpacking the code and configs of whenever it was
+        first built and rebuild their branch map from those. Small files are read, large ones are
+        identified by size and modification time: hashing ~150 MB of models on every
+        submission costs half a minute, while the code and configs that actually get edited
+        are a few MB. Pure stat would not do for those — AFS timestamps have a one-second
+        granularity, so a same-size rewrite within the same second would go unnoticed.
+        Touching a large file without changing it only causes a harmless rebuild. Flavours
+        carrying a large immutable payload (an installed environment, a CMSSW release) opt
+        out with `hashed: false`, the default.
+        """
+        key = (self.flavour, self.version, self.period)
+        if key not in BundleTask._source_hash_cache:
+            digest = hashlib.sha256()
+            for pattern in self.bundle_patterns():
+                digest.update(f"\n{pattern}\n".encode())
+                source = os.path.realpath(self.bundle_source(pattern))
+                if not os.path.exists(source):
+                    digest.update(b"<absent>")
+                    continue
+                for path, rel in self._iter_bundle_files(source):
+                    digest.update(rel.encode())
+                    if os.path.islink(path):
+                        digest.update(os.readlink(path).encode())
+                        continue
+                    info = os.lstat(path)
+                    if info.st_size > HASH_CONTENT_MAX_BYTES:
+                        digest.update(f"{info.st_size}:{info.st_mtime_ns}".encode())
+                        continue
+                    with open(path, "rb") as f:
+                        digest.update(f.read())
+            BundleTask._source_hash_cache[key] = digest.hexdigest()[:12]
+        return BundleTask._source_hash_cache[key]
+
+    @staticmethod
+    def _iter_bundle_files(source):
+        """(path, relative path) of everything packed from *source*, in a stable order."""
+        if not os.path.isdir(source):
+            yield source, os.path.basename(source)
+            return
+        for dir_path, dir_names, file_names in os.walk(source, followlinks=False):
+            dir_names[:] = sorted(d for d in dir_names if d != "__pycache__")
+            for name in sorted(file_names):
+                if name.endswith((".pyc", ".pyo")):
+                    continue
+                path = os.path.join(dir_path, name)
+                yield path, os.path.relpath(path, source)
 
     def output(self):
+        name = self.flavour
+        if self.bundle_cfg().get("hashed", False):
+            name = f"{self.flavour}_{self.source_hash()}"
         return self.remote_target(
-            self.version, "bundles", self.period, f"{self.flavour}.tar.bz2"
+            self.version, "bundles", self.period, f"{name}.tar.bz2"
         )
 
     def run(self):
-        bundle_cfg = self.global_params.get("bundles", {}).get(self.flavour)
+        bundle_cfg = self.bundle_cfg()
         if not bundle_cfg:
             raise RuntimeError(
                 f"Bundle flavour '{self.flavour}' not configured in bundles section of global.yaml"
             )
 
-        patterns = bundle_cfg.get("patterns", [])
         ana_path = os.getenv("ANALYSIS_PATH")
-
-        formatted_patterns = [
-            p.format(version=self.version, period=self.period) for p in patterns
-        ]
+        formatted_patterns = self.bundle_patterns()
 
         os.makedirs(self.local_path(), exist_ok=True)
-
-        # Source the "FLAF" and "Corrections" patterns from FLAF_PATH / CORRECTIONS_PATH.
-        # env.sh always sets these (to the submodule copies in production, or to the edited
-        # top-level copies in a FLAF_all workspace when flaf_dev.sh is used), so dev edits
-        # are packaged into the tarballs transparently. The layout *inside* the tarball
-        # stays canonical (FLAF/, Corrections/ at the top) so worker bootstrap is unaffected.
-        flaf_base = os.getenv("FLAF_PATH") or os.path.join(ana_path, "FLAF")
-        corr_base = os.getenv("CORRECTIONS_PATH") or os.path.join(
-            ana_path, "Corrections"
-        )
-
-        def _get_bundle_source(pat: str) -> str:
-            p = pat.replace("\\", "/")
-            if p == "FLAF" or p.startswith("FLAF/"):
-                rel = p[5:] if p.startswith("FLAF/") else ""
-                return os.path.join(flaf_base, rel) if rel else flaf_base
-            if p == "Corrections" or p.startswith("Corrections/"):
-                rel = p[12:] if p.startswith("Corrections/") else ""
-                return os.path.join(corr_base, rel) if rel else corr_base
-            return os.path.join(ana_path, pat)
 
         print(f"bundle[{self.flavour}]: creating archive from {ana_path}")
         with self.output().localize("w") as tmp:
             with tempfile.TemporaryDirectory() as staging:
                 found_any = False
                 for pattern in formatted_patterns:
-                    full_path = _get_bundle_source(pattern)
+                    full_path = self.bundle_source(pattern)
                     # Resolve top-level symlinks so the staging copy uses real content,
                     # but symlinks *within* the directory are preserved as symlinks.
                     # This prevents --dereference from following CVMFS symlinks inside flaf_env.
@@ -724,18 +838,47 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
             return True
         return bool(self.bundle)
 
+    def _bundle_tasks(self):
+        """(flavour, BundleTask) for each flavour this task needs.
+
+        A flavour the analysis does not configure is skipped rather than fatal: FLAF asks for
+        the flavours it knows about, and an analysis that keeps e.g. its environment inside
+        another bundle simply has fewer of them.
+        """
+        configured = self.global_params.get("bundles", {})
+        tasks = []
+        for item in self.bundle_flavours:
+            if isinstance(item, (list, tuple)) and len(item) == 2:
+                flavour, bversion = item
+            else:
+                flavour, bversion = item, self.version
+            if flavour not in configured:
+                if flavour not in BundleTask._unconfigured_reported:
+                    BundleTask._unconfigured_reported.add(flavour)
+                    print(
+                        f"bundle: flavour '{flavour}' is not configured in global.yaml, skipping",
+                        file=sys.stderr,
+                    )
+                continue
+            tasks.append(
+                (
+                    flavour,
+                    BundleTask.req(
+                        self,
+                        flavour=flavour,
+                        version=bversion,
+                        upstream_workflow=getattr(self, "workflow", law.NO_STR)
+                        or law.NO_STR,
+                    ),
+                )
+            )
+        return tasks
+
     def _bundle_requirements(self):
         """Return BundleTask requirements for configured flavours (empty if unused)."""
         if not self._uses_bundles():
             return {}
-        bundles = []
-        for item in self.bundle_flavours:
-            if isinstance(item, (list, tuple)) and len(item) == 2:
-                flavour, bversion = item
-                bundles.append(BundleTask.req(self, flavour=flavour, version=bversion))
-            else:
-                bundles.append(BundleTask.req(self, flavour=item))
-        return {"bundles": bundles}
+        return {"bundles": [task for _, task in self._bundle_tasks()]}
 
     def _apply_bundle_render_variables(self, config):
         """Set bootstrap render variables for bundle download (or clear them)."""
@@ -747,17 +890,11 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
                 "bundle / crab workflows require fs_default to be a remote filesystem "
                 "(davs://, root://, ...)"
             )
-        bundle_parts = []
-        for item in self.bundle_flavours:
-            if isinstance(item, (list, tuple)) and len(item) == 2:
-                flavour, bversion = item
-            else:
-                flavour = item
-                bversion = self.version
-            bundle_url = self.remote_target(
-                bversion, "bundles", self.period, f"{flavour}.tar.bz2"
-            ).uri()
-            bundle_parts.append(f"{flavour}:{bundle_url}")
+        # Ask the task for its own output: the file name carries a content hash for the
+        # flavours that use one, so this must not be rebuilt by hand here.
+        bundle_parts = [
+            f"{flavour}:{task.output().uri()}" for flavour, task in self._bundle_tasks()
+        ]
         config.render_variables["bundle_list"] = " ".join(bundle_parts)
 
     def _apply_bootstrap_path_render_variables(self, config):

@@ -17,6 +17,8 @@ from Corrections.Corrections import Corrections
 import FLAF.Common.triggerSel as Triggers
 import FLAF.Common.BaselineSelection as Baseline
 
+import inspect
+
 # ROOT.EnableImplicitMT(1)
 ROOT.EnableThreadSafety()
 
@@ -75,8 +77,9 @@ def createHistTuple(
     treeName = setup.global_params.get("treeName", "Events")
     unc_cfg_dict = setup.weights_config
     hist_cfg_dict = setup.hists
+    stage = "HistTuple"
     Utilities.InitializeCorrections(
-        setup, dataset_name, stage="HistTuple", aggregated_caches=aggregatedCacheNames
+        setup, dataset_name, stage=stage, aggregated_caches=aggregatedCacheNames
     )
     histTupleDef.Initialize()
     histTupleDef.analysis_setup(setup)
@@ -141,7 +144,11 @@ def createHistTuple(
                     f"static const std::set<ULong64_t> evts = {{ {evtIds} }}; return evts.count(event) > 0;"
                 )
 
-            dfw = histTupleDef.GetDfw(df, setup, dataset_name)
+            getDfw_kwargs = {}
+            signature = inspect.siganture(histTupleDef.GetDfw)
+            if "stage" in signature:
+                getDfw_kwargs["stage"] = "HistTuple"
+            dfw = histTupleDef.GetDfw(df, setup, dataset_name, **getDfw_kwargs)
             for var in fullres_variables:
                 dfw.colToSave.append(var)
 

@@ -145,8 +145,8 @@ def createHistTuple(
                 )
 
             getDfw_kwargs = {}
-            signature = inspect.siganture(histTupleDef.GetDfw)
-            if "stage" in signature:
+            signature = inspect.signature(histTupleDef.GetDfw)
+            if "stage" in signature.parameters:
                 getDfw_kwargs["stage"] = "HistTuple"
             dfw = histTupleDef.GetDfw(df, setup, dataset_name, **getDfw_kwargs)
             for var in fullres_variables:

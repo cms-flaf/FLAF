@@ -156,7 +156,8 @@ def createAnalysisCache(
     histTupleDef.analysis_setup(setup)
     isData = dataset_name == "data"
 
-    Utilities.InitializeCorrections(setup, dataset_name, stage="AnalysisCache")
+    stage = "AnalysisCache"
+    Utilities.InitializeCorrections(setup, dataset_name, stage=stage)
     scale_uncertainties = set()
     if setup.global_params["compute_unc_variations"]:
         scale_uncertainties.update(unc_cfg_dict["shape"].keys())
@@ -203,7 +204,11 @@ def createAnalysisCache(
             ROOT.RDF.Experimental.AddProgressBar(df_orig)
 
             if saveAs == "root":
-                dfw = histTupleDef.GetDfw(df, setup, dataset_name)
+                getDfw_kwargs = {}
+                signature = inspect.signature(histTupleDef.GetDfw)
+                if "stage" in signature.parameters:
+                    getDfw_kwargs["stage"] = stage
+                dfw = histTupleDef.GetDfw(df, setup, dataset_name, **getDfw_kwargs)
                 # dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
                 tmp_fileName = os.path.join(workingDir, f"{fullTreeName}.root")
             elif saveAs == "json":

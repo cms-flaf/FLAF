@@ -114,5 +114,10 @@ Both stages therefore see the same value, computed once from the nanoAOD.
    `defineFromStoredOrExpression`, naming the branch the analysis stores.
 3. Store that branch in the analysis anaTuple definition and declare the corresponding
    `genInfo` for the process.
-4. Cover it in the integration test: a CI process group that uses the stitcher runs the whole
-   anaTuple → merge → histogram chain, which is where a missing branch shows up.
+4. Cover it in the integration test. Every analysis runs two CI backgrounds — one t̄t and one
+   DY dataset — and each carries the same `processors:` and `genInfo:` as the analysis's real
+   `TT` and DY process **for that era**, so the stitcher runs over the whole anaTuple → merge →
+   histogram chain, which is where a missing branch shows up. If your stitcher replaces one of
+   those, update the matching CI process; if it stitches something else, give that process the
+   same treatment. One dataset per process is enough — each bin's denominator is summed over
+   the very events that later read it back, so a bin no event falls into is never divided by.

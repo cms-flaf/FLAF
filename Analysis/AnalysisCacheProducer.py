@@ -208,7 +208,7 @@ def createAnalysisCache(
                 signature = inspect.signature(histTupleDef.GetDfw)
                 if "stage" in signature.parameters:
                     getDfw_kwargs["stage"] = stage
-                dfw = histTupleDef.GetDfw(df, setup, dataset_name, stage)
+                dfw = histTupleDef.GetDfw(df, setup, dataset_name, **getDfw_kwargs)
                 # dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
                 tmp_fileName = os.path.join(workingDir, f"{fullTreeName}.root")
             elif saveAs == "json":

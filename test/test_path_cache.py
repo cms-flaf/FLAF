@@ -12,7 +12,9 @@ if flaf_parent not in sys.path:
 from FLAF.RunKit import law_gfal
 from FLAF.RunKit.law_gfal import GFALFileInterface, PathCache, RemotePathCache
 
-Entry = namedtuple("Entry", ["name"])
+# The fields of RunKit.grid_tools.FileInfo that law_gfal reads off a listing. Defaults keep
+# the common case readable: a plain file whose size does not matter to the test at hand.
+Entry = namedtuple("Entry", ["name", "size", "is_dir"], defaults=(0, False))
 FakeFS = namedtuple("FakeFS", ["file_interface"])
 
 
@@ -28,16 +30,20 @@ class FakeGFALFileInterface(GFALFileInterface):
     """GFALFileInterface without a grid proxy, backed by an in-memory directory tree."""
 
     def __init__(self, tree, path_cache):
-        self.voms_token = None
+        # Run the real __init__, with only the grid-proxy lookup stubbed out, instead of
+        # mirroring the attributes it sets. Mirroring them by hand is what broke this file
+        # when `listing_sizes` was added: the fake kept working until something read it.
+        with mock.patch.object(law_gfal, "get_voms_proxy_info", lambda: {"path": None}):
+            super().__init__(base=[BASE])
         self.path_cache = path_cache
-        self.verbose = 0
         self.tree = tree
-        super(GFALFileInterface, self).__init__(base=[BASE])
 
 
 def make_interface(tree, path_cache=None, ls_failures=0):
-    """Interface over *tree* ({dir_path: [entry names]}); the first *ls_failures* listings
-    of any directory fail, mimicking a transient gfal error."""
+    """Interface over *tree*, mapping a directory path to its contents: either a list of
+    entry names, or a {name: size} mapping when a test cares about sizes. An entry that is
+    itself a key of *tree* is reported as a directory, as a real listing would. The first
+    *ls_failures* listings of any directory fail, mimicking a transient gfal error."""
     fs = FakeGFALFileInterface(tree, path_cache or PathCache(600))
     state = {"failures": ls_failures}
 
@@ -48,7 +54,16 @@ def make_interface(tree, path_cache=None, ls_failures=0):
         path = uri[len(BASE) :].strip("/")
         if path not in tree:
             return None
-        return [Entry(name) for name in tree[path]]
+        contents = tree[path]
+        sizes = contents if isinstance(contents, dict) else dict.fromkeys(contents, 0)
+        return [
+            Entry(
+                name=name,
+                size=size,
+                is_dir="/".join(filter(None, (path, name))) in tree,
+            )
+            for name, size in sizes.items()
+        ]
 
     fs.fake_ls = fake_ls
     return fs
@@ -124,6 +139,39 @@ class TestPathCacheListing(unittest.TestCase):
         fs = make_interface(tree, ls_failures=1)
         with mock.patch.object(law_gfal, "gfal_ls_safe", fs.fake_ls):
             self.assertTrue(fs.exists("data/file_0.root"))
+
+
+class TestListingSizes(unittest.TestCase):
+    """`listdir_info` exists so that collecting input-file metadata costs no extra listing;
+    it was added without a test, and adding it is what broke this file's fakes."""
+
+    def test_sizes_come_from_the_listing_and_exclude_directories(self):
+        tree = {
+            "data": {"file_0.root": 11, "file_1.root": 22, "sub": 0},
+            "data/sub": [],
+        }
+        fs = make_interface(tree)
+        with mock.patch.object(law_gfal, "gfal_ls_safe", fs.fake_ls):
+            self.assertEqual(
+                fs.listdir_info("data"),
+                {"file_0.root": {"size": 11}, "file_1.root": {"size": 22}},
+            )
+
+    def test_sizes_reuse_the_listing_already_taken(self):
+        # The whole point: an exists() or listdir() that already listed the directory must
+        # leave the sizes behind, so asking for them costs no second gfal-ls.
+        tree = {"data": {"file_0.root": 11}}
+        fs = make_interface(tree)
+        with mock.patch.object(law_gfal, "gfal_ls_safe", fs.fake_ls):
+            self.assertTrue(fs.exists("data/file_0.root"))
+            n0 = GFALFileInterface.listdir_counter
+            self.assertEqual(fs.listdir_info("data"), {"file_0.root": {"size": 11}})
+            self.assertEqual(GFALFileInterface.listdir_counter - n0, 0)
+
+    def test_a_failed_listing_yields_no_metadata(self):
+        fs = make_interface({"data": {}})
+        with mock.patch.object(law_gfal, "gfal_ls_safe", fs.fake_ls):
+            self.assertEqual(fs.listdir_info("no_such_dir"), {})
 
 
 class TestSharedListing(unittest.TestCase):

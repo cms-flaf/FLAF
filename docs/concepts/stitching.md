@@ -61,6 +61,15 @@ processors:
       AnaTupleMerge: process
 ```
 
+!!! warning "A stitcher must be declared at both stages"
+    `stages` accepts exactly two values, `AnaTuple` and `AnaTupleMerge` — nothing else is ever
+    looked up, so a third name is silently ignored. Both are required: the AnaTuple stage writes
+    the stitcher's denominator into the anaCache, and the merge stage needs the same processor to
+    combine those caches again. Declared at `AnaTuple` alone, every merge of that process fails
+    with `combineAnaCaches: processor <name> not provided for combining anaCaches`.
+    `dependency_level` is read only for `AnaTupleMerge`, where `process` makes the merge wait for
+    the whole process — which stitching needs, since the denominator spans its datasets.
+
 `useDatasetCrossSection` takes the cross-section from the dataset entry (both datasets point
 at the same one) instead of a bin configuration, and the denominator is summed over every
 dataset of the process. A point that has a single dataset is unaffected: the sum is over that

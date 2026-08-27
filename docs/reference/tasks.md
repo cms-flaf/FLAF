@@ -16,10 +16,38 @@ Resolves the concrete list of NanoAOD files for the requested datasets and era, 
 for the file list and their disk availability. Runs locally (it is a `LocalWorkflow`, not submitted
 to HTCondor) and is cheap. Every downstream task depends on it, so it runs first.
 
+Its output also records what each file contains, under `file_info`:
+
+- **`size`** — always, taken from the directory listing that the task performs anyway
+  (`gfal-ls --long` for a storage path, the Rucio file list for a DAS dataset).
+- **`n_events`** — for datasets discovered through Rucio, from a single **DAS** query per dataset
+  (Rucio itself leaves the CMS `events` field empty). One query covers thousands of files in about
+  a second.
+
+Both are advisory inputs to job-cost estimation. A missing event count is normal — for HLepRare
+skims there is no DAS record — and the cost model falls back to the file size.
+
+### `AnaTupleCostProbeTask`
+Times the producer on a short prefix of one file per dataset (`probe_events`, default 5000) and
+records the per-event cost. **Branches over datasets.** Runs before `AnaTupleFileTask` and takes a
+few minutes; what it buys is job composition based on measurement rather than guesswork, because
+per-event cost varies by more than an order of magnitude between datasets and depends on the
+analysis selection.
+
+Results live at `<version>/AnaTupleCost/<nano-source>/<dataset>.json` on `fs_anaTuple`, keyed by
+version and nano source but **not by era**, so a multi-era production probes each dataset once and
+the later eras skip this stage entirely.
+
+A probe that fails is retried once and, if it still fails, writes a result marked not ok and
+prints a warning: calibration is an optimisation and never blocks production. That result counts
+as the task's output, so to re-probe a dataset after fixing the cause, delete its json. Set
+`anaTuple_scheduling.probe_enabled: false` to skip the stage entirely.
+
 ### `AnaTupleFileTask`
 Runs the analysis producer (`AnaProd/anaTupleProducer.py`, inside CMSSW) over input files to create
 **anaTuples**. **Branches over input files** (one branch per NanoAOD file) — the workflow you most
-often submit to HTCondor.
+often submit to HTCondor. Branches are grouped into jobs by estimated cost rather than in
+fixed-size chunks; see [job composition](../workflow/htcondor.md#how-branches-become-jobs).
 
 ### `AnaTupleFileListBuilderTask` / `AnaTupleFileListTask`
 Helper workflows that assemble the lists of per-file anaTuples to be merged. Normally pulled in

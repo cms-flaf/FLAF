@@ -8,6 +8,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 
 from collections import OrderedDict
 
@@ -17,6 +18,7 @@ from FLAF.RunKit.run_tools import natural_sort
 from FLAF.RunKit.kinit import update_kinit
 from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget, WLCGDirectoryTarget
 from FLAF.Common.Setup import Setup
+from FLAF.AnaProd.CostModel import pack_units
 
 law.contrib.load("htcondor")
 law.contrib.load("cms")
@@ -809,6 +811,9 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
 
     def htcondor_poll_callback(self, poll_data):
         update_kinit(verbose=0)
+        harvest = getattr(self.workflow_proxy, "harvest_job_durations", None)
+        if harvest is not None:
+            harvest()
         return True
 
     def htcondor_output_directory(self):
@@ -838,10 +843,22 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
             ("requirements", 'TARGET.OpSysAndVer =?= "AlmaLinux9"')
         )
 
-        # maximum runtime
+        # maximum runtime, extended on every resubmission: a job that was removed at the
+        # wall would be removed again if it were given exactly the same budget.
+        runtime_factor, memory_factor = self._retry_resource_factors(job_num)
         config.custom_content.append(
-            ("+MaxRuntime", int(math.floor(self.max_runtime * 3600)) - 1)
+            (
+                "+MaxRuntime",
+                int(math.floor(self.max_runtime * runtime_factor * 3600)) - 1,
+            )
         )
+        request_memory = getattr(self, "cost_params", None) and self.cost_params().get(
+            "request_memory_mb"
+        )
+        if request_memory:
+            config.custom_content.append(
+                ("RequestMemory", int(request_memory * memory_factor))
+            )
         config.custom_content.append(("RequestCpus", self.n_cpus))
         config.custom_content.append(("priority", self.priority))
 
@@ -871,6 +888,32 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
             )
 
         return config
+
+    def _retry_resource_factors(self, job_num):
+        """(runtime, memory) multipliers for the current attempt of *job_num*.
+
+        Law passes a single job number when submitting one job at a time and the whole
+        list when it submits a group through one shared job file; a group shares its
+        resource request, so it is sized for its most-retried member.
+        """
+        if getattr(self, "cost_params", None) is None:
+            return 1.0, 1.0
+        proxy = getattr(self, "workflow_proxy", None)
+        # An explicit --tasks-per-job opts out of cost-aware scheduling as a whole, the
+        # per-attempt escalation included.
+        if not getattr(proxy, "_cost_scheduling_enabled", lambda: False)():
+            return 1.0, 1.0
+        params = self.cost_params()
+        attempts = getattr(getattr(proxy, "job_data", None), "attempts", None) or {}
+        job_nums = job_num if isinstance(job_num, (list, tuple, set)) else [job_num]
+        attempt = max((attempts.get(n, 0) for n in job_nums), default=0)
+        if attempt <= 0:
+            return 1.0, 1.0
+        cap = float(params["retry_max_factor"])
+        return (
+            min(float(params["retry_runtime_factor"]) ** attempt, cap),
+            min(float(params["retry_memory_factor"]) ** attempt, cap),
+        )
 
     def htcondor_job_file(self):
         from law.job.base import JobInputFile
@@ -904,7 +947,220 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
 BundleAwareHTCondorWorkflowProxyBase = HTCondorWorkflow.workflow_proxy_cls
 
 
-class _BundleAwareHTCondorWorkflowProxy(BundleAwareHTCondorWorkflowProxyBase):
+class LawProxyState:
+    """Access to workflow-proxy state whose names differ between law versions.
+
+    law 0.1.20 keeps the skip-verdict cache and the retry counters as ``_skip_jobs`` /
+    ``_job_retries``; older releases (such as the copy vendored in the inference
+    submodule) expose them without the underscore.  Both spellings hold the same state,
+    so read whichever the installed version provides instead of pinning to one.
+    """
+
+    def _law_state(self, *names):
+        for name in names:
+            if hasattr(self, name):
+                return getattr(self, name)
+        raise AttributeError(f"none of {names} found on {type(self).__name__}")
+
+    @property
+    def _cost_skip_jobs(self):
+        return self._law_state("_skip_jobs", "skip_jobs")
+
+    @property
+    def _cost_job_retries(self):
+        return self._law_state("_job_retries", "job_retries")
+
+
+class _BundleAwareHTCondorWorkflowProxy(
+    LawProxyState, BundleAwareHTCondorWorkflowProxyBase
+):
+    """HTCondor proxy with remote log paths and cost-aware job composition.
+
+    law groups branches into jobs with ``iter_chunks(sorted(branch_map), tasks_per_job)``:
+    fixed-size and contiguous.  When the per-branch cost is heavy-tailed -- as it is for
+    AnaTuple production, where a handful of dilepton-skim files cost twenty times what the
+    rest do, and where expensive branches are adjacent because they belong to the same
+    dataset -- that packs the expensive work together into jobs that overrun the wall
+    clock, get removed, and are retried with exactly the same grouping.
+
+    A task opts in by providing ``branch_cost_map()``; then jobs are built to a target
+    duration instead, a failed group is retried split rather than whole, and the estimates
+    are refreshed from observed durations while the workflow runs.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super(_BundleAwareHTCondorWorkflowProxy, self).__init__(*args, **kwargs)
+        self._cost_repack_pending = True
+        self._cost_poll_started = False
+        self._cost_max_job_num = 0
+        self._cost_own_jobs = set()
+        self._job_started_at = {}
+        self._job_harvested = set()
+        self._apply_cost_parallel_jobs()
+
+    def _cost_scheduling_enabled(self):
+        if not callable(getattr(self.task, "branch_cost_map", None)):
+            return False
+        return not _cli_has_tasks_per_job(self.task.get_task_family())
+
+    def _apply_cost_parallel_jobs(self):
+        """Bound the queue footprint by default.
+
+        Beyond queue hygiene this is what creates submission waves, and therefore the
+        opportunity to re-pack the work that has not been submitted yet with the better
+        estimates that the finished jobs provide.
+        """
+        if not self._cost_scheduling_enabled() or _cli_has_parallel_jobs():
+            return
+        if self.poll_data.n_parallel != self.n_parallel_max:
+            return
+        n_parallel = int(self.task.cost_params().get("parallel_jobs") or 0)
+        if n_parallel > 0:
+            self._set_parallel_jobs(n_parallel)
+
+    def _next_job_num(self):
+        """A job number never used before.
+
+        Numbers must never be recycled: ``_can_skip_job`` caches its verdict per number
+        and ``job_retries`` / ``attempts`` are keyed by it, so reusing one for a different
+        set of branches would silently apply stale bookkeeping.  The live dicts alone are
+        not a safe source for the maximum -- law moves a job out of ``jobs`` when a retry
+        cannot be submitted, and re-packing drops entries from ``unsubmitted_jobs`` -- so
+        the high-water mark is kept on the proxy and fed from every dict that has ever
+        been keyed by a job number.
+        """
+        nums = (
+            list(self.job_data.jobs.keys())
+            + list(self.job_data.unsubmitted_jobs.keys())
+            + list(self.job_data.attempts.keys())
+            + list(self._cost_job_retries.keys())
+            + [self._cost_max_job_num]
+        )
+        self._cost_max_job_num = max(nums) + 1
+        return self._cost_max_job_num
+
+    def _cost_repack_unsubmitted(self):
+        """Re-group the not-yet-submitted branches into jobs of bounded duration."""
+        unsubmitted = self.job_data.unsubmitted_jobs
+        if not unsubmitted:
+            return
+        branches = sorted({b for group in unsubmitted.values() for b in group})
+        if not branches:
+            return
+        task = self.task
+        try:
+            costs = task.branch_cost_map()
+            params = task.cost_params()
+            capacity = task.cost_capacity_seconds()
+        except Exception as e:
+            print(f"cost-aware packing unavailable, keeping the current grouping: {e}")
+            return
+        default = (params["default_file_seconds"], "default")
+        units = [(b,) + tuple(costs.get(b, default)) for b in branches]
+        groups = pack_units(
+            units, capacity, params["max_units_per_job"], params["tier_safety"]
+        )
+        if not groups:
+            return
+        for job_num in list(unsubmitted.keys()):
+            unsubmitted.pop(job_num, None)
+            self._cost_skip_jobs.pop(job_num, None)
+            self._cost_job_retries.pop(job_num, None)
+            self.job_data.attempts.pop(job_num, None)
+        job_num = self._next_job_num()
+        for group in groups:
+            unsubmitted[job_num] = sorted(group)
+            job_num += 1
+        self._cost_max_job_num = job_num - 1
+        total = sum(costs.get(b, default)[0] for b in branches)
+        self.task.publish_message(
+            f"cost-aware packing: {len(branches)} branch(es), "
+            f"{law.util.human_duration(seconds=int(total))} of estimated work "
+            f"-> {len(groups)} job(s) of at most "
+            f"{law.util.human_duration(seconds=int(capacity))}"
+        )
+
+    def _cost_repack_once(self):
+        """Re-group what is still unsubmitted, at most once per process.
+
+        law's poll() snapshots the total job count before its loop and derives both the
+        acceptance threshold and the end-of-loop test from that snapshot, so the number of
+        jobs must not change once polling has started: fewer than the snapshot and the
+        loop can never reach the threshold, more and it returns as soon as the snapshot is
+        met, leaving the extra jobs unharvested.  Both entry points below therefore run
+        strictly before that snapshot is taken.
+        """
+        if not self._cost_scheduling_enabled() or not self._cost_repack_pending:
+            return
+        if self._cost_poll_started:
+            return
+        self._cost_repack_unsubmitted()
+        self._cost_repack_pending = False
+
+    def poll(self):
+        # A resumed workflow never calls submit() before polling (law guards it with
+        # `if not self._submitted`), and that is exactly the run that has measurements
+        # from its predecessor to act on.  The snapshot is taken inside super().poll(),
+        # so re-grouping here is still ahead of it.
+        self._cost_repack_once()
+        self._cost_poll_started = True
+        return super(_BundleAwareHTCondorWorkflowProxy, self).poll()
+
+    def submit(self, retry_jobs=None):
+        self._cost_repack_once()
+        new_submission_data = super(_BundleAwareHTCondorWorkflowProxy, self).submit(
+            retry_jobs=retry_jobs
+        )
+        # Durations are only trusted for jobs this process submitted; recording them here
+        # rather than in _submit_group covers the batch path as well.
+        for job_num in new_submission_data or {}:
+            if not isinstance(job_num, Exception):
+                self._cost_own_jobs.add(job_num)
+        return new_submission_data
+
+    def harvest_job_durations(self):
+        """Feed the durations of finished jobs back into the cost model.
+
+        Durations are measured between the first poll that saw a job running and the
+        first that saw it finished; the poll interval is negligible next to the
+        multi-hour jobs this matters for, and jobs too short to carry any signal are
+        discarded by the model.  The measurements land in the ``job`` tier, which the
+        packer trusts without a safety margin, so only unambiguous samples are taken:
+
+        * jobs this process submitted -- a job already running when the workflow was
+          restarted would be timed from the restart, not from its real start;
+        * single-branch jobs -- law skips a job only when *every* branch is complete, so
+          a group may contain branches that were already done and return long before its
+          nominal event count would suggest.
+
+        Both errors are one-directional (the rate comes out too low) and would persist in
+        a store that is shared across eras and across every later run of the version.
+        """
+        if not self._cost_scheduling_enabled():
+            return
+        now = time.time()
+        samples = []
+        for job_num, data in self.job_data.jobs.items():
+            if job_num not in self._cost_own_jobs:
+                continue
+            status = data.get("status")
+            if status == self.job_manager.RUNNING:
+                self._job_started_at.setdefault(job_num, now)
+            elif status == self.job_manager.FINISHED:
+                if job_num in self._job_harvested:
+                    continue
+                self._job_harvested.add(job_num)
+                started = self._job_started_at.pop(job_num, None)
+                branches = data.get("branches") or []
+                if started is not None and len(branches) == 1:
+                    samples.append((branches, now - started))
+        if not samples:
+            return
+        try:
+            self.task.record_job_durations(samples)
+        except Exception as e:
+            print(f"cost model: unable to record job durations: {e}")
+
     def _submit_group(self, *args, **kwargs):
         job_ids, submission_data = super()._submit_group(*args, **kwargs)
 
@@ -1071,6 +1327,24 @@ def _cli_has_parallel_jobs():
         if "-parallel-jobs=" in tok or "-parallel_jobs=" in tok:
             return True
     return False
+
+
+def _cli_has_tasks_per_job(task_family):
+    """True when the user pinned the group size for *task_family* explicitly.
+
+    Cost-aware packing then steps aside: an operator who asks for a specific
+    ``--tasks-per-job`` gets it, which keeps the previous behaviour available as an
+    escape hatch if an estimate ever misbehaves.  The match is exact, so setting the
+    option for one task does not silently change how another one is scheduled.
+    """
+    parser = luigi.cmdline_parser.CmdlineParser.get_instance()
+    tokens = list(getattr(parser, "cmdline_args", None) or [])
+    wanted = set()
+    for name in ("tasks-per-job", "tasks_per_job"):
+        wanted.add(f"--{name}")
+        if task_family:
+            wanted.add(f"--{task_family}-{name}")
+    return any(tok.split("=", 1)[0] in wanted for tok in tokens)
 
 
 class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):

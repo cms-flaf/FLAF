@@ -20,6 +20,8 @@ Prioritise, in order:
 3. **Concurrency and remote-storage assumptions** — shared state under `law --workers`, ordering
    between tasks, anything assuming a remote write is immediately visible.
 4. **Genuine logic errors** — off-by-one, wrong branch, mishandled empty input.
+5. **Documentation that did not ship with the change** — see the section below; a user-visible
+   change with no documentation update is an incomplete PR, not a nitpick.
 
 Anchor a comment to a concrete failure: *"with `--workflow local` this also forces
 `AnaTupleFileTask` local, so 10k branches run on the submit node"* is actionable. *"consider
@@ -117,6 +119,48 @@ matching — that is how the path-cache suite went red for a whole merge cycle.
 Note that CI runs only `test/test_setup_loading.py` (via the `test-setup-loading` workflow);
 the pytest suites are not run anywhere, so a broken one is not caught automatically.
 
+## Documentation must ship with the change
+
+A PR must update the documentation **in the same PR** whenever it changes anything a user of the
+framework can observe. Treat this as a review item of the same weight as correctness — docs
+drifting from the code is the failure that motivated the current documentation, and a PR that
+lands without them is not complete.
+
+Ask, for every diff: does it add, rename or remove any of these?
+
+- a task or DAG node, or the arguments/parameters of one;
+- a command, a CLI flag, or the meaning of an existing one;
+- a configuration key — `global.yaml`, `user_custom.yaml`, `processes.yaml`, `phys_models.yaml`,
+  cross-sections, `fs_*` storage keys, bundle flavours, processor entries;
+- a dataset, era, process or physics-model name;
+- the environment, installation or setup steps;
+- storage locations, output paths or log locations;
+- a CI workflow, or how the integration test is triggered or configured;
+- any behaviour a user relies on, including a default that changes.
+
+If the answer is yes and the diff touches **no** documentation file, say so and name the page that
+should have changed. If the author states the change is internal-only, that is a legitimate
+answer — a pure refactor or bugfix with no user-visible effect is exempt — but it should be
+stated in the PR, not left implicit.
+
+Also flag the inverse: documentation edited to describe behaviour the diff does not implement, and
+new pages added without being wired into `mkdocs.yml`'s `nav` (the build fails on that, but the
+review should catch it first).
+
+Where it goes in this repository:
+
+- `docs/` is the source of truth for framework-wide material. Keep generic content here and link
+  to it from the analyses rather than duplicating it.
+- `docs/reference/tasks.md`, `docs/workflow/arguments.md` and `docs/configuration/*` are the pages
+  that go stale first, because they enumerate tasks, arguments and config keys.
+- New pages must be added to `nav:` in `mkdocs.yml`.
+- Verified with `mkdocs build --strict`, which fails on a broken link, a missing nav entry or a
+  missing asset.
+
+An ecosystem-level change — a new analysis, a new site, a renamed entry point — also needs the
+landing page in `cms-flaf/cms-flaf.github.io`, which is a separate repository and therefore a
+separate PR; say so in the review rather than assuming it will be noticed.
+
 ## Already enforced by CI — do not comment on these
 
 `formatting-check` (black, yamllint, clang-format), `repo-sanity-checks` (binary files, repo size),
@@ -147,4 +191,4 @@ Verified 2026-08-27; re-check before relying on any of it.
 | Eras | `Run3_2022`, `Run3_2022EE`, `Run3_2023`, `Run3_2023BPix`, `Run3_2024`, `Run3_2025`, `Run3_2026`; Run 2 legacy |
 | Workflows | `formatting-check`, `repo-sanity-checks`, `ds-consistency-check`, `cross-section-check`, `test-setup-loading`, `deploy-docs`, `integration-test`, `trigger-flaf-integration` |
 | Integration test | Triggered by `@cms-flaf-bot please test`. Its configuration (process lists, eras, versions) lives in **`cms-flaf/FLAF_ci`**, not in this repo |
-| Docs | `docs/`, built with `mkdocs build --strict`. A user-visible change should update them in the same PR |
+| Docs | `docs/`, built with `mkdocs build --strict`; see the documentation section above |

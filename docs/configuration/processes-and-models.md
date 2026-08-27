@@ -51,15 +51,24 @@ by `phys_model` in [`user_custom.yaml`](user-custom.md) (or `--model`).
 
 - **`TestModel`** — a deliberately small set of processes, so the whole pipeline runs fast
   end-to-end. Use it for development, local testing and CI. Every Run 3 era
-  (`Run3_2022` … `Run3_2026`) defines one background, one signal and one data
-  process under the CI names below.
+  (`Run3_2022` … `Run3_2026`) defines two backgrounds — one t̄t and one DY dataset — plus one
+  signal and one data process, under the CI names below.
 - **`BaseModel`** (or the analysis's named production model) — the full set used for real results.
 
 !!! tip "Process names differ slightly between analyses"
     The CI process names are capitalised in the HH analyses (`custom_CI_Signal`,
-    `custom_CI_Background`, `custom_CI_Data`) and lower-case in H→μμ (`custom_CI_signal`,
-    `custom_CI_background`, `custom_CI_data`). Use the exact name from that analysis's
-    `processes.yaml`.
+    `custom_CI_Background_TT`, `custom_CI_Background_DY`, `custom_CI_Data`) and lower-case in
+    H→μμ (`custom_CI_signal`, `custom_CI_background_TT`, `custom_CI_background_DY`,
+    `custom_CI_data`). Use the exact name from that analysis's `processes.yaml`.
+
+!!! warning "A CI background must carry the processors its real process carries"
+    The two CI backgrounds exist to exercise the [stitching](../concepts/stitching.md) over the
+    whole anaTuple → merge chain: each declares the same `processors:` (and `genInfo:`) that the
+    analysis gives its real `TT` and DY processes **in that era**, so a gen-level input the
+    anaTuple does not keep fails the pipeline instead of the production. When you change a
+    stitcher or the era's processors, change the matching CI process too. One dataset per
+    process is enough — each stitching bin's denominator is summed over the very events that
+    later read it back, so a bin no event falls into is never divided by.
 
 ## How processes relate to the rest
 

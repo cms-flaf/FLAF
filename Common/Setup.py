@@ -568,6 +568,9 @@ class Setup:
                 active_datasets[dataset_name]["process_group"] = (
                     self.phys_model.process_type(process["parent_process"])
                 )
+                # The analysis-level anaTuple definition only receives the dataset entry,
+                # so give it access to the settings declared for the dataset's process.
+                active_datasets[dataset_name]["process_cfg"] = process
         if custom_dataset_selection is not None:
             if type(custom_dataset_selection) == str:
                 custom_dataset_selection = custom_dataset_selection.split(",")

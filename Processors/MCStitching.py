@@ -5,6 +5,29 @@ import sys
 from FLAF.Common.CrossSectionDB import CrossSectionDB
 
 
+def defineFromStoredOrExpression(
+    df, name, *, expression, stored=None, stored_expression=None, prepare=None
+):
+    """Define the stitching variable *name*, preferring a value the input already carries.
+
+    Stitching variables are derived from nanoAOD collections (GenPart/LHEPart) that an
+    anaTuple does not necessarily keep, while the merge stage has to evaluate the very same
+    bin selections to pick the cross-section and the denominator. An analysis therefore
+    stores the gen-level information it stitches on as branches, and *stored* names the one
+    holding this variable. *expression* is the definition from the nanoAOD collections and
+    is used only when neither *name* nor *stored* is available; *prepare* (``df -> df``)
+    runs first in that case, to declare headers or define intermediates it needs.
+    """
+    columns = df.GetColumnNames()
+    if name in columns:
+        return df
+    if stored is not None and stored in columns:
+        return df.Define(name, stored_expression or stored)
+    if prepare is not None:
+        df = prepare(df)
+    return df.Define(name, expression)
+
+
 class MCStitcher:
     """
     Processor for stitching MC samples using set of orthogonal bins with known cross-sections.
@@ -109,8 +132,10 @@ class MCStitcher:
     def defineVariables(self, df):
         """Define any additional variables needed for stitching."""
 
+        columns = df.GetColumnNames()
         for name, expression in self.variables:
-            df = df.Define(name, expression)
+            if name not in columns:
+                df = df.Define(name, expression)
         return df
 
     def onAnaCache_initializeDenomEntry(self):

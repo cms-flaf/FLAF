@@ -156,7 +156,7 @@ class AnaTupleProducerMixin:
 
     @property
     def bundle_flavours(self):
-        flavours = ["core", "inputFileList"]
+        flavours = ["core", "soft", "inputFileList"]
         if self.global_params.get("use_cmssw_env_AnaTupleProduction", False):
             flavours.append("cmssw")
         return flavours
@@ -705,7 +705,7 @@ class AnaTupleFileListBuilderTask(
 ):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 24.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
-    bundle_flavours = ["core", "inputFileList"]
+    bundle_flavours = ["core", "soft", "inputFileList"]
 
     def __init__(self, *args, **kwargs):
         ana_v = kwargs.get("ana_version") or kwargs.get("anaTuple_version")
@@ -917,7 +917,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 48.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     delete_inputs_after_merge = luigi.BoolParameter(default=False)
-    bundle_flavours = ["core", "inputFileList", "AnaTupleFileList"]
+    bundle_flavours = ["core", "soft", "inputFileList", "AnaTupleFileList"]
 
     def __init__(self, *args, **kwargs):
         ana_v = kwargs.get("ana_version") or kwargs.get("anaTuple_version")

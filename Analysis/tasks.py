@@ -71,7 +71,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
     @property
     def bundle_flavours(self):
         fl = AnaTupleFileListTask.req(self, branches=())
-        return ["core", ("AnaTupleFileList", fl.version)]
+        return ["core", "soft", ("AnaTupleFileList", fl.version)]
 
     def workflow_requires(self):
         reqs = super().workflow_requires()
@@ -532,7 +532,7 @@ class HistFromNtupleProducerTask(
     @property
     def bundle_flavours(self):
         fl = AnaTupleFileListTask.req(self, branches=())
-        return ["core", ("AnaTupleFileList", fl.version)]
+        return ["core", "soft", ("AnaTupleFileList", fl.version)]
 
     @property
     def active_variables(self):
@@ -778,7 +778,7 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     @property
     def bundle_flavours(self):
         fl = AnaTupleFileListTask.req(self, branches=())
-        return ["core", ("AnaTupleFileList", fl.version)]
+        return ["core", "soft", ("AnaTupleFileList", fl.version)]
 
     @property
     def active_variables(self):
@@ -998,7 +998,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
     @property
     def bundle_flavours(self):
         fl = AnaTupleFileListTask.req(self, branches=())
-        flavours = ["core", ("AnaTupleFileList", fl.version)]
+        flavours = ["core", "soft", ("AnaTupleFileList", fl.version)]
         if (
             self.global_params.get("payload_producers", {})
             .get(self.producer_to_run, {})
@@ -1289,7 +1289,7 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     @property
     def bundle_flavours(self):
         fl = AnaTupleFileListTask.req(self, branches=())
-        return ["core", ("AnaTupleFileList", fl.version)]
+        return ["core", "soft", ("AnaTupleFileList", fl.version)]
 
     @property
     def active_variables(self):
@@ -1540,7 +1540,7 @@ class AnalysisCacheAggregationTask(
     @property
     def bundle_flavours(self):
         fl = AnaTupleFileListTask.req(self, branches=())
-        return ["core", ("AnaTupleFileList", fl.version)]
+        return ["core", "soft", ("AnaTupleFileList", fl.version)]
 
     def __init__(self, *args, **kwargs):
         ana_v = kwargs.get("ana_version") or kwargs.get("anaCache_version")

@@ -43,9 +43,11 @@ also provides built-in options for status and cleanup.
 | `--workflow crab` | — | Submit branches via CMS CRAB (WLCG). See [CRAB](crab.md). |
 
 Optional site white/black lists go in `global.yaml` under `crab:` (not CLI flags).
-Unset whitelist ⇒ all T1/T2/T3 sites. Default `--parallel-jobs` on CRAB is 5000
-(`crab.parallel_jobs`); a new CRAB task is submitted only when at least
-`crab.refill_fraction` (default 0.2) of those slots are free. `Site.storageSite`
+Unset whitelist ⇒ all T1/T2/T3 sites; blacklisted (or auto-quarantined) sites are
+cut out of the whitelist itself — see [CRAB](crab.md). Default `--parallel-jobs`
+on CRAB is 5000 (`crab.parallel_jobs`); jobs are aggregated into CRAB tasks of at
+least `crab.refill_fraction * parallel_jobs` jobs while such a wave is still
+achievable (the tail is released immediately). `Site.storageSite`
 / `Data.outLFNDirBase` are derived from `fs_default`. Memory is
 `2000 MB * n_cpus` (`crab.memory_mb_per_cpu`; CRAB / site-guaranteed default),
 capped at the CRAB client limit (5000 MB for 1 core, `2500 MB * n_cpus` otherwise).

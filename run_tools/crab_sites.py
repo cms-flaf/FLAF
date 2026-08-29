@@ -40,8 +40,11 @@ def processing_sites(cache_path=None, url=CRIC_URL, timeout=60):
             payload = json.load(response)
     except Exception as exc:
         if cache_path and os.path.exists(cache_path):
-            with open(cache_path) as f:  # stale is better than nothing
-                return json.load(f)
+            try:
+                with open(cache_path) as f:  # stale is better than nothing
+                    return json.load(f)
+            except (OSError, ValueError):
+                pass
         raise RuntimeError(f"could not read the CMS site list from {url}: {exc}")
     entries = payload.values() if isinstance(payload, dict) else payload
     sites = sorted(
@@ -50,8 +53,10 @@ def processing_sites(cache_path=None, url=CRIC_URL, timeout=60):
     if cache_path:
         try:
             os.makedirs(os.path.dirname(cache_path) or ".", exist_ok=True)
-            with open(cache_path, "w") as f:
+            tmp = f"{cache_path}.tmp{os.getpid()}"
+            with open(tmp, "w") as f:
                 json.dump(sites, f)
+            os.replace(tmp, cache_path)
         except OSError:
             pass
     return sites
@@ -176,22 +181,26 @@ class SiteStats:
         except (OSError, ValueError):
             return
         sites = data.get("sites")
-        if isinstance(sites, dict):
-            self.sites = {
-                name: {
+        if not isinstance(sites, dict):
+            return
+        for name, rec in sites.items():
+            if not isinstance(rec, dict) or not is_site(name):
+                continue
+            try:
+                self.sites[name] = {
                     "events": [
                         (float(t), int(ok)) for t, ok in (rec.get("events") or [])
                     ],
                     "quarantined_until": float(rec.get("quarantined_until") or 0.0),
                 }
-                for name, rec in sites.items()
-                if isinstance(rec, dict) and is_site(name)
-            }
+            except (TypeError, ValueError):
+                # a record written by a different version is dropped, like corrupt JSON
+                continue
 
     def save(self):
         if not self._dirty:
             return
-        tmp = f"{self.path}.tmp"
+        tmp = f"{self.path}.tmp{os.getpid()}"
         os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
         with open(tmp, "w") as f:
             json.dump({"version": 1, "sites": self.sites}, f)

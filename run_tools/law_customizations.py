@@ -1675,22 +1675,21 @@ _CRAB_DEFAULT_REFILL_FRACTION = 0.2
 _CRAB_DEFAULT_POLL_INTERVAL = 5  # minutes
 
 
-def _cli_has_param(name):
-    """True when the user passed ``--<name>`` (or a task-prefixed form) on the CLI."""
+def _cli_has_param(name, task_family=None):
+    """True when the user passed ``--<name>`` (or ``--<task_family>-<name>``) on the CLI.
+
+    The match is exact, like ``_cli_has_tasks_per_job``: an option addressed to one task
+    must not silently disable the yaml value or the CRAB default for every other task in
+    the graph.
+    """
     parser = luigi.cmdline_parser.CmdlineParser.get_instance()
     tokens = list(getattr(parser, "cmdline_args", None) or [])
+    wanted = set()
     for variant in (name.replace("_", "-"), name.replace("-", "_")):
-        for tok in tokens:
-            if tok == f"--{variant}" or tok.startswith(f"--{variant}="):
-                return True
-            if tok.endswith(f"-{variant}") or f"-{variant}=" in tok:
-                return True
-    return False
-
-
-def _cli_has_parallel_jobs():
-    """True when the user passed ``--parallel-jobs`` (or a task-prefixed form)."""
-    return _cli_has_param("parallel-jobs")
+        wanted.add(f"--{variant}")
+        if task_family:
+            wanted.add(f"--{task_family}-{variant}")
+    return any(tok.split("=", 1)[0] in wanted for tok in tokens)
 
 
 def _cli_has_tasks_per_job(task_family):
@@ -1733,7 +1732,7 @@ class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
         Multi-workflow tasks inherit HTCondor's unlimited ``parallel_jobs``, so
         the CrabWorkflow class default never wins. Apply the CRAB default here.
         """
-        if _cli_has_parallel_jobs():
+        if _cli_has_param("parallel-jobs", self.task.get_task_family()):
             return
         yaml_n = self.task._crab_cfg().get("parallel_jobs")
         if yaml_n is not None:
@@ -1749,8 +1748,12 @@ class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
         2-minute ``poll_interval``, so the CrabWorkflow class default never wins. Each
         poll is one multi-MB ``crab status --json`` per live CRAB task, so the HTCondor
         cadence doubles both the server load and the exposure to an unreadable response.
+
+        A value equal to the HTCondor default is indistinguishable from the inherited
+        one and is treated as unset — pin an explicit 2 on the CLI or in
+        ``crab.poll_interval``.
         """
-        if _cli_has_param("poll-interval"):
+        if _cli_has_param("poll-interval", self.task.get_task_family()):
             return
         yaml_v = self.task._crab_cfg().get("poll_interval")
         if yaml_v is not None:
@@ -1796,7 +1799,12 @@ class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
     def submit(self, retry_jobs=None):
         retry_jobs = retry_jobs or OrderedDict()
         n_waiting = len(self.job_data.unsubmitted_jobs) + len(retry_jobs)
-        if self._should_submit_crab_group(n_waiting):
+        # A --no-poll invocation resubmits failures exactly once and then returns, so
+        # a parked job would not be offered again until someone runs the task anew —
+        # never hold anything back there.
+        if getattr(self.task, "no_poll", False) or self._should_submit_crab_group(
+            n_waiting
+        ):
             return super(_FLAFCrabWorkflowProxy, self).submit(retry_jobs or None)
 
         # Park retries as unsubmitted so the next eligible wave picks them up
@@ -1811,7 +1819,26 @@ class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
         return OrderedDict()
 
     def setup_job_manager(self):
-        """Require a valid VOMS proxy and a MyProxy credential (>= 5 days)."""
+        """Require a valid VOMS proxy, a MyProxy credential (>= 5 days), and a working
+        CRAB sandbox.
+
+        law builds the CMSSW sandbox it runs ``crab`` in lazily, inside every submission
+        attempt; a failure there is swallowed per job — each one is stored with
+        ``dummy_job_id``, polled as "unknown job id", retried, and the workflow only dies
+        when the retry tolerance is exceeded, half an hour later, with the real cause
+        nowhere in the log. Building it here (law calls this once, before the first
+        submission or poll) turns that into a single actionable error.
+        """
+        try:
+            self.job_manager.cmssw_env
+        except Exception as exc:
+            raise RuntimeError(
+                "could not set up the CMSSW sandbox that law runs `crab` in "
+                "(job.crab_sandbox_name in law.cfg): "
+                f"{exc}\nThe sandbox dumps its environment with bare `python`, which "
+                "modern CMSSW does not ship — check that `python` on PATH resolves to a "
+                "python3 (flaf_env provides one; see docs/workflow/crab.md)."
+            ) from exc
         proxy = os.environ.get("X509_USER_PROXY", "")
         if not proxy or not os.path.isfile(proxy):
             raise RuntimeError(
@@ -2061,26 +2088,11 @@ process.out = cms.EndPath(process.output)
         return FLAFCrabJobManager
 
     def crab_create_job_manager(self, **kwargs):
-        """Create the job manager, and build its CMSSW sandbox, before anything is submitted.
-
-        law builds that sandbox lazily, inside every submission attempt. A failure there
-        is swallowed per job: each one is stored with ``dummy_job_id``, polled as
-        "unknown job id", retried, and the workflow only dies when the retry tolerance is
-        exceeded — half an hour later, with the real cause nowhere in the log. Building
-        it here turns that into a single actionable error before the first submission.
-        """
+        # The sandbox preflight lives in the proxy's setup_job_manager: this runs at
+        # workflow-proxy construction, i.e. also for --print-status and completeness
+        # checks, which must not build a CMSSW sandbox.
         manager = super().crab_create_job_manager(**kwargs)
         manager.site_stats = self.site_stats()
-        try:
-            manager.cmssw_env
-        except Exception as exc:
-            raise RuntimeError(
-                "could not set up the CMSSW sandbox that law runs `crab` in "
-                "(job.crab_sandbox_name in law.cfg): "
-                f"{exc}\nThe sandbox dumps its environment with bare `python`, which "
-                "modern CMSSW does not ship — check that `python` on PATH resolves to a "
-                "python3 (flaf_env provides one; see docs/workflow/crab.md)."
-            ) from exc
         return manager
 
     def crab_job_file_factory_cls(self):
@@ -2162,6 +2174,27 @@ process.out = cms.EndPath(process.output)
         # Sites quarantined by their recent failure record; every wave is a new CRAB
         # task, so this takes effect for the next one — retries included.
         quarantined = [s for s in self.site_stats().blacklist() if s not in blacklist]
+
+        # CRAB gives the whitelist precedence over the blacklist, so a blacklisted site
+        # matched by a glob would silently be kept — remove it from the whitelist itself
+        # (see resolve_whitelist). CRIC is only consulted when something is excluded.
+        all_sites = []
+        if blacklist or quarantined:
+            try:
+                all_sites = processing_sites(
+                    os.path.join(self.ana_data_path(), "cms_sites.json")
+                )
+            except RuntimeError:
+                # A configured exclusion must not be silently defeated — but the
+                # quarantine is advisory, and aborting a running production because
+                # CRIC is down would cost more than one unquarantined wave.
+                if blacklist:
+                    raise
+                self.publish_message(
+                    "cannot expand the site whitelist (CRIC unreachable, no cache); "
+                    "skipping the site quarantine for this CRAB task"
+                )
+                quarantined = []
         if quarantined:
             self.publish_message(
                 "keeping {} site(s) out of this CRAB task after recent failures: {}".format(
@@ -2169,15 +2202,6 @@ process.out = cms.EndPath(process.output)
                 )
             )
             blacklist += quarantined
-
-        # CRAB gives the whitelist precedence over the blacklist, so a blacklisted site
-        # matched by a glob would silently be kept — remove it from the whitelist itself
-        # (see resolve_whitelist). CRIC is only consulted when something is excluded.
-        all_sites = []
-        if blacklist:
-            all_sites = processing_sites(
-                os.path.join(self.ana_data_path(), "cms_sites.json")
-            )
         sites = resolve_whitelist(whitelist, blacklist, all_sites)
         config.crab.Site.whitelist = [str(s) for s in sites]
         config.crab.Data.ignoreLocality = True

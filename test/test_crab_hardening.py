@@ -107,6 +107,23 @@ class TestSubmitParking(unittest.TestCase):
         self.assertEqual(proxy.job_data.unsubmitted_jobs[7], [7])
         self.assertTrue(dumped)
 
+    def test_no_poll_bypasses_the_gate(self):
+        # a --no-poll invocation resubmits failures exactly once and then returns;
+        # parking would silently skip that documented one-shot resubmission
+        proxy = object.__new__(lc._FLAFCrabWorkflowProxy)
+        proxy.poll_data = types.SimpleNamespace(n_parallel=5000, n_active=3270)
+        proxy.n_parallel_max = 1_000_000
+        proxy.task = types.SimpleNamespace(_crab_cfg=lambda: {}, no_poll=True)
+        proxy.job_data = law.workflow.remote.JobData()
+        proxy.job_data.jobs[7] = {"job_id": "x", "branches": [7], "status": "retry"}
+        with mock.patch.object(
+            lc._FLAFCrabWorkflowProxyBase, "submit", return_value={"submitted": True}
+        ) as base_submit:
+            result = lc._FLAFCrabWorkflowProxy.submit(proxy, retry_jobs={7: [7]})
+        self.assertEqual(result, {"submitted": True})
+        base_submit.assert_called_once()
+        self.assertIn(7, proxy.job_data.jobs, "nothing may be parked under no_poll")
+
 
 class TestPollInterval(unittest.TestCase):
     """CRAB polls must default to 5 minutes even when HTCondor's param wins the MRO."""
@@ -114,7 +131,9 @@ class TestPollInterval(unittest.TestCase):
     def apply(self, poll_interval, cfg=None, cli=False):
         proxy = object.__new__(lc._FLAFCrabWorkflowProxy)
         proxy.task = types.SimpleNamespace(
-            poll_interval=poll_interval, _crab_cfg=lambda: cfg or {}
+            poll_interval=poll_interval,
+            _crab_cfg=lambda: cfg or {},
+            get_task_family=lambda: "MyTask",
         )
         with mock.patch.object(lc, "_cli_has_param", return_value=cli):
             lc._FLAFCrabWorkflowProxy._apply_crab_poll_interval(proxy)
@@ -132,6 +151,31 @@ class TestPollInterval(unittest.TestCase):
 
     def test_cli_wins_over_yaml(self):
         self.assertEqual(self.apply(2.0, cfg={"poll_interval": 3}, cli=True), 2.0)
+
+
+class TestCliHasParam(unittest.TestCase):
+    """An option addressed to one task must not disable the yaml value or the CRAB
+    default for every other task in the graph."""
+
+    def has(self, tokens, family="MyTask"):
+        stub = types.SimpleNamespace(cmdline_args=tokens)
+        with mock.patch.object(
+            lc.luigi.cmdline_parser.CmdlineParser, "get_instance", return_value=stub
+        ):
+            return lc._cli_has_param("poll-interval", family)
+
+    def test_bare_option_matches(self):
+        self.assertTrue(self.has(["--poll-interval", "3"]))
+        self.assertTrue(self.has(["--poll-interval=3"]))
+        self.assertTrue(self.has(["--poll_interval", "3"]))
+
+    def test_own_task_prefix_matches(self):
+        self.assertTrue(self.has(["--MyTask-poll-interval", "3"]))
+        self.assertTrue(self.has(["--MyTask-poll-interval=3"]))
+
+    def test_other_task_prefix_does_not_match(self):
+        self.assertFalse(self.has(["--OtherTask-poll-interval", "3"]))
+        self.assertFalse(self.has(["--OtherTask-poll-interval=3"]))
 
 
 class TestResolveWhitelist(unittest.TestCase):
@@ -199,6 +243,15 @@ class TestProcessingSites(unittest.TestCase):
             os.utime(cache, (0, 0))  # far in the past
             sites = processing_sites(cache, url=self.UNREACHABLE, timeout=1)
             self.assertEqual(sites, ["T2_CH_CERN"])
+
+    def test_corrupt_stale_cache_still_raises_the_clear_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = os.path.join(tmp, "sites.json")
+            with open(cache, "w") as f:
+                f.write("not json {")
+            os.utime(cache, (0, 0))
+            with self.assertRaises(RuntimeError):
+                processing_sites(cache, url=self.UNREACHABLE, timeout=1)
 
     def test_no_cache_and_cric_down_raises(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -279,6 +332,38 @@ class TestSiteStats(unittest.TestCase):
             stats = self.make(tmp, cfg={"enabled": False})
             self.feed_black_hole(stats, now)
             self.assertEqual(stats.blacklist(now=now), [])
+
+    def test_load_skips_records_with_a_foreign_schema(self):
+        # a stats file written by a different version must be dropped like corrupt
+        # JSON, not kill the workflow before the first submission
+        import json as _json
+
+        now = 1_000_000.0
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "stats.json")
+            with open(path, "w") as f:
+                _json.dump(
+                    {
+                        "version": 99,
+                        "sites": {
+                            "T2_CH_CERN": {
+                                "events": [{"t": now, "ok": 1}],
+                                "quarantined_until": 0.0,
+                            },
+                            "T1_DE_KIT": {
+                                "events": [[now, 1]],
+                                "quarantined_until": "abc",
+                            },
+                            "T2_EE_Estonia": {
+                                "events": [[now, 0]],
+                                "quarantined_until": 0.0,
+                            },
+                        },
+                    },
+                    f,
+                )
+            stats = SiteStats(path)
+            self.assertEqual(list(stats.sites), ["T2_EE_Estonia"])
 
     def test_persistence_roundtrip(self):
         now = 1_000_000.0

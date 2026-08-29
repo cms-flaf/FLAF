@@ -178,6 +178,48 @@ class TestCliHasParam(unittest.TestCase):
         self.assertFalse(self.has(["--OtherTask-poll-interval=3"]))
 
 
+class TestCostParallelJobs(unittest.TestCase):
+    """The HTCondor cost scheduler must run through the shared CLI matcher — a
+    dangling reference here crashed every HTCondor run at task init."""
+
+    def apply(self, cost_enabled, cost_params=None, tokens=()):
+        proxy = object.__new__(lc._BundleAwareHTCondorWorkflowProxy)
+        proxy.task = types.SimpleNamespace(
+            get_task_family=lambda: "MyTask",
+            cost_params=lambda: cost_params or {},
+        )
+        proxy._cost_scheduling_enabled = lambda: cost_enabled
+        proxy.poll_data = types.SimpleNamespace(n_parallel=1_000_000)
+        proxy.n_parallel_max = 1_000_000
+        applied = []
+        proxy._set_parallel_jobs = lambda n: applied.append(n)
+        stub = types.SimpleNamespace(cmdline_args=list(tokens))
+        with mock.patch.object(
+            lc.luigi.cmdline_parser.CmdlineParser, "get_instance", return_value=stub
+        ):
+            lc._BundleAwareHTCondorWorkflowProxy._apply_cost_parallel_jobs(proxy)
+        return applied
+
+    def test_disabled_cost_scheduling_returns_without_crashing(self):
+        self.assertEqual(self.apply(False), [])
+
+    def test_cost_parallel_jobs_applied(self):
+        self.assertEqual(self.apply(True, {"parallel_jobs": 2000}), [2000])
+
+    def test_cli_parallel_jobs_wins(self):
+        self.assertEqual(
+            self.apply(True, {"parallel_jobs": 2000}, ["--parallel-jobs", "5"]), []
+        )
+
+    def test_other_task_cli_flag_does_not_disable(self):
+        self.assertEqual(
+            self.apply(
+                True, {"parallel_jobs": 2000}, ["--OtherTask-parallel-jobs", "5"]
+            ),
+            [2000],
+        )
+
+
 class TestResolveWhitelist(unittest.TestCase):
     """CRAB gives the whitelist precedence, so exclusions must be cut out of it."""
 

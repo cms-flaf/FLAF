@@ -1166,7 +1166,9 @@ class _BundleAwareHTCondorWorkflowProxy(
         opportunity to re-pack the work that has not been submitted yet with the better
         estimates that the finished jobs provide.
         """
-        if not self._cost_scheduling_enabled() or _cli_has_parallel_jobs():
+        if not self._cost_scheduling_enabled() or _cli_has_param(
+            "parallel-jobs", self.task.get_task_family()
+        ):
             return
         if self.poll_data.n_parallel != self.n_parallel_max:
             return

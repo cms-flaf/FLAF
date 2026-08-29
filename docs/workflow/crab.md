@@ -210,7 +210,9 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
     `crab status` occasionally returns output law cannot parse. FLAF retries the query
     (3x, 15 s apart), then reports that task's jobs as *pending* — with one message per
     task naming the first lines of what crab returned — and only raises after 10
-    consecutive unreadable polls. While a task is degraded this way law sees no failures
+    consecutive unreadable polls. Any query failure is ridden out this way (an expired
+    proxy or a deleted project directory included), so a genuinely dead task surfaces
+    only when the tolerance runs out — about an hour at the default cadence. While a task is degraded this way law sees no failures
     and resubmits nothing for it; jobs at other sites and other CRAB tasks are unaffected.
 
 !!! warning "Every job reports `unknown job id`"

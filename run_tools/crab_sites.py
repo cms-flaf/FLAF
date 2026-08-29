@@ -65,25 +65,29 @@ def resolve_whitelist(whitelist, blacklist, sites):
     in the blacklist"). With the default all-tier globs that silently defeats every
     exclusion — the configured `crab.blacklist` and the automatic site quarantine alike.
 
-    So a glob covering an excluded site is expanded, from `sites`, into the sites it actually
-    matches minus the excluded ones. Globs covering nothing excluded are left alone, which
-    keeps the pool wide and the expansion small: excluding one T2 lists the T2s and leaves
-    `T1_*` and `T3_*` as they are.
+    So a whitelist entry covering an excluded site is expanded, from `sites`, into the sites
+    it actually matches minus the excluded ones. Entries covering nothing excluded are left
+    alone, which keeps the pool wide and the expansion small: excluding one T2 lists the T2s
+    and leaves `T1_*` and `T3_*` as they are. Blacklist entries may be globs too — whether
+    anything is excluded is decided on the concrete sites an entry matches, never by
+    comparing the pattern strings.
     """
     if not blacklist:
         return list(whitelist)
+
+    def excluded(name):
+        return any(fnmatch.fnmatch(name, b) for b in blacklist)
+
     out = []
     for entry in whitelist:
-        hit = [b for b in blacklist if fnmatch.fnmatch(b, entry)]
-        if not hit:
+        # an entry that is itself excluded simply disappears
+        if excluded(entry):
+            continue
+        matched = [site for site in sites if fnmatch.fnmatch(site, entry)]
+        if not any(excluded(site) for site in matched):
             out.append(entry)
             continue
-        # an entry that is itself excluded simply disappears
-        out += [
-            site
-            for site in sites
-            if fnmatch.fnmatch(site, entry) and site not in blacklist
-        ]
+        out += [site for site in matched if not excluded(site)]
     if not out:
         raise RuntimeError(
             f"the blacklist {', '.join(blacklist)} excludes every site the whitelist "

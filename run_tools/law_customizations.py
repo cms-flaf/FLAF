@@ -1522,9 +1522,7 @@ class FLAFCrabJobManager(law.cms.CrabJobManager):
         if self._flaf_env is None:
             # never mutate the base env: law caches it process-wide per sandbox
             env = dict(law.cms.CrabJobManager.cmssw_env.fget(self))
-            home = os.path.join(
-                tempfile.gettempdir(), f"flaf_crab_home_{os.getuid()}"
-            )
+            home = os.path.join(tempfile.gettempdir(), f"flaf_crab_home_{os.getuid()}")
             bin_dir = os.path.join(home, "bin")
             os.makedirs(bin_dir, exist_ok=True)
             wrapper = os.path.join(bin_dir, "crab")
@@ -1631,7 +1629,7 @@ class FLAFCrabJobManager(law.cms.CrabJobManager):
         Jobs still in flight are counted too — not as outcomes, but as part of what was
         sent to a site, which is the denominator its failure rate is measured against.
         """
-        if self.site_stats is None:
+        if self.site_stats is None or not result:
             return
         outcome = {self.FINISHED: True, self.FAILED: False}
         in_flight = Counter()

@@ -13,7 +13,6 @@ import sys
 import tempfile
 import types
 import unittest
-from collections import Counter
 from unittest import mock
 
 flaf_repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -34,8 +33,8 @@ def make_proxy_stub(n_parallel, n_active, n_parallel_max=1_000_000, refill=0.2):
     stub.poll_data = types.SimpleNamespace(n_parallel=n_parallel, n_active=n_active)
     stub.n_parallel_max = n_parallel_max
     stub.task = types.SimpleNamespace(_crab_cfg=lambda: {"refill_fraction": refill})
-    stub._crab_refill_fraction = lambda: lc._FLAFCrabWorkflowProxy._crab_refill_fraction(
-        stub
+    stub._crab_refill_fraction = (
+        lambda: lc._FLAFCrabWorkflowProxy._crab_refill_fraction(stub)
     )
     return stub
 
@@ -146,9 +145,7 @@ class TestResolveWhitelist(unittest.TestCase):
         )
 
     def test_blacklisted_site_is_cut_out_of_matching_glob_only(self):
-        out = resolve_whitelist(
-            ["T1_*", "T2_*", "T3_*"], ["T2_EE_Estonia"], self.SITES
-        )
+        out = resolve_whitelist(["T1_*", "T2_*", "T3_*"], ["T2_EE_Estonia"], self.SITES)
         self.assertIn("T1_*", out)
         self.assertIn("T3_*", out)
         self.assertNotIn("T2_*", out)
@@ -157,14 +154,27 @@ class TestResolveWhitelist(unittest.TestCase):
         self.assertIn("T2_US_MIT", out)
 
     def test_explicitly_whitelisted_and_blacklisted_site_disappears(self):
-        out = resolve_whitelist(
-            ["T2_CH_CERN", "T2_US_MIT"], ["T2_US_MIT"], self.SITES
-        )
+        out = resolve_whitelist(["T2_CH_CERN", "T2_US_MIT"], ["T2_US_MIT"], self.SITES)
         self.assertEqual(out, ["T2_CH_CERN"])
 
     def test_everything_excluded_raises(self):
         with self.assertRaises(RuntimeError):
             resolve_whitelist(["T2_US_MIT"], ["T2_US_MIT"], self.SITES)
+
+    def test_glob_blacklist_is_not_inverted_into_a_whitelist(self):
+        # a pattern in the blacklist must exclude what it matches — a literal
+        # membership test would instead expand the tier into explicitly
+        # whitelisted names, silently defeating the exclusion
+        out = resolve_whitelist(["T1_*", "T2_*", "T3_*"], ["T3_*"], self.SITES)
+        self.assertEqual(out, ["T1_*", "T2_*"])
+
+    def test_glob_blacklist_excludes_a_concrete_whitelist_entry(self):
+        out = resolve_whitelist(["T2_CH_CERN", "T2_US_MIT"], ["T2_US_*"], self.SITES)
+        self.assertEqual(out, ["T2_CH_CERN"])
+
+    def test_glob_blacklist_expands_partially_covered_glob(self):
+        out = resolve_whitelist(["T2_*"], ["T2_US_*"], self.SITES)
+        self.assertEqual(out, ["T2_CH_CERN", "T2_EE_Estonia"])
 
 
 class TestProcessingSites(unittest.TestCase):
@@ -293,7 +303,12 @@ class TestCrabJobManager(unittest.TestCase):
     what crab returned, and must not kill the workflow before the tolerance is spent."""
 
     def test_parse_error_reports_what_crab_returned(self):
-        out = "Something went sideways\nCRAB is unhappy\n" + '{"json": "' + "x" * 4096 + '"}\n'
+        out = (
+            "Something went sideways\nCRAB is unhappy\n"
+            + '{"json": "'
+            + "x" * 4096
+            + '"}\n'
+        )
         with self.assertRaises(Exception) as ctx:
             lc.FLAFCrabJobManager.parse_query_output(out, "/tmp/proj", [])
         msg = str(ctx.exception)

@@ -68,9 +68,9 @@ def resolve_whitelist(whitelist, blacklist, sites):
     So a whitelist entry covering an excluded site is expanded, from `sites`, into the sites
     it actually matches minus the excluded ones. Entries covering nothing excluded are left
     alone, which keeps the pool wide and the expansion small: excluding one T2 lists the T2s
-    and leaves `T1_*` and `T3_*` as they are. Blacklist entries may be globs too — whether
-    anything is excluded is decided on the concrete sites an entry matches, never by
-    comparing the pattern strings.
+    and leaves `T1_*` and `T3_*` as they are. Blacklist entries may be globs too — a site
+    is excluded when any blacklist pattern matches it, and a whitelist entry disappears
+    when a pattern matches the entry itself.
     """
     if not blacklist:
         return list(whitelist)

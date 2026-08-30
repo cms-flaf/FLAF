@@ -35,20 +35,28 @@ def aggregate_caches(
 
         result_dict = {}
         bins = list(producer_cfg["bins"].keys())
-        prefix = "weight_noBtag_"
+        prefix = "weight_withSF_"
         for outer_key, inner_dict in aggregated_dict.items():
             print(f"Computing btag shape norm correction for {outer_key}")
-            noBtag_syst_keys = [key for key in inner_dict.keys() if "noBtag" in key]
             systs = {
-                k[len(prefix) :].rsplit("_")[0]
-                for k in noBtag_syst_keys
+                k[len(prefix) :].split("_")[0]
+                for k in inner_dict.keys()
                 if k.startswith(prefix)
             }
             result_dict[outer_key] = {}
             for bin_name in bins:
-                weight_after = inner_dict[f"weight_total_{bin_name}"]
+                # The factor restores the yield the sample had before any b-tag shape SF
+                # was applied, so it is sum(w0) / sum(w0 * SF_syst): the reciprocal of the
+                # mean SF. Taking the mean of the reciprocal instead -- dividing
+                # sum(w0 * SF_central / SF_syst) by sum(w0 * SF_central) -- is larger by
+                # Jensen's inequality, by the same amount for the up and the down
+                # variation, which shows up downstream as a fake quadratic shape term.
+                #
+                # Central needs no special case: its SF_syst is the applied SF, so the
+                # expression collapses to sum(w0) / sum(final_weight).
+                weight_before = inner_dict[f"weight_noSF_{bin_name}"]
                 for syst in systs:
-                    weight_before = inner_dict[f"weight_noBtag_{syst}_{bin_name}"]
+                    weight_after = inner_dict[f"{prefix}{syst}_{bin_name}"]
                     result_dict[outer_key][f"norm_{syst}_{bin_name}"] = (
                         weight_before / weight_after if weight_after != 0 else 1
                     )

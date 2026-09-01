@@ -20,8 +20,12 @@ from FLAF.Common.shared_mc import shared_mc_in_era_expr, shared_mc_split
 from FLAF.AnaProd.CostModel import chunk_bounds, scaled_bounds
 from Corrections.Corrections import Corrections
 from Corrections.lumi import LumiFilter
-from Corrections.CorrectionsCore import central, getScales, getSystName
-from Corrections.pu import puWeightProducer
+from Corrections.CorrectionsCore import (
+    central,
+    getScales,
+    getSystName,
+    ShapeWeightRegistry,
+)
 
 
 class DefaultAnaCacheProcessor:
@@ -210,9 +214,14 @@ def createAnatuple(
         )
         handles_to_run.append(df_not_selected.Sum("__runLumiTracker"))
 
-    shape_sources = [central]
-    if "pu" in corrections.to_apply and compute_unc_variations:
-        shape_sources += puWeightProducer.uncSource
+    # The denominators and the `base` numerator in Corrections are built from the same
+    # registry, so they agree on which weights belong to each variation. Getting that
+    # wrong is silent: a variation whose product is missing another producer's central
+    # weight divides that weight out of the resulting _rel branch.
+    shape_weight_registry = corrections.registerShapeWeights(
+        ShapeWeightRegistry(), return_variations=compute_unc_variations
+    )
+    shape_sources = shape_weight_registry.sources
 
     shared_mc = None if isData else setup.global_params.get("shared_mc")
     shared_mc_expr = None
@@ -244,9 +253,14 @@ def createAnatuple(
         for shape_unc_source in shape_sources:
             for shape_unc_scale in getScales(shape_unc_source):
                 shape_unc_name = getSystName(shape_unc_source, shape_unc_scale)
+                # Each shape producer contributes its varied branch only for the source
+                # it owns, and its central branch otherwise. Keying off the scale alone
+                # was correct only while pileup was the sole non-central source: with a
+                # second source the pileup weight would be varied along with it.
                 weights_to_apply = [gen_weight_name]
-                if "pu" in corrections.to_apply:
-                    weights_to_apply.append(f"weight_pu_{shape_unc_scale}")
+                weights_to_apply += shape_weight_registry.branches(
+                    shape_unc_source, shape_unc_scale
+                )
                 for p_name, p_instance in processor_instances.items():
                     output_branch_name = f"{branch_prefix}_{p_name}_{shape_unc_name}"
                     report[report_key][shape_unc_source][shape_unc_scale][p_name] = (
@@ -271,8 +285,14 @@ def createAnatuple(
                 else "genWeight"
             )
             data_frame = data_frame.Define(gen_weight_name, genWeight_def)
-            if "pu" in corrections.to_apply:
-                data_frame = corrections.pu.getWeight(data_frame)
+            # respect_enabled=False preserves the existing behaviour: this call site has
+            # always defined the pileup weights regardless of the `enabled` config, so
+            # the denominator carries them even where the numerator stage would not.
+            data_frame, _ = corrections.defineShapeWeights(
+                data_frame,
+                return_variations=compute_unc_variations,
+                respect_enabled=False,
+            )
             updateDenomEntry(data_frame, "denominator", "weight_denom")
             if shared_mc_expr:
                 data_frame = data_frame.Define("__shared_mc_in_era", shared_mc_expr)

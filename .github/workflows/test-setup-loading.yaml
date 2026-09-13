@@ -24,6 +24,16 @@ jobs:
           cd FLAF
           git submodule update --init --recursive
 
+      # test_setup_loading.py imports Corrections to map each shape-weight source to the
+      # correction that owns it. Without this step Corrections/ is an empty directory,
+      # which Python imports as a namespace package, so the failure reads
+      # "No module named 'Corrections.Corrections'".
+      - name: Initialize Corrections submodule
+        run: |
+          if git config -f .gitmodules --get submodule.Corrections.path > /dev/null; then
+            git submodule update --init Corrections
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

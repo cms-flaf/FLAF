@@ -108,19 +108,26 @@ def applyBadMETfilter(df, badMET_flag_runs, isData):
         return df
 
 
+def DefineGenLeptons(df, isData=False):
+    """Define genLeptons, unless it is already defined."""
+    if "genLeptons" in df.GetColumnNames():
+        return df
+    if isData:
+        return df.Define("genLeptons", "std::vector<reco_tau::gen_truth::GenLepton>()")
+    return df.Define(
+        "genLeptons",
+        """reco_tau::gen_truth::GenLepton::fromNanoAOD(GenPart_pt, GenPart_eta,
+                                    GenPart_phi, GenPart_mass, GenPart_genPartIdxMother, GenPart_pdgId,
+                                    GenPart_statusFlags, event)""",
+    )
+
+
 def DefineGenObjects(
     df, isData=False, isHH=False, Hbb_AK4mass_mpv=125.0, p4_suffix="nano"
 ):
-    if isData:
-        df = df.Define("genLeptons", "std::vector<reco_tau::gen_truth::GenLepton>()")
-    else:
+    df = DefineGenLeptons(df, isData)
+    if not isData:
         df = df.Define("GenPart_daughters", "GetDaughters(GenPart_genPartIdxMother)")
-        df = df.Define(
-            "genLeptons",
-            """reco_tau::gen_truth::GenLepton::fromNanoAOD(GenPart_pt, GenPart_eta,
-                                        GenPart_phi, GenPart_mass, GenPart_genPartIdxMother, GenPart_pdgId,
-                                        GenPart_statusFlags, event)""",
-        )
 
     for lep in ["Electron", "Muon", "Tau"]:
         dR_matching = 0.2 if lep != "Muon" else 0.1

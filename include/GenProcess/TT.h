@@ -1,7 +1,8 @@
 /*! Strict generator-level identification of the ttbar process.
 
 Verifies the expected topology (exactly two last-copy tops, one t and one tbar; each
-top -> W b; each W -> l nu or q q') and returns a struct describing the two W decays.
+top -> W b; each W -> l nu or q q') and returns a struct describing the two W decays. When
+GenPart_pt is passed as well, the struct also carries the pT of the two last-copy tops.
 Any deviation from the expected topology throws std::runtime_error so unexpected cases
 are surfaced rather than silently mis-classified.
 
@@ -28,6 +29,12 @@ namespace tt {
     struct TTInfo {
         //! Decay of each of the two W bosons.
         std::array<WDecay, 2> w_decay{{WDecay::ToHadrons, WDecay::ToHadrons}};
+
+        //! pT of the last-copy top (index 0) and anti-top (index 1), ordered by charge rather
+        //! than by GenPart position. The last copy is the top after radiation and before decay,
+        //! which is what the top pT reweighting is defined on. Filled only when identify() is
+        //! given GenPart_pt; -1 otherwise.
+        std::array<float, 2> top_pt{{-1.f, -1.f}};
 
         //! Number of leptonically decaying W's (0, 1 or 2); tau counts as leptonic.
         int nLeptonicW() const {
@@ -56,10 +63,11 @@ namespace tt {
         }
     }  // namespace detail
 
-    template <typename VecId, typename VecFlags, typename VecMother>
+    template <typename VecId, typename VecFlags, typename VecMother, typename VecPt = std::vector<float>>
     TTInfo identify(const VecId& GenPart_pdgId,
                     const VecFlags& GenPart_statusFlags,
-                    const VecMother& GenPart_genPartIdxMother) {
+                    const VecMother& GenPart_genPartIdxMother,
+                    const VecPt* GenPart_pt = nullptr) {
         const auto daughters = detail::daughterMap(GenPart_genPartIdxMother);
         const std::size_t n = GenPart_pdgId.size();
         const auto apdg = [&](int i) { return std::abs(static_cast<int>(GenPart_pdgId[i])); };
@@ -77,6 +85,13 @@ namespace tt {
             throw std::runtime_error("gen_process::tt: expected one top and one anti-top");
 
         TTInfo info;
+        if (GenPart_pt != nullptr) {
+            // The sign check above guarantees exactly one top and one anti-top.
+            for (const int top : tops) {
+                const std::size_t slot = static_cast<int>(GenPart_pdgId[top]) > 0 ? 0 : 1;
+                info.top_pt[slot] = static_cast<float>((*GenPart_pt)[top]);
+            }
+        }
         for (int k = 0; k < 2; ++k) {
             const int top = tops[k];
 
@@ -145,6 +160,16 @@ namespace tt {
             }
         }
         return info;
+    }
+
+    //! As above, taking GenPart_pt by reference -- the form an RDataFrame expression naming
+    //! the column uses -- and filling TTInfo::top_pt.
+    template <typename VecId, typename VecFlags, typename VecMother, typename VecPt>
+    TTInfo identify(const VecId& GenPart_pdgId,
+                    const VecFlags& GenPart_statusFlags,
+                    const VecMother& GenPart_genPartIdxMother,
+                    const VecPt& GenPart_pt) {
+        return identify(GenPart_pdgId, GenPart_statusFlags, GenPart_genPartIdxMother, &GenPart_pt);
     }
 
 }  // namespace tt

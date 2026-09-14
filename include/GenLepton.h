@@ -860,5 +860,30 @@ namespace reco_tau {
             return nullptr;
         }
 
+        //! Like findLeptonByIndex, for a GenPart index that may be absent: a negative index means
+        //! there is no lepton and gives nullptr, while an index that matches no lepton throws.
+        inline const GenLepton *findLeptonByGenPartIndex(const std::vector<GenLepton> &leptons, int genPart_idx) {
+            if (genPart_idx < 0)
+                return nullptr;
+            const GenLepton *lepton = findLeptonByIndex(leptons, static_cast<size_t>(genPart_idx));
+            if (!lepton)
+                throw std::runtime_error("GenLepton: no gen lepton for GenPart index " + std::to_string(genPart_idx));
+            return lepton;
+        }
+
+        //! Last-copy four-momentum of the gen lepton at a GenPart index -- the definition the
+        //! leptonic legs of GetGenHVVCandidate use -- or a zero vector when there is no lepton.
+        inline LorentzVectorM lastCopyP4ByGenPartIndex(const std::vector<GenLepton> &leptons, int genPart_idx) {
+            const GenLepton *lepton = findLeptonByGenPartIndex(leptons, genPart_idx);
+            return lepton ? lepton->lastCopy().p4 : LorentzVectorM(0, 0, 0, 0);
+        }
+
+        //! GenLepton::Kind of the gen lepton at a GenPart index as an int, as the reco legs'
+        //! gen_kind stores it; -1 when there is no lepton.
+        inline int kindByGenPartIndex(const std::vector<GenLepton> &leptons, int genPart_idx) {
+            const GenLepton *lepton = findLeptonByGenPartIndex(leptons, genPart_idx);
+            return lepton ? static_cast<int>(lepton->kind()) : -1;
+        }
+
     }  // namespace gen_truth
 }  // namespace reco_tau

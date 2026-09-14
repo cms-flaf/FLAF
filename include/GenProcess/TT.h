@@ -2,7 +2,9 @@
 
 Verifies the expected topology (exactly two last-copy tops, one t and one tbar; each
 top -> W b; each W -> l nu or q q') and returns a struct describing the two W decays. When
-GenPart_pt is passed as well, the struct also carries the pT of the two last-copy tops.
+the GenPart kinematics are passed as well, the struct also carries the four-momenta of the
+two last-copy tops and of their b quarks; the GenPart index of each leptonic W's charged
+lepton is always filled.
 Any deviation from the expected topology throws std::runtime_error so unexpected cases
 are surfaced rather than silently mis-classified.
 
@@ -20,6 +22,8 @@ older ones).
 #include <string>
 #include <vector>
 
+#include "Math/Vector4D.h"
+
 namespace gen_process {
 namespace tt {
 
@@ -30,11 +34,22 @@ namespace tt {
         //! Decay of each of the two W bosons.
         std::array<WDecay, 2> w_decay{{WDecay::ToHadrons, WDecay::ToHadrons}};
 
-        //! pT of the last-copy top (index 0) and anti-top (index 1), ordered by charge rather
-        //! than by GenPart position. The last copy is the top after radiation and before decay,
-        //! which is what the top pT reweighting is defined on. Filled only when identify() is
-        //! given GenPart_pt; -1 otherwise.
-        std::array<float, 2> top_pt{{-1.f, -1.f}};
+        // The members below are indexed by charge rather than by GenPart position: [0] is
+        // always the top and what it decays to, [1] the anti-top and what it decays to.
+
+        //! Four-momentum of the last-copy top and anti-top -- after radiation and before
+        //! decay, which is what the top pT reweighting is defined on. Zero unless identify()
+        //! is given the GenPart kinematics.
+        std::array<ROOT::Math::PtEtaPhiMVector, 2> top_p4{};
+
+        //! Four-momentum of the b quark each top decays to, as the direct top daughter (before
+        //! FSR). Zero unless identify() is given the GenPart kinematics.
+        std::array<ROOT::Math::PtEtaPhiMVector, 2> b_p4{};
+
+        //! GenPart index of the charged lepton (e, mu or tau) from each top's W: the direct
+        //! daughter of the W's last copy, -1 when that W decays to hadrons. Resolving it to a
+        //! gen lepton, e.g. with reco_tau::gen_truth::findLeptonByIndex, is left to the caller.
+        std::array<int, 2> lep_index{{-1, -1}};
 
         //! Number of leptonically decaying W's (0, 1 or 2); tau counts as leptonic.
         int nLeptonicW() const {
@@ -61,13 +76,24 @@ namespace tt {
             }
             return daughters;
         }
+
+        //! The GenPart kinematic columns, bundled so identify() can take them optionally.
+        template <typename VecF>
+        struct Kinematics {
+            const VecF& pt;
+            const VecF& eta;
+            const VecF& phi;
+            const VecF& mass;
+
+            ROOT::Math::PtEtaPhiMVector p4(int i) const { return {pt[i], eta[i], phi[i], mass[i]}; }
+        };
     }  // namespace detail
 
-    template <typename VecId, typename VecFlags, typename VecMother, typename VecPt = std::vector<float>>
+    template <typename VecId, typename VecFlags, typename VecMother, typename VecF = std::vector<float>>
     TTInfo identify(const VecId& GenPart_pdgId,
                     const VecFlags& GenPart_statusFlags,
                     const VecMother& GenPart_genPartIdxMother,
-                    const VecPt* GenPart_pt = nullptr) {
+                    const detail::Kinematics<VecF>* kinematics = nullptr) {
         const auto daughters = detail::daughterMap(GenPart_genPartIdxMother);
         const std::size_t n = GenPart_pdgId.size();
         const auto apdg = [&](int i) { return std::abs(static_cast<int>(GenPart_pdgId[i])); };
@@ -85,15 +111,11 @@ namespace tt {
             throw std::runtime_error("gen_process::tt: expected one top and one anti-top");
 
         TTInfo info;
-        if (GenPart_pt != nullptr) {
-            // The sign check above guarantees exactly one top and one anti-top.
-            for (const int top : tops) {
-                const std::size_t slot = static_cast<int>(GenPart_pdgId[top]) > 0 ? 0 : 1;
-                info.top_pt[slot] = static_cast<float>((*GenPart_pt)[top]);
-            }
-        }
         for (int k = 0; k < 2; ++k) {
             const int top = tops[k];
+            const std::size_t slot = static_cast<int>(GenPart_pdgId[top]) > 0 ? 0 : 1;
+            if (kinematics != nullptr)
+                info.top_p4[slot] = kinematics->p4(top);
 
             // 2. top -> W b (ISR/FSR gluons and photons allowed).
             int w = -1, b = -1;
@@ -116,6 +138,8 @@ namespace tt {
                 throw std::runtime_error("gen_process::tt: top without a W daughter");
             if (b < 0)
                 throw std::runtime_error("gen_process::tt: top without a b daughter");
+            if (kinematics != nullptr)
+                info.b_p4[slot] = kinematics->p4(b);
 
             // 3. Resolve the W to its last copy, then require W -> l nu or W -> q q'.
             int w_last = w;
@@ -153,6 +177,7 @@ namespace tt {
             }
             if (lepton >= 0 && neutrino >= 0 && n_quarks == 0) {
                 info.w_decay[k] = static_cast<WDecay>(apdg(lepton));
+                info.lep_index[slot] = lepton;
             } else if (lepton < 0 && neutrino < 0 && n_quarks == 2) {
                 info.w_decay[k] = WDecay::ToHadrons;
             } else {
@@ -162,14 +187,18 @@ namespace tt {
         return info;
     }
 
-    //! As above, taking GenPart_pt by reference -- the form an RDataFrame expression naming
-    //! the column uses -- and filling TTInfo::top_pt.
-    template <typename VecId, typename VecFlags, typename VecMother, typename VecPt>
+    //! As above, and also fill TTInfo::top_p4 and TTInfo::b_p4 from the GenPart kinematics --
+    //! the form an RDataFrame expression naming the columns uses.
+    template <typename VecId, typename VecFlags, typename VecMother, typename VecF>
     TTInfo identify(const VecId& GenPart_pdgId,
                     const VecFlags& GenPart_statusFlags,
                     const VecMother& GenPart_genPartIdxMother,
-                    const VecPt& GenPart_pt) {
-        return identify(GenPart_pdgId, GenPart_statusFlags, GenPart_genPartIdxMother, &GenPart_pt);
+                    const VecF& GenPart_pt,
+                    const VecF& GenPart_eta,
+                    const VecF& GenPart_phi,
+                    const VecF& GenPart_mass) {
+        const detail::Kinematics<VecF> kinematics{GenPart_pt, GenPart_eta, GenPart_phi, GenPart_mass};
+        return identify(GenPart_pdgId, GenPart_statusFlags, GenPart_genPartIdxMother, &kinematics);
     }
 
 }  // namespace tt

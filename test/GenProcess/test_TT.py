@@ -2,11 +2,8 @@
 """Test the strict gen-level TT identification (FLAF/include/GenProcess/TT.h) on a nanoAOD file.
 
 Runs ``gen_process::tt::identify`` over every event and checks that none throw (i.e. every
-event has the expected ttbar topology), and prints the W-decay-mode distribution. The
-overload taking the GenPart kinematics is used, so the last-copy top and b-quark
-four-momenta (``TTInfo::top_p4``, ``TTInfo::b_p4``) are summarised as well. An event also
-counts as a failure if a top or b quark has a non-positive pT, or if the number of
-charged-lepton indices (``TTInfo::lep_index``) differs from the number of leptonic W's.
+event has the expected ttbar topology), and prints the W-decay-mode distribution and the
+mean top and b pT.
 
 Usage:
     test_TT.py --input <nanoAOD.root> [<nanoAOD.root> ...] [--tree Events] [--max-events N]

@@ -1,10 +1,8 @@
 /*! Strict generator-level identification of the ttbar process.
 
 Verifies the expected topology (exactly two last-copy tops, one t and one tbar; each
-top -> W b; each W -> l nu or q q') and returns a struct describing the two W decays. When
-the GenPart kinematics are passed as well, the struct also carries the four-momenta of the
-two last-copy tops and of their b quarks; the GenPart index of each leptonic W's charged
-lepton is always filled.
+top -> W b; each W -> l nu or q q') and returns a struct describing the two W decays, the
+W charged-lepton indices and, if the kinematics are given, the top and b four-momenta.
 Any deviation from the expected topology throws std::runtime_error so unexpected cases
 are surfaced rather than silently mis-classified.
 
@@ -34,22 +32,10 @@ namespace tt {
         //! Decay of each of the two W bosons.
         std::array<WDecay, 2> w_decay{{WDecay::ToHadrons, WDecay::ToHadrons}};
 
-        // The members below are indexed by charge rather than by GenPart position: [0] is
-        // always the top and what it decays to, [1] the anti-top and what it decays to.
-
-        //! Four-momentum of the last-copy top and anti-top -- after radiation and before
-        //! decay, which is what the top pT reweighting is defined on. Zero unless identify()
-        //! is given the GenPart kinematics.
-        std::array<ROOT::Math::PtEtaPhiMVector, 2> top_p4{};
-
-        //! Four-momentum of the b quark each top decays to, as the direct top daughter (before
-        //! FSR). Zero unless identify() is given the GenPart kinematics.
-        std::array<ROOT::Math::PtEtaPhiMVector, 2> b_p4{};
-
-        //! GenPart index of the charged lepton (e, mu or tau) from each top's W: the direct
-        //! daughter of the W's last copy, -1 when that W decays to hadrons. Resolving it to a
-        //! gen lepton, e.g. with reco_tau::gen_truth::findLeptonByIndex, is left to the caller.
-        std::array<int, 2> lep_index{{-1, -1}};
+        // Indexed by charge: [0] top, [1] anti-top. The p4s are zero unless kinematics are given.
+        std::array<ROOT::Math::PtEtaPhiMVector, 2> top_p4{};  //!< last copy
+        std::array<ROOT::Math::PtEtaPhiMVector, 2> b_p4{};    //!< direct top daughter
+        std::array<int, 2> lep_index{{-1, -1}};               //!< GenPart index of the W lepton, -1 if hadronic
 
         //! Number of leptonically decaying W's (0, 1 or 2); tau counts as leptonic.
         int nLeptonicW() const {
@@ -77,7 +63,6 @@ namespace tt {
             return daughters;
         }
 
-        //! The GenPart kinematic columns, bundled so identify() can take them optionally.
         template <typename VecF>
         struct Kinematics {
             const VecF& pt;
@@ -187,8 +172,7 @@ namespace tt {
         return info;
     }
 
-    //! As above, and also fill TTInfo::top_p4 and TTInfo::b_p4 from the GenPart kinematics --
-    //! the form an RDataFrame expression naming the columns uses.
+    //! As above, also filling top_p4 and b_p4.
     template <typename VecId, typename VecFlags, typename VecMother, typename VecF>
     TTInfo identify(const VecId& GenPart_pdgId,
                     const VecFlags& GenPart_statusFlags,

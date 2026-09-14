@@ -32,8 +32,7 @@ def main():
     header = os.path.join(flaf, "include", "GenProcess", "TT.h")
     if not ROOT.gInterpreter.Declare(f'#include "{header}"'):
         raise RuntimeError(f"failed to declare {header}")
-    ROOT.gInterpreter.Declare(
-        """
+    ROOT.gInterpreter.Declare("""
     #include <array>
     #include <exception>
     #include <string>
@@ -74,8 +73,7 @@ def main():
             return r;
         }
     }
-    """
-    )
+    """)
 
     df = ROOT.RDataFrame(args.tree, list(args.input))
     if args.max_events:

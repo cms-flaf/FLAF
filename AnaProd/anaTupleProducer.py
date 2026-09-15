@@ -275,6 +275,19 @@ def createAnatuple(
                     )
         return rdf
 
+    # Gen-level variables go before the denominator, which sums over all events.
+    gen_columns = []
+    if not isData and hasattr(anaTupleDef, "defineGenVariables"):
+        df = Baseline.DefineGenLeptons(df, isData)
+        dfw_gen = Utilities.DataFrameWrapper(df)
+        anaTupleDef.defineGenVariables(dfw_gen, dataset_cfg)
+        df, gen_columns = dfw_gen.df, dfw_gen.colToSave
+        if df_not_selected is not None:
+            df_not_selected = Baseline.DefineGenLeptons(df_not_selected, isData)
+            dfw_gen_not_selected = Utilities.DataFrameWrapper(df_not_selected)
+            anaTupleDef.defineGenVariables(dfw_gen_not_selected, dataset_cfg)
+            df_not_selected = dfw_gen_not_selected.df
+
     if not isData:
         for data_frame in [df, df_not_selected]:
             if data_frame is None:
@@ -370,7 +383,7 @@ def createAnatuple(
         suffix = "" if is_central else f"_{syst_name}"
         if len(suffix) and not store_noncentral:
             continue
-        columns_to_save = anaTupleDef.getDefaultColumnsToSave(isData)
+        columns_to_save = anaTupleDef.getDefaultColumnsToSave(isData) + gen_columns
         dfw = Utilities.DataFrameWrapper(df_empty, columns_to_save)
         dfw.Apply(
             Baseline.SelectRecoP4,

@@ -383,7 +383,14 @@ def createAnatuple(
         suffix = "" if is_central else f"_{syst_name}"
         if len(suffix) and not store_noncentral:
             continue
-        columns_to_save = anaTupleDef.getDefaultColumnsToSave(isData) + gen_columns
+        # An analysis may keep a gen column on the central tree alone -- a per-member
+        # weight vector is a variation of the nominal shape, so a shifted tree cannot
+        # use it and only pays its size.
+        tree_gen_columns = gen_columns
+        if not is_central:
+            central_only = set(getattr(anaTupleDef, "central_only_columns", []))
+            tree_gen_columns = [c for c in gen_columns if c not in central_only]
+        columns_to_save = anaTupleDef.getDefaultColumnsToSave(isData) + tree_gen_columns
         dfw = Utilities.DataFrameWrapper(df_empty, columns_to_save)
         dfw.Apply(
             Baseline.SelectRecoP4,

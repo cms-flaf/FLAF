@@ -42,11 +42,8 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     dir_name = "/".join(key_tuple)
     dir_ptr = Utilities.mkdir(outFile, dir_name)
 
-    merged_hist = model.GetHistogram().Clone()
-    # Detach from the current ROOT directory: the histogram is persisted explicitly via
-    # WriteTObject below, so it must not also be auto-flushed into the output file's root
-    # (which would leave one stray, unnamed histogram per call when writing directly).
-    merged_hist.SetDirectory(0)
+    # The model hands out a fresh, directory-less histogram on every call, and Python owns it.
+    merged_hist = model.GetHistogram()
     N_bins = (
         unit_hist.GetNbins()
         if hasattr(unit_hist, "GetNbins")

@@ -31,6 +31,11 @@ class TestNanoAODDatasetPaths(unittest.TestCase):
             for dataset_name, dataset_desc in datasets.items():
                 nanoaod_versions = dataset_desc.get("nanoAOD") or {}
                 for version, dataset_path in nanoaod_versions.items():
+                    if not isinstance(dataset_path, str):
+                        failures.append(
+                            f"{era}/{dataset_name}/nanoAOD/{version}: {dataset_path!r}"
+                        )
+                        continue
                     dataset_tier = dataset_path.rstrip("/").split("/")[-1]
                     if dataset_tier not in {"NANOAOD", "NANOAODSIM"}:
                         failures.append(

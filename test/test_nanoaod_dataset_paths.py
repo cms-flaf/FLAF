@@ -13,6 +13,8 @@ config_dir = os.path.join(flaf_repo, "config")
 
 def iter_run3_dataset_files():
     for era in sorted(os.listdir(config_dir)):
+        if not era.startswith("Run3_"):
+            continue
         datasets_file = os.path.join(config_dir, era, "datasets.yaml")
         if os.path.isfile(datasets_file):
             yield era, datasets_file

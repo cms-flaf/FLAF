@@ -33,7 +33,7 @@ class TestNanoAODDatasetPaths(unittest.TestCase):
                 for version, dataset_path in nanoaod_versions.items():
                     if not isinstance(dataset_path, str):
                         failures.append(
-                            f"{era}/{dataset_name}/nanoAOD/{version}: {dataset_path!r}"
+                            f"{era}/{dataset_name}/nanoAOD/{version}: unexpected non-string value {dataset_path!r}"
                         )
                         continue
                     dataset_tier = dataset_path.rstrip("/").split("/")[-1]

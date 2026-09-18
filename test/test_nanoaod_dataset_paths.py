@@ -6,7 +6,6 @@ import unittest
 
 import yaml
 
-
 flaf_repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 config_dir = os.path.join(flaf_repo, "config")
 

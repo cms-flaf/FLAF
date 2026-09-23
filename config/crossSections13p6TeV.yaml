@@ -878,13 +878,10 @@ TTNuNu:
   reference: XSDB TTNuNu_TuneCP5_13p6TeV_amcatnlo-pythia8 retrieved 2026-09-24
   unc: 0.00007274
 
-# FILL ME: the value read from XSDB (0.8646 pb) is ~10x the expected ttZ->ll (MLL>50)
-# ~0.08 pb, i.e. about half of TTNuNu; confirm before uncommenting. Until then
-# anaTupleProducer refuses TTLL_MLL_50* with "unknown entry".
-# TTLL_MLL_50:
-#   crossSec:
-#   reference: XSDB TTLL_MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8 retrieved 2026-09-24
-#   unc: 0.0000552
+TTLL_MLL_50:
+  crossSec: 0.08646
+  reference: XSDB TTLL_MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8 retrieved 2026-09-24
+  unc: 0.0000552
 
 TTWH:
   crossSec: 0.001252

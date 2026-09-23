@@ -237,6 +237,11 @@ def natural_sort(l):
     return sorted(l, key=alphanum_key)
 
 
+def on_batch_node():
+    """True inside a law remote job (HTCondor or CRAB); law exports LAW_JOB_HOME there."""
+    return bool(os.getenv("LAW_JOB_HOME"))
+
+
 def check_root_file_integrity(file_name, tmp_file=None, verbose=1):
     if tmp_file is None:
         tmp_file_desc, tmp_file = tempfile.mkstemp()

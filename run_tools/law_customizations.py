@@ -10,14 +10,16 @@ import shutil
 import sys
 import subprocess
 import tempfile
+import threading
 import time
 
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 
 from law.parser import global_cmdline_values
 
-from FLAF.RunKit.run_tools import natural_sort
+from FLAF.RunKit.run_tools import natural_sort, on_batch_node, timed_call_wrapper
 from FLAF.RunKit.kinit import update_kinit
+from FLAF.run_tools.crab_sites import SiteStats, processing_sites, resolve_whitelist
 from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget, WLCGDirectoryTarget
 from FLAF.Common.Setup import Setup
 from FLAF.AnaProd.CostModel import pack_units
@@ -779,6 +781,16 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     configuration is required.
     """
 
+    # Resource requests are per-task decisions: without this, a requiring task's own
+    # max_runtime / n_cpus (e.g. a 2 h / 1 CPU plot task) would be copied through req()
+    # onto everything it requires, silently capping the production jobs upstream.
+    # Workflow <-> branch conversion is unaffected (law passes _skip_task_excludes there),
+    # so CLI-given per-task values still reach that task's branches.
+    exclude_params_req = law.htcondor.HTCondorWorkflow.exclude_params_req | {
+        "max_runtime",
+        "n_cpus",
+    }
+
     max_runtime = law.DurationParameter(
         default=12.0,
         unit="h",
@@ -834,6 +846,13 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         Bundles are optional for HTCondor (shared AFS is available) but required for CRAB
         (WLCG workers have no AFS mount).
         """
+        # A worker already runs from the unpacked bundle. The --bundle flag is forwarded
+        # into the worker command line (insignificant params are serialized too), and a
+        # grouped job evaluates workflow_requires() there — without this guard it would
+        # require BundleTask and, on a transient false-incomplete, rebuild and overwrite
+        # the live tarball other jobs are downloading.
+        if on_batch_node():
+            return False
         if not self.bundle_flavours:
             return False
         if getattr(self, "effective_workflow", None) == "crab":
@@ -1147,7 +1166,9 @@ class _BundleAwareHTCondorWorkflowProxy(
         opportunity to re-pack the work that has not been submitted yet with the better
         estimates that the finished jobs provide.
         """
-        if not self._cost_scheduling_enabled() or _cli_has_parallel_jobs():
+        if not self._cost_scheduling_enabled() or _cli_has_param(
+            "parallel-jobs", self.task.get_task_family()
+        ):
             return
         if self.poll_data.n_parallel != self.n_parallel_max:
             return
@@ -1439,6 +1460,211 @@ class FLAFCrabJobFileFactory(law.cms.CrabJobFileFactory):
             f.writelines(new_lines)
 
 
+class FLAFCrabJobManager(law.cms.CrabJobManager):
+    """CRAB job manager that rides out a status response it cannot read, keeps the CRAB
+    client out of the AFS home, and feeds the per-site job record.
+
+    ``crab status`` occasionally returns output with no "Status on the CRAB server" line
+    at all. law then raises, and because a group failure is mapped onto every job of the
+    CRAB task, one such response becomes one error per job (4763 identical errors in a
+    single poll of the DSProd production). Worse, law skips the whole poll iteration on
+    any query error: no status line, no resubmission of retry jobs, and any other task's
+    good data discarded with it — ``poll_fails`` consecutive occurrences kill the
+    workflow.
+
+    The condition is transient, so the query is simply retried. If it still cannot be
+    read, the task's jobs are reported as pending — what law itself does when a freshly
+    submitted task has no per-job information yet — and the fact is published once, for
+    the task, instead of once per job. A task that stays unreadable for
+    ``max_unreadable_polls`` consecutive polls does raise: a production that quietly
+    stalls is worse than one that stops.
+    """
+
+    #: attempts, and the pause between them, before a status response is given up on
+    query_retries = 3
+    query_retry_delay = 15.0
+
+    #: consecutive unreadable polls of one task that are tolerated before raising
+    max_unreadable_polls = 10
+
+    #: in-flight site counts of a project not queried for this long stop counting
+    in_flight_stale_seconds = 3600.0
+
+    def __init__(self, *args, **kwargs):
+        super(FLAFCrabJobManager, self).__init__(*args, **kwargs)
+        #: proj_dir -> number of consecutive polls whose response could not be read
+        self._unreadable = {}
+        #: sandbox env with HOME moved off AFS, built once per manager
+        self._flaf_env = None
+        #: per-site job record, injected by CrabWorkflow.crab_create_job_manager;
+        #: None disables harvesting
+        self.site_stats = None
+        self._stats_lock = threading.Lock()
+        self._stats_seen = set()
+        #: proj_dir -> (timestamp, Counter of jobs still pending/running per site)
+        self._in_flight = {}
+
+    @property
+    def cmssw_env(self):
+        """The sandbox env with the CRAB client kept out of the AFS home.
+
+        CRAB rewrites its task cache ``~/.crab3`` (via ``~/.crab3.<pid>``) on every
+        command, status polls included — with ``$HOME`` on AFS a multi-day production
+        dies with PermissionError the moment the AFS token lapses, presenting as a
+        status-query failure for every job at once. So every crab invocation gets a home
+        of its own under the local tmp; ``--proxy`` is passed explicitly on every
+        command, so ``~/.globus`` from the real home is never needed.
+
+        A ``crab`` wrapper on PATH additionally runs every subcommand except ``submit``
+        from that home, so ``crab.log`` does not land wherever law happens to run.
+        ``submit`` must keep its directory: law runs it with cwd = the job-file directory
+        and the generated config names ``scriptExe``/``inputFiles`` relative to it, which
+        CRAB resolves against the cwd.
+        """
+        if self._flaf_env is None:
+            # never mutate the base env: law caches it process-wide per sandbox
+            env = dict(law.cms.CrabJobManager.cmssw_env.fget(self))
+            home = os.path.join(tempfile.gettempdir(), f"flaf_crab_home_{os.getuid()}")
+            bin_dir = os.path.join(home, "bin")
+            os.makedirs(bin_dir, exist_ok=True)
+            wrapper = os.path.join(bin_dir, "crab")
+            content = (
+                "#!/bin/bash\n"
+                "# Written by FLAF (run_tools/law_customizations.py). Keeps crab.log\n"
+                "# out of the working area; submit must keep its cwd (the generated\n"
+                "# config names scriptExe/inputFiles relative to it).\n"
+                'case "$1" in\n'
+                "  submit) ;;\n"
+                '  *) cd "$HOME" || exit 1 ;;\n'
+                "esac\n"
+                'exec /cvmfs/cms.cern.ch/common/crab "$@"\n'
+            )
+            try:
+                current = open(wrapper).read()
+            except OSError:
+                current = None
+            if current != content:
+                tmp = f"{wrapper}.tmp{os.getpid()}"
+                with open(tmp, "w") as f:
+                    f.write(content)
+                os.chmod(tmp, 0o755)
+                os.replace(tmp, wrapper)
+            env["HOME"] = home
+            env["PATH"] = f"{bin_dir}:{env.get('PATH', '')}"
+            self._flaf_env = env
+        return self._flaf_env
+
+    @classmethod
+    def parse_query_output(cls, out, proj_dir, job_ids, skip_transfers=False):
+        """Parse a status response, and say what it looked like when that fails.
+
+        law's error names the server status it ended up with ("but got 'None'") but never
+        the output it read, so an unreadable response cannot be diagnosed after the fact.
+        Attach the head of it — the status lines live in the first few lines, and the
+        per-job JSON that follows is megabytes, so a slice is enough.
+        """
+        try:
+            return super(FLAFCrabJobManager, cls).parse_query_output(
+                out, proj_dir, job_ids, skip_transfers=skip_transfers
+            )
+        except Exception as exc:
+            head = [
+                line[:200]
+                for line in (out or "").replace("\r", "").split("\n")[:12]
+                if not line.startswith("{")
+            ]
+            shown = "\n      ".join(head) or "<no output>"
+            raise Exception(
+                f"{exc}\n    first lines of what crab returned ({len(out or '')} bytes):"
+                f"\n      {shown}"
+            )
+
+    def query(self, proj_dir, job_ids=None, *args, **kwargs):
+        proj_dir = str(proj_dir)
+        last_error = None
+        for attempt in range(self.query_retries + 1):
+            try:
+                result = super(FLAFCrabJobManager, self).query(
+                    proj_dir, job_ids=job_ids, *args, **kwargs
+                )
+            except Exception as exc:
+                last_error = exc
+                if attempt < self.query_retries:
+                    time.sleep(self.query_retry_delay)
+                continue
+            self._unreadable.pop(proj_dir, None)
+            self._harvest_site_stats(proj_dir, result)
+            return result
+
+        n = self._unreadable.get(proj_dir, 0) + 1
+        self._unreadable[proj_dir] = n
+        if n > self.max_unreadable_polls:
+            raise Exception(
+                f"the status of {os.path.basename(proj_dir)} has been unreadable for {n} "
+                f"consecutive polls; last error: {last_error}"
+            )
+        print(
+            f"could not read the status of {os.path.basename(proj_dir)} "
+            f"({n}/{self.max_unreadable_polls} consecutive), keeping its jobs pending: "
+            f"{last_error}"
+        )
+        if job_ids is None:
+            job_ids = self._job_ids_from_proj_dir(proj_dir)
+        if job_ids is None:
+            # without a readable crab.log there is nothing to degrade to
+            raise last_error
+        return {
+            job_id: self.job_status_dict(job_id=job_id, status=self.PENDING)
+            for job_id in job_ids
+        }
+
+    def _harvest_site_stats(self, proj_dir, result):
+        """Record the outcome of every job that reached a terminal state, per site.
+
+        Keyed by the per-attempt job id straight from the parsed query result: law's poll
+        syncs per-job ``extra`` (which carries ``site_history``) onto ``job_data``
+        positionally, so with several live CRAB projects the site info there can be
+        attached to the wrong job — the record here never goes through that path. A
+        retried job lands in a new CRAB task and therefore has a new job id, so each
+        attempt counts once.
+
+        Jobs still in flight are counted too — not as outcomes, but as part of what was
+        sent to a site, which is the denominator its failure rate is measured against.
+        """
+        if self.site_stats is None or not result:
+            return
+        outcome = {self.FINISHED: True, self.FAILED: False}
+        in_flight = Counter()
+        now = time.time()
+        with self._stats_lock:
+            for job_id, data in result.items():
+                if not isinstance(data, dict):
+                    continue
+                history = (data.get("extra") or {}).get("site_history") or []
+                if not history:
+                    continue
+                site = history[-1]
+                status = data.get("status")
+                if status not in outcome:
+                    in_flight[site] += 1
+                    continue
+                key = (str(job_id), status)
+                if key in self._stats_seen:
+                    continue
+                self._stats_seen.add(key)
+                self.site_stats.record(site, outcome[status])
+            cutoff = now - self.in_flight_stale_seconds
+            self._in_flight[proj_dir] = (now, in_flight)
+            self._in_flight = {
+                p: (t, c) for p, (t, c) in self._in_flight.items() if t >= cutoff
+            }
+            combined = Counter()
+            for _, counts in self._in_flight.values():
+                combined.update(counts)
+            self.site_stats.set_in_flight(combined)
+            self.site_stats.save()
+
+
 # Require VOMS + MyProxy before submit. The CRAB server retrieves the user proxy
 # from myproxy.cern.ch (>= ~5 days remaining). A local VOMS proxy alone is not
 # enough: the client may accept the task, then the server returns SUBMITFAILED.
@@ -1448,22 +1674,24 @@ _FLAFCrabWorkflowProxyBase = law.cms.CrabWorkflow.workflow_proxy_cls
 
 _CRAB_DEFAULT_PARALLEL_JOBS = 5000
 _CRAB_DEFAULT_REFILL_FRACTION = 0.2
+_CRAB_DEFAULT_POLL_INTERVAL = 5  # minutes
 
 
-def _cli_has_parallel_jobs():
-    """True when the user passed ``--parallel-jobs`` (or a task-prefixed form)."""
+def _cli_has_param(name, task_family=None):
+    """True when the user passed ``--<name>`` (or ``--<task_family>-<name>``) on the CLI.
+
+    The match is exact, like ``_cli_has_tasks_per_job``: an option addressed to one task
+    must not silently disable the yaml value or the CRAB default for every other task in
+    the graph.
+    """
     parser = luigi.cmdline_parser.CmdlineParser.get_instance()
     tokens = list(getattr(parser, "cmdline_args", None) or [])
-    for tok in tokens:
-        if tok in ("--parallel-jobs", "--parallel_jobs"):
-            return True
-        if tok.startswith("--parallel-jobs=") or tok.startswith("--parallel_jobs="):
-            return True
-        if tok.endswith("-parallel-jobs") or tok.endswith("-parallel_jobs"):
-            return True
-        if "-parallel-jobs=" in tok or "-parallel_jobs=" in tok:
-            return True
-    return False
+    wanted = set()
+    for variant in (name.replace("_", "-"), name.replace("-", "_")):
+        wanted.add(f"--{variant}")
+        if task_family:
+            wanted.add(f"--{task_family}-{variant}")
+    return any(tok.split("=", 1)[0] in wanted for tok in tokens)
 
 
 def _cli_has_tasks_per_job(task_family):
@@ -1488,6 +1716,7 @@ class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
     def __init__(self, *args, **kwargs):
         super(_FLAFCrabWorkflowProxy, self).__init__(*args, **kwargs)
         self._apply_crab_parallel_jobs()
+        self._apply_crab_poll_interval()
 
     def _crab_refill_fraction(self):
         raw = self.task._crab_cfg().get(
@@ -1505,7 +1734,7 @@ class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
         Multi-workflow tasks inherit HTCondor's unlimited ``parallel_jobs``, so
         the CrabWorkflow class default never wins. Apply the CRAB default here.
         """
-        if _cli_has_parallel_jobs():
+        if _cli_has_param("parallel-jobs", self.task.get_task_family()):
             return
         yaml_n = self.task._crab_cfg().get("parallel_jobs")
         if yaml_n is not None:
@@ -1514,26 +1743,73 @@ class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
         if self.poll_data.n_parallel == self.n_parallel_max:
             self._set_parallel_jobs(_CRAB_DEFAULT_PARALLEL_JOBS)
 
-    def _should_submit_crab_group(self):
-        """Refill only when enough slots are free (default 20% of parallel_jobs).
+    def _apply_crab_poll_interval(self):
+        """CRAB default is a 5-minute poll; yaml then CLI override.
 
-        The first wave always submits. Unlimited ``parallel_jobs`` keeps law's
-        original behaviour (one group with every remaining job).
+        Same MRO trap as ``parallel_jobs``: multi-workflow tasks inherit HTCondor's
+        2-minute ``poll_interval``, so the CrabWorkflow class default never wins. Each
+        poll is one multi-MB ``crab status --json`` per live CRAB task, so the HTCondor
+        cadence doubles both the server load and the exposure to an unreadable response.
+
+        A value equal to the HTCondor default is indistinguishable from the inherited
+        one and is treated as unset — pin an explicit 2 on the CLI or in
+        ``crab.poll_interval``.
+        """
+        if _cli_has_param("poll-interval", self.task.get_task_family()):
+            return
+        yaml_v = self.task._crab_cfg().get("poll_interval")
+        if yaml_v is not None:
+            self.task.poll_interval = float(yaml_v)
+            return
+        htcondor_default = float(HTCondorWorkflow.poll_interval._default)
+        if float(self.task.poll_interval) == htcondor_default:
+            self.task.poll_interval = _CRAB_DEFAULT_POLL_INTERVAL
+
+    def _should_submit_crab_group(self, n_waiting):
+        """Whether to submit now, or hold jobs back so they accumulate into one CRAB task.
+
+        Creating a CRAB task is expensive and a task holds only a few thousand jobs, so a
+        production is submitted in waves of at least ``refill_fraction * parallel_jobs``
+        jobs. Jobs are held back only while such a wave is still **achievable**: once the
+        work left in the whole production — running plus waiting — can no longer fill
+        one, waiting can only delay it, so whatever is waiting goes out immediately,
+        however little that is. That covers the tail of a large production and every
+        small production (which can never fill a wave and so is never batched at all),
+        while a trickle of retries early on still accumulates.
+
+        ``n_waiting`` (unsubmitted + jobs offered for retry) is what makes this an
+        aggregation threshold at all. Gating on free slots alone let a handful of retries
+        out as their own CRAB task whenever the production did not fill
+        ``parallel_jobs``: with 3270 of 5000 slots taken, 1730 were free, so the gate was
+        open from the first poll onwards.
         """
         n_parallel = self.poll_data.n_parallel
         if n_parallel >= self.n_parallel_max:
+            # unlimited parallelism: keep law's own behaviour
             return True
-        is_first_wave = (not self.job_data.jobs) and (not self._submitted)
-        if is_first_wave:
+        if n_waiting <= 0:
             return True
-        free = n_parallel - self.poll_data.n_active
-        return free >= self._crab_refill_fraction() * n_parallel
+        n_active = self.poll_data.n_active
+        min_wave = self._crab_refill_fraction() * n_parallel
+        # a full-sized wave, and the room to run it
+        if min(n_waiting, n_parallel - n_active) >= min_wave:
+            return True
+        # even if every job still running were to fail, the next wave could not reach
+        # the bar
+        return n_active + n_waiting < min_wave
 
     def submit(self, retry_jobs=None):
-        if self._should_submit_crab_group():
-            return super(_FLAFCrabWorkflowProxy, self).submit(retry_jobs)
+        retry_jobs = retry_jobs or OrderedDict()
+        n_waiting = len(self.job_data.unsubmitted_jobs) + len(retry_jobs)
+        # A --no-poll invocation resubmits failures exactly once and then returns, so
+        # a parked job would not be offered again until someone runs the task anew —
+        # never hold anything back there.
+        if getattr(self.task, "no_poll", False) or self._should_submit_crab_group(
+            n_waiting
+        ):
+            return super(_FLAFCrabWorkflowProxy, self).submit(retry_jobs or None)
 
-        # Park retries as unsubmitted so the next eligible refill picks them up
+        # Park retries as unsubmitted so the next eligible wave picks them up
         # as one larger CRAB task instead of a 1-job task now.
         if retry_jobs:
             for job_num, branches in retry_jobs.items():
@@ -1545,7 +1821,26 @@ class _FLAFCrabWorkflowProxy(_FLAFCrabWorkflowProxyBase):
         return OrderedDict()
 
     def setup_job_manager(self):
-        """Require a valid VOMS proxy and a MyProxy credential (>= 5 days)."""
+        """Require a valid VOMS proxy, a MyProxy credential (>= 5 days), and a working
+        CRAB sandbox.
+
+        law builds the CMSSW sandbox it runs ``crab`` in lazily, inside every submission
+        attempt; a failure there is swallowed per job — each one is stored with
+        ``dummy_job_id``, polled as "unknown job id", retried, and the workflow only dies
+        when the retry tolerance is exceeded, half an hour later, with the real cause
+        nowhere in the log. Building it here (law calls this once, before the first
+        submission or poll) turns that into a single actionable error.
+        """
+        try:
+            self.job_manager.cmssw_env
+        except Exception as exc:
+            raise RuntimeError(
+                "could not set up the CMSSW sandbox that law runs `crab` in "
+                "(job.crab_sandbox_name in law.cfg): "
+                f"{exc}\nThe sandbox dumps its environment with bare `python`, which "
+                "modern CMSSW does not ship — check that `python` on PATH resolves to a "
+                "python3 (flaf_env provides one; see docs/workflow/crab.md)."
+            ) from exc
         proxy = os.environ.get("X509_USER_PROXY", "")
         if not proxy or not os.path.isfile(proxy):
             raise RuntimeError(
@@ -1640,8 +1935,10 @@ class CrabWorkflow(law.cms.CrabWorkflow):
     Law injects dummy ``userInputFiles`` when ``Data.inputDataset`` is empty,
     and the CRAB client then requires ``Site.whitelist``. If ``crab.whitelist``
     is unset, FLAF defaults to ``T1_*`` / ``T2_*`` / ``T3_*`` so jobs can run
-    at every CMS processing site. Optional ``crab.blacklist`` still excludes
-    sites.
+    at every CMS processing site. CRAB gives the whitelist precedence over the
+    blacklist, so excluded sites (configured ``crab.blacklist`` and the automatic
+    quarantine alike) are removed from the whitelist itself, expanding globs from
+    the CRIC processing-site list where needed (see ``run_tools/crab_sites.py``).
 
     CRAB workers have no AFS, so code is always shipped via the existing BundleTask
     mechanism (same as ``--bundle`` on HTCondor). Tasks must declare ``bundle_flavours``.
@@ -1652,8 +1949,12 @@ class CrabWorkflow(law.cms.CrabWorkflow):
           # whitelist: [T2_CH_CERN]   # omit to use all T1/T2/T3 sites
           # blacklist: [T2_US_MIT]
           # parallel_jobs: 5000       # --parallel-jobs default; CLI wins
-          # refill_fraction: 0.2      # refill when free slots >= this * parallel_jobs
+          # refill_fraction: 0.2      # min wave size as a fraction of parallel_jobs
+          # poll_interval: 5          # minutes between crab status polls; CLI wins
           # memory_mb_per_cpu: 2000   # CRAB JobType.maxMemoryMB / n_cpus
+          # auto_blacklist:           # site quarantine; see crab_sites.DEFAULTS
+          #   enabled: true
+          # ignore_global_blacklist: false  # waive CMS's own site blacklist (not recommended)
     """
 
     # Re-declare in the class body so law's metaclass sets _defined_workflow_proxy=True
@@ -1670,8 +1971,23 @@ class CrabWorkflow(law.cms.CrabWorkflow):
         "CRAB transferLogs stays off",
     )
 
+    #: lazily-built, throttled `kinit -R` used while polling (see crab_poll_callback)
+    _crab_kinit_update = None
+
+    #: rolling per-site job statistics, shared with the job manager (see site_stats)
+    _site_stats_obj = None
+
     def _crab_cfg(self):
         return self.global_params.get("crab") or {}
+
+    def site_stats(self):
+        """Rolling per-site job record, kept in the analysis data area across runs."""
+        if self._site_stats_obj is None:
+            self._site_stats_obj = SiteStats(
+                os.path.join(self.ana_data_path(), "crab_site_stats.json"),
+                self._crab_cfg().get("auto_blacklist"),
+            )
+        return self._site_stats_obj
 
     def _ensure_crab_pset(self, n_threads):
         """Write a minimal CRAB PSet with numberOfThreads matching JobType.numCores."""
@@ -1759,8 +2075,27 @@ process.out = cms.EndPath(process.output)
         return False
 
     def crab_poll_callback(self, poll_data):
-        update_kinit(verbose=0)
+        # A large CRAB production polls for days while law keeps writing its job-status
+        # files to the AFS work area — renew the Kerberos ticket, hourly and verbosely: a
+        # silent renewal leaves no way to tell, after a credential failure, whether it
+        # had been running at all.
+        if self._crab_kinit_update is None:
+            self._crab_kinit_update = timed_call_wrapper(
+                lambda: update_kinit(verbose=1), 3600
+            )
+        self._crab_kinit_update()
         return True
+
+    def crab_job_manager_cls(self):
+        return FLAFCrabJobManager
+
+    def crab_create_job_manager(self, **kwargs):
+        # The sandbox preflight lives in the proxy's setup_job_manager: this runs at
+        # workflow-proxy construction, i.e. also for --print-status and completeness
+        # checks, which must not build a CMSSW sandbox.
+        manager = super().crab_create_job_manager(**kwargs)
+        manager.site_stats = self.site_stats()
+        return manager
 
     def crab_job_file_factory_cls(self):
         return FLAFCrabJobFileFactory
@@ -1832,15 +2167,52 @@ process.out = cms.EndPath(process.output)
 
         # Law always sets dummy userInputFiles (no inputDataset). The CRAB client
         # then requires Site.whitelist. Default to every CMS processing site so
-        # analyses need not pin T2_CH_CERN. An explicit crab.whitelist still
-        # restricts; crab.blacklist excludes sites on top of the list used.
+        # analyses need not pin T2_CH_CERN. An explicit crab.whitelist still restricts.
         whitelist = list(self._crab_cfg().get("whitelist") or [])
         blacklist = list(self._crab_cfg().get("blacklist") or [])
         if not whitelist:
             whitelist = ["T1_*", "T2_*", "T3_*"]
-        config.crab.Site.whitelist = [str(s) for s in whitelist]
+
+        # Sites quarantined by their recent failure record; every wave is a new CRAB
+        # task, so this takes effect for the next one — retries included.
+        quarantined = [s for s in self.site_stats().blacklist() if s not in blacklist]
+
+        # CRAB gives the whitelist precedence over the blacklist, so a blacklisted site
+        # matched by a glob would silently be kept — remove it from the whitelist itself
+        # (see resolve_whitelist). CRIC is only consulted when something is excluded.
+        all_sites = []
+        if blacklist or quarantined:
+            try:
+                all_sites = processing_sites(
+                    os.path.join(self.ana_data_path(), "cms_sites.json")
+                )
+            except RuntimeError:
+                # A configured exclusion must not be silently defeated — but the
+                # quarantine is advisory, and aborting a running production because
+                # CRIC is down would cost more than one unquarantined wave.
+                if blacklist:
+                    raise
+                self.publish_message(
+                    "cannot expand the site whitelist (CRIC unreachable, no cache); "
+                    "skipping the site quarantine for this CRAB task"
+                )
+                quarantined = []
+        if quarantined:
+            self.publish_message(
+                "keeping {} site(s) out of this CRAB task after recent failures: {}".format(
+                    len(quarantined), ", ".join(quarantined)
+                )
+            )
+            blacklist += quarantined
+        sites = resolve_whitelist(whitelist, blacklist, all_sites)
+        config.crab.Site.whitelist = [str(s) for s in sites]
         config.crab.Data.ignoreLocality = True
         if blacklist:
             config.crab.Site.blacklist = [str(s) for s in blacklist]
+        # CMS's global blacklist of known-broken sites stays in force unless explicitly
+        # waived: with an open site pool it is the main protection against burning jobs
+        # at bad sites.
+        if self._crab_cfg().get("ignore_global_blacklist", False):
+            config.crab.Site.ignoreGlobalBlacklist = True
 
         return config

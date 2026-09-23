@@ -154,8 +154,6 @@ TTtoLNu2Q_ext1:
   - Run3_2025
   - Run3_2026
 TTZ_Zto2Q:
-  - Run3_2023
-  - Run3_2023BPix
   - Run3_2025
   - Run3_2026
 TTWZ:
@@ -179,6 +177,13 @@ TTZH:
   - Run3_2026
 
 ^TT(WH|WW):
+  - Run3_2025
+  - Run3_2026
+^TT(LNu_1Jets|LL_MLL_(50|4to50)|NuNu)$:
+  - Run3_2025
+  - Run3_2026
+TTLL_MLL_50_ext1:
+  - Run3_2024
   - Run3_2025
   - Run3_2026
 

@@ -1262,6 +1262,26 @@ TTZ_Zto2Q:
   generator: amcatnlo
   nanoAOD:
     v15: /TTZ-ZtoQQ-1Jets_TuneCP5_13p6TeV_amcatnloFXFXold-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+TTLNu_1Jets:
+  crossSection: TTLNu_1Jets
+  generator: amcatnlo
+  nanoAOD:
+    v15: /TTLNu-1Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-mg35x_150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+TTLL_MLL_50:
+  crossSection: TTLL_MLL_50
+  generator: amcatnlo
+  nanoAOD:
+    v15: /TTLL_Bin-MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+TTLL_MLL_4to50:
+  crossSection: TTLL_MLL_4to50
+  generator: amcatnlo
+  nanoAOD:
+    v15: /TTLL_Bin-MLL-4to50_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+TTNuNu:
+  crossSection: TTNuNu
+  generator: amcatnlo
+  nanoAOD:
+    v15: /TTNuNu_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 # /TTW-WtoQQ-1Jets_TuneCP5_13p6TeV_amcatnloFXFXold-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 # VBF #
 VBFHto2B_M125:

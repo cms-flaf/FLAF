@@ -863,27 +863,28 @@ TTZ_Zto2Q:
   reference: XSDB TTZ-ZtoQQ-1Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:49:29
   unc: 0.003767
 
-# FILL ME from XSDB, then uncomment. Left commented so CrossSectionDB still loads;
-# until then anaTupleProducer fails on these datasets with "unknown entry".
-# TTLNu_1Jets:
-#   crossSec:
-#   reference: XSDB TTLNu-1Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn
-#   unc:
-#
+TTLNu_1Jets:
+  crossSec: 0.2505
+  reference: XSDB TTLNu-1Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 retrieved 2026-09-24
+  unc: 0.001043
+
+TTLL_MLL_4to50:
+  crossSec: 0.03949
+  reference: XSDB TTLL_MLL-4to50_TuneCP5_13p6TeV_amcatnlo-pythia8 retrieved 2026-09-24
+  unc: 0.00002728
+
+TTNuNu:
+  crossSec: 0.1638
+  reference: XSDB TTNuNu_TuneCP5_13p6TeV_amcatnlo-pythia8 retrieved 2026-09-24
+  unc: 0.00007274
+
+# FILL ME: the value read from XSDB (0.8646 pb) is ~10x the expected ttZ->ll (MLL>50)
+# ~0.08 pb, i.e. about half of TTNuNu; confirm before uncommenting. Until then
+# anaTupleProducer refuses TTLL_MLL_50* with "unknown entry".
 # TTLL_MLL_50:
 #   crossSec:
-#   reference: XSDB TTLL_MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8 modifiedOn
-#   unc:
-#
-# TTLL_MLL_4to50:
-#   crossSec:
-#   reference: XSDB TTLL_MLL-4to50_TuneCP5_13p6TeV_amcatnlo-pythia8 modifiedOn
-#   unc:
-#
-# TTNuNu:
-#   crossSec:
-#   reference: XSDB TTNuNu_TuneCP5_13p6TeV_amcatnlo-pythia8 modifiedOn
-#   unc:
+#   reference: XSDB TTLL_MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8 retrieved 2026-09-24
+#   unc: 0.0000552
 
 TTWH:
   crossSec: 0.001252

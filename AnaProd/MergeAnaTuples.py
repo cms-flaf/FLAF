@@ -1,5 +1,6 @@
 import ROOT
 import os
+import re
 import sys
 import yaml
 
@@ -221,6 +222,11 @@ def mergeAnaTuples(
         )
     tmp_central_file = os.path.join(work_dir, f"{dataset_name}_central_tmp.root")
     compute_unc_variations = setup.global_params.get("compute_unc_variations", False)
+    # Columns that are inputs to the merge but not wanted in its output: the weights the
+    # `base` block is built from are read here and never again, so an analysis can ask for
+    # them to be left out. Empty by default, so nothing changes for an analysis that does
+    # not set it.
+    drop_column_patterns = setup.global_params.get("anaTupleMerge_drop_columns", [])
 
     for unc_source, unc_scale, tree_name in tree_list:
         syst_name = getSystName(unc_source, unc_scale)
@@ -255,6 +261,12 @@ def mergeAnaTuples(
                     use_genWeight_sign_only=True,
                 )
                 columns += weight_branches
+        if drop_column_patterns:
+            columns = [
+                c
+                for c in columns
+                if not any(re.search(p, c) for p in drop_column_patterns)
+            ]
         output_file = (
             tmp_central_file
             if len(root_outputs) > 1 and unc_source == central

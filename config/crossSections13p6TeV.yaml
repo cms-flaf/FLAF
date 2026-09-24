@@ -863,6 +863,26 @@ TTZ_Zto2Q:
   reference: XSDB TTZ-ZtoQQ-1Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:49:29
   unc: 0.003767
 
+TTLNu_1Jets:
+  crossSec: 0.2505
+  reference: XSDB TTLNu-1Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 retrieved 2026-09-24
+  unc: 0.001043
+
+TTLL_MLL_4to50:
+  crossSec: 0.03949
+  reference: XSDB TTLL_MLL-4to50_TuneCP5_13p6TeV_amcatnlo-pythia8 retrieved 2026-09-24
+  unc: 0.00002728
+
+TTNuNu:
+  crossSec: 0.1638
+  reference: XSDB TTNuNu_TuneCP5_13p6TeV_amcatnlo-pythia8 retrieved 2026-09-24
+  unc: 0.00007274
+
+TTLL_MLL_50:
+  crossSec: 0.08646
+  reference: XSDB TTLL_MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8 retrieved 2026-09-24
+  unc: 0.0000552
+
 TTWH:
   crossSec: 0.001252
   reference: XSDB TTWH_TuneCP5_13p6TeV_madgraph-pythia8 modifiedOn 2024-04-03 19:49:28

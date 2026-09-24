@@ -1387,6 +1387,42 @@ TTZZ:
   miniAOD: /TTZZ_TuneCP5_13p6TeV_madgraph-madspin-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v4/MINIAODSIM
   nanoAOD:
     v12: /TTZZ_TuneCP5_13p6TeV_madgraph-madspin-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v4/NANOAODSIM
+TTLNu_1Jets:
+  crossSection: TTLNu_1Jets
+  generator: amcatnlo
+  miniAOD: /TTLNu-1Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-mg35x_130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+  nanoAOD:
+    v12: /TTLNu-1Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23NanoAODv12-mg35x_130X_mcRun3_2023_realistic_v15-v2/NANOAODSIM
+TTLL_MLL_50:
+  crossSection: TTLL_MLL_50
+  generator: amcatnlo
+  miniAOD: /TTLL_MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v3/MINIAODSIM
+  nanoAOD:
+    v12: /TTLL_MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v3/NANOAODSIM
+TTLL_MLL_50_ext1:
+  crossSection: TTLL_MLL_50
+  generator: amcatnlo
+  miniAOD: /TTLL_MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15_ext1-v2/MINIAODSIM
+  nanoAOD:
+    v12: /TTLL_MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15_ext1-v2/NANOAODSIM
+TTLL_MLL_4to50:
+  crossSection: TTLL_MLL_4to50
+  generator: amcatnlo
+  miniAOD: /TTLL_MLL-4to50_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v4/MINIAODSIM
+  nanoAOD:
+    v12: /TTLL_MLL-4to50_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v4/NANOAODSIM
+TTNuNu:
+  crossSection: TTNuNu
+  generator: amcatnlo
+  miniAOD: /TTNuNu_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v3/MINIAODSIM
+  nanoAOD:
+    v12: /TTNuNu_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v3/NANOAODSIM
+TTZ_Zto2Q:
+  crossSection: TTZ_Zto2Q
+  generator: amcatnlo
+  miniAOD: /TTZ-ZtoQQ-1Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v3/MINIAODSIM
+  nanoAOD:
+    v12: /TTZ-ZtoQQ-1Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v3/NANOAODSIM
 
 ############## VBFH ##############
 ############## Htobb##############

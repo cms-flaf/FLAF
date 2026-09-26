@@ -226,14 +226,12 @@ def RebinHisto(hist_initial, new_binning, sample, wantOverflow=True, verbose=Fal
             )
 
     # Fix possible negative bins
-    fix_ok, debug_info, negative_bins = FixNegativeContributions(new_hist)
+    fix_ok, debug_info, _negative_bins = FixNegativeContributions(new_hist)
     if not fix_ok:
-        print("Negative bins not fixed:", debug_info, negative_bins)
-        for nbin in range(new_hist.GetNbinsX() + 1):
-            if new_hist.GetBinContent(nbin) < 0:
-                print(
-                    f"{sample}, bin {nbin} content is < 0: {new_hist.GetBinContent(nbin)}"
-                )
+        # One line. A net-negative histogram (aMC@NLO with a short --test sample)
+        # otherwise prints every bin, and a 2D DNN-vs-HME rebin does that once per
+        # uncertainty, category and mass — enough to fill the CI log and stall the job.
+        print(f"Negative bins not fixed for {sample}.{debug_info}")
 
     return new_hist
 

@@ -87,6 +87,9 @@ Each branch (one per variable) merges **all uncertainty sources in a single pass
 input file is read once and all histograms are written directly to the final output file.
 
 - **Parameter:** `--variables` (string; restrict which variables).
+- **Mass-specific variables:** a histogram config entry with `signal_mass: <M>` is produced by
+  `HistFromNtupleProducerTask` and merged here only for datasets without a `mass`, or whose
+  `mass` is `M`.
 
 ### `AnalysisCacheTask`
 Pre-computes a per-event payload that later stages reuse — most importantly the **b-tag shape**

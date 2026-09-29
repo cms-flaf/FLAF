@@ -132,6 +132,25 @@ class TestStitchingVariables(unittest.TestCase):
         df = make_stitcher(DYtautauStitcher).defineVariables(df)
         self.assertEqual(values(df, "DY_tautau_filter"), [7] * 4)
 
+    def test_stored_count_grouped_into_a_collection(self):
+        # FuseAnaTuples zips TTInfo_nLeptonicW with array-valued TTInfo_* columns: one copy
+        # per top, none on a placeholder row.
+        df = make_df(
+            {
+                "TTInfo_nLeptonicW": "rdfentry_ == 3 ? ROOT::RVecI{} : "
+                "ROOT::RVecI(2, static_cast<int>(rdfentry_))"
+            }
+        )
+        df = make_stitcher(TTStitcher).defineVariables(df)
+        self.assertEqual(df.GetColumnType("TT_n_leptonic_W"), "int")
+        self.assertEqual(values(df, "TT_n_leptonic_W"), [0, 1, 2, 0])
+
+    def test_stored_count_copies_must_agree(self):
+        df = make_df({"TTInfo_nLeptonicW": "ROOT::RVecI{1, 2}"})
+        df = make_stitcher(TTStitcher).defineVariables(df)
+        with self.assertRaisesRegex(Exception, "disagree"):
+            values(df, "TT_n_leptonic_W")
+
 
 class FakeCrossSectionDB:
     def __init__(self, values):

@@ -98,17 +98,26 @@ and falls back to the nanoAOD collections only when it is not there:
 ```python
 class TTStitcher(MCStitcher):
     def defineVariables(self, df):
+        _declare_helpers()  # FLAF/include/GenProcess/TT.h
         df = defineFromStoredOrExpression(
             df,
             "TT_n_leptonic_W",
             stored="TTInfo_nLeptonicW",
+            stored_expression="gen_process::tt::storedNLeptonicW(TTInfo_nLeptonicW)",
             expression="gen_process::tt::identify(...).nLeptonicW()",
-            prepare=_prepare,
         )
         return super().defineVariables(df)
 ```
 
 Both stages therefore see the same value, computed once from the nanoAOD.
+
+!!! note "A stored scalar can come back as an array"
+    `FuseAnaTuples` groups the anaTuple columns that share the text before the first underscore
+    into one collection. A scalar stored next to array-valued columns of the same prefix — HH→bb̄WW
+    keeps per-top `TTInfo_top_*` arrays beside `TTInfo_nLeptonicW` — is therefore written with one
+    copy per collection entry, and with none on a `valid == false` placeholder row. The stitcher
+    has to read it in either layout: `storedNLeptonicW` returns the scalar, or the common value of
+    the copies (0 for none, as a placeholder scalar reads), and throws if the copies disagree.
 
 !!! warning "Adding a variable to a bin selection changes the anaTuple"
     A bin that selects on a new derived variable needs that variable stored, which means the

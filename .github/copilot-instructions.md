@@ -85,7 +85,9 @@ Each of these has caused a production incident. They are ordered by how much dam
   `AnaTupleMerge`.
 - **Stitching variables must be readable at the merge stage.** Bins select on gen-level
   quantities; an anaTuple that drops `GenPart`/`LHEPart` cannot evaluate them later. New bin
-  variables need the analysis to store them (`genInfo`) with a nanoAOD fallback.
+  variables need the analysis to store them (`genInfo`) with a nanoAOD fallback. A stored
+  scalar whose prefix also carries array columns comes back from `FuseAnaTuples` as one copy per
+  collection entry, so it must be read in both layouts (`gen_process::tt::storedNLeptonicW`).
 - An empty stitching bin is not a bug: each bin's denominator is summed over the very events that
   later read it, so a bin no event falls into is never divided by.
 

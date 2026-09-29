@@ -185,5 +185,21 @@ namespace gen_process {
             return identify(GenPart_pdgId, GenPart_statusFlags, GenPart_genPartIdxMother, &kinematics);
         }
 
+        //! TTInfo_nLeptonicW as read back from an anaTuple. FuseAnaTuples groups the columns that
+        //! share the text before the first underscore, so where the analysis also stores per-top
+        //! TTInfo_* arrays the count comes back with one copy per top, and with none on a
+        //! placeholder row (valid == false), where a scalar reads 0.
+        inline int storedNLeptonicW(int n) { return n; }
+
+        template <typename Vec>
+        int storedNLeptonicW(const Vec& n) {
+            if (n.size() == 0)
+                return 0;
+            for (const auto x : n)
+                if (x != n[0])
+                    throw std::runtime_error("storedNLeptonicW: the stored copies of TTInfo_nLeptonicW disagree");
+            return n[0];
+        }
+
     }  // namespace tt
 }  // namespace gen_process

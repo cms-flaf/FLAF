@@ -10,11 +10,6 @@ def _declare_helpers():
     DeclareHeader(os.path.join(flaf_dir, "include", "GenProcess", "TT.h"))
 
 
-def _prepare(df):
-    _declare_helpers()
-    return df
-
-
 class TTStitcher(MCStitcher):
     """Stitch the inclusive ttbar sample with the decay-channel samples
     (2L2Nu / LNu2Q / 4Q) by the number of leptonically decaying W bosons.
@@ -25,12 +20,13 @@ class TTStitcher(MCStitcher):
     """
 
     def defineVariables(self, df):
+        _declare_helpers()
         df = defineFromStoredOrExpression(
             df,
             "TT_n_leptonic_W",
             stored="TTInfo_nLeptonicW",
+            stored_expression="gen_process::tt::storedNLeptonicW(TTInfo_nLeptonicW)",
             expression="gen_process::tt::identify(GenPart_pdgId, GenPart_statusFlags, "
             "GenPart_genPartIdxMother).nLeptonicW()",
-            prepare=_prepare,
         )
         return super().defineVariables(df)

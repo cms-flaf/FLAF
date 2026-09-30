@@ -73,6 +73,11 @@ The producer runs in the FLAF environment, or inside CMSSW when the analysis set
 with no events, or one that turns out to be corrupted, gives an empty anaTuple with a report
 marked invalid, which the merge plan skips.
 
+Each job fuses the outputs of the central selection and of every systematic shift into one file, in
+which the columns sharing the text before their first underscore form one collection. The step stops
+if a prefix mixes scalar and array columns, or if any column would come out with another type than it
+went in; the fix is to rename the columns in the analysis anaTuple definition.
+
 ### `AnaTupleFileListBuilderTask` / `AnaTupleFileListTask`
 Build the **merge plan**. `AnaTupleFileListBuilderTask` has one branch per MC dataset and a single
 branch `data` for all data datasets; it reads the reports of the dataset's per-file anaTuples,

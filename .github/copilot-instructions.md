@@ -89,6 +89,14 @@ Each of these has caused a production incident. They are ordered by how much dam
 - An empty stitching bin is not a bug: each bin's denominator is summed over the very events that
   later read it, so a bin no event falls into is never divided by.
 
+### anaTuple columns (`AnaProd/FuseAnaTuples.py`, `Common/TupleHelpers.py`)
+
+- Columns sharing the text before their first underscore are stored as one collection; array
+  collections share one counter. `defineColumnGrouping` refuses a collection that mixes scalars and
+  arrays (the scalars would silently become arrays) or holds arrays of different lengths, and
+  `fuseAnaTuples` checks that every column keeps its type. The fix for either is a rename in the analysis anaTuple
+  definition, never a reader that accepts both layouts.
+
 ### Concurrency
 
 - **Producers must not write bare-relative temp files.** CWD is shared between branches under

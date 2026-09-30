@@ -12,16 +12,15 @@ the command is otherwise the same.
 law run FLAF.AnaProd.tasks.AnaTupleFileTask \
   --period Run3_2022 --version prod \
   --workflow htcondor \
-  --transfer-logs \
   --parallel-jobs 100
 ```
 
 | Option | Why you want it |
 |---|---|
 | `--workflow htcondor` | Submit branches as batch jobs instead of running locally. |
-| `--transfer-logs` | Bring each job's stdout/stderr back to your `data/` area. **Highly recommended** — without it, debugging a failed job is painful. |
+| `--transfer-logs` | **On by default** (turn off with `--transfer-logs False`). Each job's combined stdout/stderr (`stdall*.txt`) is kept: with a remote `fs_default` the job uploads it to `<version>/logs/<Task>/<period>/` on `fs_default` (plus the producer name for per-producer tasks), and `--print-status` points there; with a local `fs_default` the log is part of the job's output sandbox: HTCondor copies it back to the task's `data/<version>/<Task>/<period>/` directory only with `--htcondor-spool False`, since with the default `-spool` the sandbox stays on the schedd until `condor_transfer_data` is run (law does not run it). |
 | `--parallel-jobs 100` | Cap how many jobs are in flight at once. Be a good citizen on the shared pool; very large uncapped submissions are discouraged. |
-| `--branches 0-99` | Submit only a subset (e.g. to retry a range). |
+| `--branches 0:100` | Submit only a subset (e.g. to retry a range); `start:end` excludes the end, so this is branches 0–99. |
 
 Other HTCondor parameters available on every workflow task: `--max-runtime`, `--n-cpus`,
 `--priority`, `--htcondor-spool`. See [Command arguments](arguments.md).
@@ -80,7 +79,7 @@ missing ones — batch jobs fail and time out, and resuming is normal. Check pro
 
 ```sh
 law run FLAF.AnaProd.tasks.AnaTupleFileTask \
-  --period Run3_2022 --version prod --print-status 1,1
+  --period Run3_2022 --version prod --workflow htcondor --print-status 1,1
 ```
 
 Standard `condor_q` / `condor_status` work for the underlying jobs.
@@ -97,8 +96,22 @@ A batch worker needs your code and environment. FLAF supports two modes:
   deliberately *not* given `FLAF_PATH`/`CORRECTIONS_PATH`. Bundles also set `FLAF_NO_INSTALL=1` so
   the worker never tries to build the environment.
 
-For most work the defaults are correct; you only think about bundles when a stage explicitly needs
-one (e.g. it declares a CMSSW bundle flavour) or when AFS is not available on the target pool.
+```mermaid
+flowchart TD
+    S["law run ... (batch workflow)"]
+    A["job receives ANALYSIS_PATH,<br/>FLAF_PATH, CORRECTIONS_PATH;<br/>bootstrap sources env.sh<br/>from AFS"]
+    B["BundleTask packs each<br/>declared flavour to fs_default:<br/>{version}/bundles/{period}/"]
+    W["job downloads the tarballs,<br/>sets FLAF_NO_INSTALL=1,<br/>sources env.sh from the bundle"]
+    S -- "htcondor<br/>without --bundle" --> A
+    S -- "htcondor --bundle,<br/>or crab" --> B
+    B --> W
+```
+
+On HTCondor, bundles are used **only with `--bundle`**: without it every job runs from AFS,
+whatever `bundle_flavours` the task declares — those only say which tarballs to ship once bundles
+are on (AnaTuple production, for example, adds `cmssw` when it runs in CMSSW). Bundles need a
+remote `fs_default`. For most work the non-bundle default is correct; use `--bundle` when AFS is
+not available on the target pool.
 
 ### A bundle waits for everything it packs
 
@@ -150,7 +163,9 @@ a second per submission even for an analysis shipping ~150 MB of models.
 Splitting a big immutable payload into its own unhashed flavour is what keeps it that cheap.
 The trade-off is that such a flavour is **not** rebuilt when its content changes: after
 reinstalling the environment, or changing anything else packed without a hash, delete the
-bundle so that the next submission recreates it.
+bundle so that the next submission recreates it — and drop its entry from the path-existence
+cache (see [Troubleshooting](../troubleshooting.md)), or `BundleTask` can keep reporting the
+deleted file as present.
 
 !!! warning "A symlink can send a bundle job back to AFS anyway"
     Symlinks *inside* a packed directory are kept as symlinks — deliberately, so that the CVMFS
@@ -181,7 +196,8 @@ For jobs that should run on the full CMS WLCG (not only CERN HTCondor), use
 !!! warning "Killing a background `law` leaves its jobs/children"
     Pressing `Ctrl-C` or `kill`-ing a backgrounded `law` process does not necessarily stop the
     branches it spawned. To stop everything for a run, match the processes by pattern, e.g.
-    `pkill -f "version=prod"`, and `condor_rm` the submitted jobs if needed.
+    `pkill -f "law run .*--version prod"` (a pattern like `version=prod` only matches runs started
+    with `--version=prod`), and `condor_rm` the submitted jobs if needed.
 
 !!! note "Test small, then scale"
     Validate a task with `--workflow local --branches 0 --test 1000` before submitting the full

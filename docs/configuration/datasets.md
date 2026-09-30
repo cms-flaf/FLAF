@@ -1,9 +1,11 @@
 # Datasets
 
 A **dataset** is one CMS sample — a simulated signal/background, or a chunk of real data —
-identified by its DAS name. Datasets are declared per era in `datasets.yaml` files. Thanks to the
-[configuration merge](../concepts/configuration.md#how-values-combine), the lists from the
-framework and the analysis are concatenated, so all datasets for an era are available together.
+identified by its DAS name. Datasets are declared per era in `datasets.yaml` files. Each dataset
+is its own top-level key, so after the
+[configuration merge](../concepts/configuration.md#how-values-combine) the datasets of the
+framework and of the analysis are all available together. A name defined in both files takes the
+analysis's entry as a whole — the two entries are not merged field by field.
 
 ## The split rule (where a dataset belongs)
 
@@ -29,13 +31,22 @@ DatasetName:
   generator: powheg          # madgraph, powheg, pythia, ...
   mass: 125                  # optional (signals)
   spin: 0                    # optional (resonant signals)
-  crossSection: 1pb          # a value, or a key into crossSections13p6TeV.yaml
+  crossSection: 1pb          # the name of an entry in the era's cross-section file
   nanoAOD:
-    v12:                     # NanoAOD campaign tag (matches the era)
-      - /DAS/path/to/dataset/NANOAODSIM
-    v15:
-      - /DAS/path/to/dataset/NANOAODSIM
+    v12: /DAS/path/to/dataset/NANOAODSIM   # NanoAOD campaign tag -> one DAS name
+    v15: /DAS/path/to/dataset/NANOAODSIM
 ```
+
+Each tag under `nanoAOD` maps to **one** DAS dataset name (a string, not a list). Which tag is
+used is set per era by `nanoAODVersions` (`data:` and `mc:` tags) in `global.yaml`. An era that
+does not set it does not use Rucio at all: it lists the directory `dirName` on the global
+`fs_nanoAOD` (for `Run3_2022` … `Run3_2023BPix` the HLepRare skims) — see
+[Where the inputs come from](../concepts/storage.md#where-the-inputs-come-from).
+
+Real-data entries carry `eraLetter` (the run era, e.g. `C`) instead of `generator` and
+`crossSection`. Two optional fields control how the input files are listed: `dirName` (the
+directory to list on `fs_nanoAOD`, default: the dataset name) and `fileNamePattern` (a map from
+NanoAOD tag to a regular expression the file names must match, default `.*\.root$`).
 
 For **custom/local** samples (e.g. CI test inputs) that are not official DAS datasets, point at
 your own storage instead:
@@ -52,9 +63,12 @@ custom_CI:
 
 ## Cross-sections
 
-MC datasets reference a **cross-section**, either inline (`crossSection: 1pb`) or by a key into
-`FLAF/config/crossSections13p6TeV.yaml` (13.6 TeV; `crossSections13TeV.yaml` for Run 2). For
-signals whose normalisation is set elsewhere, a placeholder such as `1pb` is conventional.
+MC datasets reference a **cross-section** by name: `crossSection` is always a key into the
+cross-section file that the era's `global.yaml` selects with `crossSectionsFile` —
+`FLAF/config/crossSections13p6TeV.yaml` for every Run 3 era (the 13 TeV file
+`crossSections13TeV.yaml` is kept for Run 2, whose FLAF era directories have no `global.yaml`).
+An unknown name fails AnaTuple production. For signals whose normalisation is set elsewhere, the
+entry `1pb` (a cross-section of 1 pb, defined in that file) is conventional.
 
 ## Adding a dataset
 
@@ -77,8 +91,18 @@ python3 test/checkDatasetConfigConsistency.py \
   Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025 Run3_2026
 ```
 
-Run it after editing any `datasets.yaml`. Known, intentional exceptions live in
-`config/dataset_exceptions.yaml`. See [CI / GitHub Actions](../ci/github-actions.md).
+Run it from the FLAF checkout after editing a framework `datasets.yaml`: it reads
+`config/<era>/datasets.yaml` of FLAF only, not the analyses' files. It also checks that each MC dataset
+exists in every listed era with the same `crossSection`; known, intentional exceptions live in
+`config/dataset_exceptions.yaml`.
+The same CI job checks the dataset names against `config/dataset_naming_rules.yaml`:
+
+```sh
+python3 test/checkDatasetNaming.py --rules config/dataset_naming_rules.yaml \
+  Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025 Run3_2026
+```
+
+See [CI / GitHub Actions](../ci/github-actions.md).
 
 ## Adding a new era
 
@@ -95,9 +119,11 @@ Run it after editing any `datasets.yaml`. Known, intentional exceptions live in
    correction with year `2025Prompt` (the only year key in the 2025 file
    that `2026_Summer24` loads). A raw `2026Prompt` key fails HistTuple
    with `Index not available in Category`.
-4. Add the era to `test-setup-loading.yaml` in each affected analysis (so CI loads `Setup.py` for
-   it and catches config errors early).
-5. Add the era to the `*_eras` variable in the relevant `.github/integration_cfg.yaml` if it
-   should be part of CI runs. See [Integration pipeline](../ci/integration-pipeline.md).
+4. Add the era to `.github/workflows/test-setup-loading.yaml` in each affected analysis (so CI
+   loads `Setup.py` for it and catches config errors early), and to the era lists of FLAF's
+   `.github/workflows/ds-consistency-check.yaml` and `.github/workflows/cross-section-check.yaml`.
+5. Add the era to the `<analysis>_eras` variables in `integration_cfg.yaml` of
+   [`cms-flaf/FLAF_ci`](https://github.com/cms-flaf/FLAF_ci) if it should be part of CI runs.
+   See [Integration pipeline](../ci/integration-pipeline.md#integration_cfgyaml).
 
 See also [Eras & periods](../concepts/eras.md).

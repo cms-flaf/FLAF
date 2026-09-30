@@ -1,6 +1,6 @@
 # FLAF
 
-**FLAF** — the **F**lexible **LA**W-based Analysis **F**ramework — is the shared software
+**FLAF** — the <strong>F</strong>lexible <strong>LA</strong>W-based Analysis <strong>F</strong>ramework — is the shared software
 framework behind several CMS Higgs-sector analyses at CERN. It turns CMS
 [NanoAOD](https://twiki.cern.ch/twiki/bin/view/CMSPublic/WorkBookNanoAOD) files into the
 analysis ntuples, histograms, plots and statistical results that go into a physics paper.
@@ -8,7 +8,8 @@ analysis ntuples, histograms, plots and statistical results that go into a physi
 FLAF organises this work as a chain of **tasks** managed by
 [LAW](https://github.com/riga/law) (the Luigi Analysis Workflow). You describe *what* you want
 (for example, "the final plots for the 2022 data"); LAW figures out *which* intermediate steps
-are needed, runs only those, and can dispatch them to the CERN HTCondor batch system.
+are needed, runs only those, and can dispatch them to the CERN HTCondor batch system or to the
+grid through CRAB.
 
 !!! tip "New here? You are in the right place."
     These docs assume **no prior experience** with LAW, Luigi or batch computing. If your
@@ -23,19 +24,27 @@ same pipeline. From CMS NanoAOD to final results, the stages are:
 
 ```mermaid
 flowchart TD
-    NANO[CMS NanoAOD<br/>on Rucio / WLCG] --> IFT[InputFileTask<br/>resolve the file list]
-    IFT --> ATF[AnaTupleFileTask<br/>produce analysis ntuples]
-    ATF --> ATM[AnaTupleMergeTask<br/>merge per dataset]
-    ATM --> HTP[HistTupleProducerTask<br/>compute analysis observables]
-    HTP --> HFN[HistFromNtupleProducerTask<br/>fill histograms]
-    HFN --> HM[HistMergerTask<br/>merge histograms]
-    HM --> HP[HistPlotTask<br/>make plots]
-    HP --> STAT[Statistical inference<br/>datacards, limits, scans]
+    NANO[("CMS NanoAOD<br/>(Rucio datasets or skims on storage)")] --> IFT["InputFileTask<br/>resolve the file lists"]
+    IFT --> ATF["AnaTupleFileTask<br/>produce analysis ntuples, one per file"]
+    ATF --> ATM["AnaTupleMergeTask<br/>merge into larger files, normalise MC"]
+    ATM --> HTP["HistTupleProducerTask<br/>compute analysis observables"]
+    HTP --> HFN["HistFromNtupleProducerTask<br/>fill histograms"]
+    HFN --> HM["HistMergerTask<br/>merge histograms per variable"]
+    HM --> HP["HistPlotTask<br/>make plots"]
+    HM --> STAT["Statistical inference<br/>datacards, limits, pulls & impacts"]
 ```
 
-Each box is a LAW **task**. You normally run only the *last* task you care about — LAW pulls in
-everything upstream automatically. The whole pipeline is explained step by step in the
-[full-workflow walkthrough](workflow/walkthrough.md).
+Each box below the NanoAOD input is a LAW **task**, except statistical inference, which comes
+from the `StatInference` and `inference` submodules of the HH analyses. The picture leaves out
+the helpers that LAW schedules in between: `AnaTupleCostProbeTask` (measures the per-event cost
+before production), `AnaTupleFileListBuilderTask` / `AnaTupleFileListTask` (plan the merge) and
+`AnalysisCacheTask` / `AnalysisCacheAggregationTask` (run payload producers such as DNNs, and
+combine their outputs per dataset where needed, before `HistTupleProducerTask`);
+`PreHistTupleProductionTask` is an extra entry point that runs the whole production up to the
+caches in one go. You normally run only the *last* task you care
+about — LAW pulls in everything upstream automatically. The whole pipeline is explained step by
+step in the [full-workflow walkthrough](workflow/walkthrough.md) and on the
+[Data flow](concepts/data-flow.md) page.
 
 ## How to read these docs
 
@@ -57,7 +66,7 @@ The documentation is organised so you can enter at the level you need.
 
     Use the [Full workflow](workflow/walkthrough.md) walkthrough and the
     [Command arguments](workflow/arguments.md) cheat-sheet. Scale up with
-    [Running on HTCondor](workflow/htcondor.md).
+    [Running on HTCondor](workflow/htcondor.md) or [Running on CRAB](workflow/crab.md).
 
 - :material-book-open-variant: **I'm looking something up**
 

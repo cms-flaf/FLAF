@@ -44,7 +44,9 @@ source env.sh
 
 Sourcing the analysis's `env.sh` is how you enter the FLAF environment. It:
 
-1. sets `ANALYSIS_PATH` to the repository and points `FLAF_PATH` at the bundled `FLAF/` submodule;
+1. sets `ANALYSIS_PATH` to the repository and points `FLAF_PATH` at the bundled `FLAF/` submodule
+   (unless `FLAF_PATH` is already set, see
+   [Developing shared submodules](../concepts/environment.md#developing-shared-submodules));
 2. **the first time**, builds everything it needs (this is the slow part):
     - a Python virtual environment `flaf_env` (from the CVMFS `LCG_110a` stack) under `soft/`;
     - a CMSSW area (`CMSSW_16_0_6`) used by the parts of the pipeline that need CMS software;
@@ -52,7 +54,8 @@ Sourcing the analysis's `env.sh` is how you enter the FLAF environment. It:
       (`v11.1.0`) for statistical inference;
 3. activates that environment and registers the `law` command and tab-completion;
 4. defines a `cmsEnv` helper for running commands inside CMSSW;
-5. points your VOMS proxy location at `data/voms.proxy`.
+5. sets `X509_USER_PROXY` (your VOMS proxy location) to `data/voms.proxy`, **unless it is
+   already set** in your shell.
 
 !!! note "The first `source env.sh` is slow; later ones are fast"
     The initial build compiles CMSSW and Combine and can take **tens of minutes** and a few GB of
@@ -86,8 +89,10 @@ The pipeline reads and writes grid storage, which needs a short-lived **VOMS pro
 voms-proxy-init -voms cms -rfc -valid 192:00
 ```
 
-Because `env.sh` sets `X509_USER_PROXY` to `data/voms.proxy`, the proxy is written where FLAF
-expects it. Check it any time with:
+`voms-proxy-init` writes the proxy to the file `X509_USER_PROXY` names, and FLAF reads it from
+there. `env.sh` sets that variable to `data/voms.proxy` only when it is unset: if your shell profile
+already exports `X509_USER_PROXY`, that value is kept and the proxy lives there instead. Check it
+any time with:
 
 ```sh
 voms-proxy-info
@@ -102,7 +107,8 @@ voms-proxy-info
 Finally, tell FLAF where *your* outputs should go and which physics model to use, by creating
 `config/user_custom.yaml`. This file holds your personal, uncommitted settings (storage paths,
 test vs. production model). The [Configuration guide](../configuration/user-custom.md) explains
-every field; a minimal file is enough to start.
+every field; a minimal file is enough to start — for the first run, copy the analysis's
+`config/ci_custom.yaml` and set your own `fs_default` (see [Your first run](first-run.md)).
 
 ## What now?
 

@@ -109,7 +109,7 @@ jobs:
           fi
           IFS=$'\n'
           declare -a FILES=()
-          for file in $(echo ${{ steps.changed_files.outputs.files }} | base64 -d); do
+          for file in $(echo ${{ steps.changed_files.outputs.cppFiles }} | base64 -d); do
             FILES+=("$file")
             echo "$file"
           done

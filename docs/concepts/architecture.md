@@ -54,16 +54,16 @@ See [Analyses](../analyses.md) for what each one adds on top of the framework.
 Understanding this split tells you *where to look* for any given thing.
 
 ```mermaid
-flowchart LR
-    subgraph Shared [Shared framework]
-        F[FLAF<br/>tasks, config loader,<br/>env, CI]
-        C[Corrections]
-        S[StatInference]
+flowchart TD
+    subgraph Shared ["Shared framework (pinned submodules)"]
+        F["FLAF<br/>tasks, config loader, env,<br/>common datasets, CI"]
+        C["Corrections<br/>corrections & systematics"]
+        S["StatInference + inference<br/>(HH analyses only)"]
     end
-    subgraph Ana [Analysis repository]
-        AC[config/<br/>signals, channels,<br/>observables]
-        AA[Analysis/ AnaProd/<br/>producers, definitions]
-        SUB[physics submodules<br/>SVfit, DeepHME, ...]
+    subgraph Ana ["Analysis repository"]
+        AC["config/<br/>signals, channels,<br/>observables"]
+        AA["Analysis/ AnaProd/<br/>producers, definitions"]
+        SUB["physics submodules<br/>SVfit, DeepHME, ..."]
     end
     F --> Ana
     C --> Ana

@@ -247,6 +247,7 @@ load_flaf_env() {
     if [[ "${FLAF_NO_INSTALL:-0}" == "1" ]]; then
       echo "ERROR: FLAF environment not found at $FLAF_ENVIRONMENT_PATH and FLAF_NO_INSTALL=1"
       kill -INT $$
+      return 1
     fi
     if [[ -d "$FLAF_ENVIRONMENT_PATH" ]]; then
       echo "Removing old FLAF environment installation in $FLAF_ENVIRONMENT_PATH ..."

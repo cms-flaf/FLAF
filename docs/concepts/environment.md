@@ -28,7 +28,8 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
    `AsymptoticLimits` abort on the observed limit while still exiting 0, and the patch restores
    the clipping Combine relies on. Both builds record the version they were made for; when it
    changes, the next `source env.sh` checks out the new version in the CMSSW area and rebuilds it
-   with `scram`, and rebuilds the standalone one.
+   with `scram`, and rebuilds the standalone one. The `dhi` setup, `inference/.setups/flaf.sh`, is
+   written again at the same time, so edits made to it by hand do not survive a version change.
 4. **Sets up grid access** — points `X509_USER_PROXY` at `data/voms.proxy` (unless it is already
    set) and initialises Rucio, pinned to the version in `FLAF_RUCIO_VERSION` (default `39.2.0`).
 5. **Defines the `cmsEnv` helper** (see below).
@@ -47,7 +48,8 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
     `cmssw` bundles deleted, see
     [Bundles are named after what they contain](../workflow/htcondor.md#bundles-are-named-after-what-they-contain);
     with an old `soft` bundle the jobs stop with
-    `ERROR: FLAF environment not found at … and FLAF_NO_INSTALL=1`. `LCG_110a` brings Python 3.13
+    `ERROR: FLAF environment not found at … and FLAF_NO_INSTALL=1`, with an old `cmssw` bundle with
+    `ERROR: …/.installed_combine_v11.1.0 not found and FLAF_NO_INSTALL=1`. `LCG_110a` brings Python 3.13
     and ROOT 6.40, which matters for personal scripts run in `flaf_env`. The standalone Combine
     that earlier versions built inside the CMSSW area
     (`soft/CMSSW_16_0_6/src/HiggsAnalysis/CombinedLimit/build`) is removed on the way.

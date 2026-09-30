@@ -155,7 +155,8 @@ Both stages therefore see the same value, computed once from the nanoAOD.
 2. Subclass `MCStitcher` and override `defineVariables` with
    `defineFromStoredOrExpression`, naming the branch the analysis stores.
 3. Store that branch in the analysis anaTuple definition and declare the corresponding
-   `genInfo` for the process.
+   `genInfo` for the process. A scalar must not share the text before its first underscore with
+   array columns: the anaTuple stores such columns as one collection and refuses the mix.
 4. Cover it in the integration test. Every analysis runs two CI backgrounds — one t̄t and one
    DY dataset — and each carries the same `processors:` and `genInfo:` as the analysis's real
    `TT` and DY process **for that era**, so the stitcher runs over the whole anaTuple → merge →

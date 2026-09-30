@@ -167,6 +167,8 @@ install() {
   if [[ "${FLAF_NO_INSTALL:-0}" == "1" ]]; then
     echo "ERROR: $installed_flag not found and FLAF_NO_INSTALL=1"
     kill -INT $$
+    # the signal does not stop a shell that sourced this file in a subshell
+    return 1
   fi
 
   if [[ $node_os == $target_os ]]; then

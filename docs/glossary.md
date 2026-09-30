@@ -22,7 +22,7 @@ Framework and CMS-computing vocabulary, in plain terms. For the quick on-ramp ve
 
 **Combine**
 : The CMS statistical tool (`HiggsAnalysis/CombinedLimit`) used for limits and fits. FLAF builds a
-  standalone `v10.4.2`.
+  standalone `v11.1.0` against the ROOT of `flaf_env` (see [The environment](concepts/environment.md)).
 
 **Corrections**
 : The shared submodule providing object corrections and systematic variations (pileup, b-tag,

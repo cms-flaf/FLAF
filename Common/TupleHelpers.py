@@ -1,4 +1,5 @@
 import awkward as ak
+import numpy as np
 import os
 import re
 import uproot
@@ -88,6 +89,24 @@ def defineColumnGrouping(arrays, keys, verbose=1):
         groupped_arrays[column] = arrays[column]
 
     return groupped_arrays
+
+
+def writeTree(directory, name, data):
+    """Write a dict of arrays, or a record array, as a TTree the way `directory[name] = data`
+    did up to uproot 5.6; since 5.7 that assignment writes an RNTuple."""
+    if isinstance(data, ak.Array):
+        data = {"": data}
+    arrays = {}
+    types = {}
+    for key, value in data.items():
+        if isinstance(value, ak.Array):
+            types[key] = value.type
+        else:
+            value = np.asarray(value)
+            shape = value.shape[1:]
+            types[key] = np.dtype((value.dtype, shape)) if shape else value.dtype
+        arrays[key] = value
+    directory.mktree(name, types).extend(arrays)
 
 
 def copyFileContent(
@@ -268,7 +287,7 @@ def copyFileContent(
                                 if out_path in uproot_out:
                                     uproot_out[out_path].extend(grouped)
                                 else:
-                                    uproot_out[out_path] = grouped
+                                    writeTree(uproot_out, out_path, grouped)
 
         # Phase 2: empty trees + histograms → ROOT.
         if empty_tree_sources or histograms:

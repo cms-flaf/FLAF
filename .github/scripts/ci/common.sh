@@ -122,7 +122,7 @@ _create_voms_proxy() {
     && voms-proxy-info -exists -valid 1:00 -file "${X509_USER_PROXY}"
 }
 
-GFAL_LCG_SETUP="${GFAL_LCG_SETUP:-/cvmfs/sft.cern.ch/lcg/views/LCG_108a/x86_64-el9-gcc15-opt/setup.sh}"
+GFAL_LCG_SETUP="${GFAL_LCG_SETUP:-/cvmfs/sft.cern.ch/lcg/views/LCG_110a/x86_64-el9-gcc15-opt/setup.sh}"
 
 init_gfal() {
   if ! command -v gfal-copy >/dev/null 2>&1; then

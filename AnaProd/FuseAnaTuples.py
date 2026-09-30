@@ -6,7 +6,7 @@ import uproot
 import ROOT
 import shutil
 
-from FLAF.Common.TupleHelpers import defineColumnGrouping, copyFileContent
+from FLAF.Common.TupleHelpers import defineColumnGrouping, copyFileContent, writeTree
 from Corrections.CorrectionsCore import central
 
 default_values = {
@@ -94,7 +94,7 @@ def alignAnaTuple(
         aligned_arrays, aligned_arrays.keys(), verbose=0
     )
     with uproot.recreate(output_file, compression=uproot.ZLIB(4)) as out_file:
-        out_file[tree_name] = aligned_arrays
+        writeTree(out_file, tree_name, aligned_arrays)
     return n_valid
 
 

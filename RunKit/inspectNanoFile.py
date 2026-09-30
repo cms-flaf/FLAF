@@ -52,7 +52,7 @@ class Branch:
             self.kind += "(index to %s)" % (
                 (self.name[self.name.find("_") + 1 : self.name.find("Idx")]).title()
             )
-        if self.leaf.GetLen() == 0 and self.leaf.GetLeafCount() != None:
+        if self.leaf.GetLen() == 0 and self.leaf.GetLeafCount():
             self.single = False
             self.counter = self.leaf.GetLeafCount().GetName()
         elif self.kind.startswith("ROOT::VecOps::RVec<"):

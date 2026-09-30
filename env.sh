@@ -57,21 +57,29 @@ do_install_cmssw() {
 }
 
 do_install_combine() {
-  local cmb_version=$1
   local cmb_path="$1"
+  local cmb_version="$2"
+  local cmb_patch="$3"
+  local installed_flag="$4"
 
-  echo "Compiling standalone combine..."
+  echo "Compiling standalone combine $cmb_version..."
   source "$FLAF_ENVIRONMENT_PATH/bin/activate"
+  if [ ! -d "$cmb_path" ]; then
+    run_cmd git clone https://github.com/cms-analysis/HiggsAnalysis-CombinedLimit.git "$cmb_path"
+  fi
   run_cmd cd "$cmb_path"
+  run_cmd git fetch --tags origin
+  run_cmd git checkout -f "$cmb_version"
+  run_cmd git apply "$cmb_patch"
   if [ -d build ]; then
-    echo "Removing incomplete combine build..."
+    echo "Removing incomplete or outdated combine build..."
     run_cmd rm -rf build
   fi
   run_cmd mkdir build
   run_cmd cd build
   run_cmd cmake ..
   run_cmd cmake --build . -j8
-  run_cmd touch "$cmb_path/build/.installed"
+  run_cmd touch "$installed_flag"
 }
 
 do_install_inference() {
@@ -157,7 +165,11 @@ install_combine() {
   local node_os=$2
   local target_os=$3
   local cmb_path=$4
-  install "$env_file" $node_os $target_os install_combine "$cmb_path/build/.installed" "$cmb_path"
+  local cmb_version=$5
+  local cmb_patch=$6
+  local installed_flag=$7
+  install "$env_file" $node_os $target_os install_combine "$installed_flag" "$cmb_path" "$cmb_version" \
+    "$cmb_patch" "$installed_flag"
 }
 
 
@@ -180,7 +192,7 @@ load_flaf_env() {
     run_cmd mkdir -p "$ANALYSIS_DATA_PATH"
   fi
 
-  local FLAF_LCG_VERSION="LCG_108a"
+  local FLAF_LCG_VERSION="LCG_110a"
   local FLAF_LCG_ARCH="x86_64-el9-gcc15-opt"
   if [[ ! -f "$FLAF_ENVIRONMENT_PATH/.${FLAF_LCG_VERSION}_${FLAF_LCG_ARCH}" ]]; then
     if [[ "${FLAF_NO_INSTALL:-0}" == "1" ]]; then
@@ -206,7 +218,15 @@ load_flaf_env() {
   local target_os_prefix=$(get_os_prefix $FLAF_CMSSW_OS_VERSION)
   local target_os_gt_prefix=$(get_os_prefix $FLAF_CMSSW_OS_VERSION 1)
   local target_os=$target_os_prefix$FLAF_CMSSW_OS_VERSION
-  [ -z "$FLAF_COMBINE_VERSION" ] && export FLAF_COMBINE_VERSION="v10.4.2"
+  [ -z "$FLAF_COMBINE_VERSION" ] && export FLAF_COMBINE_VERSION="v11.1.0"
+  # The CMSSW area has its own CombinedLimit (CombineHarvester, tasks run in CMSSW, bundle jobs).
+  if [ -z "$FLAF_CMSSW_COMBINE_VERSION" ]; then
+    if [ "$FLAF_COMBINE_VERSION" = "none" ]; then
+      export FLAF_CMSSW_COMBINE_VERSION="none"
+    else
+      export FLAF_CMSSW_COMBINE_VERSION="v10.4.2"
+    fi
+  fi
   export FLAF_CMSSW_BASE="$ANALYSIS_SOFT_PATH/$FLAF_CMSSW_VERSION"
   export FLAF_CMSSW_ARCH="${target_os_gt_prefix}${FLAF_CMSSW_OS_VERSION}_amd64_${FLAF_CMSSW_COMPILER}"
   export PYTHONPATH="$ANALYSIS_PATH:$PYTHONPATH"
@@ -227,17 +247,23 @@ load_flaf_env() {
   # When FLAF_NO_INSTALL=1 (bundle mode) skip CMSSW/combine/inference entirely if
   # CMSSW is not present in the bundle; tasks that need it declare the cmssw bundle flavour.
   if [[ "${FLAF_NO_INSTALL:-0}" == "0" ]] || [[ -d "$FLAF_CMSSW_BASE" ]]; then
-    install_cmssw "$env_file" $node_os $target_os $FLAF_CMSSW_ARCH $FLAF_CMSSW_VERSION $FLAF_COMBINE_VERSION
+    install_cmssw "$env_file" $node_os $target_os $FLAF_CMSSW_ARCH $FLAF_CMSSW_VERSION $FLAF_CMSSW_COMBINE_VERSION
     if [ "$FLAF_COMBINE_VERSION" != "none" ]; then
       local cmb_os_version=9
       local cmb_os_prefix=$(get_os_prefix $cmb_os_version)
       local cmb_os=$cmb_os_prefix$cmb_os_version
-      export FLAF_COMBINE_PATH="$FLAF_CMSSW_BASE/src/HiggsAnalysis/CombinedLimit"
-      install_combine "$env_file" $node_os $cmb_os "$FLAF_COMBINE_PATH"
-
-      export PATH="$FLAF_COMBINE_PATH/build/bin:$PATH"
-      export LD_LIBRARY_PATH="$FLAF_COMBINE_PATH/build/lib:$LD_LIBRARY_PATH"
-      export PYTHONPATH="$FLAF_COMBINE_PATH/build/python:$PYTHONPATH"
+      # The combine of flaf_env (dhi) is a checkout of its own, built against the ROOT of flaf_env
+      # and rebuilt with every new LCG release or combine version. It is in no bundle: bundle jobs
+      # use the combine of the CMSSW area.
+      export FLAF_COMBINE_PATH="$ANALYSIS_SOFT_PATH/HiggsAnalysis-CombinedLimit"
+      if [[ "${FLAF_NO_INSTALL:-0}" == "0" ]] || [[ -d "$FLAF_COMBINE_PATH" ]]; then
+        install_combine "$env_file" $node_os $cmb_os "$FLAF_COMBINE_PATH" "$FLAF_COMBINE_VERSION" \
+          "$FLAF_PATH/run_tools/combine_root638_clipping.patch" \
+          "$FLAF_COMBINE_PATH/build/.installed_${FLAF_COMBINE_VERSION}_${FLAF_LCG_VERSION}_${FLAF_LCG_ARCH}"
+        export PATH="$FLAF_COMBINE_PATH/build/bin:$PATH"
+        export LD_LIBRARY_PATH="$FLAF_COMBINE_PATH/build/lib:$LD_LIBRARY_PATH"
+        export PYTHONPATH="$FLAF_COMBINE_PATH/build/python:$PYTHONPATH"
+      fi
       if [ -d "$HH_INFERENCE_PATH" ]; then
         install_inference "$env_file" $node_os $cmb_os $FLAF_COMBINE_VERSION
         export PYTHONPATH="$HH_INFERENCE_PATH:$PYTHONPATH"

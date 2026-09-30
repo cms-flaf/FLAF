@@ -95,6 +95,12 @@ Each of these has caused a production incident. They are ordered by how much dam
   `law --workers`, so two branches race on the same name. Write under the job's working
   directory.
 
+### Writing trees with uproot
+
+- **Write trees with `Common/TupleHelpers.writeTree` (or an explicit `mktree`), never
+  `file[name] = arrays`.** Since uproot 5.7 (LCG_110a) that assignment writes an RNTuple, which
+  TChain, tree friends and the anaTuple readers do not accept.
+
 ## Configuration invariants
 
 - `config_path_order` merges four directories: **scalars override, lists concatenate**. A list

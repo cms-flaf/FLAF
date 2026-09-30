@@ -17,6 +17,7 @@ from FLAF.Common.Utilities import DeclareHeader
 from FLAF.RunKit.run_tools import ps_call
 import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
+from FLAF.Common.TupleHelpers import writeTree
 from Corrections.Corrections import Corrections
 
 import FLAF.Common.triggerSel as Triggers
@@ -80,7 +81,7 @@ def run_producer(
                     for col in expected_columns:
                         if col != "FullEventId":
                             data_dict[col] = empty_array
-                    outfile[treeName] = data_dict
+                    writeTree(outfile, treeName, data_dict)
             elif save_as == "json":
                 with open(outFileName, "w") as f:
                     json.dump({}, f, indent=4)
@@ -115,7 +116,7 @@ def run_producer(
             check_columns(expected_columns, final_array.fields, final_array.fields)
             n_final = len(final_array["FullEventId"])
             with uproot.recreate(outFileName, compression=uprootCompression) as outfile:
-                outfile[treeName] = final_array
+                writeTree(outfile, treeName, final_array)
         elif save_as == "json":
             with open(outFileName, "w") as f:
                 json.dump(final_dict, f, indent=4)
@@ -358,7 +359,8 @@ if __name__ == "__main__":
 
     saveAs = producer_config.get("save_as", "root")
     if saveAs == "root":
-        hadd_cmd = ["hadd", "-j", "-ff", args.outFile]
+        # without a number, hadd -j runs in one process since ROOT 6.38
+        hadd_cmd = ["hadd", "-j", str(os.cpu_count()), "-ff", args.outFile]
         hadd_cmd.extend(tmp_fileNames)
         ps_call(hadd_cmd, verbose=1)
         if os.path.exists(args.outFile) and len(tmp_fileNames) != 0:

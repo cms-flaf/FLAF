@@ -49,6 +49,11 @@ Runs the analysis producer (`AnaProd/anaTupleProducer.py`, inside CMSSW) over in
 often submit to HTCondor. Branches are grouped into jobs by estimated cost rather than in
 fixed-size chunks; see [job composition](../workflow/htcondor.md#how-branches-become-jobs).
 
+Each job fuses the outputs of the central selection and of every systematic shift into one file, in
+which the columns sharing the text before their first underscore form one collection. The step stops
+if a prefix mixes scalar and array columns, or if any column would come out with another type than it
+went in; the fix is to rename the columns in the analysis anaTuple definition.
+
 ### `AnaTupleFileListBuilderTask` / `AnaTupleFileListTask`
 Helper workflows that assemble the lists of per-file anaTuples to be merged. Normally pulled in
 automatically as dependencies of the merge step; you rarely call them directly.

@@ -93,6 +93,15 @@ cd /path/to/<analysis>
 source env.sh
 ```
 
+## `Collection '…' mixes scalar columns … with array columns …` in `AnaTupleFileTask`
+The anaTuple stores all columns that share the text before their first underscore as one collection
+with one counter, so a scalar next to arrays of the same prefix would become an array. Rename the
+columns in the analysis anaTuple definition so that scalars and arrays do not share a prefix (for
+example a scalar `TTInfo_nLeptonicW` next to per-top arrays `genTop_pt`, `genTop_eta`, … rather
+than `TTInfo_top_pt`).
+The same step stops on `Columns changed type while fusing`, which lists every column whose type the
+fused file does not preserve.
+
 ## ROOT/cling library or JIT errors in a background run
 You launched the environment under `env -i`, which strips `LD_LIBRARY_PATH` (ROOT/cling needs it).
 Preserve it (and `HOME`, `PATH`) when starting a clean shell. See

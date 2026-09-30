@@ -95,6 +95,15 @@ Each of these has caused a production incident. They are ordered by how much dam
   `law --workers`, so two branches race on the same name. Write under the job's working
   directory.
 
+### Shifted-tree array counters (`AnaProd/FuseAnaTuples.py`)
+
+- ROOT reads an array of a friend tree with the main tree's counter of the same name
+  (`TTreeReaderArray` looks the counter up by name). Shifted trees are read with the central tree as
+  the friend `Central`, so their array collections are counted by `n<collection>_shifted`, and the
+  deltas are computed against the first `central.n<collection>` elements of `central.<array>`.
+  Writing a shifted tree with the central counter names, or dropping the clipping, silently
+  corrupts every shifted collection that is longer than the central one.
+
 ## Configuration invariants
 
 - `config_path_order` merges four directories: **scalars override, lists concatenate**. A list

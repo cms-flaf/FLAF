@@ -89,6 +89,23 @@ Each of these has caused a production incident. They are ordered by how much dam
 - An empty stitching bin is not a bug: each bin's denominator is summed over the very events that
   later read it, so a bin no event falls into is never divided by.
 
+### anaTuple layout (`AnaProd/FuseAnaTuples.py`)
+
+- Every tree of an anaTuple has one row per event selected in any variation, aligned by row.
+  `valid == false` rows of the central tree are placeholders for events selected only by a shift.
+  Shifted trees store `<name>__delta`; readers attach the central tree as the friend `Central`.
+- Columns in `anaTuple_shift_invariant_columns` are stored in the central tree only, and the fuse
+  step fills them into the placeholder rows after checking bit-identity across every variation that
+  selects the event. Skipping a column without filling the placeholders would give events selected
+  only by a shift the placeholder's zeros, so both halves must stay together. `MergeAnaTuples`
+  refuses inputs produced with different lists, since a chain takes its columns from the first
+  file. A column that a shifted tree takes from `Central` answers `HasColumn` but is not listed by
+  `GetColumnNames()`, and `Define` of that name fails: check existence with `HasColumn`.
+- A friend's array is read by RDataFrame with the main tree's counter of the same name
+  (`TTreeReaderArray` looks the counter up by name), so a same-named collection in a shifted tree and
+  in `Central` gives wrong sizes for `Central.<array>`. Listing a whole collection as shift-invariant
+  also drops its counter from the shifted trees.
+
 ### Concurrency
 
 - **Producers must not write bare-relative temp files.** CWD is shared between branches under

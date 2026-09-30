@@ -39,6 +39,7 @@ Replace `<initial>`/`<user>` with yours (e.g. `k` / `kandroso`). With just this,
 | `variables` | list | Restrict which variables are produced/plotted (applied to the active `histTuple_flavor` list). If that flavor's variable list is empty (e.g. H_mumu `default`), this list is used as the active set. Omit for the full flavor set. |
 | `histTuple_flavor` | string | Optional. Selects which `histTuple_flavors` entry drives the variable lists (e.g. `CI` for the short H_mumu CI set). |
 | `hist_from_ntuple_max_hists` | int | Max histograms `HistFromNtupleProducerTask` books in one RDataFrame pass. The count is variables × selections × (Central + every Up/Down). Default `4000`; `0` disables batching. Lower this (do not raise CI memory) if a job OOMs. |
+| `anaTuple_shift_invariant_columns` | list | Set in the analysis `config/global.yaml`, not here. Regular expressions (`re.search`) of the anaTuple columns no systematic shift changes; they are stored in the central tree only. See [`AnaTupleFileTask`](../reference/tasks.md#anatuplefiletask). A list in a later config file replaces an earlier one. Default: empty. |
 | `anaTuple_scheduling` | map | Tunes how `AnaTupleFileTask` branches are composed into HTCondor jobs. Every key has a default; see below. |
 
 ### `anaTuple_scheduling`

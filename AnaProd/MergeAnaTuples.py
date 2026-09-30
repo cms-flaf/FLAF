@@ -130,6 +130,23 @@ def getTreeListFromReport(report):
     return sorted(tree_list)
 
 
+def checkShiftInvariantColumns(input_reports):
+    # A tree chain takes its columns from the first file: anaTuples whose shifted trees store
+    # different columns cannot be merged together.
+    patterns = None
+    for ds_name, reports in input_reports.items():
+        for report in reports:
+            report_patterns = report.get("shift_invariant_columns", [])
+            if patterns is None:
+                patterns = report_patterns
+            elif report_patterns != patterns:
+                raise RuntimeError(
+                    f"anaTuples of dataset {ds_name} were produced with different"
+                    f" anaTuple_shift_invariant_columns: {patterns} and {report_patterns}."
+                    " Produce all anaTuples of a merge with the same list."
+                )
+
+
 def getColumns(df):
     all_columns = [str(c) for c in df.GetColumnNames()]
     simple_types = ["Int_t", "UInt_t", "Long64_t", "ULong64_t", "int", "long"]
@@ -207,6 +224,7 @@ def mergeAnaTuples(
                     raise RuntimeError(
                         f"Uncertainty list mismatch between reports for dataset {ds_name}."
                     )
+        checkShiftInvariantColumns(input_reports)
     else:
         tree_list = [(central, central, "Events")]
 

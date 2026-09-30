@@ -367,6 +367,9 @@ def createAnatuple(
     treeName = "Events"
     report["tree_name"] = treeName
     report["full_event_id_column"] = fullEventIdColumn
+    report["shift_invariant_columns"] = setup.global_params.get(
+        "anaTuple_shift_invariant_columns", []
+    )
     outfilesNames = [outFileName]
     handles_to_run.append(
         df.Snapshot(treeName, outFileName, [fullEventIdColumn], snapshotOptions)

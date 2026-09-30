@@ -107,10 +107,12 @@ Each of these has caused a production incident. They are ordered by how much dam
 
 - ROOT reads an array of a friend tree with the main tree's counter of the same name
   (`TTreeReaderArray` looks the counter up by name). Shifted trees are read with the central tree as
-  the friend `Central`, so their array collections are counted by `n<collection>_shifted`, and the
+  the friend `Central`, so their array collections are counted by `n<collection>__shifted`, and the
   deltas are computed against the first `central.n<collection>` elements of `central.<array>`.
   Writing a shifted tree with the central counter names, or dropping the clipping, silently
   corrupts every shifted collection that is longer than the central one.
+- `__shifted` is a column suffix like `__delta`: `Common/Utilities.CreateDataFrame` skips it, and
+  any other code that splits column names on `__` has to accept it.
 
 ## Configuration invariants
 

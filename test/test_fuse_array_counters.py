@@ -5,7 +5,7 @@ A ROOT tree reads an array of a friend tree with the counter of the same name in
 if there is one. A shifted tree that stored its collection sizes under the central names would
 therefore give Central.<array> the shifted size, both where FuseAnaTuples computes the deltas
 and where a reader adds them back to the central values. The shifted trees store their counters
-as n<collection>_shifted, and the deltas are computed against the central elements only.
+as n<collection>__shifted, and the deltas are computed against the central elements only.
 
 Needs ROOT, uproot and awkward: run inside an analysis environment (source env.sh).
 """
@@ -176,7 +176,7 @@ class FuseArrayCountersTest:
                     "centralJet_hadronFlavour__delta",
                 ]:
                     self.assertEqual(
-                        tree[column].count_branch.name, "ncentralJet_shifted"
+                        tree[column].count_branch.name, "ncentralJet__shifted"
                     )
 
     def test_stored_deltas(self):

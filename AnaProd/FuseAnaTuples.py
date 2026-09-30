@@ -78,7 +78,7 @@ def checkColumnTypes(inputs, output_file, tree_name, special_columns):
 def shiftedCounterName(collection):
     # RDataFrame reads a friend's array with the main tree's counter of the same name, so a
     # reader of a shifted tree would give Central.<array> the size of the shifted collection.
-    return f"n{collection}_shifted"
+    return f"n{collection}__shifted"
 
 
 def arrayCounter(tree, column):

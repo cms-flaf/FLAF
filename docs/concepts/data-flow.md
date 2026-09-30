@@ -142,8 +142,8 @@ upstream production while *writing* its own downstream outputs under a new versi
 In an anaTuple, the shifted trees (`Events__<source>__<Up|Down>`) store each column, apart from
 `valid`, `FullEventId` and the array counters, as `<name>__delta`, and are read with the central tree
 attached as the friend `Central`. Their array
-collections are counted by `n<collection>_shifted`, not by the `n<collection>` the central tree
+collections are counted by `n<collection>__shifted`, not by the `n<collection>` the central tree
 uses: ROOT reads an array of a friend tree with the main tree's counter of the same name, so a shared
 name would give `Central.<array>` the size of the shifted collection. The size of a shifted
-collection is `n<collection>_shifted`, or `n<collection>` after `CreateDataFrame` has added the
+collection is `n<collection>__shifted`, or `n<collection>` after `CreateDataFrame` has added the
 deltas back.

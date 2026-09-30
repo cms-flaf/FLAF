@@ -154,7 +154,7 @@ Expected: the first time it builds CMSSW and Combine (tens of minutes, a few GB 
 Subsequent sources are quick. Don't interrupt the first build.
 
 ## Arrays of a shifted tree differ from the nanoAOD values beyond the central length
-anaTuples produced before shifted trees got their own array counters (`n<collection>_shifted`, see
+anaTuples produced before shifted trees got their own array counters (`n<collection>__shifted`, see
 [Array counters in the shifted trees](concepts/data-flow.md#array-counters-in-the-shifted-trees))
 store the elements of a shifted collection beyond the length of the central one as differences
 from values that are not part of the central event (rounded, for floating-point columns, like every

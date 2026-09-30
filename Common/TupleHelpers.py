@@ -57,6 +57,29 @@ def parseColumnName(column_name):
     }
 
 
+def checkCollectionMembers(collection_name, members):
+    """All columns of a collection are stored with one counter: a scalar next to arrays would
+    silently become an array (one copy per entry), and arrays of different lengths do not fit
+    together. Such columns have to be named apart where they are defined."""
+    is_array = {column: array.ndim > 1 for column, array in members.items()}
+    if any(is_array.values()) and not all(is_array.values()):
+        scalars = sorted(column for column, array in is_array.items() if not array)
+        vectors = sorted(column for column, array in is_array.items() if array)
+        raise RuntimeError(
+            f"Collection '{collection_name}' mixes scalar columns {scalars} with array"
+            f" columns {vectors}, which would store the scalars as arrays. Give them"
+            " different prefixes where they are defined."
+        )
+    vectors = [column for column, array in is_array.items() if array]
+    for column in vectors[1:]:
+        if not ak.all(ak.num(members[column]) == ak.num(members[vectors[0]])):
+            raise RuntimeError(
+                f"Collection '{collection_name}' has arrays of different lengths:"
+                f" '{column}' and '{vectors[0]}'. Give them different prefixes where"
+                " they are defined."
+            )
+
+
 def defineColumnGrouping(arrays, keys, verbose=1):
     groupped_arrays = {}
     collections = {}
@@ -77,9 +100,9 @@ def defineColumnGrouping(arrays, keys, verbose=1):
     for collection_name, columns in collections.items():
         if verbose > 1:
             print(f"  {collection_name}: {columns}")
-        groupped_arrays[collection_name] = ak.zip(
-            {column: arrays[collection_name + "_" + column] for column in columns}
-        )
+        members = {column: arrays[collection_name + "_" + column] for column in columns}
+        checkCollectionMembers(collection_name, members)
+        groupped_arrays[collection_name] = ak.zip(members)
     counter_columns = ["n" + col_name for col_name in collections.keys()]
     other_columns = [col for col in other_columns if col not in counter_columns]
     if verbose > 1:

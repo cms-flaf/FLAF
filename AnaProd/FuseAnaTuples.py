@@ -30,6 +30,51 @@ def getDefaultValue(type_name):
     return default_values[type_name]
 
 
+def columnType(type_name):
+    """(is array, element type) of a branch type as uproot reports it."""
+    for prefix in ["RVec<", "ROOT::VecOps::RVec<", "std::vector<", "vector<"]:
+        if type_name.startswith(prefix) and type_name.endswith(">"):
+            return True, type_name[len(prefix) : -1]
+    if type_name.endswith("[]"):
+        return True, type_name[: -len("[]")]
+    return False, type_name
+
+
+def checkColumnTypes(inputs, output_file, tree_name, special_columns):
+    """Every column keeps its type through the fusion: an array stays an array of the same
+    element type, a scalar stays a scalar of the same type."""
+    with uproot.open(output_file) as output:
+        mismatches = []
+        for (unc_source, unc_scale), input in inputs.items():
+            is_central = unc_source == central
+            out_tree_name = (
+                tree_name if is_central else f"{tree_name}__{unc_source}__{unc_scale}"
+            )
+            out_types = {
+                branch.name: columnType(branch.typename)
+                for branch in output[out_tree_name].branches
+            }
+            with uproot.open(input["file_name"]) as input_file:
+                in_types = {
+                    branch.name: columnType(branch.typename)
+                    for branch in input_file[tree_name].branches
+                }
+            for name, in_type in in_types.items():
+                out_name = (
+                    name if is_central or name in special_columns else f"{name}__delta"
+                )
+                out_type = out_types.get(out_name)
+                if out_type != in_type:
+                    mismatches.append(
+                        f"{out_tree_name}/{out_name}: {in_type} -> {out_type}"
+                    )
+    if mismatches:
+        raise RuntimeError(
+            "Columns changed type while fusing (is array, element type):\n  "
+            + "\n  ".join(mismatches)
+        )
+
+
 def shiftedCounterName(collection):
     # RDataFrame reads a friend's array with the main tree's counter of the same name, so a
     # reader of a shifted tree would give Central.<array> the size of the shifted collection.
@@ -256,6 +301,7 @@ def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose
             }
         )
     copyFileContent(sources, output_file_path, verbose=min(0, verbose - 1))
+    checkColumnTypes(inputs, output_file_path, tree_name, special_columns)
     if verbose > 0:
         print("done.")
 

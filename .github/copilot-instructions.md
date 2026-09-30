@@ -89,6 +89,14 @@ Each of these has caused a production incident. They are ordered by how much dam
 - An empty stitching bin is not a bug: each bin's denominator is summed over the very events that
   later read it, so a bin no event falls into is never divided by.
 
+### anaTuple columns (`AnaProd/FuseAnaTuples.py`, `Common/TupleHelpers.py`)
+
+- Columns sharing the text before their first underscore are stored as one collection; array
+  collections share one counter. `defineColumnGrouping` refuses a collection that mixes scalars and
+  arrays (the scalars would silently become arrays) or holds arrays of different lengths, and
+  `fuseAnaTuples` checks that every column keeps its type. The fix for either is a rename in the analysis anaTuple
+  definition, never a reader that accepts both layouts.
+
 ### Concurrency
 
 - **Producers must not write bare-relative temp files.** CWD is shared between branches under
@@ -106,8 +114,13 @@ Each of these has caused a production incident. They are ordered by how much dam
 
 ## Configuration invariants
 
-- `config_path_order` merges four directories: **scalars override, lists concatenate**. A list
-  added in an analysis config *extends* the framework one rather than replacing it.
+- `config_path_order` layers four directories (`FLAF/config`, `FLAF/config/<era>`, `config`,
+  `config/<era>`; for `global.yaml` each directory's `user_custom.yaml` joins in, and
+  `--user-custom` comes last). The files are **concatenated as text and parsed once**, so a
+  repeated top-level key **replaces the earlier value wholesale** — lists and nested dicts
+  included; nothing is merged or concatenated. An analysis or era that redefines a block such as
+  `corrections:` must repeat every entry it still needs. Datasets from several layers combine only
+  because each dataset is its own top-level key.
 - Dataset split: SM backgrounds and data live in `FLAF/config/<era>/datasets.yaml`; signals and
   CI samples live in the analysis. A signal added to the framework config is misplaced.
 - `Run3_2025` and `Run3_2026` carry no MC of their own — they set `reuse_mc_from_era: Run3_2024`.
@@ -125,8 +138,11 @@ When a test uses a fake, the fake must call the **real** `__init__` and patch on
 genuinely unavailable. Hand-mirroring a class's attributes creates a copy that silently stops
 matching — that is how the path-cache suite went red for a whole merge cycle.
 
-Note that CI runs only `test/test_setup_loading.py` (via the `test-setup-loading` workflow);
-the pytest suites are not run anywhere, so a broken one is not caught automatically.
+Note what CI actually runs from `test/`: `test_setup_loading.py` (via `test-setup-loading`, on
+analysis PRs only) and the config checkers `checkCrossSections.py`,
+`checkDatasetConfigConsistency.py` and `checkDatasetNaming.py` (on FLAF PRs that change those
+config files). The other suites (`test_*.py`) are not run anywhere, so a broken one is not
+caught automatically.
 
 ## Documentation must ship with the change
 
@@ -173,9 +189,12 @@ separate PR; say so in the review rather than assuming it will be noticed.
 ## Already enforced by CI — do not comment on these
 
 `formatting-check` (black, yamllint, clang-format), `repo-sanity-checks` (binary files, repo size),
-`ds-consistency-check`, `cross-section-check`, `test-setup-loading` (loads `Setup` for all seven
-Run 3 eras). Formatting, indentation, quote style and trailing whitespace are settled by tooling;
-comments about them are pure noise.
+`ds-consistency-check`, `cross-section-check`. Formatting, indentation, quote style and trailing
+whitespace are settled by tooling; comments about them are pure noise.
+
+`test-setup-loading` (loads `Setup` for all seven Run 3 eras) runs on **analysis** PRs only —
+FLAF's copy is a reusable workflow with no PR trigger. On a FLAF PR, a change that can break
+config loading (`Common/Setup.py`, `config/`) is therefore not checked, and is worth a comment.
 
 ## Do not flag
 
@@ -190,7 +209,7 @@ comments about them are pure noise.
 
 ## Repository facts
 
-Verified 2026-08-27; re-check before relying on any of it.
+Verified 2026-09-30; re-check before relying on any of it.
 
 | | |
 |---|---|

@@ -7,7 +7,7 @@ inference — documented in that analysis's own `docs/`.
 | Analysis | Channel | Adds on top of FLAF | Docs |
 |---|---|---|---|
 | **HH→bb̄ττ** | HH → bb̄ττ | SVfit (`ClassicSVfit`, `SVfitTF`), `HHKinFit2`, `HHbtag`, DeepTau; resonant + non-resonant signals; `StatInference`. | [github.com/cms-flaf/HH_bbtautau](https://github.com/cms-flaf/HH_bbtautau) → `docs/` |
-| **HH→bb̄WW** | HH → bb̄WW | `DeepHME` mass reconstruction; b-tag-shape caching (`AnalysisCacheTask`); `StatInference`. | [github.com/cms-flaf/HH_bbWW](https://github.com/cms-flaf/HH_bbWW) → `docs/` |
+| **HH→bb̄WW** | HH → bb̄WW | `DeepHME` mass reconstruction; the `BtagShape` normalisation (`AnalysisCacheAggregationTask`); `StatInference`. | [github.com/cms-flaf/HH_bbWW](https://github.com/cms-flaf/HH_bbWW) → `docs/` |
 | **H→μμ** | H → μμ | Single-Higgs; the simplest setup (just `FLAF` + `Corrections`); **no** statistical-inference submodule. | [github.com/cms-flaf/H_mumu](https://github.com/cms-flaf/H_mumu) → `docs/` |
 
 ## What is common vs analysis-specific
@@ -23,19 +23,23 @@ inference — documented in that analysis's own `docs/`.
 ## HH→bb̄ττ — the reference analysis
 
 The most feature-complete analysis: SVfit and HHKinFit2 mass reconstruction, the HHbtag b-jet
-identifier, DeepTau-based τ identification (select the version with
-`--customisations deepTauVersion=2p5`), and resonant + non-resonant signal models. Used throughout
+identifier, DeepTau-based τ identification (the version is the `deepTauVersion` key of
+`config/global.yaml`, `2p5` by default), and resonant + non-resonant signal models. Used throughout
 these docs as the worked example.
 
 ## HH→bb̄WW
 
-Uses `DeepHME` for mass reconstruction instead of SVfit. Its pipeline inserts a b-tag-shape caching
-step (`AnalysisCacheTask`/`AnalysisCacheAggregationTask`) before histogramming — see the caveat in
-the [walkthrough](workflow/walkthrough.md#stage-2-compute-analysis-observables-histtuples) and
-[Task reference](reference/tasks.md#analysiscachetask).
+Uses `DeepHME` for mass reconstruction instead of SVfit. Like every analysis, it computes its
+payload-producer observables (HME, DeepHME and DNN scores; the `default` flavour uses the DeepHME
+and DNN ones) in `AnalysisCacheTask` before histogramming. On top of that, its `BtagShape` producer is a global one: its per-file results are
+aggregated per sample by `AnalysisCacheAggregationTask` into the b-tag shape normalisation that the
+`btag` correction reads — see the
+[walkthrough](workflow/walkthrough.md#stage-2-compute-analysis-observables-histtuples) and
+[Task reference](reference/tasks.md#analysiscacheaggregationtask).
 
 ## H→μμ
 
-A single-Higgs analysis with the leanest submodule set (no `StatInference`/`inference`). Its CI
-runs over every Run 3 era (explicit `*_eras` list), and its CI process names are lower-case
-(`custom_CI_signal`, …) — see [Processes & models](configuration/processes-and-models.md).
+A single-Higgs analysis with the leanest submodule set (no `StatInference`/`inference`). Like the
+HH analyses, its CI runs over all seven Run 3 eras; its CI process names differ in case
+(`custom_CI_signal`, `custom_CI_background_TT`, … instead of `custom_CI_Signal`, …) — see
+[Processes & models](configuration/processes-and-models.md).

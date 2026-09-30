@@ -20,12 +20,13 @@ ssh <your-cern-username>@lxplus.cern.ch
 ## 2. CVMFS
 
 FLAF gets its compilers, Python and ROOT from the CERN software distribution service
-[**CVMFS**](https://cvmfs.readthedocs.io/). On `lxplus` it is already mounted. Check that the two
+[**CVMFS**](https://cvmfs.readthedocs.io/). On `lxplus` it is already mounted. Check that the three
 areas FLAF uses are visible:
 
 ```sh
-ls /cvmfs/cms.cern.ch        # CMS software (CMSSW)
-ls /cvmfs/sft.cern.ch        # LCG software stacks (Python, ROOT, ...)
+ls /cvmfs/cms.cern.ch            # CMS software (CMSSW, Rucio client)
+ls /cvmfs/sft.cern.ch            # LCG software stacks (Python, ROOT, ...)
+ls /cvmfs/cms-griddata.cern.ch   # POG correction files read by Corrections
 ```
 
 If those directories are empty or missing, CVMFS is not available and FLAF will not work.
@@ -48,9 +49,10 @@ is part of [Installation](installation.md).
 
 ## 4. SSH keys for GitHub **and** CERN GitLab
 
-FLAF and the analyses live on **GitHub** (`github.com/cms-flaf/...`); some shared submodules
-(the HH `inference` tooling) live on **CERN GitLab** (`gitlab.cern.ch`). Cloning with submodules
-pulls from both, so you need an SSH key registered on each:
+FLAF and the analyses live on **GitHub** (`github.com/cms-flaf/...`); the `inference` submodule
+of the two HH analyses lives on **CERN GitLab** (`gitlab.cern.ch`, SSH on port 7999). Cloning an HH
+analysis with submodules pulls from both, so you need an SSH key registered on each (H→μμ needs
+only GitHub):
 
 - GitHub → [github.com/settings/keys](https://github.com/settings/keys)
 - CERN GitLab → [gitlab.cern.ch/-/profile/keys](https://gitlab.cern.ch/-/profile/keys)
@@ -58,8 +60,8 @@ pulls from both, so you need an SSH key registered on each:
 Verify both work:
 
 ```sh
-ssh -T git@github.com           # should greet you by username
-ssh -T git@gitlab.cern.ch       # should welcome you
+ssh -T git@github.com                 # should greet you by username
+ssh -T -p 7999 git@gitlab.cern.ch     # should welcome you (the port the submodule URL uses)
 ```
 
 !!! tip "Why two hosts?"
@@ -78,9 +80,9 @@ ssh -T git@gitlab.cern.ch       # should welcome you
 ## Checklist
 
 - [ ] Can `ssh` to `lxplus` (`el9`)
-- [ ] `/cvmfs/cms.cern.ch` and `/cvmfs/sft.cern.ch` are populated
+- [ ] `/cvmfs/cms.cern.ch`, `/cvmfs/sft.cern.ch` and `/cvmfs/cms-griddata.cern.ch` are populated
 - [ ] Grid certificate in `~/.globus/`, member of the CMS VO
-- [ ] SSH keys registered on **both** GitHub and CERN GitLab
+- [ ] SSH keys registered on **both** GitHub and CERN GitLab (GitLab only for the HH analyses)
 - [ ] A few GB of free quota in your AFS work area
 
 All set? Continue to [Installation](installation.md).

@@ -1,24 +1,34 @@
 # Eras & periods
 
 Every run targets one **era** (also called a **period**), passed as `--period`. An era is a CMS
-data-taking period; choosing one selects the matching datasets, corrections and NanoAOD version.
+data-taking period; choosing one selects the matching datasets, corrections and NanoAOD input.
 
 ## Run 3 eras (current)
 
-| `--period` | Description | √s | NanoAOD |
-|---|---|---|---|
-| `Run3_2022` | 2022, pre-ECAL repair | 13.6 TeV | v12 |
-| `Run3_2022EE` | 2022, post-ECAL repair ("EE") | 13.6 TeV | v12 |
-| `Run3_2023` | 2023, pre-BPix | 13.6 TeV | v13 |
-| `Run3_2023BPix` | 2023, post-BPix install | 13.6 TeV | v13 |
-| `Run3_2024` | 2024 | 13.6 TeV | v15 |
-| `Run3_2025` | 2025 | 13.6 TeV | v15 |
-| `Run3_2026` | 2026 | 13.6 TeV | v15 |
+| `--period` | Description | √s | NanoAOD (FLAF default version) | HH_bbWW, H_mumu |
+|---|---|---|---|---|
+| `Run3_2022` | 2022, pre-ECAL repair | 13.6 TeV | v14, HLepRare skim | v12 MC / `22Sep23` data (DAS) |
+| `Run3_2022EE` | 2022, post-ECAL repair ("EE") | 13.6 TeV | v14, HLepRare skim | v12 MC / `22Sep23` data (DAS) |
+| `Run3_2023` | 2023, pre-BPix | 13.6 TeV | v14, HLepRare skim | v12 MC / `22Sep23` data (DAS) |
+| `Run3_2023BPix` | 2023, post-BPix install | 13.6 TeV | v14, HLepRare skim | v12 MC / `22Sep23` data (DAS) |
+| `Run3_2024` | 2024 | 13.6 TeV | v15 | v15 (DAS) |
+| `Run3_2025` | 2025 | 13.6 TeV | v15 | v15 (DAS) |
+| `Run3_2026` | 2026 | 13.6 TeV | v15 | v15 (DAS) |
 
-## Run 2 eras (legacy)
+For 2022–2023BPix the framework default reads the HLepRare NanoAOD v14 skims
+(`skim_2025_v1` under `/store/group/phys_higgs/HLepRare/`, the era's `fs_nanoAOD`); only
+HH_bbtautau uses them. HH_bbWW and H_mumu override those four eras to read the central NanoAOD
+from DAS instead. For 2024–2026 all three analyses read NanoAOD v15 from DAS (apart from the
+few datasets that set their own `fs_nanoAOD`). FLAF itself sets only `nano_version: v15` for these
+eras and no NanoAOD source: the analyses select DAS through `nanoAODVersions` in their era configs.
 
-`Run2_2016_HIPM`, `Run2_2016`, `Run2_2017`, `Run2_2018` (13 TeV). Still defined, but new
-development targets Run 3.
+## Run 2 eras (legacy, not runnable)
+
+`FLAF/config/` still has `Run2_2016_HIPM`, `Run2_2016`, `Run2_2017` and `Run2_2018` directories
+(13 TeV), but they hold only legacy `samples.yaml`/`triggers.yaml` files — no `global.yaml` and
+no `datasets.yaml` — and the analyses carry at most a Run 2 `weights.yaml`. Configuration loading
+cannot build a run for these eras, and CI covers only the seven Run 3 eras. Treat Run 2 as
+unsupported.
 
 ## Why the split into sub-eras?
 
@@ -34,9 +44,14 @@ Each sub-era has its own corrections and luminosity, which is exactly why the
 
 ## What an era controls
 
-- **Datasets** — `config/<era>/datasets.yaml` lists the samples available for that era, including
-  the correct NanoAOD version path on DAS.
-- **NanoAOD version** — the table above; the dataset entries point at the right `vNN` campaign.
+- **Datasets** — `config/<era>/datasets.yaml` lists the samples available for that era; each
+  entry's `nanoAOD:` map gives its DAS name per NanoAOD version (`22Sep23`, `v12`, `v15`, …).
+- **NanoAOD input** — the table above, set by two keys of the era's `global.yaml`.
+  `nanoAODVersions: { data: …, mc: … }` picks which entry of each dataset's `nanoAOD:` map is
+  read, through Rucio; when it is not set, the files are listed from the era's `fs_nanoAOD` (the
+  HLepRare skims). A dataset with its own `fs_nanoAOD` is always read from there.
+  `nano_version` names the NanoAOD format the producers are written for (`v12` has different
+  branches), so it has to match what is read.
 - **Corrections** — pileup, b-tagging, trigger and other scale factors are era-specific.
 - **Signals** — resonant/non-resonant signals exist for some eras and not others. For
   `Run3_2024`, VBF and non-resonant ggF HH are on DAS (new `Par-` naming); resonant
@@ -50,7 +65,9 @@ Each sub-era has its own corrections and luminosity, which is exactly why the
   same events split by residue between 2024, 2025 and 2026; use for a combined
   run). The split applies only to MC; data keeps the full year in
   `weight_base_cmb`. Select which branch histograms use with
-  `weight_base_branch`.
+  `weight_base_branch`; all three eras default to `weight_base`, so by default every year
+  uses all of its events with its own luminosity, and the residue split below feeds only
+  `weight_base_cmb`.
   `shared_mc` lives only on the source era (`Run3_2024`): a 17:17:4 residue
   *target* over modulus 38 (`Run3_2024: [ 0, 16 ]`, `Run3_2025: [ 17, 33 ]`,
   `Run3_2026: [ 34, 37 ]`), matching the recorded luminosities

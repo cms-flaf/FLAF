@@ -109,10 +109,7 @@ Each of these has caused a production incident. They are ordered by how much dam
   refuses inputs produced with different lists, since a chain takes its columns from the first
   file. A column that a shifted tree takes from `Central` answers `HasColumn` but is not listed by
   `GetColumnNames()`, and `Define` of that name fails: check existence with `HasColumn`.
-- A friend's array is read by RDataFrame with the main tree's counter of the same name
-  (`TTreeReaderArray` looks the counter up by name), so a same-named collection in a shifted tree and
-  in `Central` gives wrong sizes for `Central.<array>`. Listing a whole collection as shift-invariant
-  also drops its counter from the shifted trees.
+- Listing a whole collection as shift-invariant also drops its counter from the shifted trees.
 
 ### Concurrency
 
@@ -130,6 +127,12 @@ Each of these has caused a production incident. They are ordered by how much dam
   corrupts every shifted collection that is longer than the central one.
 - `__shifted` is a column suffix like `__delta`: `Common/Utilities.CreateDataFrame` skips it, and
   any other code that splits column names on `__` has to accept it.
+
+### Writing trees with uproot
+
+- **Write trees with `Common/TupleHelpers.writeTree` (or an explicit `mktree`), never
+  `file[name] = arrays`.** Since uproot 5.7 (LCG_110a) that assignment writes an RNTuple, which
+  TChain, tree friends and the anaTuple readers do not accept.
 
 ## Configuration invariants
 

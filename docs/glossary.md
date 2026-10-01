@@ -22,8 +22,9 @@ Framework and CMS-computing vocabulary, in plain terms. For the quick on-ramp ve
   area. See [HTCondor](workflow/htcondor.md#bundles-shipping-the-code-to-workers).
 
 **Combine**
-: The CMS statistical tool (`HiggsAnalysis/CombinedLimit`) used for limits and fits. FLAF builds a
-  standalone `v10.4.2`.
+: The CMS statistical tool (`HiggsAnalysis/CombinedLimit`) used for limits and fits. FLAF builds
+  `v11.1.0` in the CMSSW area and standalone against the ROOT of `flaf_env` (see
+  [The environment](concepts/environment.md)).
 
 **Corrections**
 : The shared submodule providing object corrections and systematic variations (pileup, b-tag,

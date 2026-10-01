@@ -8,7 +8,7 @@ explains what that environment contains, the variables it sets, and the few shar
 The analysis `env.sh` sets `ANALYSIS_PATH` (and, for the HH analyses, `HH_INFERENCE_PATH`),
 defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, which:
 
-1. **Activates `flaf_env`** — a Python virtual environment built from the CVMFS `LCG_108a` stack
+1. **Activates `flaf_env`** — a Python virtual environment built from the CVMFS `LCG_110a` stack
    (`x86_64-el9-gcc15-opt`), under `soft/flaf_env`. This provides Python, ROOT and the FLAF
    dependencies, and registers the `law` command with tab-completion.
 2. **Provides CMSSW** — installs/uses `CMSSW_16_0_6` (compiler `gcc13`) under `soft/`. Most of
@@ -17,9 +17,19 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
    HH_bbWW and H_mumu produce their anaTuples in `flaf_env`), and payload producers that set
    `cmssw_env: True` (HH_bbWW's HME producers), and the CMSSW steps of the StatInference chain
    (`PreprocessShapesTask`, `CreateDatacardsTask`, `ResonantLimitsTask`), which switch into it themselves.
-3. **Provides Combine** — builds standalone
-   [Combine](https://cms-analysis.github.io/HiggsAnalysis-CombinedLimit/) `v10.4.2` for statistical
-   inference, and (for HH analyses) wires up the `inference`/`dhi` tooling.
+3. **Provides Combine** — builds
+   [Combine](https://cms-analysis.github.io/HiggsAnalysis-CombinedLimit/) `v11.1.0`
+   (`FLAF_COMBINE_VERSION`) twice: in the CMSSW area (`src/HiggsAnalysis/CombinedLimit`, together
+   with CombineHarvester), used by the tasks that run in CMSSW and by jobs that run from bundles,
+   and standalone in `soft/HiggsAnalysis-CombinedLimit`, against the ROOT of `flaf_env`, for the
+   `inference`/`dhi` tooling that it also wires up for HH analyses. The standalone build carries one
+   FLAF patch (`run_tools/combine_root638_clipping.patch`): since ROOT 6.38 `RooRealVar::setVal`
+   throws outside the variable's range instead of clipping, which makes Combine's
+   `AsymptoticLimits` abort on the observed limit while still exiting 0, and the patch restores
+   the clipping Combine relies on. Both builds record the version they were made for; when it
+   changes, the next `source env.sh` checks out the new version in the CMSSW area and rebuilds it
+   with `scram`, and rebuilds the standalone one. The `dhi` setup, `inference/.setups/flaf.sh`, is
+   written again at the same time, so edits made to it by hand do not survive a version change.
 4. **Sets up grid access** — points `X509_USER_PROXY` at `data/voms.proxy` (unless it is already
    set) and initialises Rucio, pinned to the version in `FLAF_RUCIO_VERSION` (default `39.2.0`).
 5. **Defines the `cmsEnv` helper** (see below).
@@ -27,6 +37,22 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
 !!! note "First source is slow, the rest are fast"
     The CMSSW and Combine builds happen only on the first `source env.sh`. After that it is a
     quick activation. You must source it **once in every new shell**.
+
+!!! warning "When FLAF moves to another LCG release"
+    The LCG release is pinned in `FLAF/env.sh`. The first `source env.sh` after an update of
+    FLAF that changes it deletes and rebuilds `soft/flaf_env` and rebuilds the standalone Combine,
+    which links against the ROOT of `flaf_env` (the same happens to both Combine builds when
+    `FLAF_COMBINE_VERSION` changes). Run it in a fresh shell, with network access, and
+    not in a checkout whose jobs are still queued or running: they use the same `soft/`. A
+    production that reuses an existing `--version` with bundles also needs its unhashed `soft` and
+    `cmssw` bundles deleted, see
+    [Bundles are named after what they contain](../workflow/htcondor.md#bundles-are-named-after-what-they-contain);
+    with an old `soft` bundle the jobs stop with
+    `ERROR: FLAF environment not found at … and FLAF_NO_INSTALL=1`, with an old `cmssw` bundle with
+    `ERROR: …/.installed_combine_v11.1.0 not found and FLAF_NO_INSTALL=1`. `LCG_110a` brings Python 3.13
+    and ROOT 6.40, which matters for personal scripts run in `flaf_env`. The standalone Combine
+    that earlier versions built inside the CMSSW area
+    (`soft/CMSSW_16_0_6/src/HiggsAnalysis/CombinedLimit/build`) is removed on the way.
 
 ## Key environment variables
 
@@ -38,7 +64,8 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
 | `ANALYSIS_SOFT_PATH` | Where the built software lives (`$ANALYSIS_PATH/soft`). |
 | `FLAF_ENVIRONMENT_PATH` | The `flaf_env` virtual environment (`$ANALYSIS_SOFT_PATH/flaf_env`). |
 | `FLAF_CMSSW_BASE` | The CMSSW area used by the pipeline. |
-| `FLAF_COMBINE_PATH` | The Combine checkout (`$FLAF_CMSSW_BASE/src/HiggsAnalysis/CombinedLimit`); its standalone build is put on `PATH` (`build/bin`), `LD_LIBRARY_PATH` and `PYTHONPATH`. |
+| `FLAF_COMBINE_PATH` | The standalone Combine checkout (`soft/HiggsAnalysis-CombinedLimit`); its build is put on `PATH` (`build/bin`), `LD_LIBRARY_PATH` and `PYTHONPATH`. |
+| `FLAF_COMBINE_VERSION` | The Combine version of both builds (CMSSW area and standalone); `none` switches Combine off. |
 | `ANALYSIS_DATA_PATH` | The local `data/` working area. |
 | `X509_USER_PROXY` | Your VOMS proxy (default `data/voms.proxy`; a value set before sourcing is kept). |
 | `LAW_HOME` / `LAW_CONFIG_FILE` | LAW's home (`.law`) and config (`config/law.cfg`). |

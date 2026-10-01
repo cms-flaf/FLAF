@@ -24,7 +24,7 @@ import ROOT
 import uproot
 
 from FLAF.AnaProd.FuseAnaTuples import checkColumnTypes, columnType, fuseAnaTuples
-from FLAF.Common.TupleHelpers import defineColumnGrouping
+from FLAF.Common.TupleHelpers import defineColumnGrouping, writeTree
 
 ROOT.gROOT.SetBatch(True)
 ROOT.gROOT.ProcessLine(f".include {flaf_repo}")
@@ -153,10 +153,14 @@ class TestFuseColumnTypes(unittest.TestCase):
             write_input(raw, list(range(N_EVENTS)), COLUMNS)
             fused = os.path.join(tmp, "fused.root")
             with uproot.recreate(fused) as f:
-                f["Events"] = {
-                    "FullEventId": ak.Array(list(range(N_EVENTS))),
-                    "channelId": ak.Array([[1]] * N_EVENTS),
-                }
+                writeTree(
+                    f,
+                    "Events",
+                    {
+                        "FullEventId": ak.Array(list(range(N_EVENTS))),
+                        "channelId": ak.Array([[1]] * N_EVENTS),
+                    },
+                )
             inputs = {("Central", "Central"): {"file_name": raw}}
             with self.assertRaisesRegex(
                 RuntimeError, r"Events/channelId.*\(False, 'int32_t'\) -> \(True"

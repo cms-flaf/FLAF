@@ -48,10 +48,10 @@ Sourcing the analysis's `env.sh` is how you enter the FLAF environment. It:
    (unless `FLAF_PATH` is already set, see
    [Developing shared submodules](../concepts/environment.md#developing-shared-submodules));
 2. **the first time**, builds everything it needs (this is the slow part):
-    - a Python virtual environment `flaf_env` (from the CVMFS `LCG_108a` stack) under `soft/`;
+    - a Python virtual environment `flaf_env` (from the CVMFS `LCG_110a` stack) under `soft/`;
     - a CMSSW area (`CMSSW_16_0_6`) used by the parts of the pipeline that need CMS software;
     - a standalone [Combine](https://cms-analysis.github.io/HiggsAnalysis-CombinedLimit/)
-      (`v10.4.2`) for statistical inference;
+      (`v11.1.0`) for statistical inference;
 3. activates that environment and registers the `law` command and tab-completion;
 4. defines a `cmsEnv` helper for running commands inside CMSSW;
 5. sets `X509_USER_PROXY` (your VOMS proxy location) to `data/voms.proxy`, **unless it is

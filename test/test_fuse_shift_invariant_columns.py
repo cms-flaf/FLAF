@@ -191,7 +191,7 @@ class TestFuseShiftInvariantColumns(unittest.TestCase):
                     "LHE_NpNLO__delta",
                     "LHEPart_pt__delta",
                     "LHEPart_pdgId__delta",
-                    "nLHEPart",
+                    "nLHEPart__shifted",
                     "nLHEPart__delta",
                 },
             )

@@ -48,11 +48,6 @@ action() {
     fi
 
     if [ -n "${bundle_list}" ]; then
-        local lcg_setup="/cvmfs/sft.cern.ch/lcg/views/LCG_108a/x86_64-el9-gcc15-opt/setup.sh"
-        if [ -f "${lcg_setup}" ]; then
-            source "${lcg_setup}" 2>/dev/null
-        fi
-
         local gfal_copy_bin
         gfal_copy_bin=$(which gfal-copy 2>/dev/null)
         if [ -z "${gfal_copy_bin}" ]; then

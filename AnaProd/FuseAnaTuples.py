@@ -11,6 +11,7 @@ from FLAF.Common.TupleHelpers import (
     copyFileContent,
     defineColumnGrouping,
     parseColumnName,
+    writeTree,
 )
 from Corrections.CorrectionsCore import central
 
@@ -165,7 +166,7 @@ def alignAnaTuple(
         aligned_arrays, aligned_arrays.keys(), verbose=0
     )
     with uproot.recreate(output_file, compression=uproot.ZLIB(4)) as out_file:
-        out_file[tree_name] = aligned_arrays
+        writeTree(out_file, tree_name, aligned_arrays)
     return n_valid
 
 
@@ -304,7 +305,7 @@ def fillShiftInvariantColumns(
         {field: central_arrays[field] for field in fields}, fields, verbose=0
     )
     with uproot.recreate(central_file, compression=uproot.ZLIB(4)) as out_file:
-        out_file[tree_name] = grouped
+        writeTree(out_file, tree_name, grouped)
 
 
 def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose=0):

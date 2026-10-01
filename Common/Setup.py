@@ -339,10 +339,14 @@ class Setup:
 
         reuse_mc_era = self.global_params.get("reuse_mc_from_era")
         if reuse_mc_era and "shared_mc" not in self.global_params:
+            # All four layers, as for the era itself: an era's global.yaml may refer to
+            # anchors defined in the top-level one (e.g. `<<: *corrections_default`).
             reuse_global = Config(
                 f"global_{reuse_mc_era}",
                 [
+                    os.path.join(self.ana_path, "FLAF", "config"),
                     os.path.join(self.ana_path, "FLAF", "config", reuse_mc_era),
+                    os.path.join(self.ana_path, "config"),
                     os.path.join(self.ana_path, "config", reuse_mc_era),
                 ],
                 ["global.yaml"],

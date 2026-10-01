@@ -97,11 +97,36 @@ Each of these has caused a production incident. They are ordered by how much dam
   `fuseAnaTuples` checks that every column keeps its type. The fix for either is a rename in the analysis anaTuple
   definition, never a reader that accepts both layouts.
 
+### anaTuple layout (`AnaProd/FuseAnaTuples.py`)
+
+- Every tree of an anaTuple has one row per event selected in any variation, aligned by row.
+  `valid == false` rows of the central tree are placeholders for events selected only by a shift.
+  Shifted trees store `<name>__delta`; readers attach the central tree as the friend `Central`.
+- Columns in `anaTuple_shift_invariant_columns` are stored in the central tree only, and the fuse
+  step fills them into the placeholder rows after checking bit-identity across every variation that
+  selects the event. Skipping a column without filling the placeholders would give events selected
+  only by a shift the placeholder's zeros, so both halves must stay together. `MergeAnaTuples`
+  refuses inputs produced with different lists, since a chain takes its columns from the first
+  file. A column that a shifted tree takes from `Central` answers `HasColumn` but is not listed by
+  `GetColumnNames()`, and `Define` of that name fails: check existence with `HasColumn`.
+- Listing a whole collection as shift-invariant also drops its counter from the shifted trees.
+
 ### Concurrency
 
 - **Producers must not write bare-relative temp files.** CWD is shared between branches under
   `law --workers`, so two branches race on the same name. Write under the job's working
   directory.
+
+### Shifted-tree array counters (`AnaProd/FuseAnaTuples.py`)
+
+- ROOT reads an array of a friend tree with the main tree's counter of the same name
+  (`TTreeReaderArray` looks the counter up by name). Shifted trees are read with the central tree as
+  the friend `Central`, so their array collections are counted by `n<collection>__shifted`, and the
+  deltas are computed against the first `central.n<collection>` elements of `central.<array>`.
+  Writing a shifted tree with the central counter names, or dropping the clipping, silently
+  corrupts every shifted collection that is longer than the central one.
+- `__shifted` is a column suffix like `__delta`: `Common/Utilities.CreateDataFrame` skips it, and
+  any other code that splits column names on `__` has to accept it.
 
 ### Writing trees with uproot
 

@@ -167,6 +167,7 @@ def copyFileContent(
                         "name_suffix": "",
                         "copyTrees": copyTrees,
                         "copyHistograms": copyHistograms,
+                        "counter_name": None,
                     }
                 )
             elif type(item) is dict:
@@ -177,6 +178,7 @@ def copyFileContent(
                         "name_suffix": item.get("name_suffix", ""),
                         "copyTrees": item.get("copyTrees", copyTrees),
                         "copyHistograms": item.get("copyHistograms", copyHistograms),
+                        "counter_name": item.get("counter_name"),
                     }
                 )
             else:
@@ -200,6 +202,8 @@ def copyFileContent(
     # Trees are collected as a list of (file_path, internal_path) sources for TChain.
     histograms = {}  # out_path -> ROOT TH1
     trees = {}  # out_path -> [(file_path, internal_path), ...]
+    # out_path -> function giving the counter name of an array collection, when not n<collection>
+    counter_names = {}
 
     def collect_objects(directory, inp, dir_prefix=""):
         # Build a map of name -> latest-cycle key to avoid processing stale cycles.
@@ -253,6 +257,8 @@ def copyFileContent(
                 if out_path not in trees:
                     trees[out_path] = []
                 trees[out_path].append((inp["file"], internal_path))
+                if inp["counter_name"] is not None:
+                    counter_names[out_path] = inp["counter_name"]
 
     for inp in inputs:
         input_file = ROOT.TFile.Open(inp["file"], "READ")
@@ -308,6 +314,13 @@ def copyFileContent(
                             for arrays in src_tree.iterate(step_size=step_size):
                                 grouped = defineColumnGrouping(arrays, src_tree.keys())
                                 if out_path in uproot_out:
+                                    uproot_out[out_path].extend(grouped)
+                                elif out_path in counter_names:
+                                    uproot_out.mktree(
+                                        out_path,
+                                        {k: v.type for k, v in grouped.items()},
+                                        counter_name=counter_names[out_path],
+                                    )
                                     uproot_out[out_path].extend(grouped)
                                 else:
                                     writeTree(uproot_out, out_path, grouped)

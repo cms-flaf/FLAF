@@ -49,18 +49,21 @@ directory to list on `fs_nanoAOD`, default: the dataset name) and `fileNamePatte
 NanoAOD tag to a regular expression the file names must match, default `.*\.root$`).
 
 Three optional fields deal with samples that are only partly usable. Like `fileNamePattern`, each
-maps a NanoAOD source — the `nanoAODVersions` tag, or `HLepRare` for an era read from the skims — to
-a list, because the same dataset is read from DAS by one analysis and from a skim by another, with
-different files:
+maps a NanoAOD source — one of the dataset's `nanoAOD` tags, as selected by `nanoAODVersions`, or
+`HLepRare` for an era read from the skims — to its value, because the same dataset is read from DAS
+by one analysis and from a skim by another, with different files:
 
 - `exclude_files` — file names (the last path component) that `InputFileTask` leaves out, e.g. a
   file written without the LHE weights the rest of the dataset carries. The task output lists
-  them under `excluded_files`; a name the listing does not have stops the task. The normalisation
-  is unaffected: the denominators are summed over the files actually processed.
+  them under `excluded_files`; a name the listing does not have stops the task. The MC
+  normalisation is unaffected: the denominators are summed over the files actually processed.
 - `event_filter` — a boolean expression on the NanoAOD branches. The anaTuple production removes
   the events that fail it, in `Events` and `EventsNotSelected`, before anything else is defined:
   for the rest of FLAF — denominators, processors, anaTuples — they do not exist. Use it where the
   unusable events share a file with good ones.
+
+For data, neither `exclude_files` nor `event_filter` changes the integrated luminosity, which is a
+fixed configuration value: removed data would be missing from the luminosity it is compared to.
 - `disabled_corrections` — corrections that are not applied to this dataset. A shape weight (`pu`,
   `parton_shower`, `top_pt`, `pdf`, `qcd_scale`) is not dropped but set to 1 for every member, so its
   `weight_base_*_rel` branches exist, equal to 1, for every dataset of a process; use it where the

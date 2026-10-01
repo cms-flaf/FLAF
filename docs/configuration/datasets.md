@@ -48,6 +48,33 @@ Real-data entries carry `eraLetter` (the run era, e.g. `C`) instead of `generato
 directory to list on `fs_nanoAOD`, default: the dataset name) and `fileNamePattern` (a map from
 NanoAOD tag to a regular expression the file names must match, default `.*\.root$`).
 
+Two optional fields deal with samples that are only partly usable:
+
+- `exclude_files` — file names (the last path component) that `InputFileTask` leaves out, e.g. a
+  file written without the LHE weights the rest of the dataset carries. The task output lists
+  them under `excluded_files`; a name the dataset does not have stops the task. The normalisation
+  is unaffected: the denominators are summed over the files actually processed.
+- `disabled_corrections` — corrections (names as in the `corrections:` block of `global.yaml`)
+  that are not applied to this dataset. A shape weight (`pu`, `parton_shower`, `top_pt`, `pdf`,
+  `qcd_scale`) is not dropped but set to 1 for every member, so its `weight_base_*_rel` branches
+  exist — equal to the nominal — for every dataset of a process; use it where the NanoAOD lacks
+  the weights entirely (`PSWeight` with a single entry, empty `LHEPdfWeight`). A name that no
+  `corrections:` block configures is refused. Needs Corrections with `disabled_corrections`
+  support.
+
+```yaml
+ZZZ:
+  crossSection: ZZZ
+  generator: amcatnlo
+  nanoAOD:
+    v12: /ZZZ_TuneCP5_13p6TeV_amcatnlo-pythia8/.../NANOAODSIM
+  exclude_files:
+    - 7c4f3eb2-3c7e-4c21-98ed-c1892bb3a057.root
+GluGluHto2Tau_M125:
+  ...
+  disabled_corrections: [ parton_shower ]
+```
+
 For **custom/local** samples (e.g. CI test inputs) that are not official DAS datasets, point at
 your own storage instead:
 

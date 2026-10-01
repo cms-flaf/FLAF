@@ -106,6 +106,16 @@ than `TTInfo_top_pt`).
 The same step stops on `Columns changed type while fusing`, which lists every column whose type the
 fused file does not preserve.
 
+## `Column '…' is declared shift-invariant but differs in …` in `AnaTupleFileTask`
+A column listed in `anaTuple_shift_invariant_columns` does change under the named shift, so it cannot
+be taken from the central tree. It is usually a generator quantity attached to a reconstructed object
+(a matched gen jet or lepton, a flavour label of a jet), which follows the selected object. Remove the
+pattern that matches it and produce the anaTuples again under a new `--version`: the files already
+produced with the old list cannot be merged with new ones (`AnaTupleMergeTask` stops with
+`anaTuples of dataset … were produced with different anaTuple_shift_invariant_columns`). Related
+messages: an array collection listed only in part, a listed column missing from some shifted trees,
+or a pattern matching `valid`/`FullEventId`.
+
 ## ROOT/cling library or JIT errors in a background run
 You launched the environment under `env -i`, which strips `LD_LIBRARY_PATH` (ROOT/cling needs it).
 Preserve it (and `HOME`, `PATH`) when starting a clean shell. See

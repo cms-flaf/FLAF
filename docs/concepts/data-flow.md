@@ -117,6 +117,25 @@ that dataset. See the [Task reference](../reference/tasks.md#analysiscachetask).
     (e.g. after adding a dataset or changing `n_files_per_job`) has no marker and is still produced
     normally.
 
+## What an anaTuple holds
+
+A per-file or merged anaTuple has one tree per variation: `Events` for the central selection and
+`Events__<source>__<Up|Down>` for each systematic shift. Every tree has one row per event selected in
+**any** variation, in the same order, so row *i* is the same event in all of them:
+
+- `valid` tells whether the event passed the selection of that tree. A central row with
+  `valid == false` is a **placeholder** for an event that only a shift selected.
+- A shifted tree stores each column as `<name>__delta`, its difference from the central value (or the
+  full value where the central row is a placeholder). Readers attach the central tree as the friend
+  `Central` and rebuild `<name>` from it; a column the shifted tree does not store at all is taken
+  from `Central` as it is.
+- Columns that no shift can change (generator weights, LHE and generator truth, pileup truth, event
+  numbers) can be listed in the analysis `global.yaml` as `anaTuple_shift_invariant_columns`. They
+  are then stored in the central tree only, and the placeholder rows get their real values from the
+  variation that selected the event, so a shifted tree reads them — and the merged `weight_base`
+  built from them — from `Central` for every event it selected. See
+  [`AnaTupleFileTask`](../reference/tasks.md#anatuplefiletask).
+
 ## Where the outputs live
 
 Each output type is written to a **named filesystem** (`fs_*`) that you configure — typically

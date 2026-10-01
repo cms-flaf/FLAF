@@ -73,10 +73,26 @@ The producer runs in the FLAF environment, or inside CMSSW when the analysis set
 with no events, or one that turns out to be corrupted, gives an empty anaTuple with a report
 marked invalid, which the merge plan skips.
 
-Each job fuses the outputs of the central selection and of every systematic shift into one file, in
-which the columns sharing the text before their first underscore form one collection. The step stops
-if a prefix mixes scalar and array columns, or if any column would come out with another type than it
-went in; the fix is to rename the columns in the analysis anaTuple definition.
+Each job fuses the outputs of the central selection and of every systematic shift into one file
+([layout](../concepts/data-flow.md#what-an-anatuple-holds)), in which the columns sharing the text
+before their first underscore form one collection. The step stops if a prefix mixes scalar and array
+columns, or if any column would come out with another type than it went in; the fix is to rename the
+columns in the analysis anaTuple definition.
+
+The analysis `global.yaml` can list the columns that no shift changes:
+
+```yaml
+anaTuple_shift_invariant_columns:  # regular expressions, matched with re.search
+  - "^weight_(gen|xs)$"
+  - "^LHE_"
+```
+
+Those columns are stored in the central tree only; the central placeholder rows (events selected
+only by a shift) get them from a shift that selected the event. The fuse step checks that every
+variation selecting an event carries bit-identical values of every listed column and stops otherwise,
+naming the column, the variation and an event. An array collection has to be listed as a whole. The
+list must be the same for every file merged together, and `AnaTupleMergeTask` stops otherwise:
+changing it means producing all anaTuples again under a new `--version`.
 
 ### `AnaTupleFileListBuilderTask` / `AnaTupleFileListTask`
 Build the **merge plan**. `AnaTupleFileListBuilderTask` has one branch per MC dataset and a single

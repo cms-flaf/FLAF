@@ -155,25 +155,25 @@ VBFHH_CV_m1p60_C2V_2p72_C3_m1p36:
 VBFHH_CV_m1p83_C2V_3p57_C3_m3p39:
   crossSec: 0.0168528
   reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads&plain=0#run3
-VBFHHto2B2Tau_CV_1_C2V_0_C3_1_fixedTauDecays:
+VBFHHto2B2Tau_CV_1_C2V_0_C3_1:
   crossSec: VBFHH_CV_1_C2V_0_kl_1 * 2 * BR_H_tautau * BR_H_bb
-VBFHHto2B2Tau_CV_1_C2V_1_C3_1_fixedTauDecays:
+VBFHHto2B2Tau_CV_1_C2V_1_C3_1:
   crossSec: VBFHH_CV_1_C2V_1_kl_1 * 2 * BR_H_tautau * BR_H_bb
-VBFHHto2B2Tau_CV_1p74_C2V_1p37_C3_14p4_fixedTauDecays:
+VBFHHto2B2Tau_CV_1p74_C2V_1p37_C3_14p4:
   crossSec: VBFHH_CV_1p74_C2V_1p37_C3_14p4 * 2 * BR_H_tautau * BR_H_bb
-VBFHHto2B2Tau_CV_2p12_C2V_3p87_C3_m5p96_fixedTauDecays:
+VBFHHto2B2Tau_CV_2p12_C2V_3p87_C3_m5p96:
   crossSec: VBFHH_CV_2p12_C2V_3p87_C3_m5p96 * 2 * BR_H_tautau * BR_H_bb
-VBFHHto2B2Tau_CV_m0p012_C2V_0p030_C3_10p2_fixedTauDecays:
+VBFHHto2B2Tau_CV_m0p012_C2V_0p030_C3_10p2:
   crossSec: VBFHH_CV_m0p012_C2V_0p030_C3_10p2 * 2 * BR_H_tautau * BR_H_bb
-VBFHHto2B2Tau_CV_m0p758_C2V_1p44_C3_m19p3_fixedTauDecays:
+VBFHHto2B2Tau_CV_m0p758_C2V_1p44_C3_m19p3:
   crossSec: VBFHH_CV_m0p758_C2V_1p44_C3_m19p3 * 2 * BR_H_tautau * BR_H_bb
-VBFHHto2B2Tau_CV_m0p962_C2V_0p959_C3_m1p43_fixedTauDecays:
+VBFHHto2B2Tau_CV_m0p962_C2V_0p959_C3_m1p43:
   crossSec: VBFHH_CV_m0p962_C2V_0p959_C3_m1p43 * 2 * BR_H_tautau * BR_H_bb
-VBFHHto2B2Tau_CV_m1p21_C2V_1p94_C3_m0p94_fixedTauDecays:
+VBFHHto2B2Tau_CV_m1p21_C2V_1p94_C3_m0p94:
   crossSec: VBFHH_CV_m1p21_C2V_1p94_C3_m0p94 * 2 * BR_H_tautau * BR_H_bb
-VBFHHto2B2Tau_CV_m1p60_C2V_2p72_C3_m1p36_fixedTauDecays:
+VBFHHto2B2Tau_CV_m1p60_C2V_2p72_C3_m1p36:
   crossSec: VBFHH_CV_m1p60_C2V_2p72_C3_m1p36 * 2 * BR_H_tautau * BR_H_bb
-VBFHHto2B2Tau_CV_m1p83_C2V_3p57_C3_m3p39_fixedTauDecays:
+VBFHHto2B2Tau_CV_m1p83_C2V_3p57_C3_m3p39:
   crossSec: VBFHH_CV_m1p83_C2V_3p57_C3_m3p39 * 2 * BR_H_tautau * BR_H_bb
 ############## Backgrounds ##############
 DY_NNLO_QCD_NLO_EW:

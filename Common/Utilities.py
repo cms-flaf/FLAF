@@ -259,6 +259,9 @@ def CreateDataFrame(
         name_split = full_name.split("__")
         if len(name_split) == 2:
             suffix = name_split[1]
+            if suffix == "shifted":
+                # array counter of a shifted tree: n<collection> is rebuilt from n<collection>__delta
+                continue
             if suffix != "delta":
                 raise RuntimeError(f"Unknown column suffix: {suffix}")
             column_name = name_split[0]

@@ -75,6 +75,20 @@ def checkColumnTypes(inputs, output_file, tree_name, special_columns):
         )
 
 
+def shiftedCounterName(collection):
+    # RDataFrame reads a friend's array with the main tree's counter of the same name, so a
+    # reader of a shifted tree would give Central.<array> the size of the shifted collection.
+    return f"n{collection}__shifted"
+
+
+def arrayCounter(tree, column):
+    """The name of the counter of an array branch, None for a scalar or an object branch."""
+    branch = tree.GetBranch(column)
+    leaf = branch.GetLeaf(column) if branch else None
+    counter = leaf.GetLeafCount() if leaf else None
+    return counter.GetName() if counter else None
+
+
 def extractCommonEvents(reference_file, inputs, tree_name, id_column):
     if len(inputs) == 0:
         raise RuntimeError(
@@ -234,6 +248,14 @@ def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose
                         central_valid = "central.valid"
                         unc_valid = "valid"
                         central_column = f"central.{column}"
+                        counter = arrayCounter(central_tree, str(column))
+                        if counter is not None:
+                            # central.<array> is read with the size of the shifted row:
+                            # keep only the elements the central row has
+                            central_column = (
+                                f"ROOT::VecOps::Take(central.{column},"
+                                f" std::min<long>(central.{column}.size(), central.{counter}))"
+                            )
                         df = df.Define(
                             delta_column_name,
                             f"analysis::Delta({column}, {central_column}, {unc_valid}, {central_valid})",
@@ -275,6 +297,7 @@ def fuseAnaTuples(*, config, work_dir, tuple_output, report_output=None, verbose
                 "name_suffix": suffix,
                 "copyHistograms": False,
                 "copyTrees": True,
+                "counter_name": None if unc_source == central else shiftedCounterName,
             }
         )
     copyFileContent(sources, output_file_path, verbose=min(0, verbose - 1))

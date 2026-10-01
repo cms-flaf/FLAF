@@ -152,3 +152,12 @@ Two limits of that mechanism:
 ## The first `source env.sh` takes forever
 Expected: the first time it builds CMSSW and Combine (tens of minutes, a few GB under `soft/`).
 Subsequent sources are quick. Don't interrupt the first build.
+
+## Arrays of a shifted tree differ from the nanoAOD values beyond the central length
+anaTuples produced before shifted trees got their own array counters (`n<collection>__shifted`, see
+[Array counters in the shifted trees](concepts/data-flow.md#array-counters-in-the-shifted-trees))
+store the elements of a shifted collection beyond the length of the central one as differences
+from values that are not part of the central event (rounded, for floating-point columns, like every
+delta), and readers may add different such values back. `Central.<array>` read from such a shifted tree also comes with the size of the
+shifted collection. The shifted values of an event whose collection is not longer after the shift
+are correct. The anaTuples have to be produced again; there is no way to repair them afterwards.

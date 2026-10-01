@@ -54,16 +54,23 @@ class InputFileTask(Task, law.LocalWorkflow):
         nano_version = self.get_nano_version(dataset_name)
         pattern_dict = self.datasets[dataset_name].get("fileNamePattern", {})
         pattern = pattern_dict.get(nano_version, r".*\.root$")
+        # Files of the dataset that must not be processed (e.g. ones written without the LHE
+        # weights the rest of the dataset has), by file name.
+        excluded_names = set(dataset.get("exclude_files", []))
         entries = fs_nanoAOD.listdir(folder_name)
         # After the listing, so the metadata comes from it instead of a second query.
         listing_info = self.list_file_info(fs_nanoAOD, folder_name)
         input_files = []
         inactive_files = []
+        excluded_files = []
         file_info = {}
         for file in entries:
             if not re.match(pattern, file):
                 continue
             file_path = os.path.join(folder_name, file) if include_folder_name else file
+            if os.path.basename(file) in excluded_names:
+                excluded_files.append(file_path)
+                continue
             if hasattr(fs_nanoAOD, "file_interface"):
 
                 if hasattr(fs_nanoAOD.file_interface, "is_available"):
@@ -83,6 +90,14 @@ class InputFileTask(Task, law.LocalWorkflow):
             if info:
                 file_info[file_path] = info
 
+        missing_excluded = excluded_names - {
+            os.path.basename(f) for f in excluded_files
+        }
+        if missing_excluded:
+            raise RuntimeError(
+                f"{dataset_name}: exclude_files lists files the dataset does not have:"
+                f" {sorted(missing_excluded)}"
+            )
         if len(input_files) == 0:
             raise RuntimeError(f"No input files found for {dataset_name}")
 
@@ -90,6 +105,7 @@ class InputFileTask(Task, law.LocalWorkflow):
         output = {
             "input_files": input_files,
             "inactive_files": inactive_files,
+            "excluded_files": excluded_files,
             "file_info": file_info,
         }
         with self.output().localize("w") as out_local_file:
@@ -97,6 +113,10 @@ class InputFileTask(Task, law.LocalWorkflow):
                 json.dump(output, f, indent=2)
 
         print(f"{dataset_name}: {len(input_files)} input files are found.")
+        if excluded_files:
+            print(
+                f"{dataset_name}: {len(excluded_files)} files excluded: {excluded_files}"
+            )
 
     @staticmethod
     def list_file_info(fs, folder_name):

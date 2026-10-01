@@ -102,6 +102,8 @@ def check_era_consistency(era, era_desc, xs_db):
             "dirName",
             "fileNamePattern",
             "eraVersion",
+            "exclude_files",
+            "disabled_corrections",
         ]
         if datasetType not in must_have_properties:
             print(f"{era}/{name}: unknown datasetType '{datasetType}'.")

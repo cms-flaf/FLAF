@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Unit tests for the shared-MC residue split (2024/2025/2026)."""
+"""Unit tests for the shared-MC residue split (2024/2025/2026).
+
+test_expression_filters_like_python needs ROOT: run inside an analysis environment (source env.sh).
+"""
 
 import os
 import sys
@@ -11,7 +14,11 @@ flaf_parent = os.path.dirname(flaf_repo)
 if flaf_parent not in sys.path:
     sys.path.insert(0, flaf_parent)
 
-from FLAF.Common.shared_mc import shared_mc_in_era, shared_mc_split
+from FLAF.Common.shared_mc import (
+    shared_mc_in_era,
+    shared_mc_in_era_expr,
+    shared_mc_split,
+)
 
 SHARED_MC = {
     "split_modulus": 38,
@@ -53,6 +60,23 @@ class TestSharedMcSplit(unittest.TestCase):
         self.assertEqual(n24, 17)
         self.assertEqual(n25, 17)
         self.assertEqual(n26, 4)
+
+    def test_expression_filters_like_python(self):
+        # ROOT >= 6.38 refuses a Filter expression that does not evaluate to bool
+        import ROOT
+
+        n_events, step, offset = 500, 1000003, 2**40
+        events = [i * step + offset for i in range(n_events)]
+        for era in SHARED_MC["eras"]:
+            with self.subTest(era=era):
+                split_mod, lo, hi, _ = shared_mc_split(era, SHARED_MC)
+                df = ROOT.RDataFrame(n_events).Define(
+                    "event", f"rdfentry_ * {step}ULL + {offset}ULL"
+                )
+                df = df.Filter(shared_mc_in_era_expr(split_mod, lo, hi))
+                selected = df.Take["ULong64_t"]("event").GetValue()
+                expected = [e for e in events if shared_mc_in_era(e, split_mod, lo, hi)]
+                self.assertEqual(list(selected), expected)
 
     def test_two_denominators_match_when_split_is_uneven(self):
         # 50 events: residue counts are 29:17:4, not 17:17:4. Weights are not flat.

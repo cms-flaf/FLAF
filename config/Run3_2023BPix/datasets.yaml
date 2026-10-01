@@ -910,7 +910,9 @@ GluGluHto2Tau_M125:
   nanoAOD:
     v12: /GluGluHToTauTau_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23BPixNanoAODv12-130X_mcRun3_2023_realistic_postBPix_v2-v2/NANOAODSIM
   # PSWeight holds a single entry in every file: no parton-shower weights.
-  disabled_corrections: [ parton_shower ]
+  disabled_corrections:
+    v12: [ parton_shower ]
+    HLepRare: [ parton_shower ]
 GluGluHto2Tau_UncorrelatedDecay_Filtered:
   crossSection: GluGluHToTauTau_M125_Filtered
   generator: powheg

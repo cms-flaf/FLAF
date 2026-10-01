@@ -751,7 +751,9 @@ GluGluHto2Tau_M125:
   nanoAOD:
     v12: /GluGluHToTauTau_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM
   # PSWeight holds a single entry in every file: no parton-shower weights.
-  disabled_corrections: [ parton_shower ]
+  disabled_corrections:
+    v12: [ parton_shower ]
+    HLepRare: [ parton_shower ]
 GluGluHto2Tau_UncorrelatedDecay_Filtered:
   crossSection: GluGluHToTauTau_M125_Filtered
   generator: powheg
@@ -1646,9 +1648,12 @@ ZZZ:
   miniAOD: /ZZZ_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
   nanoAOD:
     v12: /ZZZ_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM
-  # The only file (12342 of 1970234 events) written without LHEPdfWeight and LHEScaleWeight.
+  # 12342 of the 1970234 events have no LHEPdfWeight and LHEScaleWeight: the only such file in
+  # DAS, merged with good events into nano_3.root of the HLepRare skim.
   exclude_files:
-    - 7c4f3eb2-3c7e-4c21-98ed-c1892bb3a057.root
+    v12: [ 7c4f3eb2-3c7e-4c21-98ed-c1892bb3a057.root ]
+  disabled_corrections:
+    HLepRare: [ pdf, qcd_scale ]
 
 
 ############## VH ##############

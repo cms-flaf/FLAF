@@ -55,8 +55,10 @@ class InputFileTask(Task, law.LocalWorkflow):
         pattern_dict = self.datasets[dataset_name].get("fileNamePattern", {})
         pattern = pattern_dict.get(nano_version, r".*\.root$")
         # Files of the dataset that must not be processed (e.g. ones written without the LHE
-        # weights the rest of the dataset has), by file name.
-        excluded_names = set(dataset.get("exclude_files", []))
+        # weights the rest of the dataset has), by file name, per NanoAOD source as
+        # fileNamePattern: the same dataset is read from DAS by one analysis and from a skim by
+        # another.
+        excluded_names = set(dataset.get("exclude_files", {}).get(nano_version, []))
         entries = fs_nanoAOD.listdir(folder_name)
         # After the listing, so the metadata comes from it instead of a second query.
         listing_info = self.list_file_info(fs_nanoAOD, folder_name)

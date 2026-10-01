@@ -48,8 +48,8 @@ Real-data entries carry `eraLetter` (the run era, e.g. `C`) instead of `generato
 directory to list on `fs_nanoAOD`, default: the dataset name) and `fileNamePattern` (a map from
 NanoAOD tag to a regular expression the file names must match, default `.*\.root$`).
 
-Two optional fields deal with samples that are only partly usable. Like `fileNamePattern`, both
-map a NanoAOD source — the `nanoAODVersions` tag, or `HLepRare` for an era read from the skims — to
+Three optional fields deal with samples that are only partly usable. Like `fileNamePattern`, each
+maps a NanoAOD source — the `nanoAODVersions` tag, or `HLepRare` for an era read from the skims — to
 a list, because the same dataset is read from DAS by one analysis and from a skim by another, with
 different files:
 
@@ -57,6 +57,10 @@ different files:
   file written without the LHE weights the rest of the dataset carries. The task output lists
   them under `excluded_files`; a name the listing does not have stops the task. The normalisation
   is unaffected: the denominators are summed over the files actually processed.
+- `event_filter` — a boolean expression on the NanoAOD branches. The anaTuple production removes
+  the events that fail it, in `Events` and `EventsNotSelected`, before anything else is defined:
+  for the rest of FLAF — denominators, processors, anaTuples — they do not exist. Use it where the
+  unusable events share a file with good ones.
 - `disabled_corrections` — corrections that are not applied to this dataset. A shape weight (`pu`,
   `parton_shower`, `top_pt`, `pdf`, `qcd_scale`) is not dropped but set to 1 for every member, so its
   `weight_base_*_rel` branches exist, equal to 1, for every dataset of a process; use it where the
@@ -73,8 +77,8 @@ ZZZ:
     v12: /ZZZ_TuneCP5_13p6TeV_amcatnlo-pythia8/.../NANOAODSIM
   exclude_files:
     v12: [ 7c4f3eb2-3c7e-4c21-98ed-c1892bb3a057.root ]
-  disabled_corrections:
-    HLepRare: [ pdf, qcd_scale ]   # the skim merged that file with good events
+  event_filter:                    # the skim holds the same events next to good ones
+    HLepRare: "nLHEPdfWeight > 0 && nLHEScaleWeight > 0"
 GluGluHto2Tau_M125:
   ...
   disabled_corrections:

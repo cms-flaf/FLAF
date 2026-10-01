@@ -1649,11 +1649,11 @@ ZZZ:
   nanoAOD:
     v12: /ZZZ_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM
   # 12342 of the 1970234 events have no LHEPdfWeight and LHEScaleWeight: the only such file in
-  # DAS, merged with good events into nano_3.root of the HLepRare skim.
+  # DAS, and a contiguous block of nano_3.root in the HLepRare skim (the same events).
   exclude_files:
     v12: [ 7c4f3eb2-3c7e-4c21-98ed-c1892bb3a057.root ]
-  disabled_corrections:
-    HLepRare: [ pdf, qcd_scale ]
+  event_filter:
+    HLepRare: "nLHEPdfWeight > 0 && nLHEScaleWeight > 0"
 
 
 ############## VH ##############

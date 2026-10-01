@@ -103,6 +103,7 @@ def check_era_consistency(era, era_desc, xs_db):
             "fileNamePattern",
             "eraVersion",
             "exclude_files",
+            "event_filter",
             "disabled_corrections",
         ]
         if datasetType not in must_have_properties:

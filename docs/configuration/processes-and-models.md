@@ -139,5 +139,29 @@ flowchart TD
 - A **process** groups datasets into physics.
 - A **model** labels processes as background/signal/data and is what a run actually uses.
 
+### From a dataset's process back to the model
+
+A dataset's process is often not the entry `phys_models.yaml` lists: an expanded member
+(`GluGluToRadion_bbTauTau_300`) stands for its meta-process (`GluGluToRadion_bbTauTau`), and a
+sub-process stands for the group that lists it. `Setup` records each process's **direct parent**
+— the meta-process it was expanded from, or the group listing it in `sub_processes` — and
+walks back up from there:
+
+| Call | Returns |
+|---|---|
+| `setup.process_parent(name)` | the direct parent, or `None` for a process nothing contains |
+| `setup.process_ancestors(name)` | `[name, parent, grandparent, …]` |
+| `setup.original_process(name)` | the topmost ancestor — for a process of the model, the entry the model lists |
+| `setup.phys_model.listed_process_type(name)` | `backgrounds`, `signals` or `data` for an entry as `phys_models.yaml` lists it, meta-processes included |
+
+This is the way for analysis code to tell which model entry a dataset belongs to, rather than
+matching substrings of its process name; an anaTuple definition gets the `Setup` through its
+`Initialize(setup, dataset_name)`. A process may be a sub-process of only one group, so that
+its parent is unambiguous.
+
+The `parent_process` key that `Setup` adds to each base process's configuration is something
+else: the process of the model *after* meta-processes are expanded (`GluGluToRadion_bbTauTau_300`
+itself), which is what histograms are merged under.
+
 See the [configuration system](../concepts/configuration.md) for how these files are loaded and
 merged, and each analysis's docs for its concrete processes and models.

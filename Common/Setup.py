@@ -187,6 +187,9 @@ class PhysicsModel:
                         f"Process '{item}' is defined multiple times in physics model '{name}'."
                     )
                 self._processes[item] = key
+        # The listing as written in phys_models.yaml; a meta-process is replaced in
+        # _processes by its expanded members but stays here.
+        self._listed_processes = dict(self._processes)
         self._base_processes = {}
         self.meta_processes = {}
 
@@ -203,6 +206,14 @@ class PhysicsModel:
                 f"Process '{process_name}' not found in physics model '{self.name}'."
             )
         return self._processes[process_name]
+
+    def listed_process_type(self, process_name):
+        """Role of a process as phys_models.yaml lists it, meta-processes included."""
+        if process_name not in self._listed_processes:
+            raise RuntimeError(
+                f"Process '{process_name}' is not listed in physics model '{self.name}'."
+            )
+        return self._listed_processes[process_name]
 
     def replace_process(
         self, old_process_name, new_process_names, ignore_missing=False
@@ -369,6 +380,9 @@ class Setup:
             "processes", self.config_path_order, ["processes.yaml"]
         )
         processes = {}
+        # process -> the process it belongs to: the meta-process it was expanded from or
+        # the group listing it in sub_processes. Processes without a parent are absent.
+        self.process_parents = {}
         for key, item in processes_config.items():
             if item.get("is_meta_process", False):
                 new_process_names_for_model = []
@@ -419,6 +433,7 @@ class Setup:
                     del new_process["meta_setup"]
                     del new_process["is_meta_process"]
                     processes[proc_name] = new_process
+                    self.process_parents[proc_name] = key
                     new_process_names_for_model.append(proc_name)
 
                 self.phys_model.replace_process(
@@ -512,6 +527,11 @@ class Setup:
                     )
                 base_processes = []
                 for sub_process in process["sub_processes"]:
+                    known_parent = self.process_parents.setdefault(sub_process, p_name)
+                    if known_parent != p_name:
+                        raise RuntimeError(
+                            f"Process '{sub_process}' is a sub_process of both '{known_parent}' and '{p_name}'."
+                        )
                     base_processes.extend(collect_base_processes(sub_process, p_name))
                 return base_processes
             else:
@@ -617,6 +637,22 @@ class Setup:
         self.anaTupleFiles = {}
         self.processors_cache = {}
         self.fs_rucio_ = None
+
+    def process_parent(self, process_name):
+        """The process that process_name belongs to (meta-process or group), or None."""
+        return self.process_parents.get(process_name)
+
+    def process_ancestors(self, process_name):
+        """process_name followed by its parent, the parent's parent, and so on."""
+        ancestors = [process_name]
+        while ancestors[-1] in self.process_parents:
+            ancestors.append(self.process_parents[ancestors[-1]])
+        return ancestors
+
+    def original_process(self, process_name):
+        """The topmost ancestor of process_name: for a process of the physics model, the
+        entry phys_models.yaml lists (e.g. the meta-process of an expanded member)."""
+        return self.process_ancestors(process_name)[-1]
 
     def get_processors(self, process_name, stage, create_instances=False):
         key = (process_name, stage, create_instances)

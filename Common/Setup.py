@@ -207,6 +207,10 @@ class PhysicsModel:
             )
         return self._processes[process_name]
 
+    def is_listed(self, process_name):
+        """Whether phys_models.yaml lists the process, meta-processes included."""
+        return process_name in self._listed_processes
+
     def listed_process_type(self, process_name):
         """Role of a process as phys_models.yaml lists it, meta-processes included."""
         if process_name not in self._listed_processes:
@@ -380,11 +384,15 @@ class Setup:
             "processes", self.config_path_order, ["processes.yaml"]
         )
         processes = {}
-        # process -> the process it belongs to: the meta-process it was expanded from or
-        # the group listing it in sub_processes. Processes without a parent are absent.
-        self.process_parents = {}
+        # process -> the process it belongs to in the hierarchy the physics model reaches:
+        # the listed meta-process it was expanded from, or the group listing it in
+        # sub_processes. Processes without a parent are absent.
+        self._process_parents = {}
         for key, item in processes_config.items():
             if item.get("is_meta_process", False):
+                # Two meta-processes can expand to the same member name; only a listed one
+                # is the member's parent.
+                meta_is_listed = self.phys_model.is_listed(key)
                 new_process_names_for_model = []
                 meta_setup = item["meta_setup"]
                 dataset_name_pattern = meta_setup["dataset_name_pattern"]
@@ -433,7 +441,8 @@ class Setup:
                     del new_process["meta_setup"]
                     del new_process["is_meta_process"]
                     processes[proc_name] = new_process
-                    self.process_parents[proc_name] = key
+                    if meta_is_listed and proc_name != key:
+                        self._process_parents[proc_name] = key
                     new_process_names_for_model.append(proc_name)
 
                 self.phys_model.replace_process(
@@ -527,10 +536,10 @@ class Setup:
                     )
                 base_processes = []
                 for sub_process in process["sub_processes"]:
-                    known_parent = self.process_parents.setdefault(sub_process, p_name)
+                    known_parent = self._process_parents.setdefault(sub_process, p_name)
                     if known_parent != p_name:
                         raise RuntimeError(
-                            f"Process '{sub_process}' is a sub_process of both '{known_parent}' and '{p_name}'."
+                            f"Process '{sub_process}' belongs to both '{known_parent}' and '{p_name}'."
                         )
                     base_processes.extend(collect_base_processes(sub_process, p_name))
                 return base_processes
@@ -639,20 +648,25 @@ class Setup:
         self.fs_rucio_ = None
 
     def process_parent(self, process_name):
-        """The process that process_name belongs to (meta-process or group), or None."""
-        return self.process_parents.get(process_name)
+        """The process that process_name belongs to (listed meta-process or group), or None."""
+        return self._process_parents.get(process_name)
 
     def process_ancestors(self, process_name):
         """process_name followed by its parent, the parent's parent, and so on."""
         ancestors = [process_name]
-        while ancestors[-1] in self.process_parents:
-            ancestors.append(self.process_parents[ancestors[-1]])
+        while ancestors[-1] in self._process_parents:
+            ancestors.append(self._process_parents[ancestors[-1]])
         return ancestors
 
     def original_process(self, process_name):
-        """The topmost ancestor of process_name: for a process of the physics model, the
-        entry phys_models.yaml lists (e.g. the meta-process of an expanded member)."""
-        return self.process_ancestors(process_name)[-1]
+        """The first of process_ancestors(process_name) that phys_models.yaml lists, e.g. the
+        meta-process of an expanded member or the group of a sub-process."""
+        for process in self.process_ancestors(process_name):
+            if self.phys_model.is_listed(process):
+                return process
+        raise RuntimeError(
+            f"No ancestor of process '{process_name}' is listed in physics model '{self.phys_model.name}'."
+        )
 
     def get_processors(self, process_name, stage, create_instances=False):
         key = (process_name, stage, create_instances)

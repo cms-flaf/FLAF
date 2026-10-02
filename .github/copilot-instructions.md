@@ -149,6 +149,13 @@ Each of these has caused a production incident. They are ordered by how much dam
   several layers combine only because each dataset is its own top-level key.
 - Dataset split: SM backgrounds and data live in `FLAF/config/<era>/datasets.yaml`; signals and
   CI samples live in the analysis. A signal added to the framework config is misplaced.
+- A dataset whose NanoAOD lacks some weights is handled in its entry, per NanoAOD source (`v12`,
+  `HLepRare`, …, as `fileNamePattern`: one analysis reads DAS, another a skim of it):
+  `exclude_files` drops individual files (InputFileTask refuses a name the listing does not have),
+  `event_filter` removes events before anything is booked (as if they did not exist), and
+  `disabled_corrections` sets a shape weight to 1 for every member (its branches still exist)
+  or drops any other correction. An option not keyed by source is a finding. None belongs in a
+  correction's `processes:` list or in a code guard on the branch size.
 - `Run3_2025` and `Run3_2026` carry no MC of their own — they set `reuse_mc_from_era: Run3_2024`.
   A dataset list edited for 2024 changes all three.
 - Cross-section keys referenced by a dataset must exist in `crossSections*.yaml`; CI checks this,

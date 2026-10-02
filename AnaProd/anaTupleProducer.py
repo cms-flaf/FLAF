@@ -195,6 +195,22 @@ def createAnatuple(
         # does for a whole file.
         df = ROOT.RDF.AsRNode(df)
 
+    # Events a dataset declares unusable (e.g. ones without the LHE weights the rest of the
+    # dataset carries) are removed before anything is booked, so that no denominator, processor
+    # or output ever sees them. Per NanoAOD source, as fileNamePattern; the source is chosen as
+    # in Task.get_nano_version.
+    nano_source = setup.global_params.get("nanoAODVersions", {}).get(
+        "data" if isData else "mc", "HLepRare"
+    )
+    event_filter = dataset_cfg.get("event_filter", {}).get(nano_source)
+    if event_filter:
+        print(f"Applying the dataset event filter: {event_filter}")
+        df = ROOT.RDF.AsRNode(df.Filter(event_filter, "dataset event filter"))
+        if df_not_selected is not None:
+            df_not_selected = ROOT.RDF.AsRNode(
+                df_not_selected.Filter(event_filter, "dataset event filter")
+            )
+
     report = {}
     report["nano_file_name"] = inFileName
     report["anaTuple_file_name"] = outputName
@@ -298,13 +314,9 @@ def createAnatuple(
                 else "genWeight"
             )
             data_frame = data_frame.Define(gen_weight_name, genWeight_def)
-            # respect_enabled=False preserves the existing behaviour: this call site has
-            # always defined the pileup weights regardless of the `enabled` config, so
-            # the denominator carries them even where the numerator stage would not.
             data_frame, _ = corrections.defineShapeWeights(
                 data_frame,
                 return_variations=compute_unc_variations,
-                respect_enabled=False,
             )
             updateDenomEntry(data_frame, "denominator", "weight_denom")
             if shared_mc_expr:

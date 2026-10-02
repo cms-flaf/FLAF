@@ -314,13 +314,9 @@ def createAnatuple(
                 else "genWeight"
             )
             data_frame = data_frame.Define(gen_weight_name, genWeight_def)
-            # respect_enabled=False preserves the existing behaviour: this call site has
-            # always defined the pileup weights regardless of the `enabled` config, so
-            # the denominator carries them even where the numerator stage would not.
             data_frame, _ = corrections.defineShapeWeights(
                 data_frame,
                 return_variations=compute_unc_variations,
-                respect_enabled=False,
             )
             updateDenomEntry(data_frame, "denominator", "weight_denom")
             if shared_mc_expr:

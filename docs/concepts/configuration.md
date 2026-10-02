@@ -55,11 +55,30 @@ document. Two consequences follow:
 - **A repeated top-level key replaces the earlier value wholesale** — scalars, lists and nested
   maps alike. The last file that sets a key has the final say. An era-level `corrections:` block,
   for example, replaces the analysis-wide one entirely instead of adding to it, so it has to
-  repeat every entry it wants to keep.
+  repeat every entry it wants to keep — or inherit them with an anchor, below.
 - **YAML anchors work across files.** An anchor defined in an earlier file can be referenced in a
   later one. Top-level keys starting with `.` are dropped after parsing, so an analysis keeps
   shared blocks under such keys — e.g. the `.DY_processors: &DY_processors` definitions in
   `config/processes.yaml`, used as `processors: *DY_processors` in `config/<era>/processes.yaml`.
+  An era file can also override part of a top-level block with a merge key, so that what it does
+  not override stays in step with the analysis-wide block:
+
+    ```yaml
+    # config/global.yaml
+    corrections: &corrections_default
+      pu: { ... }
+      btag: { ..., tagger: particleNet }
+
+    # config/Run3_2024/global.yaml
+    corrections:
+      <<: *corrections_default
+      btag: { ..., tagger: UParTAK4 }   # replaces the whole btag entry, the rest is inherited
+    ```
+
+    The merge is one level deep: an overridden entry (`btag` here) is replaced as a whole. Setup also
+    reads `global.yaml` from the same four directories for the era named in `reuse_mc_from_era` (to
+    take its `shared_mc`), so the alias resolves there too. Code that parses an era's `global.yaml`
+    on its own, outside `Config`, cannot resolve it.
 
 Datasets combine across layers only because **each dataset is its own top-level key**: SM
 backgrounds and data live in the framework's `FLAF/config/<era>/datasets.yaml`, signals and custom

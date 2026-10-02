@@ -141,8 +141,12 @@ Each of these has caused a production incident. They are ordered by how much dam
   `--user-custom` comes last). The files are **concatenated as text and parsed once**, so a
   repeated top-level key **replaces the earlier value wholesale** — lists and nested dicts
   included; nothing is merged or concatenated. An analysis or era that redefines a block such as
-  `corrections:` must repeat every entry it still needs. Datasets from several layers combine only
-  because each dataset is its own top-level key.
+  `corrections:` must repeat every entry it still needs, or inherit them with
+  `<<: *corrections_default` from an anchor on the top-level block and override only what
+  differs (one level deep). Every reader of an era's `global.yaml` — the `Config` for
+  `reuse_mc_from_era` included, and any script that parses the file with `yaml.safe_load` on its
+  own — must layer the top-level directories too, or such an alias is undefined. Datasets from
+  several layers combine only because each dataset is its own top-level key.
 - Dataset split: SM backgrounds and data live in `FLAF/config/<era>/datasets.yaml`; signals and
   CI samples live in the analysis. A signal added to the framework config is misplaced.
 - `Run3_2025` and `Run3_2026` carry no MC of their own — they set `reuse_mc_from_era: Run3_2024`.

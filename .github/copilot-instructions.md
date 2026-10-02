@@ -88,6 +88,7 @@ Each of these has caused a production incident. They are ordered by how much dam
   variables need the analysis to store them (`genInfo`) with a nanoAOD fallback.
 - An empty stitching bin is not a bug: each bin's denominator is summed over the very events that
   later read it, so a bin no event falls into is never divided by.
+- A stitched process's bin denominators are summed over every dataset whose events fall into the bin, so a dataset may cover several bins only if it covers each of them completely or not at all; a dataset reaching part of a bin (e.g. the 0-parton events of a pT(ll)-nested DY sample) must be cut back to whole bins with an `event_filter`.
 
 ### anaTuple columns (`AnaProd/FuseAnaTuples.py`, `Common/TupleHelpers.py`)
 

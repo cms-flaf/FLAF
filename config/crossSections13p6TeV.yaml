@@ -350,6 +350,22 @@ DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_singleFlavor:
   comments: "divided by 3 to account for e, mu, tau"
 
 
+DYto2L_M_50_PTLL_100_amcatnloFXFX_allFlavors:
+  crossSec: 108.257
+  reference: sum of the XSDB DYto2L-2Jets_MLL-50_PTLL-<bin>_<1J,2J> cross-sections for the bins 100to200, 200to400, 400to600 and 600 (the nested DYto2L-2Jets_MLL-50_PTLL-100 sample with LHE_NpNLO >= 1)
+  unc: 0.5417
+DYto2L_M_50_PTLL_200_amcatnloFXFX_allFlavors:
+  crossSec: 11.157
+  reference: sum of the XSDB DYto2L-2Jets_MLL-50_PTLL-<bin>_<1J,2J> cross-sections for the bins 200to400, 400to600 and 600 (the nested DYto2L-2Jets_MLL-50_PTLL-200 sample with LHE_NpNLO >= 1)
+  unc: 0.0577
+DYto2L_M_50_PTLL_400_amcatnloFXFX_allFlavors:
+  crossSec: 0.61601
+  reference: sum of the XSDB DYto2L-2Jets_MLL-50_PTLL-<bin>_<1J,2J> cross-sections for the bins 400to600 and 600 (the nested DYto2L-2Jets_MLL-50_PTLL-400 sample with LHE_NpNLO >= 1)
+  unc: 0.00243
+DYto2L_M_50_PTLL_600_amcatnloFXFX_allFlavors:
+  crossSec: 0.08411
+  reference: sum of the XSDB DYto2L-2Jets_MLL-50_PTLL-<bin>_<1J,2J> cross-sections for the bins 600 (the nested DYto2L-2Jets_MLL-50_PTLL-600 sample with LHE_NpNLO >= 1)
+  unc: 0.00034
 DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX_allFlavors:
   crossSec: 45.42
   reference: XSDB DYto2L-2Jets_MLL-50_PTLL-100to200_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:15

@@ -31,7 +31,9 @@ GroupName:
 
 A process either gathers the `datasets` that represent the same physics, or groups other
 processes with `sub_processes` (resolved recursively down to processes with datasets) — never
-both: `Setup` stops with an error when a process of the model has both. Analyses add further keys
+both: `Setup` stops with an error when a process of the model has both. Within the groups the
+model reaches, a process may belong to one group only (`Setup` refuses a second one), so that
+its place in the hierarchy is unambiguous. Analyses add further keys
 (e.g. `corrections`, `genInfo`) that their own code reads from the process configuration.
 
 `processors` is a list of entries, each naming a Python class that FLAF loads for given stages —
@@ -138,6 +140,31 @@ flowchart TD
 - A **dataset** is a set of NanoAOD files — a DAS dataset, or a directory on storage.
 - A **process** groups datasets into physics.
 - A **model** labels processes as background/signal/data and is what a run actually uses.
+
+### From a dataset's process back to the model
+
+A dataset's process is often not the entry `phys_models.yaml` lists: an expanded member
+(`GluGluToRadion_bbTauTau_300`) stands for its meta-process (`GluGluToRadion_bbTauTau`), and a
+sub-process stands for the group that lists it. `Setup` records each process's **direct parent**
+within the hierarchy the model reaches — the listed meta-process it was expanded from, or the
+group listing it in `sub_processes` — and walks back up from there:
+
+| Call | Returns |
+|---|---|
+| `setup.process_parent(name)` | the direct parent, or `None` |
+| `setup.process_ancestors(name)` | `[name, parent, grandparent, …]` |
+| `setup.original_process(name)` | the first of those ancestors that the model lists; an error if none is |
+| `setup.phys_model.is_listed(name)` | whether `phys_models.yaml` lists the process, meta-processes included |
+| `setup.phys_model.listed_process_type(name)` | `backgrounds`, `signals` or `data` for a listed process |
+
+This is the way for analysis code to tell which model entry a dataset belongs to, rather than
+matching substrings of its process name; an anaTuple definition gets the `Setup` through its
+`Initialize(setup, dataset_name)`. When two meta-processes expand to the same member name, the
+member belongs to the one the model lists.
+
+The `parent_process` key that `Setup` adds to each base process's configuration is something
+else: the process of the model *after* meta-processes are expanded (`GluGluToRadion_bbTauTau_300`
+itself), which is what histograms are merged under.
 
 See the [configuration system](../concepts/configuration.md) for how these files are loaded and
 merged, and each analysis's docs for its concrete processes and models.

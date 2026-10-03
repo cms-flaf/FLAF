@@ -161,6 +161,11 @@ Each of these has caused a production incident. They are ordered by how much dam
   A dataset list edited for 2024 changes all three.
 - Cross-section keys referenced by a dataset must exist in `crossSections*.yaml`; CI checks this,
   so flag it only when the diff adds a reference CI cannot see.
+- Process hierarchy: `Setup.process_parent` / `process_ancestors` / `original_process` lead from a
+  dataset's process (an expanded meta-process member, a sub-process) to the entry the physics model
+  lists; analysis code should decide by that entry, not by substrings of process names. Within the
+  groups the model reaches, a process may belong to one group only. The `parent_process` key on a
+  base process is different: the model process after expansion, which histograms are merged under.
 
 ## Testing expectations
 

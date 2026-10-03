@@ -174,6 +174,9 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
 `uncs_to_exclude`), only `Central` otherwise.
 
 - **Parameter:** `--variables` (string; restrict which variables).
+- **Mass-specific variables:** a histogram config entry with `signal_mass: <M>` is produced by
+  `HistFromNtupleProducerTask` and merged here only for datasets without a `mass`, or whose
+  `mass` is `M`.
 
 ### `AnalysisCacheTask`
 Runs one **payload producer** (`Analysis/AnalysisCacheProducer.py`) and stores its per-event

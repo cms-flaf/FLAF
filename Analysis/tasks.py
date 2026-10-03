@@ -46,6 +46,18 @@ def _dedup_variables(variables):
     return result
 
 
+def _variable_applies_to_dataset(setup, var_name, dataset_name):
+    """False if the variable sets `signal_mass` and the dataset has a different `mass`."""
+    # HistHelper imports ROOT, so not at module level.
+    from FLAF.Common.HistHelper import findBinEntry
+
+    signal_mass = setup.hists[findBinEntry(setup.hists, var_name)].get("signal_mass")
+    if signal_mass is None:
+        return True
+    dataset_mass = setup.datasets.get(dataset_name, {}).get("mass")
+    return dataset_mass is None or int(dataset_mass) == int(signal_mass)
+
+
 def _anaTuple_outputs(task):
     wf = AnaTupleMergeTask.req(
         task,
@@ -637,12 +649,21 @@ class HistFromNtupleProducerTask(
 
         return branches
 
+    def _branch_variables(self):
+        """Names of the active variables this branch's dataset is histogrammed for."""
+        dataset_name = self.branch_data[0]
+        names = [v["name"] if isinstance(v, dict) else v for v in self.active_variables]
+        return [
+            n
+            for n in names
+            if _variable_applies_to_dataset(self.setup, n, dataset_name)
+        ]
+
     @workflow_condition.output
     def output(self):
         dataset_name, prod_br_list, chunk_id = self.branch_data
         outputs = {}
-        for var in self.active_variables:
-            var_name = var["name"] if isinstance(var, dict) else var
+        for var_name in self._branch_variables():
             output_path = os.path.join(
                 self.version,
                 "Hists_split",
@@ -672,9 +693,7 @@ class HistFromNtupleProducerTask(
 
     def run(self):
         dataset_name, prod_br_list, chunk_id = self.branch_data
-        var_names = [
-            v["name"] if isinstance(v, dict) else v for v in self.active_variables
-        ]
+        var_names = self._branch_variables()
         job_home, remove_job_home = self.law_job_home()
         customisation_dict = getCustomisationSplit(self.customisations)
         channels = (
@@ -854,10 +873,8 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         ).create_branch_map()
         if not hfn_branch_map:
             return {}
-        # HFN branches per (dataset, file-chunk), and every chunk produces every active
-        # variable. So each merger branch (one per variable) depends on all HFN branches;
-        # we record the dataset name aligned with each HFN branch so the merger can map each
-        # input file to its process type (multiple chunks of the same dataset are summed).
+        # HFN branches per (dataset, file-chunk); the aligned dataset names let the merger map
+        # each input file to its process type (chunks of the same dataset are summed).
         hfn_br_indices = []
         dataset_names = []
         for br_idx, (dataset_name, _prod_br_list, _chunk_id) in sorted(
@@ -865,11 +882,16 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         ):
             hfn_br_indices.append(br_idx)
             dataset_names.append(dataset_name)
-        # One HistMerger branch per active variable.
+        # One HistMerger branch per active variable, over the chunks that produce it.
         branches = {}
         for k, var in enumerate(self.active_variables):
             var_name = var["name"] if isinstance(var, dict) else var
-            branches[k] = (var_name, hfn_br_indices, dataset_names)
+            kept = [
+                (br_idx, ds)
+                for br_idx, ds in zip(hfn_br_indices, dataset_names)
+                if _variable_applies_to_dataset(self.setup, var_name, ds)
+            ]
+            branches[k] = (var_name, [b for b, _ in kept], [d for _, d in kept])
         return branches
 
     @workflow_condition.output

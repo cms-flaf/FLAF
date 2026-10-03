@@ -108,6 +108,18 @@ at the same one) instead of a bin configuration, and the denominator is summed o
 dataset of the process. A point that has a single dataset is unaffected: the sum is over that
 one dataset, which is what it was normalised with before.
 
+### Nested samples
+
+A sample does not have to match one bin. Because each bin's denominator is summed over every
+dataset whose events fall into it, a sample may cover several bins, as long as it covers each of
+them **completely or not at all**; a sample that reaches only part of a bin would bias that bin.
+The 2022–2023 DY samples `DYto2L_M_50_PTLL_<X>_amcatnloFXFX` are an example: generated with
+p<sub>T</sub>(ll) ≥ X and inclusive in jets, they are nested (PTLL-100 contains PTLL-200's
+region) and cover the 1- and 2-parton bins of `stitching_DY_amcatnlo_Vpt_NpNLO_allFlavors.yaml`
+above X, whose edges sit at the same values. Their rare 0-parton events would fall into the
+single `NpNLO_0` bin that spans all p<sub>T</sub>, which they cover only in part, so they are
+removed with an [`event_filter`](../configuration/datasets.md) `LHE_NpNLO >= 1`.
+
 ## Variables the bins select on
 
 `LHE_Vpt`, `LHE_NpNLO` and friends are nanoAOD branches that the anaTuple keeps, so a bin can

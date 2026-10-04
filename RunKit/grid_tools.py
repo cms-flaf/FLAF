@@ -1,8 +1,13 @@
 import datetime
 import json
+import math
 import os
+import random
 import re
+import signal
+import subprocess
 import sys
+import time
 
 if __name__ == "__main__":
     file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -86,62 +91,6 @@ def check_download(
                 )
             return False
     return True
-
-
-def xrd_copy(
-    input_remote_file,
-    output_local_file,
-    n_retries=4,
-    n_retries_xrdcp=4,
-    n_streams=1,
-    retry_sleep_interval=10,
-    expected_adler32sum=None,
-    verbose=1,
-    prefixes=[
-        "root://cms-xrd-global.cern.ch/",
-        "root://xrootd-cms.infn.it/",
-        "root://cmsxrootd.fnal.gov/",
-    ],
-):
-    def download(prefix):
-        xrdcp_args = [
-            "xrdcp",
-            "--retry",
-            str(n_retries_xrdcp),
-            "--streams",
-            str(n_streams),
-        ]
-        if os.path.exists(output_local_file):
-            xrdcp_args.append("--continue")
-        if verbose == 0:
-            xrdcp_args.append("--silent")
-        xrdcp_args.extend([f"{prefix}{input_remote_file}", output_local_file])
-        ps_call(xrdcp_args, verbose=1)
-
-        check_download(
-            output_local_file,
-            expected_adler32sum=expected_adler32sum,
-            remove_bad_file=True,
-            raise_error=True,
-            remote_file=input_remote_file,
-        )
-
-    if os.path.exists(output_local_file):
-        os.remove(output_local_file)
-
-    if input_remote_file.startswith("/store/"):
-        optlist = [(prefix,) for prefix in prefixes]
-    else:
-        optlist = [("",)]
-
-    repeat_until_success(
-        download,
-        opt_list=optlist,
-        n_retries=n_retries,
-        retry_sleep_interval=retry_sleep_interval,
-        exception=GfalError(f"Unable to copy {input_remote_file} from remote."),
-        verbose=verbose,
-    )
 
 
 def create_tmp_local_file():
@@ -406,7 +355,7 @@ def gfal_check_write(path, return_exception=False, voms_token=None, verbose=0):
     return result[0]
 
 
-def gfal_sum(path, voms_token=None, sum_type="adler32"):
+def gfal_sum(path, voms_token=None, sum_type="adler32", timeout=None):
     voms_token = get_voms_proxy_token(voms_token)
     try:
         _, output, _ = ps_call(
@@ -414,6 +363,7 @@ def gfal_sum(path, voms_token=None, sum_type="adler32"):
             shell=False,
             env=gfal_env(voms_token),
             catch_stdout=True,
+            timeout=timeout,
         )
         sum_str = output.split(" ")[-1]
         sum_int = int(sum_str, 16)
@@ -655,31 +605,6 @@ def rucio_list_replicas(files, scope="cms", schemes=("root", "davs", "gsiftp")):
     return result
 
 
-def rucio_file_pfns(
-    file,
-    disk_only=True,
-    return_adler32=False,
-    keep_rse=False,
-    scope="cms",
-    verbose=0,
-):
-    reps = rucio_list_replicas([file], scope=scope)
-    info = reps.get(file, {"pfns": {}, "adler32": None})
-    pfns_all = {}
-    for pfns_type, entries in info["pfns"].items():
-        pfns_all[pfns_type] = set(
-            entries if keep_rse else [pfns_link for pfns_link, _ in entries]
-        )
-    adler32 = int(info["adler32"], 16) if info.get("adler32") else None
-    if disk_only:
-        pfns = pfns_all.get("DISK", set())
-    else:
-        pfns = pfns_all
-    if return_adler32:
-        return pfns, adler32
-    return pfns
-
-
 # DAS (dasgoclient) query helpers. No longer used by the default file-discovery path
 # (which goes through Rucio, above), but retained for future use cases that Rucio does
 # not cover -- e.g. per-file event counts, or the phys03 instance for USER datasets.
@@ -785,40 +710,44 @@ def das_file_pfns(
 def copy_remote_file(
     input_remote_file,
     output_local_file,
-    inputDBS="global",
     n_retries=4,
     retry_sleep_interval=10,
     custom_pfns_prefix="",
     voms_token=None,
     verbose=1,
 ):
+    """Copy a remote file to `output_local_file` (see copy_with_failover).
+
+    A `/store/...` LFN is read from its Rucio disk replicas, with the CMS xrootd federation
+    as the last source, and verified against the size and adler32 that Rucio records;
+    anything else is a single URL (prefixed by `custom_pfns_prefix`), verified against its
+    adler32. An intact `output_local_file` is kept as it is.
+    """
     voms_token = get_voms_proxy_token(voms_token)
-    from_grid = input_remote_file.startswith("/store/")
-    if from_grid:
-        pfns_info, adler32 = rucio_file_pfns(
+    size = None
+    if input_remote_file.startswith("/store/"):
+        info = rucio_replica_info(
             input_remote_file,
-            disk_only=True,
-            return_adler32=True,
-            keep_rse=True,
+            retry_sleep_interval=retry_sleep_interval,
             verbose=verbose,
         )
-        sites = [rse for _, rse in pfns_info]
-        local_site = get_local_site()
-        distances = get_distances(local_site, sites)
-        pfns_info = [(pfns, rse, distances[rse]) for pfns, rse in pfns_info]
-        pfns_info = sorted(pfns_info, key=lambda x: (x[2], x[1]))
-        if verbose > 0:
-            print("Avaliable pfns:")
-            for pfns, rse, dist in pfns_info:
-                print(f"  {rse} (distance={dist}): {pfns}")
-        pfns_list = [pfns for pfns, _, _ in pfns_info]
+        replicas = info["pfns"].get("DISK", [])
+        if len(replicas) == 0:
+            raise GfalError(f'No disk replica of "{input_remote_file}" in Rucio.')
+        adler32 = int(info["adler32"], 16) if info.get("adler32") else None
+        size = info.get("bytes")
+        distances = get_distances(get_local_site(), {rse for _, rse in replicas})
+        # A site without a known distance (inf) still comes before the federation.
+        sources = [
+            (pfns, rse, min(distances[rse], sys.maxsize)) for pfns, rse in replicas
+        ]
+        sources.append(
+            (COPY_FEDERATION_PREFIX + input_remote_file, "xrootd federation", math.inf)
+        )
     else:
-        if len(custom_pfns_prefix) > 0:
-            file_pfns = custom_pfns_prefix + input_remote_file
-        else:
-            file_pfns = input_remote_file
-        adler32 = gfal_sum(file_pfns, voms_token=voms_token, sum_type="adler32")
-        pfns_list = [file_pfns]
+        file_pfns = custom_pfns_prefix + input_remote_file
+        adler32 = gfal_sum(file_pfns, voms_token=voms_token, timeout=COPY_FIRST_TIMEOUT)
+        sources = [(file_pfns, None, 0)]
     if os.path.exists(output_local_file):
         if adler32 is not None and check_download(
             output_local_file, expected_adler32sum=adler32
@@ -826,46 +755,328 @@ def copy_remote_file(
             return
         os.remove(output_local_file)
 
-    if len(pfns_list) == 0:
-        raise RuntimeError(
-            f'Unable to find any remote location for "{input_remote_file}".'
-        )
-
-    def download(pfns):
-        if verbose > 0:
-            print(f"Trying to copy file from {pfns}")
-        if pfns.startswith("root:") or pfns.startswith("/store/"):
-            xrd_copy(
-                pfns,
-                output_local_file,
-                expected_adler32sum=adler32,
-                n_retries=1,
-                prefixes=[""],
-                verbose=verbose,
-            )
-        elif (
-            pfns.startswith("srm:")
-            or pfns.startswith("gsiftp")
-            or pfns.startswith("davs:")
-        ):
-            gfal_copy_safe(
-                pfns,
-                output_local_file,
-                voms_token,
-                expected_adler32sum=adler32,
-                n_retries=1,
-            )
-        else:
-            raise RuntimeError('Skipping an unknown remote source "{pfns}".')
-
-    repeat_until_success(
-        download,
-        opt_list=[(pfns,) for pfns in pfns_list],
-        n_retries=n_retries,
-        exception=GfalError(f"Unable to copy {input_remote_file} from remote."),
-        retry_sleep_interval=retry_sleep_interval,
+    copy_with_failover(
+        sources,
+        output_local_file,
+        size=size,
+        expected_adler32sum=adler32,
+        voms_token=voms_token,
+        n_rounds=n_retries,
+        round_sleep_interval=retry_sleep_interval,
         verbose=verbose,
     )
+
+
+def rucio_replica_info(lfn, n_tries=3, retry_sleep_interval=10, verbose=1):
+    """rucio_list_replicas entry of one LFN, retried: a transient Rucio error (e.g. HTTP 503)
+    should not fail a job. Without it the copy cannot be verified, so it is not skipped.
+    """
+    for attempt in range(n_tries):
+        try:
+            info = rucio_list_replicas([lfn]).get(lfn)
+            if info is None:
+                raise GfalError(f'"{lfn}" is not known to Rucio.')
+            return info
+        except Exception as e:
+            if attempt == n_tries - 1:
+                raise GfalError(f'Unable to query Rucio for "{lfn}": {e}') from None
+            if verbose > 0:
+                print(f"Rucio query for {lfn} failed ({e}), retrying.")
+            time.sleep(retry_sleep_interval * 3**attempt)
+
+
+# Limits of one copy attempt in the first round (round 0):
+# - timeout: the attempt is stopped; it gives the file at least COPY_MIN_RATE. Each later round
+#   multiplies it by COPY_TIMEOUT_GROWTH, so a slow but working connection still gets through.
+# - expected: past it, an attempt that is not about to finish is joined by one on the next
+#   source. It grows with the timeout.
+# - stall: the attempt is stopped when its partial file has not changed for this long. The copy
+#   tools write the data as it arrives, in steps of 8-13 MB (xrdcp 6, gfal-copy over davs), so
+#   this stops only copies slower than ~30 kB/s. It does not grow: a source that never
+#   delivers costs this much in every round.
+COPY_FIRST_TIMEOUT = 300
+COPY_MIN_RATE = 1e6  # bytes/s
+COPY_UNKNOWN_SIZE_TIMEOUT = 1800
+COPY_EXPECTED_OVERHEAD = 60
+COPY_EXPECTED_RATE = 10e6  # bytes/s
+COPY_UNKNOWN_SIZE_EXPECTED = 300
+COPY_STALL_TIMEOUT = 300
+COPY_TIMEOUT_GROWTH = 3
+COPY_MAX_TIMEOUT = 4 * 3600
+COPY_MAX_PARALLEL = 2
+COPY_MAX_TOTAL_TIME = 6 * 3600
+COPY_FEDERATION_PREFIX = "root://cms-xrd-global.cern.ch/"
+_COPY_SCHEME_ORDER = ("root:", "davs:", "https:", "gsiftp:", "srm:")
+
+# Site -> number of failed or overtaken attempts in this process (a job copies the inputs of
+# all its branches); such sites are tried after the others.
+_copy_failed_rses = {}
+
+
+def _note_failed_rse(rse):
+    if rse is not None:
+        _copy_failed_rses[rse] = _copy_failed_rses.get(rse, 0) + 1
+
+
+def copy_attempt_limits(size, round_idx):
+    """(timeout, expected, stall) in seconds of an attempt in round `round_idx`."""
+    if size:
+        timeout = max(COPY_FIRST_TIMEOUT, size / COPY_MIN_RATE)
+        expected = COPY_EXPECTED_OVERHEAD + size / COPY_EXPECTED_RATE
+    else:
+        timeout = COPY_UNKNOWN_SIZE_TIMEOUT
+        expected = COPY_UNKNOWN_SIZE_EXPECTED
+    scale = COPY_TIMEOUT_GROWTH**round_idx
+    timeout = min(COPY_MAX_TIMEOUT, timeout * scale)
+    return timeout, min(expected * scale, timeout / 2), min(COPY_STALL_TIMEOUT, timeout)
+
+
+def copy_source_order(sources):
+    """Sources of one round: the first endpoint of every site, nearest site first, before a
+    second endpoint of a site already tried (a site that is down usually takes all its
+    endpoints with it). Sites that failed earlier in this process come after the others, and
+    sites at the same distance are drawn in random order, so that the jobs of a dataset do
+    not all start on the same site."""
+
+    def scheme_rank(pfns):
+        for idx, prefix in enumerate(_COPY_SCHEME_ORDER):
+            if pfns.startswith(prefix):
+                return idx
+        return len(_COPY_SCHEME_ORDER)
+
+    draw = {rse: random.random() for rse in {s[1] for s in sources}}
+    ranked = sorted(
+        sources,
+        key=lambda s: (
+            _copy_failed_rses.get(s[1], 0) > 0,
+            s[2],
+            draw[s[1]],
+            scheme_rank(s[0]),
+        ),
+    )
+    first, rest, seen = [], [], set()
+    for source in ranked:
+        (rest if source[1] in seen else first).append(source)
+        seen.add(source[1])
+    return first + rest
+
+
+def _copy_command(source, output_file, timeout, voms_token):
+    if source.startswith("root:"):
+        cmd = ["xrdcp", "--force", "--nopbar", "--streams", "1", source, output_file]
+        return cmd, dict(os.environ, X509_USER_PROXY=voms_token)
+    if source.startswith(("davs:", "https:", "gsiftp:", "srm:")):
+        cmd = [
+            "gfal-copy",
+            "--force",
+            "--timeout",
+            str(int(timeout)),
+            source,
+            "file://" + os.path.abspath(output_file),
+        ]
+        return cmd, gfal_env(voms_token)
+    raise GfalError(f'Unknown remote source "{source}".')
+
+
+class _CopyAttempt:
+    """One xrdcp/gfal-copy process writing `output_file`. It runs in its own process group,
+    which is killed as a whole, so that a copy run by a wrapper script is stopped too.
+    """
+
+    def __init__(self, source, rse, output_file, limits, voms_token):
+        self.source = source
+        self.rse = rse
+        self.output_file = output_file
+        self.log_file = output_file + ".log"
+        self.timeout, self.expected, self.stall = limits
+        cmd, env = _copy_command(source, output_file, self.timeout, voms_token)
+        with open(self.log_file, "w") as log:
+            self.proc = subprocess.Popen(
+                cmd,
+                env=env,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        self.start = self.last_growth = time.monotonic()
+        self.size = -1
+
+    def elapsed(self):
+        return time.monotonic() - self.start
+
+    def check_progress(self):
+        """None while the attempt may continue, else why it has to stop."""
+        if self.elapsed() >= self.timeout:
+            return f"no result after {self.timeout:.0f} s"
+        try:
+            size = os.path.getsize(self.output_file)
+        except FileNotFoundError:
+            size = -1
+        # Any change counts: `gfal-copy --force` first removes a file left at the same path.
+        if size != self.size:
+            self.size, self.last_growth = size, time.monotonic()
+        elif time.monotonic() - self.last_growth >= self.stall:
+            return f"no data for {self.stall:.0f} s"
+        return None
+
+    def is_late(self, file_size):
+        """Past its expected time and either without data for that long or, at its average
+        rate so far, not done within another expected time, so that a new attempt is likely
+        to finish first."""
+        if self.elapsed() < self.expected:
+            return False
+        if time.monotonic() - self.last_growth >= self.expected:
+            return True
+        if not file_size or self.size <= 0:
+            return True
+        return (file_size - self.size) * self.elapsed() / self.size > self.expected
+
+    def kill(self):
+        if self.proc.poll() is None:
+            try:
+                os.killpg(self.proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        self.proc.wait()
+
+    def log_tail(self, n_lines=5):
+        try:
+            with open(self.log_file, "r", errors="replace") as log:
+                return "".join(log.readlines()[-n_lines:]).strip()
+        except OSError:
+            return ""
+
+    def cleanup(self):
+        for path in (self.output_file, self.log_file):
+            if os.path.exists(path):
+                os.remove(path)
+
+
+def copy_with_failover(
+    sources,
+    output_local_file,
+    size=None,
+    expected_adler32sum=None,
+    voms_token=None,
+    n_rounds=4,
+    round_sleep_interval=10,
+    poll_interval=1,
+    verbose=1,
+):
+    """Copy a file to `output_local_file` from the first of `sources` [(pfns, site, distance)]
+    that delivers it intact (exit code 0, `size` and `expected_adler32sum` when known).
+
+    Every attempt is one xrdcp/gfal-copy, stopped when it fails, stalls or runs out of time
+    (copy_attempt_limits); the next source is then tried. An attempt that is late
+    (_CopyAttempt.is_late) is joined by one on the next source, at most COPY_MAX_PARALLEL at
+    a time, and the first intact copy wins. Every source is tried in up to `n_rounds` rounds
+    with growing limits, each `round_sleep_interval` x round seconds after its previous
+    attempt ended, and the whole copy gives up after COPY_MAX_TOTAL_TIME.
+    """
+    voms_token = get_voms_proxy_token(voms_token)
+    pending = [
+        (round_idx, source, copy_attempt_limits(size, round_idx))
+        for round_idx in range(n_rounds)
+        for source in copy_source_order(sources)
+    ]
+    running, failures, n_started = [], [], 0
+    last_end = {}  # source -> end of its last attempt
+    start = time.monotonic()
+
+    def fail(source, rse, reason):
+        _note_failed_rse(rse)
+        last_end[source] = time.monotonic()
+        failures.append(f"{source}: {reason}")
+        if verbose > 0:
+            print(f"Copy attempt from {source} failed: {reason}")
+
+    def give_up(reason):
+        raise GfalError(
+            f"Unable to copy {output_local_file}: {reason}\n  " + "\n  ".join(failures)
+        )
+
+    def ready(entry, now):
+        """Not being copied from, and the pause after the source's last attempt is over."""
+        round_idx, (pfns, _, _), _ = entry
+        if any(attempt.source == pfns for attempt in running):
+            return False
+        return now >= last_end.get(pfns, -math.inf) + round_sleep_interval * round_idx
+
+    try:
+        while True:
+            for attempt in list(running):
+                return_code = attempt.proc.poll()
+                if return_code is None:
+                    reason = attempt.check_progress()
+                    if reason is None:
+                        continue
+                    attempt.kill()
+                elif return_code != 0:
+                    reason = f"exit code {return_code}: {attempt.log_tail()}"
+                elif not os.path.exists(attempt.output_file):
+                    reason = "no file written"
+                elif size is not None and os.path.getsize(attempt.output_file) != size:
+                    reason = (
+                        f"{os.path.getsize(attempt.output_file)} bytes, expected {size}"
+                    )
+                elif not check_download(attempt.output_file, expected_adler32sum):
+                    reason = "adler32 mismatch"
+                else:
+                    os.replace(attempt.output_file, output_local_file)
+                    # A site that was overtaken after its expected time counts as failed.
+                    for other in running:
+                        if (
+                            other.rse != attempt.rse
+                            and other.elapsed() >= other.expected
+                        ):
+                            _note_failed_rse(other.rse)
+                    if verbose > 0:
+                        print(
+                            f"Copied from {attempt.source} in {attempt.elapsed():.0f} s"
+                        )
+                    return
+                running.remove(attempt)
+                attempt.cleanup()
+                fail(attempt.source, attempt.rse, reason)
+
+            if time.monotonic() - start >= COPY_MAX_TOTAL_TIME:
+                give_up(f"no copy within {COPY_MAX_TOTAL_TIME:.0f} s")
+
+            now = time.monotonic()
+            entry = next((e for e in pending if ready(e, now)), None)
+            if (
+                entry is not None
+                and len(running) < COPY_MAX_PARALLEL
+                and all(attempt.is_late(size) for attempt in running)
+            ):
+                pending.remove(entry)
+                round_idx, (pfns, rse, _), limits = entry
+                if verbose > 0:
+                    print(
+                        f"{'Joining with' if running else 'Trying'} {pfns} (round"
+                        f" {round_idx + 1}, timeout {limits[0]:.0f} s, expected"
+                        f" {limits[1]:.0f} s, stall {limits[2]:.0f} s)"
+                    )
+                part_file = f"{output_local_file}.part{n_started}"
+                n_started += 1
+                try:
+                    running.append(
+                        _CopyAttempt(pfns, rse, part_file, limits, voms_token)
+                    )
+                except (OSError, GfalError) as e:
+                    for path in (part_file, part_file + ".log"):
+                        if os.path.exists(path):
+                            os.remove(path)
+                    fail(pfns, rse, f"unable to start the copy: {e}")
+                continue
+            if not running and not pending:
+                give_up("every source failed")
+            time.sleep(poll_interval)
+    finally:
+        for attempt in running:
+            attempt.kill()
+            attempt.cleanup()
 
 
 if __name__ == "__main__":

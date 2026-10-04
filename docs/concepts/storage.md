@@ -114,6 +114,29 @@ flowchart TD
 - A per-dataset `fs_nanoAOD` is the way to read a **custom** sample from your own storage (see
   [Datasets](../configuration/datasets.md)).
 
+A job that reads a Rucio file copies it to its working directory first (`RunKit/grid_tools.py`,
+`copy_remote_file`). It asks Rucio for the disk replicas with their size and adler32 and tries
+the nearest site first (sites at the same distance in random order), one endpoint per site before
+a second endpoint of a site already tried, and the CMS xrootd federation
+(`cms-xrd-global.cern.ch`) after every site:
+
+- each attempt is a single `xrdcp`/`gfal-copy`. It is stopped when it fails, when no data has
+  arrived for 5 min, or at a time limit that follows the file size (5 min, or the time the file
+  takes at 1 MB/s if that is longer); the next replica is then tried at once;
+- an attempt still running after the time the file should take (1 min plus the time at 10 MB/s)
+  is joined by one on the next replica, unless data keeps arriving at a rate that brings the
+  rest of the file within that time again; at most two copies run at once, the first copy with
+  the size and adler32 recorded in Rucio wins, and the other one is stopped;
+- every replica is tried up to three more times, 10, 20 and 30 s after its previous attempt
+  ended, each time with three times longer limits except the 5 min without data (at most 4 h
+  per attempt), so a slow but working connection still gets through; the copy gives up after
+  6 h in total;
+- a site that failed, or was overtaken after its expected time, is tried after the others for
+  the rest of the job (a job copies the input files of all its branches).
+
+So a site that accepts connections but never delivers delays a copy by the time the file should
+take (about a minute for a small file), not hours.
+
 ## Local working area: `data/`
 
 Independently of the `fs_*` storage, each analysis checkout has a `data/` directory

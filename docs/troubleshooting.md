@@ -37,6 +37,17 @@ a Rucio outage no longer blocks commands that reuse it; the cache lives at
 `env.sh` also pins the Rucio version and warns if a newer one is available on cvmfs — pin a
 different one with `FLAF_RUCIO_VERSION` if the default ever misbehaves.
 
+## A job is slow to start reading a Rucio input file
+The job log shows how the input copy went (see
+[Where the inputs come from](concepts/storage.md#where-the-inputs-come-from)): `Trying <replica>`
+with the limits of the attempt, `Joining with <replica>` when the first one is slower than
+expected, `Copy attempt from <replica> failed: …` with the reason (`exit code …` and the end of
+the tool's output, `no data for N s`, `no result after N s`, a size or adler32 mismatch), and
+`Copied from <replica> in N s`. A site that keeps appearing in the failures is broken or
+overloaded; the copy works around it. A job that fails with `Unable to copy …: every source
+failed` lists every attempt and why it failed; `no copy within 21600 s` instead means that the
+copy was still trying after 6 h.
+
 ## "Permission denied" / "file not found" on storage
 Usually an **expired VOMS proxy** — grid/EOS access needs a valid one. Re-run `voms-proxy-init`. If
 it persists, confirm your `fs_*` paths in `user_custom.yaml` are correct and writable

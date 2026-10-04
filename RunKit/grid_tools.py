@@ -605,7 +605,9 @@ def rucio_list_replicas(files, scope="cms", schemes=("root", "davs", "gsiftp")):
     return result
 
 
-# DAS (dasgoclient) query helpers: per-file event counts, which Rucio does not record.
+# DAS (dasgoclient) query helpers. No longer used by the default file-discovery path
+# (which goes through Rucio, above), but retained for future use cases that Rucio does
+# not cover -- e.g. per-file event counts, or the phys03 instance for USER datasets.
 def run_dasgoclient(
     query, inputDBS="global", json_output=False, timeout=None, verbose=0
 ):
@@ -660,6 +662,49 @@ def das_dataset_file_info(dataset, inputDBS="global", timeout=600, verbose=0):
                 "size": int(size) if size else None,
             }
     return info
+
+
+def das_file_site_info(file, inputDBS="global", verbose=0):
+    return run_dasgoclient(
+        f"site file={file}", inputDBS=inputDBS, json_output=True, verbose=verbose
+    )
+
+
+def das_file_pfns(
+    file,
+    disk_only=True,
+    return_adler32=False,
+    inputDBS="global",
+    keep_rse=False,
+    verbose=0,
+):
+    site_info = das_file_site_info(file, inputDBS=inputDBS, verbose=verbose)
+    pfns_all = {}
+    adler32 = None
+    for entry in site_info:
+        if "site" not in entry:
+            continue
+        for site in entry["site"]:
+            if "pfns" not in site:
+                continue
+            for pfns_link, pfns_info in site["pfns"].items():
+                pnfs_type = pfns_info.get("type", "UNKNOWN")
+                if pnfs_type not in pfns_all:
+                    pfns_all[pnfs_type] = set()
+                entry = (pfns_link, pfns_info["rse"]) if keep_rse else pfns_link
+                pfns_all[pnfs_type].add(entry)
+            if "adler32" in site:
+                site_adler32 = int(site["adler32"], 16)
+                if adler32 is not None and adler32 != site_adler32:
+                    raise RuntimeError(f"Inconsistent adler32 sum for {file}")
+                adler32 = site_adler32
+    if disk_only:
+        pfns = pfns_all.get("DISK", set())
+    else:
+        pfns = pfns_all
+    if return_adler32:
+        return pfns, adler32
+    return pfns
 
 
 def copy_remote_file(

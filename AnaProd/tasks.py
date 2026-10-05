@@ -400,8 +400,7 @@ class AnaTupleFileTask(
 
         *samples* is an iterable of ``(branches, seconds)``. Only groups whose branches
         all belong to one dataset are used, since a mixed group cannot be attributed.
-        Returns True when something changed, so the caller can re-pack what is still
-        unsubmitted.
+        The calibration is stored for the next run; this one keeps its grouping.
 
         A ``--test`` run records nothing: it processes a prefix of every file, so its
         durations say nothing about the cost of the whole one, and the store is shared

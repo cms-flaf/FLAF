@@ -18,7 +18,7 @@ law run FLAF.AnaProd.tasks.AnaTupleFileTask \
 | Option | Why you want it |
 |---|---|
 | `--workflow htcondor` | Submit branches as batch jobs instead of running locally. |
-| `--transfer-logs` | **On by default** (turn off with `--transfer-logs False`). Each job's combined stdout/stderr (`stdall*.txt`) is kept: with a remote `fs_default` the job uploads it to `<version>/logs/<Task>/<period>/` on `fs_default` (plus the producer name for per-producer tasks) as `stdall_<first>To<last>_<cluster>.<proc>.txt`, so every attempt of a resubmitted job keeps its own log, and `--print-status` points there; with a local `fs_default` the log is part of the job's output sandbox: HTCondor copies it back to the task's `data/<version>/<Task>/<period>/` directory only with `--htcondor-spool False`, since with the default `-spool` the sandbox stays on the schedd until `condor_transfer_data` is run (law does not run it). |
+| `--transfer-logs` | **On by default** (turn off with `--transfer-logs False`). Each job's combined stdout/stderr (`stdall*.txt`) is kept: with a remote `fs_default` the job uploads it to `<version>/logs/<Task>/<period>/` on `fs_default` (plus the producer name for per-producer tasks) as `stdall_<first>To<end>_<cluster>.<proc>.txt` (branches `<first>` to `<end>` − 1; `<cluster>.<proc>` is the HTCondor job id), so every attempt of a resubmitted job keeps its own log, and `--print-status` points there; with a local `fs_default` the log is part of the job's output sandbox: HTCondor copies it back to the task's `data/<version>/<Task>/<period>/` directory only with `--htcondor-spool False`, since with the default `-spool` the sandbox stays on the schedd until `condor_transfer_data` is run (law does not run it). |
 | `--parallel-jobs 100` | Cap how many jobs are in flight at once. Be a good citizen on the shared pool; very large uncapped submissions are discouraged. |
 | `--branches 0:100` | Submit only a subset (e.g. to retry a range); `start:end` excludes the end, so this is branches 0–99. |
 
@@ -52,7 +52,7 @@ Where the estimate is a guess rather than a measurement (a dataset the probe cou
 sample), the packing is deliberately more conservative, so a wrong guess cannot rebuild an
 over-long job.
 
-Three consequences worth knowing:
+Consequences worth knowing:
 
 - **Each resubmission of a failed job gets more runtime and, if configured, more memory**, up to
   `retry_max_factor`.

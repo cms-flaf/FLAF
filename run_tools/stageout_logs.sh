@@ -31,6 +31,11 @@ else
         fi
     fi
     remote_log_file="${local_log_file}"
+    # A resubmitted job keeps its postfix: add the HTCondor job id so that every attempt
+    # keeps its own log instead of overwriting the previous one.
+    if [ -n "${postfix}" ] && [ -n "${LAW_HTCONDOR_JOB_CLUSTER}" ] && [ -n "${LAW_HTCONDOR_JOB_PROCESS}" ]; then
+        remote_log_file="stdall${postfix}_${LAW_HTCONDOR_JOB_CLUSTER}.${LAW_HTCONDOR_JOB_PROCESS}.txt"
+    fi
 fi
 
 if [ -n "${LAW_JOB_INIT_DIR}" ]; then

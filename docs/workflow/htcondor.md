@@ -18,7 +18,7 @@ law run FLAF.AnaProd.tasks.AnaTupleFileTask \
 | Option | Why you want it |
 |---|---|
 | `--workflow htcondor` | Submit branches as batch jobs instead of running locally. |
-| `--transfer-logs` | **On by default** (turn off with `--transfer-logs False`). Each job's combined stdout/stderr (`stdall*.txt`) is kept: with a remote `fs_default` the job uploads it to `<version>/logs/<Task>/<period>/` on `fs_default` (plus the producer name for per-producer tasks), and `--print-status` points there; with a local `fs_default` the log is part of the job's output sandbox: HTCondor copies it back to the task's `data/<version>/<Task>/<period>/` directory only with `--htcondor-spool False`, since with the default `-spool` the sandbox stays on the schedd until `condor_transfer_data` is run (law does not run it). |
+| `--transfer-logs` | **On by default** (turn off with `--transfer-logs False`). Each job's combined stdout/stderr (`stdall*.txt`) is kept: with a remote `fs_default` the job uploads it to `<version>/logs/<Task>/<period>/` on `fs_default` (plus the producer name for per-producer tasks) as `stdall_<first>To<last>_<cluster>.<proc>.txt`, so every attempt of a resubmitted job keeps its own log, and `--print-status` points there; with a local `fs_default` the log is part of the job's output sandbox: HTCondor copies it back to the task's `data/<version>/<Task>/<period>/` directory only with `--htcondor-spool False`, since with the default `-spool` the sandbox stays on the schedd until `condor_transfer_data` is run (law does not run it). |
 | `--parallel-jobs 100` | Cap how many jobs are in flight at once. Be a good citizen on the shared pool; very large uncapped submissions are discouraged. |
 | `--branches 0:100` | Submit only a subset (e.g. to retry a range); `start:end` excludes the end, so this is branches 0–99. |
 
@@ -65,12 +65,16 @@ Three consequences worth knowing:
   applies only where the measurements say it is needed. A resume only regroups what is still
   *unsubmitted*, though: a group already recorded in the jobs file comes back with its original
   composition, so use `--ignore-submission` to regroup those as well.
+- **A production restarted after some of its files were produced** is packed exactly as a fresh
+  one would be, and only the jobs' missing branches are submitted: each job keeps the files it
+  would have had that are not produced yet, and no job is created for the rest.
 - **`--parallel-jobs` defaults to 2000** for this task, which is good queue hygiene.
 
-Passing `--tasks-per-job` (or `--AnaTupleFileTask-tasks-per-job`) turns the cost-aware grouping
-and the per-attempt escalation off for that task and restores plain fixed-size chunking — the
-escape hatch if an estimate ever misbehaves.
-Setting the option for a *different* task does not affect it.
+Passing `--AnaTupleFileTask-tasks-per-job` (or a bare `--tasks-per-job` when `AnaTupleFileTask` is
+the task given to `law run`) turns the cost-aware grouping and the per-attempt escalation off for
+that task and restores plain fixed-size chunking — the escape hatch if an estimate ever misbehaves.
+Setting the option for a *different* task does not affect it; in particular a bare
+`--tasks-per-job` given to `law run AnaTupleMergeTask` applies to `AnaTupleMergeTask` only.
 
 ## Monitor and resume
 

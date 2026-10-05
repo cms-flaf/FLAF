@@ -56,7 +56,7 @@ EGamma1_Run2024G:
 EGamma1_Run2024H:
   eraLetter: H
   nanoAOD:
-    v15: /EGamma1/Run2024H-MINIv6NANOv15-v2/NANOAOD
+    v15: /EGamma1/Run2024H-MINIv6NANOv15-v1/NANOAOD
 EGamma1_Run2024I_v1:
   eraLetter: I
   eraVersion: v1
@@ -222,7 +222,7 @@ MuonEG_Run2024F:
 MuonEG_Run2024G:
   eraLetter: G
   nanoAOD:
-    v15: /MuonEG/Run2024G-MINIv6NANOv15-v2/NANOAOD
+    v15: /MuonEG/Run2024G-MINIv6NANOv15-v3/NANOAOD
 MuonEG_Run2024H:
   eraLetter: H
   nanoAOD:
@@ -236,7 +236,7 @@ MuonEG_Run2024I_v2:
   eraLetter: I
   eraVersion: v2
   nanoAOD:
-    v15: /MuonEG/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
+    v15: /MuonEG/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
 ParkingHH_Run2024C:
   eraLetter: C
   nanoAOD:
@@ -562,11 +562,11 @@ Tau_Run2024F:
 Tau_Run2024G:
   eraLetter: G
   nanoAOD:
-    v15: /Tau/Run2024G-MINIv6NANOv15-v2/NANOAOD
+    v15: /Tau/Run2024G-MINIv6NANOv15-v1/NANOAOD
 Tau_Run2024H:
   eraLetter: H
   nanoAOD:
-    v15: /Tau/Run2024H-MINIv6NANOv15-v2/NANOAOD
+    v15: /Tau/Run2024H-MINIv6NANOv15-v1/NANOAOD
 Tau_Run2024I_v1:
   eraLetter: I
   eraVersion: v1

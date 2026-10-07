@@ -102,6 +102,9 @@ def check_era_consistency(era, era_desc, xs_db):
             "dirName",
             "fileNamePattern",
             "eraVersion",
+            "exclude_files",
+            "event_filter",
+            "disabled_corrections",
         ]
         if datasetType not in must_have_properties:
             print(f"{era}/{name}: unknown datasetType '{datasetType}'.")
@@ -114,6 +117,31 @@ def check_era_consistency(era, era_desc, xs_db):
             if item not in expected_properties:
                 print(f"{era}/{name}: unexpected property '{item}'.")
                 all_ok = False
+        # Per NanoAOD source: a key that is neither one of the dataset's nanoAOD tags nor
+        # HLepRare would never be read, and the option would silently do nothing.
+        nano_tags = set(desc.get("nanoAOD", {}) or {}) | {"HLepRare"}
+        for item, value_type in [
+            ("exclude_files", list),
+            ("disabled_corrections", list),
+            ("event_filter", str),
+        ]:
+            if item not in desc:
+                continue
+            if not isinstance(desc[item], dict):
+                print(f"{era}/{name}: '{item}' must map a NanoAOD source to a value.")
+                all_ok = False
+                continue
+            for source, value in desc[item].items():
+                if source not in nano_tags:
+                    print(
+                        f"{era}/{name}: '{item}' has an unknown NanoAOD source '{source}'."
+                    )
+                    all_ok = False
+                if not isinstance(value, value_type):
+                    print(
+                        f"{era}/{name}: '{item}.{source}' must be a {value_type.__name__}."
+                    )
+                    all_ok = False
         dirName = desc.get("dirName", name)
         fileNamePattern = ".*"
         fileNamePatternDict = desc.get("fileNamePattern", {})

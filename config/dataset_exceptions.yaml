@@ -22,6 +22,9 @@ DYto2Tau_M_50_amcatnloFXFX:
 ^DYto2(E|Mu|Tau)_MLL_*.:
   - Run3_2025
   - Run3_2026
+# nested pT(ll) samples, 2022-2023 only (2025/2026 are covered by the next pattern)
+^DYto2L_M_50_PTLL_(100|200|400|600)_amcatnloFXFX:
+  - Run3_2024
 ^DYto2L_M_50_PTLL_*.:
   - Run3_2025
   - Run3_2026

@@ -38,9 +38,40 @@ bins:
     crossSection: TTtoLNu2Q
 ```
 
-The bins must be **orthogonal and exhaustive**: an event that matches no bin aborts the job,
-and an event that matches two is counted twice. When `totalCrossSection` is given, the sum of
-the bin cross-sections is checked against it.
+The bins must be **orthogonal and exhaustive**: an event that matches no bin aborts the merge
+job, and an event that matches two is counted in both denominators but takes the cross-section
+and denominator of the first bin listed. When `totalCrossSection` is given, the sum of the bin
+cross-sections is checked against it (to 0.1%).
+
+## How the two stages work together
+
+```mermaid
+flowchart TD
+    subgraph A ["AnaTuple stage: AnaTupleFileTask, one branch per nanoAOD file"]
+        direction LR
+        N["all events of the file,<br/>before any selection"]
+        B["per bin: sum of weight_gen<br/>x shape weights (PU, ...)"]
+        R["file report (anaCache):<br/>one denominator per bin"]
+        N --> B --> R
+    end
+    L["AnaTupleFileListBuilderTask<br/>collects the reports of each dataset"]
+    subgraph M ["AnaTupleMerge stage: AnaTupleMergeTask, one or more branches per dataset"]
+        direction LR
+        C["reports of every dataset<br/>of the process, summed<br/>bin by bin (dependency_level:<br/>process)"]
+        E["each event: its bin's<br/>cross-section (weight_xs)<br/>and denominator"]
+        W["weight_base = gen x lumi<br/>x xs x shape weights<br/>/ denominator"]
+        C --> E --> W
+    end
+    A --> L --> M
+```
+
+At the **AnaTuple** stage every file's report stores, per bin, the sum of the generator weights
+of all its events — before any selection — which is that file's share of the bin's denominator.
+At the **AnaTupleMerge** stage the reports of all datasets of the process (with
+`dependency_level: {AnaTupleMerge: process}`, see below) are combined bin by bin, the bin selections are evaluated again on the anaTuples being merged, and each event is
+given the cross-section of its bin and the combined denominator of that bin, from which
+`weight_base` is built. For shared MC (`shared_mc`, see [Eras](eras.md)) a second, in-era
+denominator is summed in the same way and feeds `weight_base_cmb`.
 
 ## Several datasets, one physics point
 
@@ -68,12 +99,26 @@ processors:
     combine those caches again. Declared at `AnaTuple` alone, every merge of that process fails
     with `combineAnaCaches: processor <name> not provided for combining anaCaches`.
     `dependency_level` is read only for `AnaTupleMerge`, where `process` makes the merge wait for
-    the whole process — which stitching needs, since the denominator spans its datasets.
+    the whole process — which stitching needs, since the denominator spans its datasets. The
+    default is `file`: without the key, each dataset is merged with the reports of that dataset
+    only, so the denominators do not span the process.
 
 `useDatasetCrossSection` takes the cross-section from the dataset entry (both datasets point
 at the same one) instead of a bin configuration, and the denominator is summed over every
 dataset of the process. A point that has a single dataset is unaffected: the sum is over that
 one dataset, which is what it was normalised with before.
+
+### Nested samples
+
+A sample does not have to match one bin. Because each bin's denominator is summed over every
+dataset whose events fall into it, a sample may cover several bins, as long as it covers each of
+them **completely or not at all**; a sample that reaches only part of a bin would bias that bin.
+The 2022–2023 DY samples `DYto2L_M_50_PTLL_<X>_amcatnloFXFX` are an example: generated with
+p<sub>T</sub>(ll) ≥ X and inclusive in jets, they are nested (PTLL-100 contains PTLL-200's
+region) and cover the 1- and 2-parton bins of `stitching_DY_amcatnlo_Vpt_NpNLO_allFlavors.yaml`
+above X, whose edges sit at the same values. Their rare 0-parton events would fall into the
+single `NpNLO_0` bin that spans all p<sub>T</sub>, which they cover only in part, so they are
+removed with an [`event_filter`](../configuration/datasets.md) `LHE_NpNLO >= 1`.
 
 ## Variables the bins select on
 
@@ -122,7 +167,8 @@ Both stages therefore see the same value, computed once from the nanoAOD.
 2. Subclass `MCStitcher` and override `defineVariables` with
    `defineFromStoredOrExpression`, naming the branch the analysis stores.
 3. Store that branch in the analysis anaTuple definition and declare the corresponding
-   `genInfo` for the process.
+   `genInfo` for the process. A scalar must not share the text before its first underscore with
+   array columns: the anaTuple stores such columns as one collection and refuses the mix.
 4. Cover it in the integration test. Every analysis runs two CI backgrounds — one t̄t and one
    DY dataset — and each carries the same `processors:` and `genInfo:` as the analysis's real
    `TT` and DY process **for that era**, so the stitcher runs over the whole anaTuple → merge →

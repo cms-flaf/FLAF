@@ -320,7 +320,8 @@ if __name__ == "__main__":
         isData=isData,
         workingDir=os.path.dirname(args.outFile),
     )
-    hadd_cmd = ["hadd", "-j", "-ff", args.outFile]
+    # without a number, hadd -j runs in one process since ROOT 6.38
+    hadd_cmd = ["hadd", "-j", str(os.cpu_count()), "-ff", args.outFile]
     hadd_cmd.extend(tmp_fileNames)
     ps_call(hadd_cmd, verbose=1)
     if os.path.exists(args.outFile) and len(tmp_fileNames) != 0:

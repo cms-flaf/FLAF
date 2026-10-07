@@ -318,10 +318,11 @@ class _StubProxy(LawProxyState):
     """Carries just the state the packing and retry helpers touch, so their bookkeeping
     can be exercised without a batch system."""
 
-    def __init__(self, task, jobs=None, unsubmitted=None):
+    def __init__(self, task, jobs=None, unsubmitted=None, existing=None):
         import collections
 
         self.task = task
+        self.existing = set(existing or [])
         self.job_data = _StubJobData(jobs, unsubmitted)
         self.job_data_cls = _StubJobDataCls
         self._job_retries = collections.defaultdict(int)
@@ -333,6 +334,9 @@ class _StubProxy(LawProxyState):
 
     def _cost_scheduling_enabled(self):
         return True
+
+    def _get_existing_branches(self, sync=False):
+        return self.existing
 
     _next_job_num = (
         _BundleAwareHTCondorWorkflowProxy._next_job_num if HAVE_LAW else None
@@ -394,6 +398,66 @@ class TestProxyBookkeeping(unittest.TestCase):
         self.assertFalse(
             second & first, "a number carrying stale retry state must not be reused"
         )
+
+    def test_a_restarted_production_submits_only_missing_branches(self):
+        """The jobs are those of a fresh production, restricted to what is missing, so
+        the leftovers are neither regrouped into fewer jobs nor skipped as finished jobs
+        that inflate the counts."""
+        costs = {b: (1800.0 * (1 + b % 7), "job") for b in range(60)}
+        fresh = _StubProxy(_StubTask(costs), unsubmitted={1: list(range(60))})
+        self._repack(fresh)
+        fresh_groups = list(fresh.job_data.unsubmitted_jobs.values())
+
+        missing = {3, 4, 17, 41, 42, 59}
+        restarted = _StubProxy(
+            _StubTask(costs),
+            unsubmitted={1: list(range(60))},
+            existing=set(range(60)) - missing,
+        )
+        self._repack(restarted)
+        groups = list(restarted.job_data.unsubmitted_jobs.values())
+        expected = [
+            g for g in ([b for b in g if b in missing] for g in fresh_groups) if g
+        ]
+        self.assertEqual(groups, expected)
+        self.assertEqual(sorted(b for g in groups for b in g), sorted(missing))
+        message = restarted.task.messages[-1]
+        self.assertIn("54 branch(es) already produced", message)
+        self.assertIn(f"{len(expected)} job(s) to submit", message)
+        self.assertNotIn("already produced", fresh.task.messages[-1])
+
+    def test_a_fully_produced_workflow_submits_nothing(self):
+        costs = {b: (600.0, "job") for b in range(10)}
+        proxy = _StubProxy(
+            _StubTask(costs), unsubmitted={1: list(range(10))}, existing=range(10)
+        )
+        self._repack(proxy)
+        self.assertEqual(proxy.job_data.unsubmitted_jobs, {})
+
+    def test_scheduling_leaves_no_finished_records_of_the_default_grouping(self):
+        """law's process_resources() records every complete job of its default grouping
+        as finished; with cost-aware packing that grouping is never used."""
+        proxy = _StubProxy(_StubTask({}), existing=range(10))
+        resources = _BundleAwareHTCondorWorkflowProxy.process_resources(proxy)
+        self.assertEqual(resources, {})
+        self.assertEqual(proxy.job_data.jobs, {})
+        self.assertEqual(proxy._skip_jobs, {})
+
+    def test_without_cost_packing_resources_come_from_law(self):
+        from unittest import mock
+        from FLAF.run_tools import law_customizations as lc
+
+        proxy = _BundleAwareHTCondorWorkflowProxy.__new__(
+            _BundleAwareHTCondorWorkflowProxy
+        )
+        proxy.task = object()  # no branch_cost_map: cost-aware packing is off
+        with mock.patch.object(
+            lc.BundleAwareHTCondorWorkflowProxyBase,
+            "process_resources",
+            return_value={"from_law": 1},
+        ) as base:
+            self.assertEqual(proxy.process_resources(), {"from_law": 1})
+        base.assert_called_once()
 
     def test_durations_are_harvested_once_per_finished_job(self):
         """Only single-branch jobs this process submitted, seen running then finished."""
@@ -476,6 +540,50 @@ class TestProxyBookkeeping(unittest.TestCase):
         except Exception:
             pass  # the stub has no batch system; only the repack decision is under test
         self.assertEqual(proxy.job_data.unsubmitted_jobs, before)
+
+
+@unittest.skipUnless(HAVE_LAW, "law is not importable in this environment")
+class TestTasksPerJobOnTheCommandLine(unittest.TestCase):
+    """A bare --tasks-per-job belongs to the root task only: FLAF excludes the parameter
+    from req, so it never reaches AnaTupleFileTask when another task is launched."""
+
+    @classmethod
+    def setUpClass(cls):
+        import luigi
+
+        class TpjRootTask(luigi.Task):
+            tasks_per_job = luigi.IntParameter(default=1)
+
+        class TpjFileTask(luigi.Task):
+            tasks_per_job = luigi.IntParameter(default=1)
+
+    def _has(self, args, task_family):
+        import luigi
+        from FLAF.run_tools.law_customizations import _cli_has_tasks_per_job
+
+        with luigi.cmdline_parser.CmdlineParser.global_instance(args):
+            return _cli_has_tasks_per_job(task_family)
+
+    def test_bare_option_of_another_root_task(self):
+        args = ["TpjRootTask", "--tasks-per-job", "10"]
+        self.assertFalse(self._has(args, "TpjFileTask"))
+        self.assertTrue(self._has(args, "TpjRootTask"))
+
+    def test_bare_option_of_the_task_itself(self):
+        self.assertTrue(
+            self._has(["TpjFileTask", "--tasks-per-job", "10"], "TpjFileTask")
+        )
+        self.assertTrue(self._has(["TpjFileTask", "--tasks-per-job=10"], "TpjFileTask"))
+
+    def test_prefixed_option(self):
+        args = ["TpjRootTask", "--TpjFileTask-tasks-per-job", "10"]
+        self.assertTrue(self._has(args, "TpjFileTask"))
+        self.assertFalse(self._has(args, "TpjRootTask"))
+        args = ["TpjRootTask", "--TpjFileTask-tasks-per-job=10"]
+        self.assertTrue(self._has(args, "TpjFileTask"))
+
+    def test_no_option(self):
+        self.assertFalse(self._has(["TpjRootTask"], "TpjFileTask"))
 
 
 if __name__ == "__main__":

@@ -555,7 +555,11 @@ std::pair<double, double> asymm_mt2_lester_bisect::ben_findsols(double MT2,
         }
 
         double myclose = 99999999.;
-        for (double metpy = low; metpy <= high; metpy += (high - low) / 10000.) {
+        // Counted with an integer: a floating-point step never advances when high == low (a zero
+        // discriminant) or when it is below the resolution of metpy.
+        const int n_steps = 10000;
+        for (int i_step = 0; i_step <= n_steps; ++i_step) {
+            const double metpy = low + (high - low) * i_step / n_steps;
             double metpx = -(TermB * metpy + TermA - sqrt(TermSqy0 + TermSqy1 * metpy + TermSqy2 * metpy * metpy)) *
                            0.5 / (E2 - px2);
             double metpx2 = -(TermB * metpy + TermA + sqrt(TermSqy0 + TermSqy1 * metpy + TermSqy2 * metpy * metpy)) *

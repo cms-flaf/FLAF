@@ -1,0 +1,25 @@
+diff --git a/bin/combine.cpp b/bin/combine.cpp
+index 3365b3f..9904c2d 100644
+--- a/bin/combine.cpp
++++ b/bin/combine.cpp
+@@ -5,6 +5,8 @@
+ #include <TTree.h>
+ #include <TEnv.h>
+ #include <RooRandom.h>
++#include <RooRealVar.h>
++#include <RVersion.h>
+ #include <iostream>
+ #include <fstream>
+ #include <sstream>
+@@ -42,6 +44,11 @@ int main(int argc, char **argv) {
+ 
+   // Make sure the RooFit banner never appears
+   gEnv->SetValue("RooFit.Banner", 0);
++#if ROOT_VERSION_CODE >= ROOT_VERSION(6, 38, 0)
++  // Since ROOT 6.38 RooRealVar::setVal throws outside the range instead of clipping, and
++  // AsymptoticLimits::getCLs restores a snapshot with r beyond the range it has just shrunk.
++  RooRealVar::enableSilentClipping(true);
++#endif
+ 
+   string name;
+   string datacard, dataset, dataMapName;

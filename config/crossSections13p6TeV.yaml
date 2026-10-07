@@ -124,6 +124,57 @@ GluGlutoHHto2B2Tau_kl_2p45_kt_1p00_c2_0p00:
   crossSec: GluGlutoHH_kl_2p45_kt_1p00_c2_0p00 * 2 * BR_H_tautau * BR_H_bb
 GluGlutoHHto2B2Tau_kl_5p00_kt_1p00_c2_0p00:
   crossSec: GluGlutoHH_kl_5p00_kt_1p00_c2_0p00 * 2 * BR_H_tautau * BR_H_bb
+
+VBFHH_CV_1_C2V_0_kl_1:
+  crossSec: 0.0296772
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads&plain=0#run3
+VBFHH_CV_1_C2V_1_kl_1:
+  crossSec: 0.0019292
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads&plain=0#run3
+VBFHH_CV_1p74_C2V_1p37_C3_14p4:
+  crossSec: 0.4002163
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads&plain=0#run3
+VBFHH_CV_2p12_C2V_3p87_C3_m5p96:
+  crossSec: 0.6800842
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads&plain=0#run3
+VBFHH_CV_m0p012_C2V_0p030_C3_10p2:
+  crossSec: 0.0000127
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads&plain=0#run3
+VBFHH_CV_m0p758_C2V_1p44_C3_m19p3:
+  crossSec: 0.3593242
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads&plain=0#run3
+VBFHH_CV_m0p962_C2V_0p959_C3_m1p43:
+  crossSec: 0.0011275
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads&plain=0#run3
+VBFHH_CV_m1p21_C2V_1p94_C3_m0p94:
+  crossSec: 0.0037987
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads&plain=0#run3
+VBFHH_CV_m1p60_C2V_2p72_C3_m1p36:
+  crossSec: 0.0117008
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads&plain=0#run3
+VBFHH_CV_m1p83_C2V_3p57_C3_m3p39:
+  crossSec: 0.0168528
+  reference: https://gitlab.cern.ch/hh/recommendations/-/blob/master/CrossSections.md?ref_type=heads&plain=0#run3
+VBFHHto2B2Tau_CV_1_C2V_0_C3_1:
+  crossSec: VBFHH_CV_1_C2V_0_kl_1 * 2 * BR_H_tautau * BR_H_bb
+VBFHHto2B2Tau_CV_1_C2V_1_C3_1:
+  crossSec: VBFHH_CV_1_C2V_1_kl_1 * 2 * BR_H_tautau * BR_H_bb
+VBFHHto2B2Tau_CV_1p74_C2V_1p37_C3_14p4:
+  crossSec: VBFHH_CV_1p74_C2V_1p37_C3_14p4 * 2 * BR_H_tautau * BR_H_bb
+VBFHHto2B2Tau_CV_2p12_C2V_3p87_C3_m5p96:
+  crossSec: VBFHH_CV_2p12_C2V_3p87_C3_m5p96 * 2 * BR_H_tautau * BR_H_bb
+VBFHHto2B2Tau_CV_m0p012_C2V_0p030_C3_10p2:
+  crossSec: VBFHH_CV_m0p012_C2V_0p030_C3_10p2 * 2 * BR_H_tautau * BR_H_bb
+VBFHHto2B2Tau_CV_m0p758_C2V_1p44_C3_m19p3:
+  crossSec: VBFHH_CV_m0p758_C2V_1p44_C3_m19p3 * 2 * BR_H_tautau * BR_H_bb
+VBFHHto2B2Tau_CV_m0p962_C2V_0p959_C3_m1p43:
+  crossSec: VBFHH_CV_m0p962_C2V_0p959_C3_m1p43 * 2 * BR_H_tautau * BR_H_bb
+VBFHHto2B2Tau_CV_m1p21_C2V_1p94_C3_m0p94:
+  crossSec: VBFHH_CV_m1p21_C2V_1p94_C3_m0p94 * 2 * BR_H_tautau * BR_H_bb
+VBFHHto2B2Tau_CV_m1p60_C2V_2p72_C3_m1p36:
+  crossSec: VBFHH_CV_m1p60_C2V_2p72_C3_m1p36 * 2 * BR_H_tautau * BR_H_bb
+VBFHHto2B2Tau_CV_m1p83_C2V_3p57_C3_m3p39:
+  crossSec: VBFHH_CV_m1p83_C2V_3p57_C3_m3p39 * 2 * BR_H_tautau * BR_H_bb
 ############## Backgrounds ##############
 DY_NNLO_QCD_NLO_EW:
   crossSec: 2094.2
@@ -299,6 +350,22 @@ DYto2L_M_50_PTLL_40to100_2J_amcatnloFXFX_singleFlavor:
   comments: "divided by 3 to account for e, mu, tau"
 
 
+DYto2L_M_50_PTLL_100_amcatnloFXFX_allFlavors:
+  crossSec: 108.257
+  reference: sum of the XSDB DYto2L-2Jets_MLL-50_PTLL-<bin>_<1J,2J> cross-sections for the bins 100to200, 200to400, 400to600 and 600 (the nested DYto2L-2Jets_MLL-50_PTLL-100 sample with LHE_NpNLO >= 1)
+  unc: 0.5417
+DYto2L_M_50_PTLL_200_amcatnloFXFX_allFlavors:
+  crossSec: 11.157
+  reference: sum of the XSDB DYto2L-2Jets_MLL-50_PTLL-<bin>_<1J,2J> cross-sections for the bins 200to400, 400to600 and 600 (the nested DYto2L-2Jets_MLL-50_PTLL-200 sample with LHE_NpNLO >= 1)
+  unc: 0.0577
+DYto2L_M_50_PTLL_400_amcatnloFXFX_allFlavors:
+  crossSec: 0.61601
+  reference: sum of the XSDB DYto2L-2Jets_MLL-50_PTLL-<bin>_<1J,2J> cross-sections for the bins 400to600 and 600 (the nested DYto2L-2Jets_MLL-50_PTLL-400 sample with LHE_NpNLO >= 1)
+  unc: 0.00243
+DYto2L_M_50_PTLL_600_amcatnloFXFX_allFlavors:
+  crossSec: 0.08411
+  reference: sum of the XSDB DYto2L-2Jets_MLL-50_PTLL-<bin>_<1J,2J> cross-sections for the bins 600 (the nested DYto2L-2Jets_MLL-50_PTLL-600 sample with LHE_NpNLO >= 1)
+  unc: 0.00034
 DYto2L_M_50_PTLL_100to200_1J_amcatnloFXFX_allFlavors:
   crossSec: 45.42
   reference: XSDB DYto2L-2Jets_MLL-50_PTLL-100to200_1J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8 modifiedOn 2024-04-03 19:19:15

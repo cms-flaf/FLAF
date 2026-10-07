@@ -481,6 +481,9 @@ DYto2Tau_M_50_2J_Filtered_amcatnloFXFX:
     HLepRare: ^nano_\d+\.root$
 
 ############## DYto2L_M_*_PTLL ##############
+# The PTLL x NJ samples below are INVALID on DAS at every tier (McM requests rejected in
+# 2025-08). The nested DYto2L_M_50_PTLL_<X>_amcatnloFXFX samples replace them where the
+# NanoAOD is read from DAS; HH_bbtautau still reads their HLepRare skims.
 DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_allFlavors
   generator: amcatnlo
@@ -748,6 +751,50 @@ DYto2L_M_50_PTLL_600_2J_amcatnloFXFX:
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v1/MINIAODSIM
   nanoAOD:
     v12: /DYto2L-2Jets_MLL-50_PTLL-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v14-v1/NANOAODSIM
+DYto2L_M_50_PTLL_100_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_100_amcatnloFXFX_allFlavors
+  generator: amcatnlo
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+  nanoAOD:
+    v12: /DYto2L-2Jets_MLL-50_PTLL-100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v2/NANOAODSIM
+  # pT(ll) >= 100 GeV and inclusive in jets: the stitching bins it covers are the 1- and
+  # 2-parton ones above 100 GeV, so its rare 0-parton events are dropped.
+  event_filter:
+    v12: "LHE_NpNLO >= 1"
+    HLepRare: "LHE_NpNLO >= 1"
+DYto2L_M_50_PTLL_200_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_200_amcatnloFXFX_allFlavors
+  generator: amcatnlo
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+  nanoAOD:
+    v12: /DYto2L-2Jets_MLL-50_PTLL-200_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v2/NANOAODSIM
+  # pT(ll) >= 200 GeV and inclusive in jets: the stitching bins it covers are the 1- and
+  # 2-parton ones above 200 GeV, so its rare 0-parton events are dropped.
+  event_filter:
+    v12: "LHE_NpNLO >= 1"
+    HLepRare: "LHE_NpNLO >= 1"
+DYto2L_M_50_PTLL_400_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_400_amcatnloFXFX_allFlavors
+  generator: amcatnlo
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v3/MINIAODSIM
+  nanoAOD:
+    v12: /DYto2L-2Jets_MLL-50_PTLL-400_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v3/NANOAODSIM
+  # pT(ll) >= 400 GeV and inclusive in jets: the stitching bins it covers are the 1- and
+  # 2-parton ones above 400 GeV, so its rare 0-parton events are dropped.
+  event_filter:
+    v12: "LHE_NpNLO >= 1"
+    HLepRare: "LHE_NpNLO >= 1"
+DYto2L_M_50_PTLL_600_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_600_amcatnloFXFX_allFlavors
+  generator: amcatnlo
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v2/MINIAODSIM
+  nanoAOD:
+    v12: /DYto2L-2Jets_MLL-50_PTLL-600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v2/NANOAODSIM
+  # pT(ll) >= 600 GeV and inclusive in jets: the stitching bins it covers are the 1- and
+  # 2-parton ones above 600 GeV, so its rare 0-parton events are dropped.
+  event_filter:
+    v12: "LHE_NpNLO >= 1"
+    HLepRare: "LHE_NpNLO >= 1"
 DYto2E_M_50_PTLL_600_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_singleFlavor
   generator: amcatnlo
@@ -1761,9 +1808,9 @@ ZHto2Tau_UncorrelatedDecay_Filtered:
 ZHto2Tau_UncorrelatedDecay_UnFiltered:
   crossSection: ZHto2Tau
   generator: powheg
-  miniAOD: /ZHto2TauUncorrelatedDecay_M-125_CP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v2/MINIAODSIM
+  miniAOD: /ZHto2TauUncorrelatedDecay_M-125_CP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v15-v5/MINIAODSIM
   nanoAOD:
-    v12: /ZHto2TauUncorrelatedDecay_M-125_CP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v14-v2/NANOAODSIM
+    v12: /ZHto2TauUncorrelatedDecay_M-125_CP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v15-v5/NANOAODSIM
 Zto2Nu_HT_100to200:
   crossSection: Zto2Nu_HT_100To200
   generator: madgraphMLM

@@ -471,6 +471,9 @@ DYto2Tau_M_50_2J_Filtered_amcatnloFXFX:
   fileNamePattern:
     HLepRare: ^nano_\d+\.root$
 ############## DYto2L_M_*_PTLL ##############
+# The PTLL x NJ samples below are INVALID on DAS at every tier (McM requests rejected in
+# 2025-08). The nested DYto2L_M_50_PTLL_<X>_amcatnloFXFX samples replace them where the
+# NanoAOD is read from DAS; HH_bbtautau still reads their HLepRare skims.
 DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_40to100_1J_amcatnloFXFX_allFlavors
   generator: amcatnlo
@@ -714,6 +717,50 @@ DYto2L_M_50_PTLL_600_2J_amcatnloFXFX:
   miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v1/MINIAODSIM
   nanoAOD:
     v12: /DYto2L-2Jets_MLL-50_PTLL-600_2J_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v1/NANOAODSIM
+DYto2L_M_50_PTLL_100_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_100_amcatnloFXFX_allFlavors
+  generator: amcatnlo
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v3/MINIAODSIM
+  nanoAOD:
+    v12: /DYto2L-2Jets_MLL-50_PTLL-100_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v3/NANOAODSIM
+  # pT(ll) >= 100 GeV and inclusive in jets: the stitching bins it covers are the 1- and
+  # 2-parton ones above 100 GeV, so its rare 0-parton events are dropped.
+  event_filter:
+    v12: "LHE_NpNLO >= 1"
+    HLepRare: "LHE_NpNLO >= 1"
+DYto2L_M_50_PTLL_200_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_200_amcatnloFXFX_allFlavors
+  generator: amcatnlo
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-200_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
+  nanoAOD:
+    v12: /DYto2L-2Jets_MLL-50_PTLL-200_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM
+  # pT(ll) >= 200 GeV and inclusive in jets: the stitching bins it covers are the 1- and
+  # 2-parton ones above 200 GeV, so its rare 0-parton events are dropped.
+  event_filter:
+    v12: "LHE_NpNLO >= 1"
+    HLepRare: "LHE_NpNLO >= 1"
+DYto2L_M_50_PTLL_400_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_400_amcatnloFXFX_allFlavors
+  generator: amcatnlo
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-400_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
+  nanoAOD:
+    v12: /DYto2L-2Jets_MLL-50_PTLL-400_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM
+  # pT(ll) >= 400 GeV and inclusive in jets: the stitching bins it covers are the 1- and
+  # 2-parton ones above 400 GeV, so its rare 0-parton events are dropped.
+  event_filter:
+    v12: "LHE_NpNLO >= 1"
+    HLepRare: "LHE_NpNLO >= 1"
+DYto2L_M_50_PTLL_600_amcatnloFXFX:
+  crossSection: DYto2L_M_50_PTLL_600_amcatnloFXFX_allFlavors
+  generator: amcatnlo
+  miniAOD: /DYto2L-2Jets_MLL-50_PTLL-600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
+  nanoAOD:
+    v12: /DYto2L-2Jets_MLL-50_PTLL-600_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM
+  # pT(ll) >= 600 GeV and inclusive in jets: the stitching bins it covers are the 1- and
+  # 2-parton ones above 600 GeV, so its rare 0-parton events are dropped.
+  event_filter:
+    v12: "LHE_NpNLO >= 1"
+    HLepRare: "LHE_NpNLO >= 1"
 DYto2E_M_50_PTLL_600_2J_amcatnloFXFX:
   crossSection: DYto2L_M_50_PTLL_600_2J_amcatnloFXFX_singleFlavor
   generator: amcatnlo
@@ -750,6 +797,10 @@ GluGluHto2Tau_M125:
   miniAOD: /GluGluHToTauTau_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
   nanoAOD:
     v12: /GluGluHToTauTau_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM
+  # PSWeight holds a single entry in every file: no parton-shower weights.
+  disabled_corrections:
+    v12: [ parton_shower ]
+    HLepRare: [ parton_shower ]
 GluGluHto2Tau_UncorrelatedDecay_Filtered:
   crossSection: GluGluHToTauTau_M125_Filtered
   generator: powheg
@@ -1247,6 +1298,36 @@ TTZZ:
   miniAOD: /TTZZ_TuneCP5_13p6TeV_madgraph-madspin-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
   nanoAOD:
     v12: /TTZZ_TuneCP5_13p6TeV_madgraph-madspin-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM
+TTLNu_1Jets:
+  crossSection: TTLNu_1Jets
+  generator: amcatnlo
+  miniAOD: /TTLNu-1Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22MiniAODv4-mg35x_130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
+  nanoAOD:
+    v12: /TTLNu-1Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/Run3Summer22NanoAODv12-mg35x_130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM
+TTLL_MLL_50:
+  crossSection: TTLL_MLL_50
+  generator: amcatnlo
+  miniAOD: /TTLL_MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v3/MINIAODSIM
+  nanoAOD:
+    v12: /TTLL_MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v3/NANOAODSIM
+TTLL_MLL_50_ext1:
+  crossSection: TTLL_MLL_50
+  generator: amcatnlo
+  miniAOD: /TTLL_MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5_ext1-v3/MINIAODSIM
+  nanoAOD:
+    v12: /TTLL_MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5_ext1-v3/NANOAODSIM
+TTLL_MLL_4to50:
+  crossSection: TTLL_MLL_4to50
+  generator: amcatnlo
+  miniAOD: /TTLL_MLL-4to50_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v3/MINIAODSIM
+  nanoAOD:
+    v12: /TTLL_MLL-4to50_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v3/NANOAODSIM
+TTNuNu:
+  crossSection: TTNuNu
+  generator: amcatnlo
+  miniAOD: /TTNuNu_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
+  nanoAOD:
+    v12: /TTNuNu_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM
 
 
 TTto2L2Nu:
@@ -1614,6 +1695,12 @@ ZZZ:
   miniAOD: /ZZZ_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
   nanoAOD:
     v12: /ZZZ_TuneCP5_13p6TeV_amcatnlo-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM
+  # 12342 of the 1970234 events have no LHEPdfWeight and LHEScaleWeight: the only such file in
+  # DAS, and a contiguous block of nano_3.root in the HLepRare skim (the same events).
+  exclude_files:
+    v12: [ 7c4f3eb2-3c7e-4c21-98ed-c1892bb3a057.root ]
+  event_filter:
+    HLepRare: "nLHEPdfWeight > 0 && nLHEScaleWeight > 0"
 
 
 ############## VH ##############
@@ -1653,9 +1740,9 @@ ZHto2Tau_UncorrelatedDecay_Filtered:
 ZHto2Tau_UncorrelatedDecay_UnFiltered:
   crossSection: ZHto2Tau
   generator: powheg
-  miniAOD: /ZHto2TauUncorrelatedDecay_M-125_CP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v2/MINIAODSIM
+  miniAOD: /ZHto2TauUncorrelatedDecay_M-125_CP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22MiniAODv4-130X_mcRun3_2022_realistic_v5-v4/MINIAODSIM
   nanoAOD:
-    v12: /ZHto2TauUncorrelatedDecay_M-125_CP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v2/NANOAODSIM
+    v12: /ZHto2TauUncorrelatedDecay_M-125_CP5_13p6TeV_powheg-minnlo-pythia8/Run3Summer22NanoAODv12-130X_mcRun3_2022_realistic_v5-v4/NANOAODSIM
 
 Zto2Nu_HT_100to200:
   crossSection: Zto2Nu_HT_100To200

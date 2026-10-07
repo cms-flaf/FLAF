@@ -52,37 +52,80 @@ do_install_cmssw() {
       run_cmd git clone https://github.com/cms-flaf/CombineHarvester.git CombineHarvester
     fi
     run_cmd scram b -j8
+    if [ "$cmb_version" != "none" ]; then
+      run_cmd touch "$ANALYSIS_SOFT_PATH/$CMSSW_VER/.installed_combine_$cmb_version"
+    fi
     run_cmd touch "$ANALYSIS_SOFT_PATH/$CMSSW_VER/.installed"
   fi
 }
 
-do_install_combine() {
-  local cmb_version=$1
-  local cmb_path="$1"
+do_install_cmssw_combine() {
+  export SCRAM_ARCH=$1
+  local CMSSW_VER=$2
+  local cmb_version=$3
+  local installed_flag=$4
 
-  echo "Compiling standalone combine..."
+  echo "Moving the combine of $CMSSW_VER to $cmb_version..."
+  run_cmd rm -f "$ANALYSIS_SOFT_PATH/$CMSSW_VER"/.installed_combine_*
+  run_cmd source /cvmfs/cms.cern.ch/cmsset_default.sh
+  run_cmd cd "$ANALYSIS_SOFT_PATH/$CMSSW_VER/src"
+  eval `scramv1 runtime -sh`
+  if [ ! -d HiggsAnalysis/CombinedLimit ]; then
+    run_cmd git clone https://github.com/cms-analysis/HiggsAnalysis-CombinedLimit.git HiggsAnalysis/CombinedLimit
+  fi
+  if [ ! -d CombineHarvester ]; then
+    run_cmd git clone https://github.com/cms-flaf/CombineHarvester.git CombineHarvester
+  fi
+  # the standalone build that earlier FLAF versions made inside this checkout
+  if [ -d HiggsAnalysis/CombinedLimit/build ]; then
+    run_cmd rm -rf HiggsAnalysis/CombinedLimit/build
+  fi
+  run_cmd git -C HiggsAnalysis/CombinedLimit fetch --tags origin
+  run_cmd git -C HiggsAnalysis/CombinedLimit checkout -f "$cmb_version"
+  run_cmd cd HiggsAnalysis/CombinedLimit
+  run_cmd scram b clean
+  run_cmd cd ../..
+  run_cmd scram b -j8
+  run_cmd touch "$installed_flag"
+}
+
+do_install_combine() {
+  local cmb_path="$1"
+  local cmb_version="$2"
+  local cmb_patch="$3"
+  local installed_flag="$4"
+
+  echo "Compiling standalone combine $cmb_version..."
   source "$FLAF_ENVIRONMENT_PATH/bin/activate"
+  if [ ! -d "$cmb_path" ]; then
+    run_cmd git clone https://github.com/cms-analysis/HiggsAnalysis-CombinedLimit.git "$cmb_path"
+  fi
   run_cmd cd "$cmb_path"
+  run_cmd git fetch --tags origin
+  run_cmd git checkout -f "$cmb_version"
+  run_cmd git apply "$cmb_patch"
   if [ -d build ]; then
-    echo "Removing incomplete combine build..."
+    echo "Removing incomplete or outdated combine build..."
     run_cmd rm -rf build
   fi
   run_cmd mkdir build
   run_cmd cd build
   run_cmd cmake ..
   run_cmd cmake --build . -j8
-  run_cmd touch "$cmb_path/build/.installed"
+  run_cmd touch "$installed_flag"
 }
 
 do_install_inference() {
   local cmb_version=$1
 
+  local installed_flag=$2
+
   local setups_dir="$HH_INFERENCE_PATH/.setups"
   local setup_file="$setups_dir/flaf.sh"
 
-  if ! [ -f "$setup_file" ]; then
-    run_cmd mkdir -p "$setups_dir"
-    cat > "$setup_file" <<EOF
+  run_cmd rm -f "$HH_INFERENCE_PATH"/data/.installed*
+  run_cmd mkdir -p "$setups_dir"
+  cat > "$setup_file" <<EOF
 export DHI_USER="$(whoami)"
 export DHI_USER_FIRSTCHAR="\${DHI_USER:0:1}"
 export DHI_DATA="\$ANALYSIS_PATH/inference/data"
@@ -97,7 +140,6 @@ export DHI_SCHEDULER_HOST="hh:cmshhcombr2@hh-scheduler1.cern.ch"
 export DHI_SCHEDULER_PORT="80"
 export DHI_COMBINE_VERSION="$cmb_version"
 EOF
-  fi
 
   # run_cmd mkdir -p "$ANALYSIS_SOFT_PATH/bin"
   # if ! [ -f "$ANALYSIS_SOFT_PATH/bin/combine" ]; then
@@ -108,7 +150,7 @@ EOF
   # fi
 
   run_cmd mkdir -p "$HH_INFERENCE_PATH/data"
-  run_cmd touch "$HH_INFERENCE_PATH/data/.installed"
+  run_cmd touch "$installed_flag"
 }
 
 install() {
@@ -125,6 +167,8 @@ install() {
   if [[ "${FLAF_NO_INSTALL:-0}" == "1" ]]; then
     echo "ERROR: $installed_flag not found and FLAF_NO_INSTALL=1"
     kill -INT $$
+    # the signal does not stop a shell that sourced this file in a subshell
+    return 1
   fi
 
   if [[ $node_os == $target_os ]]; then
@@ -152,12 +196,28 @@ install_cmssw() {
   install "$env_file" $node_os $target_os install_cmssw "$ANALYSIS_SOFT_PATH/$cmssw_version/.installed" "$scram_arch" "$cmssw_version" "$cmb_ver"
 }
 
+install_cmssw_combine() {
+  local env_file="$1"
+  local node_os=$2
+  local target_os=$3
+  local scram_arch=$4
+  local cmssw_version=$5
+  local cmb_ver=$6
+  local installed_flag="$ANALYSIS_SOFT_PATH/$cmssw_version/.installed_combine_$cmb_ver"
+  install "$env_file" $node_os $target_os install_cmssw_combine "$installed_flag" "$scram_arch" "$cmssw_version" \
+    "$cmb_ver" "$installed_flag"
+}
+
 install_combine() {
   local env_file="$1"
   local node_os=$2
   local target_os=$3
   local cmb_path=$4
-  install "$env_file" $node_os $target_os install_combine "$cmb_path/build/.installed" "$cmb_path"
+  local cmb_version=$5
+  local cmb_patch=$6
+  local installed_flag=$7
+  install "$env_file" $node_os $target_os install_combine "$installed_flag" "$cmb_path" "$cmb_version" \
+    "$cmb_patch" "$installed_flag"
 }
 
 
@@ -166,7 +226,8 @@ install_inference() {
   local node_os=$2
   local target_os=$3
   local cmb_ver=$4
-  install "$env_file" $node_os $target_os install_inference "$HH_INFERENCE_PATH/data/.installed" $cmb_ver
+  local installed_flag="$HH_INFERENCE_PATH/data/.installed_$cmb_ver"
+  install "$env_file" $node_os $target_os install_inference "$installed_flag" $cmb_ver "$installed_flag"
 }
 
 load_flaf_env() {
@@ -180,12 +241,13 @@ load_flaf_env() {
     run_cmd mkdir -p "$ANALYSIS_DATA_PATH"
   fi
 
-  local FLAF_LCG_VERSION="LCG_108a"
+  local FLAF_LCG_VERSION="LCG_110a"
   local FLAF_LCG_ARCH="x86_64-el9-gcc15-opt"
   if [[ ! -f "$FLAF_ENVIRONMENT_PATH/.${FLAF_LCG_VERSION}_${FLAF_LCG_ARCH}" ]]; then
     if [[ "${FLAF_NO_INSTALL:-0}" == "1" ]]; then
       echo "ERROR: FLAF environment not found at $FLAF_ENVIRONMENT_PATH and FLAF_NO_INSTALL=1"
       kill -INT $$
+      return 1
     fi
     if [[ -d "$FLAF_ENVIRONMENT_PATH" ]]; then
       echo "Removing old FLAF environment installation in $FLAF_ENVIRONMENT_PATH ..."
@@ -206,7 +268,7 @@ load_flaf_env() {
   local target_os_prefix=$(get_os_prefix $FLAF_CMSSW_OS_VERSION)
   local target_os_gt_prefix=$(get_os_prefix $FLAF_CMSSW_OS_VERSION 1)
   local target_os=$target_os_prefix$FLAF_CMSSW_OS_VERSION
-  [ -z "$FLAF_COMBINE_VERSION" ] && export FLAF_COMBINE_VERSION="v10.4.2"
+  [ -z "$FLAF_COMBINE_VERSION" ] && export FLAF_COMBINE_VERSION="v11.1.0"
   export FLAF_CMSSW_BASE="$ANALYSIS_SOFT_PATH/$FLAF_CMSSW_VERSION"
   export FLAF_CMSSW_ARCH="${target_os_gt_prefix}${FLAF_CMSSW_OS_VERSION}_amd64_${FLAF_CMSSW_COMPILER}"
   export PYTHONPATH="$ANALYSIS_PATH:$PYTHONPATH"
@@ -229,15 +291,25 @@ load_flaf_env() {
   if [[ "${FLAF_NO_INSTALL:-0}" == "0" ]] || [[ -d "$FLAF_CMSSW_BASE" ]]; then
     install_cmssw "$env_file" $node_os $target_os $FLAF_CMSSW_ARCH $FLAF_CMSSW_VERSION $FLAF_COMBINE_VERSION
     if [ "$FLAF_COMBINE_VERSION" != "none" ]; then
+      # The same combine version is built in the CMSSW area (CombineHarvester, tasks run in CMSSW,
+      # bundle jobs) and on its own against the ROOT of flaf_env (dhi); both follow its changes.
+      install_cmssw_combine "$env_file" $node_os $target_os $FLAF_CMSSW_ARCH $FLAF_CMSSW_VERSION \
+        $FLAF_COMBINE_VERSION
       local cmb_os_version=9
       local cmb_os_prefix=$(get_os_prefix $cmb_os_version)
       local cmb_os=$cmb_os_prefix$cmb_os_version
-      export FLAF_COMBINE_PATH="$FLAF_CMSSW_BASE/src/HiggsAnalysis/CombinedLimit"
-      install_combine "$env_file" $node_os $cmb_os "$FLAF_COMBINE_PATH"
-
-      export PATH="$FLAF_COMBINE_PATH/build/bin:$PATH"
-      export LD_LIBRARY_PATH="$FLAF_COMBINE_PATH/build/lib:$LD_LIBRARY_PATH"
-      export PYTHONPATH="$FLAF_COMBINE_PATH/build/python:$PYTHONPATH"
+      # The combine of flaf_env (dhi) is a checkout of its own, built against the ROOT of flaf_env
+      # and rebuilt with every new LCG release or combine version. It is in no bundle: bundle jobs
+      # use the combine of the CMSSW area.
+      export FLAF_COMBINE_PATH="$ANALYSIS_SOFT_PATH/HiggsAnalysis-CombinedLimit"
+      if [[ "${FLAF_NO_INSTALL:-0}" == "0" ]] || [[ -d "$FLAF_COMBINE_PATH" ]]; then
+        install_combine "$env_file" $node_os $cmb_os "$FLAF_COMBINE_PATH" "$FLAF_COMBINE_VERSION" \
+          "$FLAF_PATH/run_tools/combine_root638_clipping.patch" \
+          "$FLAF_COMBINE_PATH/build/.installed_${FLAF_COMBINE_VERSION}_${FLAF_LCG_VERSION}_${FLAF_LCG_ARCH}"
+        export PATH="$FLAF_COMBINE_PATH/build/bin:$PATH"
+        export LD_LIBRARY_PATH="$FLAF_COMBINE_PATH/build/lib:$LD_LIBRARY_PATH"
+        export PYTHONPATH="$FLAF_COMBINE_PATH/build/python:$PYTHONPATH"
+      fi
       if [ -d "$HH_INFERENCE_PATH" ]; then
         install_inference "$env_file" $node_os $cmb_os $FLAF_COMBINE_VERSION
         export PYTHONPATH="$HH_INFERENCE_PATH:$PYTHONPATH"
@@ -308,6 +380,8 @@ source_env_fn() {
 
   if [ "$cmd" = "install_cmssw" ]; then
     do_install_cmssw "${@:3}"
+  elif [ "$cmd" = "install_cmssw_combine" ]; then
+    do_install_cmssw_combine "${@:3}"
   elif [ "$cmd" = "install_combine" ]; then
     do_install_combine "${@:3}"
   elif [ "$cmd" = "install_inference" ]; then
@@ -322,9 +396,13 @@ source_env_fn "$@"
 unset -f run_cmd
 unset -f get_os_prefix
 unset -f do_install_cmssw
+unset -f do_install_cmssw_combine
+unset -f do_install_combine
 unset -f do_install_inference
 unset -f install
 unset -f install_cmssw
+unset -f install_cmssw_combine
+unset -f install_combine
 unset -f install_inference
 unset -f load_flaf_env
 unset -f source_env_fn

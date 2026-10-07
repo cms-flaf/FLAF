@@ -88,6 +88,29 @@ Each of these has caused a production incident. They are ordered by how much dam
   variables need the analysis to store them (`genInfo`) with a nanoAOD fallback.
 - An empty stitching bin is not a bug: each bin's denominator is summed over the very events that
   later read it, so a bin no event falls into is never divided by.
+- A stitched process's bin denominators are summed over every dataset whose events fall into the bin, so a dataset may cover several bins only if it covers each of them completely or not at all; a dataset reaching part of a bin (e.g. the 0-parton events of a pT(ll)-nested DY sample) must be cut back to whole bins with an `event_filter`.
+
+### anaTuple columns (`AnaProd/FuseAnaTuples.py`, `Common/TupleHelpers.py`)
+
+- Columns sharing the text before their first underscore are stored as one collection; array
+  collections share one counter. `defineColumnGrouping` refuses a collection that mixes scalars and
+  arrays (the scalars would silently become arrays) or holds arrays of different lengths, and
+  `fuseAnaTuples` checks that every column keeps its type. The fix for either is a rename in the analysis anaTuple
+  definition, never a reader that accepts both layouts.
+
+### anaTuple layout (`AnaProd/FuseAnaTuples.py`)
+
+- Every tree of an anaTuple has one row per event selected in any variation, aligned by row.
+  `valid == false` rows of the central tree are placeholders for events selected only by a shift.
+  Shifted trees store `<name>__delta`; readers attach the central tree as the friend `Central`.
+- Columns in `anaTuple_shift_invariant_columns` are stored in the central tree only, and the fuse
+  step fills them into the placeholder rows after checking bit-identity across every variation that
+  selects the event. Skipping a column without filling the placeholders would give events selected
+  only by a shift the placeholder's zeros, so both halves must stay together. `MergeAnaTuples`
+  refuses inputs produced with different lists, since a chain takes its columns from the first
+  file. A column that a shifted tree takes from `Central` answers `HasColumn` but is not listed by
+  `GetColumnNames()`, and `Define` of that name fails: check existence with `HasColumn`.
+- Listing a whole collection as shift-invariant also drops its counter from the shifted trees.
 
 ### Concurrency
 
@@ -95,16 +118,54 @@ Each of these has caused a production incident. They are ordered by how much dam
   `law --workers`, so two branches race on the same name. Write under the job's working
   directory.
 
+### Shifted-tree array counters (`AnaProd/FuseAnaTuples.py`)
+
+- ROOT reads an array of a friend tree with the main tree's counter of the same name
+  (`TTreeReaderArray` looks the counter up by name). Shifted trees are read with the central tree as
+  the friend `Central`, so their array collections are counted by `n<collection>__shifted`, and the
+  deltas are computed against the first `central.n<collection>` elements of `central.<array>`.
+  Writing a shifted tree with the central counter names, or dropping the clipping, silently
+  corrupts every shifted collection that is longer than the central one.
+- `__shifted` is a column suffix like `__delta`: `Common/Utilities.CreateDataFrame` skips it, and
+  any other code that splits column names on `__` has to accept it.
+
+### Writing trees with uproot
+
+- **Write trees with `Common/TupleHelpers.writeTree` (or an explicit `mktree`), never
+  `file[name] = arrays`.** Since uproot 5.7 (LCG_110a) that assignment writes an RNTuple, which
+  TChain, tree friends and the anaTuple readers do not accept.
+
 ## Configuration invariants
 
-- `config_path_order` merges four directories: **scalars override, lists concatenate**. A list
-  added in an analysis config *extends* the framework one rather than replacing it.
+- `config_path_order` layers four directories (`FLAF/config`, `FLAF/config/<era>`, `config`,
+  `config/<era>`; for `global.yaml` each directory's `user_custom.yaml` joins in, and
+  `--user-custom` comes last). The files are **concatenated as text and parsed once**, so a
+  repeated top-level key **replaces the earlier value wholesale** — lists and nested dicts
+  included; nothing is merged or concatenated. An analysis or era that redefines a block such as
+  `corrections:` must repeat every entry it still needs, or inherit them with
+  `<<: *corrections_default` from an anchor on the top-level block and override only what
+  differs (one level deep). Every reader of an era's `global.yaml` — the `Config` for
+  `reuse_mc_from_era` included, and any script that parses the file with `yaml.safe_load` on its
+  own — must layer the top-level directories too, or such an alias is undefined. Datasets from
+  several layers combine only because each dataset is its own top-level key.
 - Dataset split: SM backgrounds and data live in `FLAF/config/<era>/datasets.yaml`; signals and
   CI samples live in the analysis. A signal added to the framework config is misplaced.
+- A dataset whose NanoAOD lacks some weights is handled in its entry, per NanoAOD source (`v12`,
+  `HLepRare`, …, as `fileNamePattern`: one analysis reads DAS, another a skim of it):
+  `exclude_files` drops individual files (InputFileTask refuses a name the listing does not have),
+  `event_filter` removes events before anything is booked (as if they did not exist), and
+  `disabled_corrections` sets a shape weight to 1 for every member (its branches still exist)
+  or drops any other correction. An option not keyed by source is a finding. None belongs in a
+  correction's `processes:` list or in a code guard on the branch size.
 - `Run3_2025` and `Run3_2026` carry no MC of their own — they set `reuse_mc_from_era: Run3_2024`.
   A dataset list edited for 2024 changes all three.
 - Cross-section keys referenced by a dataset must exist in `crossSections*.yaml`; CI checks this,
   so flag it only when the diff adds a reference CI cannot see.
+- Process hierarchy: `Setup.process_parent` / `process_ancestors` / `original_process` lead from a
+  dataset's process (an expanded meta-process member, a sub-process) to the entry the physics model
+  lists; analysis code should decide by that entry, not by substrings of process names. Within the
+  groups the model reaches, a process may belong to one group only. The `parent_process` key on a
+  base process is different: the model process after expansion, which histograms are merged under.
 
 ## Testing expectations
 
@@ -116,8 +177,11 @@ When a test uses a fake, the fake must call the **real** `__init__` and patch on
 genuinely unavailable. Hand-mirroring a class's attributes creates a copy that silently stops
 matching — that is how the path-cache suite went red for a whole merge cycle.
 
-Note that CI runs only `test/test_setup_loading.py` (via the `test-setup-loading` workflow);
-the pytest suites are not run anywhere, so a broken one is not caught automatically.
+Note what CI actually runs from `test/`: `test_setup_loading.py` (via `test-setup-loading`, on
+analysis PRs only) and the config checkers `checkCrossSections.py`,
+`checkDatasetConfigConsistency.py` and `checkDatasetNaming.py` (on FLAF PRs that change those
+config files). The other suites (`test_*.py`) are not run anywhere, so a broken one is not
+caught automatically.
 
 ## Documentation must ship with the change
 
@@ -164,9 +228,12 @@ separate PR; say so in the review rather than assuming it will be noticed.
 ## Already enforced by CI — do not comment on these
 
 `formatting-check` (black, yamllint, clang-format), `repo-sanity-checks` (binary files, repo size),
-`ds-consistency-check`, `cross-section-check`, `test-setup-loading` (loads `Setup` for all seven
-Run 3 eras). Formatting, indentation, quote style and trailing whitespace are settled by tooling;
-comments about them are pure noise.
+`ds-consistency-check`, `cross-section-check`. Formatting, indentation, quote style and trailing
+whitespace are settled by tooling; comments about them are pure noise.
+
+`test-setup-loading` (loads `Setup` for all seven Run 3 eras) runs on **analysis** PRs only —
+FLAF's copy is a reusable workflow with no PR trigger. On a FLAF PR, a change that can break
+config loading (`Common/Setup.py`, `config/`) is therefore not checked, and is worth a comment.
 
 ## Do not flag
 
@@ -181,7 +248,7 @@ comments about them are pure noise.
 
 ## Repository facts
 
-Verified 2026-08-27; re-check before relying on any of it.
+Verified 2026-09-30; re-check before relying on any of it.
 
 | | |
 |---|---|

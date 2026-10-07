@@ -1,4 +1,5 @@
 import awkward as ak
+import numpy as np
 import os
 import re
 import uproot
@@ -57,6 +58,29 @@ def parseColumnName(column_name):
     }
 
 
+def checkCollectionMembers(collection_name, members):
+    """All columns of a collection are stored with one counter: a scalar next to arrays would
+    silently become an array (one copy per entry), and arrays of different lengths do not fit
+    together. Such columns have to be named apart where they are defined."""
+    is_array = {column: array.ndim > 1 for column, array in members.items()}
+    if any(is_array.values()) and not all(is_array.values()):
+        scalars = sorted(column for column, array in is_array.items() if not array)
+        vectors = sorted(column for column, array in is_array.items() if array)
+        raise RuntimeError(
+            f"Collection '{collection_name}' mixes scalar columns {scalars} with array"
+            f" columns {vectors}, which would store the scalars as arrays. Give them"
+            " different prefixes where they are defined."
+        )
+    vectors = [column for column, array in is_array.items() if array]
+    for column in vectors[1:]:
+        if not ak.all(ak.num(members[column]) == ak.num(members[vectors[0]])):
+            raise RuntimeError(
+                f"Collection '{collection_name}' has arrays of different lengths:"
+                f" '{column}' and '{vectors[0]}'. Give them different prefixes where"
+                " they are defined."
+            )
+
+
 def defineColumnGrouping(arrays, keys, verbose=1):
     groupped_arrays = {}
     collections = {}
@@ -77,9 +101,9 @@ def defineColumnGrouping(arrays, keys, verbose=1):
     for collection_name, columns in collections.items():
         if verbose > 1:
             print(f"  {collection_name}: {columns}")
-        groupped_arrays[collection_name] = ak.zip(
-            {column: arrays[collection_name + "_" + column] for column in columns}
-        )
+        members = {column: arrays[collection_name + "_" + column] for column in columns}
+        checkCollectionMembers(collection_name, members)
+        groupped_arrays[collection_name] = ak.zip(members)
     counter_columns = ["n" + col_name for col_name in collections.keys()]
     other_columns = [col for col in other_columns if col not in counter_columns]
     if verbose > 1:
@@ -88,6 +112,24 @@ def defineColumnGrouping(arrays, keys, verbose=1):
         groupped_arrays[column] = arrays[column]
 
     return groupped_arrays
+
+
+def writeTree(directory, name, data):
+    """Write a dict of arrays, or a record array, as a TTree the way `directory[name] = data`
+    did up to uproot 5.6; since 5.7 that assignment writes an RNTuple."""
+    if isinstance(data, ak.Array):
+        data = {"": data}
+    arrays = {}
+    types = {}
+    for key, value in data.items():
+        if isinstance(value, ak.Array):
+            types[key] = value.type
+        else:
+            value = np.asarray(value)
+            shape = value.shape[1:]
+            types[key] = np.dtype((value.dtype, shape)) if shape else value.dtype
+        arrays[key] = value
+    directory.mktree(name, types).extend(arrays)
 
 
 def copyFileContent(
@@ -125,6 +167,7 @@ def copyFileContent(
                         "name_suffix": "",
                         "copyTrees": copyTrees,
                         "copyHistograms": copyHistograms,
+                        "counter_name": None,
                     }
                 )
             elif type(item) is dict:
@@ -135,6 +178,7 @@ def copyFileContent(
                         "name_suffix": item.get("name_suffix", ""),
                         "copyTrees": item.get("copyTrees", copyTrees),
                         "copyHistograms": item.get("copyHistograms", copyHistograms),
+                        "counter_name": item.get("counter_name"),
                     }
                 )
             else:
@@ -158,6 +202,8 @@ def copyFileContent(
     # Trees are collected as a list of (file_path, internal_path) sources for TChain.
     histograms = {}  # out_path -> ROOT TH1
     trees = {}  # out_path -> [(file_path, internal_path), ...]
+    # out_path -> function giving the counter name of an array collection, when not n<collection>
+    counter_names = {}
 
     def collect_objects(directory, inp, dir_prefix=""):
         # Build a map of name -> latest-cycle key to avoid processing stale cycles.
@@ -211,6 +257,8 @@ def copyFileContent(
                 if out_path not in trees:
                     trees[out_path] = []
                 trees[out_path].append((inp["file"], internal_path))
+                if inp["counter_name"] is not None:
+                    counter_names[out_path] = inp["counter_name"]
 
     for inp in inputs:
         input_file = ROOT.TFile.Open(inp["file"], "READ")
@@ -267,8 +315,15 @@ def copyFileContent(
                                 grouped = defineColumnGrouping(arrays, src_tree.keys())
                                 if out_path in uproot_out:
                                     uproot_out[out_path].extend(grouped)
+                                elif out_path in counter_names:
+                                    uproot_out.mktree(
+                                        out_path,
+                                        {k: v.type for k, v in grouped.items()},
+                                        counter_name=counter_names[out_path],
+                                    )
+                                    uproot_out[out_path].extend(grouped)
                                 else:
-                                    uproot_out[out_path] = grouped
+                                    writeTree(uproot_out, out_path, grouped)
 
         # Phase 2: empty trees + histograms → ROOT.
         if empty_tree_sources or histograms:

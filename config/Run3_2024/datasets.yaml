@@ -56,7 +56,7 @@ EGamma1_Run2024G:
 EGamma1_Run2024H:
   eraLetter: H
   nanoAOD:
-    v15: /EGamma1/Run2024H-MINIv6NANOv15-v2/NANOAOD
+    v15: /EGamma1/Run2024H-MINIv6NANOv15-v1/NANOAOD
 EGamma1_Run2024I_v1:
   eraLetter: I
   eraVersion: v1
@@ -82,7 +82,7 @@ JetMET0_Run2024E:
 JetMET0_Run2024F:
   eraLetter: F
   nanoAOD:
-    v15: /JetMET0/Run2024F-MINIv6NANOv15-v1/NANOAOD
+    v15: /JetMET0/Run2024F-MINIv6NANOv15-v2/NANOAOD
 JetMET0_Run2024G:
   eraLetter: G
   nanoAOD:
@@ -95,7 +95,7 @@ JetMET0_Run2024I_v1:
   eraLetter: I
   eraVersion: v1
   nanoAOD:
-    v15: /JetMET0/Run2024I-MINIv6NANOv15-v1/NANOAOD
+    v15: /JetMET0/Run2024I-MINIv6NANOv15-v2/NANOAOD
 JetMET0_Run2024I_v2:
   eraLetter: I
   eraVersion: v2
@@ -116,7 +116,7 @@ JetMET1_Run2024E:
 JetMET1_Run2024F:
   eraLetter: F
   nanoAOD:
-    v15: /JetMET1/Run2024F-MINIv6NANOv15-v1/NANOAOD
+    v15: /JetMET1/Run2024F-MINIv6NANOv15-v2/NANOAOD
 JetMET1_Run2024G:
   eraLetter: G
   nanoAOD:
@@ -134,7 +134,7 @@ JetMET1_Run2024I_v2:
   eraLetter: I
   eraVersion: v2
   nanoAOD:
-    v15: /JetMET1/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
+    v15: /JetMET1/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
 Muon0_Run2024C:
   eraLetter: C
   nanoAOD:
@@ -218,11 +218,11 @@ MuonEG_Run2024E:
 MuonEG_Run2024F:
   eraLetter: F
   nanoAOD:
-    v15: /MuonEG/Run2024F-MINIv6NANOv15-v1/NANOAOD
+    v15: /MuonEG/Run2024F-MINIv6NANOv15-v2/NANOAOD
 MuonEG_Run2024G:
   eraLetter: G
   nanoAOD:
-    v15: /MuonEG/Run2024G-MINIv6NANOv15-v2/NANOAOD
+    v15: /MuonEG/Run2024G-MINIv6NANOv15-v3/NANOAOD
 MuonEG_Run2024H:
   eraLetter: H
   nanoAOD:
@@ -231,12 +231,12 @@ MuonEG_Run2024I_v1:
   eraLetter: I
   eraVersion: v1
   nanoAOD:
-    v15: /MuonEG/Run2024I-MINIv6NANOv15-v1/NANOAOD
+    v15: /MuonEG/Run2024I-MINIv6NANOv15-v2/NANOAOD
 MuonEG_Run2024I_v2:
   eraLetter: I
   eraVersion: v2
   nanoAOD:
-    v15: /MuonEG/Run2024I-MINIv6NANOv15_v2-v1/NANOAOD
+    v15: /MuonEG/Run2024I-MINIv6NANOv15_v2-v2/NANOAOD
 ParkingHH_Run2024C:
   eraLetter: C
   nanoAOD:
@@ -376,11 +376,11 @@ ParkingVBF2_Run2024I_v2:
 ParkingVBF3_Run2024C:
   eraLetter: C
   nanoAOD:
-    v15: /ParkingVBF3/Run2024C-MINIv6NANOv15-v1/NANOAOD
+    v15: /ParkingVBF3/Run2024C-MINIv6NANOv15-v2/NANOAOD
 ParkingVBF3_Run2024D:
   eraLetter: D
   nanoAOD:
-    v15: /ParkingVBF3/Run2024D-MINIv6NANOv15-v2/NANOAOD
+    v15: /ParkingVBF3/Run2024D-MINIv6NANOv15-v1/NANOAOD
 ParkingVBF3_Run2024E:
   eraLetter: E
   nanoAOD:
@@ -414,7 +414,7 @@ ParkingVBF4_Run2024C:
 ParkingVBF4_Run2024D:
   eraLetter: D
   nanoAOD:
-    v15: /ParkingVBF4/Run2024D-MINIv6NANOv15-v2/NANOAOD
+    v15: /ParkingVBF4/Run2024D-MINIv6NANOv15-v1/NANOAOD
 ParkingVBF4_Run2024E:
   eraLetter: E
   nanoAOD:
@@ -426,7 +426,7 @@ ParkingVBF4_Run2024F:
 ParkingVBF4_Run2024G:
   eraLetter: G
   nanoAOD:
-    v15: /ParkingVBF4/Run2024G-MINIv6NANOv15-v3/NANOAOD
+    v15: /ParkingVBF4/Run2024G-MINIv6NANOv15-v4/NANOAOD
 ParkingVBF4_Run2024H:
   eraLetter: H
   nanoAOD:
@@ -448,7 +448,7 @@ ParkingVBF5_Run2024C:
 ParkingVBF5_Run2024D:
   eraLetter: D
   nanoAOD:
-    v15: /ParkingVBF5/Run2024D-MINIv6NANOv15-v2/NANOAOD
+    v15: /ParkingVBF5/Run2024D-MINIv6NANOv15-v1/NANOAOD
 ParkingVBF5_Run2024E:
   eraLetter: E
   nanoAOD:
@@ -469,7 +469,7 @@ ParkingVBF5_Run2024I_v1:
   eraLetter: I
   eraVersion: v1
   nanoAOD:
-    v15: /ParkingVBF5/Run2024I-MINIv6NANOv15-v3/NANOAOD
+    v15: /ParkingVBF5/Run2024I-MINIv6NANOv15-v2/NANOAOD
 ParkingVBF5_Run2024I_v2:
   eraLetter: I
   eraVersion: v2
@@ -482,7 +482,7 @@ ParkingVBF6_Run2024C:
 ParkingVBF6_Run2024D:
   eraLetter: D
   nanoAOD:
-    v15: /ParkingVBF6/Run2024D-MINIv6NANOv15-v2/NANOAOD
+    v15: /ParkingVBF6/Run2024D-MINIv6NANOv15-v1/NANOAOD
 ParkingVBF6_Run2024E:
   eraLetter: E
   nanoAOD:
@@ -490,7 +490,7 @@ ParkingVBF6_Run2024E:
 ParkingVBF6_Run2024F:
   eraLetter: F
   nanoAOD:
-    v15: /ParkingVBF6/Run2024F-MINIv6NANOv15-v3/NANOAOD
+    v15: /ParkingVBF6/Run2024F-MINIv6NANOv15-v4/NANOAOD
 ParkingVBF6_Run2024G:
   eraLetter: G
   nanoAOD:
@@ -503,7 +503,7 @@ ParkingVBF6_Run2024I_v1:
   eraLetter: I
   eraVersion: v1
   nanoAOD:
-    v15: /ParkingVBF6/Run2024I-MINIv6NANOv15-v3/NANOAOD
+    v15: /ParkingVBF6/Run2024I-MINIv6NANOv15-v2/NANOAOD
 ParkingVBF6_Run2024I_v2:
   eraLetter: I
   eraVersion: v2
@@ -516,7 +516,7 @@ ParkingVBF7_Run2024C:
 ParkingVBF7_Run2024D:
   eraLetter: D
   nanoAOD:
-    v15: /ParkingVBF7/Run2024D-MINIv6NANOv15-v2/NANOAOD
+    v15: /ParkingVBF7/Run2024D-MINIv6NANOv15-v1/NANOAOD
 ParkingVBF7_Run2024E:
   eraLetter: E
   nanoAOD:
@@ -532,7 +532,7 @@ ParkingVBF7_Run2024G:
 ParkingVBF7_Run2024H:
   eraLetter: H
   nanoAOD:
-    v15: /ParkingVBF7/Run2024H-MINIv6NANOv15-v3/NANOAOD
+    v15: /ParkingVBF7/Run2024H-MINIv6NANOv15-v4/NANOAOD
 ParkingVBF7_Run2024I_v1:
   eraLetter: I
   eraVersion: v1
@@ -562,11 +562,11 @@ Tau_Run2024F:
 Tau_Run2024G:
   eraLetter: G
   nanoAOD:
-    v15: /Tau/Run2024G-MINIv6NANOv15-v2/NANOAOD
+    v15: /Tau/Run2024G-MINIv6NANOv15-v1/NANOAOD
 Tau_Run2024H:
   eraLetter: H
   nanoAOD:
-    v15: /Tau/Run2024H-MINIv6NANOv15-v2/NANOAOD
+    v15: /Tau/Run2024H-MINIv6NANOv15-v1/NANOAOD
 Tau_Run2024I_v1:
   eraLetter: I
   eraVersion: v1
@@ -1262,6 +1262,26 @@ TTZ_Zto2Q:
   generator: amcatnlo
   nanoAOD:
     v15: /TTZ-ZtoQQ-1Jets_TuneCP5_13p6TeV_amcatnloFXFXold-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+TTLNu_1Jets:
+  crossSection: TTLNu_1Jets
+  generator: amcatnlo
+  nanoAOD:
+    v15: /TTLNu-1Jets_TuneCP5_13p6TeV_amcatnloFXFX-pythia8/RunIII2024Summer24NanoAODv15-mg35x_150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+TTLL_MLL_50:
+  crossSection: TTLL_MLL_50
+  generator: amcatnlo
+  nanoAOD:
+    v15: /TTLL_Bin-MLL-50_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+TTLL_MLL_4to50:
+  crossSection: TTLL_MLL_4to50
+  generator: amcatnlo
+  nanoAOD:
+    v15: /TTLL_Bin-MLL-4to50_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
+TTNuNu:
+  crossSection: TTNuNu
+  generator: amcatnlo
+  nanoAOD:
+    v15: /TTNuNu_TuneCP5_13p6TeV_amcatnlo-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 # /TTW-WtoQQ-1Jets_TuneCP5_13p6TeV_amcatnloFXFXold-pythia8/RunIII2024Summer24NanoAODv15-150X_mcRun3_2024_realistic_v2-v2/NANOAODSIM
 # VBF #
 VBFHto2B_M125:

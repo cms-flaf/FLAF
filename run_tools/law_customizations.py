@@ -1094,8 +1094,8 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
 # (used by law for "first log file: ..." messages at submit time, stored job json,
 # and "task failed" diagnostics) points at the *remote* staged logs location for
 # bundle runs instead of the local AFS path under ANALYSIS_DATA_PATH.
-# The basename computation (stdall, stdall_Cluster_Proc, or stdall<postfix>) is
-# the same one used by stageout_logs.sh, so the URI will match the uploaded file.
+# The basename computation (stdall, stdall_Cluster_Proc, or stdall<postfix>_Cluster.Proc)
+# is the same one used by stageout_logs.sh, so the URI will match the uploaded file.
 #
 # Use the stable extension point: obtain the base proxy class from whatever
 # the current law version has configured on HTCondorWorkflow.workflow_proxy_cls.
@@ -1140,8 +1140,8 @@ class _BundleAwareHTCondorWorkflowProxy(
     clock, get removed, and are retried with exactly the same grouping.
 
     A task opts in by providing ``branch_cost_map()``; then jobs are built to a target
-    duration instead, a failed group is retried split rather than whole, and the estimates
-    are refreshed from observed durations while the workflow runs.
+    duration instead, and the durations of finished single-branch jobs are recorded to
+    refine the estimates of the next run.
     """
 
     def __init__(self, *args, **kwargs):
@@ -1158,6 +1158,18 @@ class _BundleAwareHTCondorWorkflowProxy(
         if not callable(getattr(self.task, "branch_cost_map", None)):
             return False
         return not _cli_has_tasks_per_job(self.task.get_task_family())
+
+    def process_resources(self, force=False):
+        # luigi asks for the job resources while scheduling, and law answers by walking its
+        # default grouping, recording every job whose branches all exist as a finished job
+        # (`_can_skip_job`).  Cost-aware packing replaces that grouping, so those records
+        # would remain as finished jobs that never existed and inflate the counts of the
+        # whole run.  FLAF tasks declare no job resources, so nothing else is lost.
+        if self._cost_scheduling_enabled():
+            return {}
+        return super(_BundleAwareHTCondorWorkflowProxy, self).process_resources(
+            force=force
+        )
 
     def _apply_cost_parallel_jobs(self):
         """Bound the queue footprint by default.
@@ -1220,6 +1232,12 @@ class _BundleAwareHTCondorWorkflowProxy(
         )
         if not groups:
             return
+        # The packing covers every branch, so that a restarted production keeps the jobs a
+        # fresh one would have; only the branches still missing are submitted.
+        existing = self._get_existing_branches()
+        n_packed = len(groups)
+        groups = [g for g in ([b for b in g if b not in existing] for g in groups) if g]
+        n_done = sum(1 for b in branches if b in existing)
         for job_num in list(unsubmitted.keys()):
             unsubmitted.pop(job_num, None)
             self._cost_skip_jobs.pop(job_num, None)
@@ -1231,12 +1249,18 @@ class _BundleAwareHTCondorWorkflowProxy(
             job_num += 1
         self._cost_max_job_num = job_num - 1
         total = sum(costs.get(b, default)[0] for b in branches)
-        self.task.publish_message(
+        message = (
             f"cost-aware packing: {len(branches)} branch(es), "
             f"{law.util.human_duration(seconds=int(total))} of estimated work "
-            f"-> {len(groups)} job(s) of at most "
+            f"-> {n_packed} job(s) of at most "
             f"{law.util.human_duration(seconds=int(capacity))}"
         )
+        if n_done:
+            message += (
+                f"; {n_done} branch(es) already produced, "
+                f"{len(groups)} job(s) to submit"
+            )
+        self.task.publish_message(message)
 
     def _cost_repack_once(self):
         """Re-group what is still unsubmitted, at most once per process.
@@ -1343,12 +1367,26 @@ class _BundleAwareHTCondorWorkflowProxy(
         if not base:
             return job_ids, submission_data
 
-        for job_num, data in list(submission_data.items()):
+        # job_ids and submission_data are in the same order, as in law's own rewrite.
+        for i, (job_id, (job_num, data)) in enumerate(
+            zip(job_ids, list(submission_data.items()))
+        ):
             if isinstance(job_num, Exception) or not isinstance(data, dict):
                 continue
             log = data.get("log")
             if log:
                 basename = os.path.basename(str(log))
+                # Same rule as stageout_logs.sh: a resubmitted job keeps its postfix, so the
+                # HTCondor job id is added to give every attempt its own log.
+                config = data.get("config")
+                if (
+                    not isinstance(job_id, Exception)
+                    and config is not None
+                    and config.postfix_output_files
+                    and config.postfix
+                ):
+                    cluster, process = str(job_id).split(".")
+                    basename = f"stdall{config.postfix[i]}_{cluster}.{process}.txt"
                 remote_log = base.rstrip("/") + "/" + basename
                 data = dict(data)
                 data["log"] = remote_log
@@ -1700,15 +1738,19 @@ def _cli_has_tasks_per_job(task_family):
     Cost-aware packing then steps aside: an operator who asks for a specific
     ``--tasks-per-job`` gets it, which keeps the previous behaviour available as an
     escape hatch if an estimate ever misbehaves.  The match is exact, so setting the
-    option for one task does not silently change how another one is scheduled.
+    option for one task does not silently change how another one is scheduled: the bare
+    ``--tasks-per-job`` belongs to the root task only, since the parameter is excluded
+    from ``req`` and never reaches the tasks it requires.
     """
     parser = luigi.cmdline_parser.CmdlineParser.get_instance()
     tokens = list(getattr(parser, "cmdline_args", None) or [])
+    root_task = getattr(getattr(parser, "known_args", None), "root_task", None) or ""
     wanted = set()
     for name in ("tasks-per-job", "tasks_per_job"):
-        wanted.add(f"--{name}")
         if task_family:
             wanted.add(f"--{task_family}-{name}")
+            if root_task.rsplit(".", 1)[-1] == task_family:
+                wanted.add(f"--{name}")
     return any(tok.split("=", 1)[0] in wanted for tok in tokens)
 
 

@@ -20,8 +20,12 @@ from FLAF.Common.shared_mc import shared_mc_in_era_expr, shared_mc_split
 from FLAF.AnaProd.CostModel import chunk_bounds, scaled_bounds
 from Corrections.Corrections import Corrections
 from Corrections.lumi import LumiFilter
-from Corrections.CorrectionsCore import central, getScales, getSystName
-from Corrections.pu import puWeightProducer
+from Corrections.CorrectionsCore import (
+    central,
+    getScales,
+    getSystName,
+    ShapeWeightRegistry,
+)
 
 
 class DefaultAnaCacheProcessor:
@@ -191,6 +195,22 @@ def createAnatuple(
         # does for a whole file.
         df = ROOT.RDF.AsRNode(df)
 
+    # Events a dataset declares unusable (e.g. ones without the LHE weights the rest of the
+    # dataset carries) are removed before anything is booked, so that no denominator, processor
+    # or output ever sees them. Per NanoAOD source, as fileNamePattern; the source is chosen as
+    # in Task.get_nano_version.
+    nano_source = setup.global_params.get("nanoAODVersions", {}).get(
+        "data" if isData else "mc", "HLepRare"
+    )
+    event_filter = dataset_cfg.get("event_filter", {}).get(nano_source)
+    if event_filter:
+        print(f"Applying the dataset event filter: {event_filter}")
+        df = ROOT.RDF.AsRNode(df.Filter(event_filter, "dataset event filter"))
+        if df_not_selected is not None:
+            df_not_selected = ROOT.RDF.AsRNode(
+                df_not_selected.Filter(event_filter, "dataset event filter")
+            )
+
     report = {}
     report["nano_file_name"] = inFileName
     report["anaTuple_file_name"] = outputName
@@ -210,9 +230,14 @@ def createAnatuple(
         )
         handles_to_run.append(df_not_selected.Sum("__runLumiTracker"))
 
-    shape_sources = [central]
-    if "pu" in corrections.to_apply and compute_unc_variations:
-        shape_sources += puWeightProducer.uncSource
+    # The denominators and the `base` numerator in Corrections are built from the same
+    # registry, so they agree on which weights belong to each variation. Getting that
+    # wrong is silent: a variation whose product is missing another producer's central
+    # weight divides that weight out of the resulting _rel branch.
+    shape_weight_registry = corrections.registerShapeWeights(
+        ShapeWeightRegistry(), return_variations=compute_unc_variations
+    )
+    shape_sources = shape_weight_registry.sources
 
     shared_mc = None if isData else setup.global_params.get("shared_mc")
     shared_mc_expr = None
@@ -244,9 +269,14 @@ def createAnatuple(
         for shape_unc_source in shape_sources:
             for shape_unc_scale in getScales(shape_unc_source):
                 shape_unc_name = getSystName(shape_unc_source, shape_unc_scale)
+                # Each shape producer contributes its varied branch only for the source
+                # it owns, and its central branch otherwise. Keying off the scale alone
+                # was correct only while pileup was the sole non-central source: with a
+                # second source the pileup weight would be varied along with it.
                 weights_to_apply = [gen_weight_name]
-                if "pu" in corrections.to_apply:
-                    weights_to_apply.append(f"weight_pu_{shape_unc_scale}")
+                weights_to_apply += shape_weight_registry.branches(
+                    shape_unc_source, shape_unc_scale
+                )
                 for p_name, p_instance in processor_instances.items():
                     output_branch_name = f"{branch_prefix}_{p_name}_{shape_unc_name}"
                     report[report_key][shape_unc_source][shape_unc_scale][p_name] = (
@@ -261,6 +291,19 @@ def createAnatuple(
                     )
         return rdf
 
+    # Gen-level variables go before the denominator, which sums over all events.
+    gen_columns = []
+    if not isData and hasattr(anaTupleDef, "defineGenVariables"):
+        df = Baseline.DefineGenLeptons(df, isData)
+        dfw_gen = Utilities.DataFrameWrapper(df)
+        anaTupleDef.defineGenVariables(dfw_gen, dataset_cfg)
+        df, gen_columns = dfw_gen.df, dfw_gen.colToSave
+        if df_not_selected is not None:
+            df_not_selected = Baseline.DefineGenLeptons(df_not_selected, isData)
+            dfw_gen_not_selected = Utilities.DataFrameWrapper(df_not_selected)
+            anaTupleDef.defineGenVariables(dfw_gen_not_selected, dataset_cfg)
+            df_not_selected = dfw_gen_not_selected.df
+
     if not isData:
         for data_frame in [df, df_not_selected]:
             if data_frame is None:
@@ -271,8 +314,10 @@ def createAnatuple(
                 else "genWeight"
             )
             data_frame = data_frame.Define(gen_weight_name, genWeight_def)
-            if "pu" in corrections.to_apply:
-                data_frame = corrections.pu.getWeight(data_frame)
+            data_frame, _ = corrections.defineShapeWeights(
+                data_frame,
+                return_variations=compute_unc_variations,
+            )
             updateDenomEntry(data_frame, "denominator", "weight_denom")
             if shared_mc_expr:
                 data_frame = data_frame.Define("__shared_mc_in_era", shared_mc_expr)
@@ -334,6 +379,9 @@ def createAnatuple(
     treeName = "Events"
     report["tree_name"] = treeName
     report["full_event_id_column"] = fullEventIdColumn
+    report["shift_invariant_columns"] = setup.global_params.get(
+        "anaTuple_shift_invariant_columns", []
+    )
     outfilesNames = [outFileName]
     handles_to_run.append(
         df.Snapshot(treeName, outFileName, [fullEventIdColumn], snapshotOptions)
@@ -350,7 +398,7 @@ def createAnatuple(
         suffix = "" if is_central else f"_{syst_name}"
         if len(suffix) and not store_noncentral:
             continue
-        columns_to_save = anaTupleDef.getDefaultColumnsToSave(isData)
+        columns_to_save = anaTupleDef.getDefaultColumnsToSave(isData) + gen_columns
         dfw = Utilities.DataFrameWrapper(df_empty, columns_to_save)
         dfw.Apply(
             Baseline.SelectRecoP4,

@@ -1,5 +1,6 @@
 import ROOT
 import os
+import re
 import sys
 import yaml
 
@@ -129,6 +130,23 @@ def getTreeListFromReport(report):
     return sorted(tree_list)
 
 
+def checkShiftInvariantColumns(input_reports):
+    # A tree chain takes its columns from the first file: anaTuples whose shifted trees store
+    # different columns cannot be merged together.
+    patterns = None
+    for ds_name, reports in input_reports.items():
+        for report in reports:
+            report_patterns = report.get("shift_invariant_columns", [])
+            if patterns is None:
+                patterns = report_patterns
+            elif report_patterns != patterns:
+                raise RuntimeError(
+                    f"anaTuples of dataset {ds_name} were produced with different"
+                    f" anaTuple_shift_invariant_columns: {patterns} and {report_patterns}."
+                    " Produce all anaTuples of a merge with the same list."
+                )
+
+
 def getColumns(df):
     all_columns = [str(c) for c in df.GetColumnNames()]
     simple_types = ["Int_t", "UInt_t", "Long64_t", "ULong64_t", "int", "long"]
@@ -206,6 +224,7 @@ def mergeAnaTuples(
                     raise RuntimeError(
                         f"Uncertainty list mismatch between reports for dataset {ds_name}."
                     )
+        checkShiftInvariantColumns(input_reports)
     else:
         tree_list = [(central, central, "Events")]
 
@@ -221,6 +240,11 @@ def mergeAnaTuples(
         )
     tmp_central_file = os.path.join(work_dir, f"{dataset_name}_central_tmp.root")
     compute_unc_variations = setup.global_params.get("compute_unc_variations", False)
+    # Columns that are inputs to the merge but not wanted in its output: the weights the
+    # `base` block is built from are read here and never again, so an analysis can ask for
+    # them to be left out. Empty by default, so nothing changes for an analysis that does
+    # not set it.
+    drop_column_patterns = setup.global_params.get("anaTupleMerge_drop_columns", [])
 
     for unc_source, unc_scale, tree_name in tree_list:
         syst_name = getSystName(unc_source, unc_scale)
@@ -255,6 +279,12 @@ def mergeAnaTuples(
                     use_genWeight_sign_only=True,
                 )
                 columns += weight_branches
+        if drop_column_patterns:
+            columns = [
+                c
+                for c in columns
+                if not any(re.search(p, c) for p in drop_column_patterns)
+            ]
         output_file = (
             tmp_central_file
             if len(root_outputs) > 1 and unc_source == central

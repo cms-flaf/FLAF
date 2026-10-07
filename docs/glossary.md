@@ -9,8 +9,9 @@ Framework and CMS-computing vocabulary, in plain terms. For the quick on-ramp ve
   `AnaTupleMergeTask`.
 
 **AnaProd**
-: The part of FLAF (`AnaProd/`) that produces anaTuples from NanoAOD, including the CMSSW-based
-  `anaTupleProducer.py`.
+: The part of FLAF (`AnaProd/`) that produces anaTuples from NanoAOD, including
+  `anaTupleProducer.py` (run in the FLAF environment, or inside CMSSW when the analysis sets
+  `use_cmssw_env_AnaTupleProduction`, as HH→bb̄ττ does).
 
 **Branch**
 : One independent work unit of a workflow task. What it represents depends on the task — an input
@@ -21,28 +22,40 @@ Framework and CMS-computing vocabulary, in plain terms. For the quick on-ramp ve
   area. See [HTCondor](workflow/htcondor.md#bundles-shipping-the-code-to-workers).
 
 **Combine**
-: The CMS statistical tool (`HiggsAnalysis/CombinedLimit`) used for limits and fits. FLAF builds a
-  standalone `v10.4.2`.
+: The CMS statistical tool (`HiggsAnalysis/CombinedLimit`) used for limits and fits. FLAF builds
+  `v11.1.0` in the CMSSW area and standalone against the ROOT of `flaf_env` (see
+  [The environment](concepts/environment.md)).
 
 **Corrections**
 : The shared submodule providing object corrections and systematic variations (pileup, b-tag,
-  triggers, …) applied during ntuple production.
+  triggers, …). The analysis configuration (`corrections:` in `global.yaml`, optionally per
+  dataset or process) gives each correction the stage(s) where it is applied: `AnaTuple`
+  (anaTuple production), `AnaTupleMerge`, `AnalysisCache` or `HistTuple` (e.g. HH→bb̄ττ applies
+  its τ-ID, muon, electron and trigger scale factors at `HistTuple`).
 
 **CMSSW**
-: The CMS software framework. Some stages run inside it; FLAF wraps it with the `cmsEnv` helper.
+: The CMS software framework, installed by `env.sh` under `soft/`. Pipeline steps that need it
+  (e.g. HH→bb̄ττ's anaTuple production, datacard creation and Combine, some payload producers)
+  are run inside it by the tasks themselves; for interactive commands `env.sh` defines the
+  `cmsEnv` alias.
+
+**CRAB**
+: The CMS service that submits jobs to WLCG sites. FLAF submits workflow branches to it with
+  `--workflow crab`. See [Running on CRAB](workflow/crab.md).
 
 **CVMFS**
 : The CERN read-only software-distribution filesystem (`/cvmfs/…`) from which FLAF gets compilers,
-  Python, ROOT (LCG stacks) and CMSSW.
+  Python, ROOT (LCG stacks), CMSSW and the POG correction files (`/cvmfs/cms-griddata.cern.ch`).
 
 **DAS**
 : The CMS Data Aggregation System — the catalogue of official datasets and the source of the
   dataset **name** convention (`/A/B/TIER`). File lists and disk locations are resolved via Rucio
-  (see below), not by querying DAS directly.
+  (see below); DAS is queried only for per-file event counts, which feed the job-cost estimate
+  and are optional.
 
 **Dataset**
-: One CMS sample (a simulated process or a chunk of data), identified by its DAS name. Declared in
-  `datasets.yaml`. See [Datasets](configuration/datasets.md).
+: One CMS sample (a simulated process or a chunk of data), declared under a short name (e.g.
+  `TTto2L2Nu`) in `datasets.yaml`, with its DAS name per NanoAOD version in `nanoAOD:`. See [Datasets](configuration/datasets.md).
 
 **Era** / **period**
 : A CMS data-taking period (`Run3_2022`, `Run3_2023BPix`, …), passed as `--period`. Selects
@@ -79,7 +92,11 @@ Framework and CMS-computing vocabulary, in plain terms. For the quick on-ramp ve
 : The compact CMS data format that is the input to the whole pipeline.
 
 **Payload producer**
-: A configured component that computes an analysis observable during `HistTupleProducerTask`.
+: A configured component (under `payload_producers` in `global.yaml`) that computes analysis
+  observables such as DNN scores or a mass reconstruction. Each producer runs in its own
+  `AnalysisCacheTask` (`--producer-to-run <name>`), one branch per merged anaTuple file;
+  `HistTupleProducerTask` then reads the cached columns, named `<producer>_<column>`. All three
+  analyses define payload producers.
 
 **Physics model**
 : The named set of processes (background/signal/data) an analysis uses. `TestModel` is the small
@@ -97,11 +114,14 @@ Framework and CMS-computing vocabulary, in plain terms. For the quick on-ramp ve
 
 **Proxy (VOMS)**
 : A short-lived credential derived from your grid certificate that authorises grid/EOS access.
-  Created with `voms-proxy-init`; FLAF expects it at `data/voms.proxy`.
+  Created with `voms-proxy-init`. FLAF uses the file `X509_USER_PROXY` points to; `env.sh` sets
+  that variable to `data/voms.proxy` only when it is not already set.
 
 **Rucio**
-: The CMS data-management service. `InputFileTask` queries it to turn a dataset name into its list
-  of NanoAOD files and their disk locations.
+: The CMS data-management service. For a dataset read by its DAS name (a NanoAOD version other
+  than `HLepRare`), `InputFileTask` queries it for the list of NanoAOD files and their disk
+  locations; skims listed from a storage directory (`fs_nanoAOD`) do not use it. See
+  [Storage](concepts/storage.md#where-the-inputs-come-from).
 
 **RunKit**
 : Workflow utilities vendored into FLAF as a regular directory (formerly a submodule). Imported as
@@ -122,4 +142,4 @@ Framework and CMS-computing vocabulary, in plain terms. For the quick on-ramp ve
   data and FLAF outputs are stored.
 
 **Workflow**
-: A task that splits into many branches, runnable `local` or on `htcondor`.
+: A task that splits into many branches, runnable `local`, on `htcondor` or on `crab`.

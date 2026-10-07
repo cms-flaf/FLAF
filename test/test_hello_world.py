@@ -26,7 +26,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-BASENAME = "stdall_0To1.txt"
+# The job's staged log: stdall_0To1.txt, or stdall_0To1_<cluster>.<proc>.txt when it is
+# uploaded by an HTCondor job (one per attempt, see run_tools/stageout_logs.sh).
+LOG_NAME_RE = r"^stdall_0To1(_\d+\.\d+)?\.txt$"
 
 
 def run_command(cmd, cwd, timeout=300):
@@ -46,7 +48,7 @@ def run_command(cmd, cwd, timeout=300):
         return 124, output
 
 
-def get_remote_log_uri(analysis_root, version, period, basename=BASENAME):
+def get_remote_log_dir_uri(analysis_root, version, period):
     code = f"""
 import os
 os.chdir(r"{analysis_root}")
@@ -57,7 +59,7 @@ base = log_dir.uri() if hasattr(log_dir, "uri") else str(log_dir)
 # Prefix with a unique marker: importing Setup prints banners (e.g.
 # "Using physics model: TestModel") to stdout, so we cannot rely on the URI
 # being the only line of output.
-print("REMOTE_LOG_URI=" + base.rstrip("/") + "/" + "{basename}")
+print("REMOTE_LOG_URI=" + base.rstrip("/"))
 """
     rc, out = run_command(["python", "-c", code], analysis_root)
     if rc != 0:
@@ -68,25 +70,23 @@ print("REMOTE_LOG_URI=" + base.rstrip("/") + "/" + "{basename}")
     return None
 
 
-def remove_remote_log_if_exists(analysis_root, version, period, basename=BASENAME):
+def remove_remote_log_if_exists(analysis_root, version, period):
     code = f"""
-import os
+import os, re
 os.chdir(r"{analysis_root}")
 from FLAF.test.hello_world_task import HelloWorldTask
 task = HelloWorldTask(version="{version}", period="{period}")
 log_dir = task.remote_dir_target(task.version, "logs", "HelloWorldTask", task.period)
-log_t = log_dir.child("{basename}", type="f")
-if log_t.exists():
-    log_t.remove()
-    print("REMOTE_LOG_REMOVED")
-else:
-    print("REMOTE_LOG_NOT_PRESENT")
+names = [n for n in (log_dir.listdir() if log_dir.exists() else []) if re.match(r"{LOG_NAME_RE}", n)]
+for name in names:
+    log_dir.child(name, type="f").remove()
+print("REMOTE_LOG_REMOVED " + " ".join(names) if names else "REMOTE_LOG_NOT_PRESENT")
 """
     rc, out = run_command(["python", "-c", code], analysis_root)
     print("[runner] Remote log clean:", out.strip())
 
 
-def fetch_remote_log_content(analysis_root, version, period, basename=BASENAME):
+def fetch_remote_log_content(analysis_root, version, period):
     # The htcondor job stages the log out as the *very last* step before the job
     # exits, and EOS is only eventually consistent: a freshly-staged file can be
     # missing from a stat()/exists() check for a few seconds after the workflow
@@ -94,19 +94,20 @@ def fetch_remote_log_content(analysis_root, version, period, basename=BASENAME):
     # So we retry, probing via listdir() of the parent (more reliable than
     # exists() right after stageout) before giving up.
     code = f"""
-import os, time
+import os, re, time
 os.chdir(r"{analysis_root}")
 from FLAF.test.hello_world_task import HelloWorldTask
 task = HelloWorldTask(version="{version}", period="{period}")
 log_dir = task.remote_dir_target(task.version, "logs", "HelloWorldTask", task.period)
-basename = "{basename}"
 content = None
 for attempt in range(12):
     try:
-        present = basename in log_dir.listdir()
+        names = [n for n in log_dir.listdir() if re.match(r"{LOG_NAME_RE}", n)]
     except Exception:
-        present = False
-    if present:
+        names = []
+    if names:
+        # the last attempt: the highest HTCondor job id
+        basename = max(names, key=lambda n: [int(x) for x in re.findall(r"\\d+", n)])
         try:
             log_t = log_dir.child(basename, type="f")
             with log_t.localize("r") as loc:
@@ -311,18 +312,21 @@ def main():
     # (direct proxy test above covers the logic for the rewrite)
     if force:
         reported = parse_reported_log_path(full_out)
-        expected_reported = get_remote_log_uri(analysis_root, version, period)
+        expected_dir = get_remote_log_dir_uri(analysis_root, version, period)
         bad_afs_re = r"/data/.*stdall"
         if reported is not None:
             if re.search(bad_afs_re, reported) and "://" not in reported:
                 issues.append(f"Reported log path is bad AFS local path: {reported}")
             elif (
                 args.workflow == "htcondor"
-                and expected_reported
-                and reported != expected_reported
+                and expected_dir
+                and not (
+                    os.path.dirname(reported) == expected_dir
+                    and re.match(LOG_NAME_RE, os.path.basename(reported))
+                )
             ):
                 issues.append(
-                    f"Reported log path '{reported}' != expected remote full URL '{expected_reported}'"
+                    f"Reported log path '{reported}' is not a staged log in '{expected_dir}'"
                 )
             else:
                 print(

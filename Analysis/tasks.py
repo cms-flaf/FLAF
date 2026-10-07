@@ -47,15 +47,18 @@ def _dedup_variables(variables):
 
 
 def _variable_applies_to_dataset(setup, var_name, dataset_name):
-    """False if the variable sets `signal_mass` and the dataset has a different `mass`."""
+    """False if the dataset has a key of the variable's `signal_params` with a different value."""
     # HistHelper imports ROOT, so not at module level.
     from FLAF.Common.HistHelper import findBinEntry
 
-    signal_mass = setup.hists[findBinEntry(setup.hists, var_name)].get("signal_mass")
-    if signal_mass is None:
-        return True
-    dataset_mass = setup.datasets.get(dataset_name, {}).get("mass")
-    return dataset_mass is None or int(dataset_mass) == int(signal_mass)
+    signal_params = setup.hists[findBinEntry(setup.hists, var_name)].get(
+        "signal_params", {}
+    )
+    dataset = setup.datasets.get(dataset_name, {})
+    return all(
+        dataset.get(key) is None or dataset[key] == value
+        for key, value in signal_params.items()
+    )
 
 
 def _anaTuple_outputs(task):

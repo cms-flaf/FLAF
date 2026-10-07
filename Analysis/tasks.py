@@ -47,17 +47,33 @@ def _dedup_variables(variables):
 
 
 def _variable_applies_to_dataset(setup, var_name, dataset_name):
-    """False if the dataset has a key of the variable's `signal_params` with a different value."""
+    """True unless the variable sets `signal_params` and the dataset matches none of its entries.
+
+    A dataset matches an entry if, for every key of the entry, it lacks the key or has that value.
+    """
     # HistHelper imports ROOT, so not at module level.
     from FLAF.Common.HistHelper import findBinEntry
 
-    signal_params = setup.hists[findBinEntry(setup.hists, var_name)].get(
-        "signal_params", {}
-    )
+    entries = setup.hists[findBinEntry(setup.hists, var_name)].get("signal_params")
+    if entries is None:
+        return True
+    if isinstance(entries, dict):
+        entries = [entries]
+    if (
+        not isinstance(entries, list)
+        or not entries
+        or not all(isinstance(e, dict) for e in entries)
+    ):
+        raise ValueError(
+            f"signal_params of {var_name} must be a dict or a non-empty list of dicts, got {entries!r}"
+        )
     dataset = setup.datasets.get(dataset_name, {})
-    return all(
-        dataset.get(key) is None or dataset[key] == value
-        for key, value in signal_params.items()
+    return any(
+        all(
+            dataset.get(key) is None or dataset[key] == value
+            for key, value in e.items()
+        )
+        for e in entries
     )
 
 

@@ -175,9 +175,10 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
 
 - **Parameter:** `--variables` (string; restrict which variables).
 - **Signal-specific variables:** a histogram config entry with
-  `signal_params: { mass: <M>, spin: <S> }` is produced by `HistFromNtupleProducerTask` and
-  merged here only for datasets that, for each listed key, either lack that key or have the
-  listed value. Any dataset key can be listed; omitted keys are not filtered.
+  `signal_params: [ { mass: <M>, spin: <S> }, ... ]` is produced by `HistFromNtupleProducerTask`
+  and merged here only for datasets matching at least one entry. A dataset matches an entry if,
+  for every key of the entry, it lacks that key or has that value, so backgrounds always match.
+  Any dataset key can be listed; a single dict is a one-entry list.
 
 ### `AnalysisCacheTask`
 Runs one **payload producer** (`Analysis/AnalysisCacheProducer.py`) and stores its per-event

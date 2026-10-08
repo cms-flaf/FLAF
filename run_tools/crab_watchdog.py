@@ -114,18 +114,34 @@ class Heartbeat:
             # delete and a fresh upload, so on storage that keeps deleted files (CERNBox) every
             # beat leaves one entry in the recycle bin, and a beat that fails between the two
             # leaves no flag until the next one -- read by the driver as a job on its way out.
-            gfal_copy(path, self.uri, voms_token=self.voms_token, force=True, verbose=0)
+            # bounded: a copy hanging longer would hold back every later beat
+            gfal_copy(
+                path,
+                self.uri,
+                voms_token=self.voms_token,
+                force=True,
+                timeout=int(min(self.interval, self.write_timeout_seconds)),
+                verbose=0,
+            )
             self._beats += 1
         finally:
             os.unlink(path)
 
+    #: how soon a beat that failed is tried again, and how long one write may take: the
+    #: driver tolerates `missed_checks` intervals, so a failed beat must not wait a whole
+    #: interval more before the next attempt
+    retry_seconds = 60
+    write_timeout_seconds = 300
+
     def _loop(self):
         while True:
+            wait = self.interval
             try:
                 self._write()
             except Exception as exc:  # never let the heartbeat break the payload
                 self.log(f"heartbeat: could not refresh {self.uri}: {exc}")
-            if self._stop.wait(self.interval):
+                wait = min(self.interval, self.retry_seconds)
+            if self._stop.wait(wait):
                 return
 
     def __enter__(self):
@@ -167,7 +183,13 @@ class StallWatchdog:
         self._lock = threading.Lock()
         self._ages = None  # branch name -> mtime, from the last listing that worked
         self._listed = False
-        self._first_running = {}  # (crab_num, task_name) -> when first seen running
+        self._listed_at = None  # when the listing behind `_ages` was taken
+        self._first_running = (
+            {}
+        )  # (crab_num, task_name) -> listing time when first seen running
+        self._first_seen = (
+            {}
+        )  # (crab_num, task_name) -> query time when first seen running
         self._per_branch = {}  # branch -> verdicts issued so far
         self._by_id = {}  # (crab_num, task_name) -> (job_num, branches)
         self._seen_flag = set()  # job ids a flag has ever been observed for
@@ -194,16 +216,31 @@ class StallWatchdog:
     def stale_seconds(self):
         return self.interval_seconds * int(self.cfg["missed_checks"])
 
-    def refresh(self):
-        """List the flag directory once. Returns False if the listing could not be read."""
+    #: bound on one listing of the flag directory, which runs inside the poll loop
+    listing_timeout_seconds = 300
+
+    def refresh(self, now=None):
+        """List the flag directory once. Returns False if the listing could not be read.
+
+        The time is taken before the listing: verdicts measure ages against it, not against
+        the clock at the time of a query. A listing is refreshed once per interval while the
+        queries that read it come every poll, so measured against the query a healthy flag,
+        beaten just after the listing, would look up to an interval older than it is -- past
+        the threshold just before the next refresh.
+        """
         if not self.enabled:
             return False
+        listed_at = now or datetime.datetime.utcnow()
         # catch_stderr: until a job writes its first flag the directory does not exist, so the
         # CLI's own "404 File not found" would be printed on every interval of every wave. The
         # outcome is reported here instead, once per transition, so a listing that starts failing
         # after it had been working -- the case worth noticing -- is not lost in that noise.
         entries = gfal_ls_safe(
-            self.flag_dir, voms_token=self.voms_token, catch_stderr=True, verbose=0
+            self.flag_dir,
+            voms_token=self.voms_token,
+            catch_stderr=True,
+            verbose=0,
+            timeout=self.listing_timeout_seconds,
         )
         with self._lock:
             self._issued_this_interval = 0
@@ -218,6 +255,7 @@ class StallWatchdog:
                     )
                 self._ages = None
                 self._listed = False
+                self._listed_at = None
                 return False
             if self._listing_failures:
                 self.publish(
@@ -229,6 +267,7 @@ class StallWatchdog:
                 e.name: e.date for e in entries if e.date is not None and not e.is_dir
             }
             self._listed = True
+            self._listed_at = listed_at
             return True
 
     #: slack for the minute resolution of listed modification times
@@ -284,10 +323,13 @@ class StallWatchdog:
         """
         if not self.enabled:
             return {}
-        now = now or datetime.datetime.utcnow()
         with self._lock:
             if not self._listed or self._ages is None:
                 return {}
+            # every age, and the grace for a first beat, as of the listing (see refresh); which
+            # flags may belong to this attempt is decided on the clock it was seen running on
+            seen = now or datetime.datetime.utcnow()
+            now = now or self._listed_at or seen
             running, stale = [], []
             for job_id, data in result.items():
                 if not isinstance(data, dict) or data.get("status") != "running":
@@ -301,11 +343,12 @@ class StallWatchdog:
                 job_num, branches = known
                 key = self._key(job_id)
                 self._first_running.setdefault(key, now)
+                self._first_seen.setdefault(key, seen)
                 running.append(job_id)
                 age = self._age(
                     branches,
                     now,
-                    since=self._first_running[key] - self._stamp_resolution,
+                    since=self._first_seen[key] - self._stamp_resolution,
                 )
                 # a job that has not had time to write its first flag is not evidence of anything
                 since_seen = (now - self._first_running[key]).total_seconds()
@@ -398,5 +441,6 @@ class StallWatchdog:
         with self._lock:
             key = self._key(job_id)
             self._first_running.pop(key, None)
+            self._first_seen.pop(key, None)
             self._seen_flag.discard(key)
             self._reported -= {("gone", key), ("dry", key)}

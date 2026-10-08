@@ -55,6 +55,9 @@ class PathCache:
         # subset of entries kept locally, so only markers backed by a listing taken here may
         # be handed on in a snapshot (see iter_valid).
         self.listed_dirs = set()
+        # Paths whose entry was learned from the cache server: their record time here is the
+        # fetch, not when the server learned it, so it says nothing about how fresh it is.
+        self.from_server = set()
 
     @staticmethod
     def _iter_parents(path):
@@ -69,6 +72,7 @@ class PathCache:
         self.cache[path] = PathCacheEntry(
             path, exists, time.time() + self.validity_period
         )
+        self.from_server.discard(path)
         # If a path exists, every ancestor directory exists too: drop any stale negative
         # ancestor entry that would otherwise (via directory-negative inference in get())
         # wrongly imply this path is absent.
@@ -77,6 +81,10 @@ class PathCache:
                 pentry = self.cache.get(parent)
                 if pentry is not None and pentry.exists is False:
                     del self.cache[parent]
+
+    def set_from_server(self, path, exists):
+        self.set(path, exists)
+        self.from_server.add(path)
 
     def set_local(self, path, exists):
         # Local-only set; identical to set() for the in-memory cache (kept for parity
@@ -118,10 +126,21 @@ class PathCache:
     def get_many(self, paths):
         return {path: self.get(path)[0] for path in paths}
 
-    def iter_valid(self):
+    def iter_valid(self, negatives_after=0.0):
+        """Valid entries, for a snapshot. An "absent" -- a negative entry, or a listing marker,
+        which implies one for every file not listed -- recorded before `negatives_after` is
+        left out (see require_fresh_negatives)."""
         for path, entry in list(self.cache.items()):
             if not entry.is_valid():
                 continue
+            if negatives_after > 0 and (
+                entry.exists is False or os.path.basename(path) == LISTING_MARKER
+            ):
+                if (
+                    path in self.from_server
+                    or entry.expiration_time - self.validity_period < negatives_after
+                ):
+                    continue
             if (
                 os.path.basename(path) == LISTING_MARKER
                 and os.path.dirname(path) not in self.listed_dirs
@@ -204,7 +223,7 @@ class RemotePathCache:
             path, self.host, self.port, self.timeout, verbose=self.verbose
         )
         if remote_result is not None:
-            self.local_cache.set(path, remote_result)
+            self.local_cache.set_from_server(path, remote_result)
         return remote_result, False
 
     def get_many(self, paths):
@@ -226,7 +245,7 @@ class RemotePathCache:
             for path in missing:
                 remote_result = remote.get(path)
                 if remote_result is not None:
-                    self.local_cache.set(path, remote_result)
+                    self.local_cache.set_from_server(path, remote_result)
                 results[path] = remote_result
         return results
 
@@ -259,13 +278,19 @@ def local_path_cache(fs):
 
 
 def collect_setup_path_cache_entries(setup):
-    """Union of valid path-cache entries from every FS the Setup has already created."""
+    """Union of valid path-cache entries from every FS the Setup has already created.
+
+    In a process that requires fresh negatives (a CRAB driver), an "absent" recorded before
+    that may predate a CRAB job's write, and a job that trusted it would find an input
+    missing; it is not shipped.
+    """
     entries = {}
+    negatives_after = GFALFileInterface.negatives_valid_after
     for fs in getattr(setup, "fs_dict", {}).values():
         pc = local_path_cache(fs)
         if pc is None:
             continue
-        for path, exists in pc.iter_valid():
+        for path, exists in pc.iter_valid(negatives_after=negatives_after):
             entries[path] = exists
     return [{"path": path, "exists": exists} for path, exists in entries.items()]
 

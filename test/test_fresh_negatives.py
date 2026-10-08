@@ -13,6 +13,7 @@ every negative rest on a listing taken by this process after the call.
 
 import os
 import sys
+import types
 import unittest
 from unittest import mock
 
@@ -24,9 +25,11 @@ if flaf_parent not in sys.path:
 from FLAF.RunKit import law_gfal
 from FLAF.RunKit.grid_tools import GfalError
 from FLAF.RunKit.law_gfal import (
+    LISTING_MARKER,
     GFALFileInterface,
     PathCache,
     RemotePathCache,
+    collect_setup_path_cache_entries,
     require_fresh_negatives,
 )
 
@@ -209,6 +212,146 @@ class FreshNegatives(unittest.TestCase):
         self.assertTrue(fs.exists("data/file_2.root"))
         self.assertTrue(fs.exists("data/file_1.root"))
         self.assertEqual(self.storage.listed, [DATA, DATA])
+
+
+class Clock:
+    """The `time` module as law_gfal sees it: one settable second."""
+
+    def __init__(self, now):
+        self.now = now
+
+    def time(self):
+        return self.now
+
+
+class TheSnapshotShippedToCrabJobs(unittest.TestCase):
+    """A CRAB job gets the driver's path cache as a file and trusts it without a cache
+    server, so an "absent" in it that predates a CRAB job's write -- a negative entry, an
+    absent directory, or a listing marker, which says absent for every file it does not
+    list -- would make the job find an input missing. Once the driver requires fresh
+    negatives, one recorded before that is not shipped; positives always are."""
+
+    def setUp(self):
+        self.clock = Clock(1000.0)
+        patch = mock.patch.object(law_gfal, "time", self.clock)
+        patch.start()
+        self.addCleanup(patch.stop)
+        self.cache = PathCache(86400)
+        # a status check lists `data` and finds `gone` absent; CRAB jobs then write
+        # data/file_1.root and gone/file_0.root, which nobody tells the driver
+        self.cache.set_exists(DATA, ["file_0.root"])
+        self.cache.set(os.path.join(DATA, "file_1.root"), False)
+        self.cache.set(os.path.join(BASE, "gone"), False)
+        self.storage = Storage(
+            {
+                "": ["data", "gone"],
+                "data": ["file_0.root", "file_1.root"],
+                "gone": ["file_0.root"],
+            }
+        )
+        self.before = {
+            os.path.join(DATA, LISTING_MARKER): True,
+            os.path.join(DATA, "file_0.root"): True,
+            DATA: True,
+            os.path.join(DATA, "file_1.root"): False,
+            os.path.join(BASE, "gone"): False,
+        }
+
+    def tearDown(self):
+        GFALFileInterface.negatives_valid_after = 0.0
+
+    def shipped(self, path_cache=None):
+        fi = types.SimpleNamespace(path_cache=path_cache or self.cache)
+        setup = types.SimpleNamespace(
+            fs_dict={"default": types.SimpleNamespace(file_interface=fi)}
+        )
+        return {e["path"]: e["exists"] for e in collect_setup_path_cache_entries(setup)}
+
+    def require_fresh_negatives_at(self, t):
+        self.clock.now = t
+        require_fresh_negatives()
+
+    def record_after(self, t):
+        """What a listing of `new` taken after the epoch leaves behind."""
+        self.clock.now = t
+        new = os.path.join(BASE, "new")
+        self.cache.set_exists(new, ["file_0.root"])
+        self.cache.set(os.path.join(new, "file_1.root"), False)
+        return {
+            os.path.join(new, LISTING_MARKER): True,
+            os.path.join(new, "file_0.root"): True,
+            new: True,
+            os.path.join(new, "file_1.root"): False,
+        }
+
+    def job_finds(self, entries, path):
+        """exists() in a CRAB job that loaded `entries`: no cache server, no epoch."""
+        GFALFileInterface.negatives_valid_after = 0.0
+        with mock.patch.object(law_gfal, "get_voms_proxy_info", lambda: {"path": None}):
+            fs = GFALFileInterface(base=[BASE])
+        fs.path_cache.load_entries(
+            [{"path": p, "exists": exists} for p, exists in entries.items()]
+        )
+        with self.storage.patch():
+            return fs.exists(path)
+
+    def test_without_the_epoch_every_valid_entry_is_shipped_as_before(self):
+        self.assertEqual(self.shipped(), self.before)
+
+    def test_an_absent_recorded_before_the_epoch_is_not_shipped(self):
+        self.require_fresh_negatives_at(2000.0)
+        after = self.record_after(3000.0)
+        positives = {p: e for p, e in self.before.items() if e is True}
+        del positives[os.path.join(DATA, LISTING_MARKER)]
+        self.assertEqual(self.shipped(), dict(positives, **after))
+
+    def test_a_job_that_loads_it_finds_what_crab_jobs_wrote_since(self):
+        self.assertFalse(self.job_finds(self.before, "data/file_1.root"))
+        self.assertFalse(self.job_finds(self.before, "gone/file_0.root"))
+        self.require_fresh_negatives_at(2000.0)
+        shipped = self.shipped()
+        self.assertTrue(self.job_finds(shipped, "data/file_1.root"))
+        self.assertTrue(self.job_finds(shipped, "gone/file_0.root"))
+        # and still answers a known file from the snapshot, without listing
+        n_listed = len(self.storage.listed)
+        self.assertTrue(self.job_finds(shipped, "data/file_0.root"))
+        self.assertEqual(self.storage.listed[n_listed:], [])
+
+    def test_iter_valid_keeps_its_old_answer_unless_asked(self):
+        self.require_fresh_negatives_at(2000.0)
+        self.assertEqual(dict(self.cache.iter_valid()), self.before)
+
+    # An answer of the cache server is recorded locally when it was fetched, which says
+    # nothing about when the server learned it: under an epoch such an "absent" is not
+    # shipped, even if fetched after it.
+    def test_an_absent_learned_from_the_cache_server_after_the_epoch_is_not_shipped(
+        self,
+    ):
+        server = FakeCacheServer()
+        self.storage = Storage({"": ["data"], "data": ["file_0.root"]})
+
+        def client():
+            with mock.patch.object(
+                law_gfal, "get_voms_proxy_info", lambda: {"path": None}
+            ):
+                fs = GFALFileInterface(base=[BASE])
+            fs.path_cache = RemotePathCache("host", 1, local_cache_validity_period=600)
+            return fs
+
+        with server.patch(), self.storage.patch():
+            # a status check before any job ran finds `new` absent and publishes that
+            self.assertFalse(client().exists("new/file_0.root"))
+            # a CRAB job writes new/file_1.root, which the cache server is not told
+            self.storage.tree[""].append("new")
+            self.storage.tree["new"] = ["file_1.root"]
+            driver = client()
+            self.require_fresh_negatives_at(2000.0)
+            self.clock.now = 3000.0
+            # a fresh listing finds new/sub absent, and the climb to its ancestors asks
+            # the cache server about `new`
+            self.assertFalse(driver.exists("new/sub/file_0.root"))
+            shipped = self.shipped(driver.path_cache.local_cache)
+        self.assertTrue(self.job_finds(shipped, "new/file_1.root"))
 
 
 if __name__ == "__main__":

@@ -1437,8 +1437,10 @@ class SubmissionGuards(LawProxyState):
             "workflow. Nothing was submitted, and the submission file was left as it was.\n"
             "  - if the storage was unreachable while the outputs were checked, run again once "
             "it is back;\n"
-            "  - if the outputs were removed on purpose, or the work is to be redone, run again "
-            "with --ignore-submission."
+            "  - if they were removed on purpose after being used (e.g. merged inputs), the "
+            "task that used them is what should run, not this workflow: check why it was "
+            "scheduled;\n"
+            "  - to redo the work deliberately, run again with --ignore-submission."
         )
 
     def _park_retries(self, retry_jobs):

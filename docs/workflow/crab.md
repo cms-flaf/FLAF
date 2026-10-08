@@ -304,7 +304,9 @@ follows.
   that to finished; `transferring` and `transferred` count as finished here, so without the
   output check a failed job would be written off as done. Every "absent" answer of a poll rests
   on a listing taken after the status: one listing per output directory per poll, which also
-  republishes the directory to the path-cache server. CRAB workers cannot reach that server, so
+  republishes the directory to the path-cache server (for a task with many output directories,
+  such as `HistFromNtupleProducerTask`, that is one `gfal-ls` per directory holding a finished
+  job's outputs, every poll). CRAB workers cannot reach that server, so
   without this the files they write would read as absent for up to 24 h. For the same reason a
   driver that is (re)started takes fresh listings before it judges which outputs exist: jobs
   that finished while no driver was polling are accepted, not sent back to the grid.
@@ -331,8 +333,10 @@ behind two such jobs. The watchdog finds them. It is on by default for CRAB.
   when the payload ends, however it ends.
 - The driver lists that one directory once per interval (however many jobs are running) and
   reads only the modification times. A job that CRAB still reports as running, and whose flag
-  has not moved for `missed_checks` intervals, is failed, so law's normal retry resubmits it. A
-  running job that never wrote a flag is failed after `missed_checks + 1` intervals.
+  has not moved for `missed_checks` intervals as of the latest listing, is failed, so law's
+  normal retry resubmits it. Ages are measured at the time of the listing, not of the status
+  query that reads it. A running job that never wrote a flag is failed after
+  `missed_checks + 1` intervals.
 - CRAB has no per-job kill, so the slot is **abandoned**, not freed: it is reclaimed when
   `maxJobRuntimeMin` expires.
 - A flag that disappears is read as the job exiting, and is not a verdict. A flag older than

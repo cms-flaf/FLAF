@@ -13,8 +13,10 @@ workflow. The dangerous failure is not a missed stall; it is a watchdog that con
 
 import datetime
 import json
+import math
 import os
 import sys
+import types
 import unittest
 from unittest import mock
 
@@ -23,6 +25,8 @@ flaf_parent = os.path.dirname(flaf_repo)
 if flaf_parent not in sys.path:
     sys.path.insert(0, flaf_parent)
 
+from FLAF.RunKit import run_tools  # noqa: E402
+from FLAF.RunKit.run_tools import timed_call_wrapper  # noqa: E402
 from FLAF.run_tools.crab_watchdog import (  # noqa: E402
     DEFAULTS,
     HEARTBEAT_DIR,
@@ -80,12 +84,15 @@ def status(*nums, state="running", proj="/proj"):
 
 
 def prime(w, job_map, first_seen_minutes_ago=999):
-    """Publish the job map and backdate the grace clock, without forming a verdict."""
+    """Publish the job map and backdate when the jobs were first seen running, on both
+    clocks (the listing's, for the grace, and the query's, for which flags count), without
+    forming a verdict."""
     w.set_jobs(job_map)
     for entry in job_map.values():
-        w._first_running[w._key(entry["job_id"])] = NOW - datetime.timedelta(
-            minutes=first_seen_minutes_ago
-        )
+        key = w._key(entry["job_id"])
+        first_seen = NOW - datetime.timedelta(minutes=first_seen_minutes_ago)
+        w._first_running[key] = first_seen
+        w._first_seen[key] = first_seen
 
 
 def verdicts(w, job_map, result, first_seen_minutes_ago=999):
@@ -421,8 +428,20 @@ class TheListing(unittest.TestCase):
         with mock.patch(f"{MODULE}.gfal_ls_safe", return_value=[]) as ls:
             self.assertTrue(w.refresh())
         ls.assert_called_once_with(
-            "root://x//flags", voms_token="/tmp/x", catch_stderr=True, verbose=0
+            "root://x//flags",
+            voms_token="/tmp/x",
+            catch_stderr=True,
+            verbose=0,
+            timeout=300,
         )
+
+    def test_a_hanging_listing_cannot_hold_the_poll_loop(self):
+        """The listing runs inside law's poll loop, and gfal's own limit is half an hour."""
+        w = StallWatchdog("root://x//flags", watchdog_config({}))
+        with mock.patch(f"{MODULE}.gfal_ls_safe", return_value=[]) as ls:
+            w.refresh()
+        self.assertEqual(StallWatchdog.listing_timeout_seconds, 300)
+        self.assertEqual(ls.call_args.kwargs.get("timeout"), 300)
 
     def test_nothing_is_listed_when_switched_off(self):
         w = StallWatchdog("root://x//flags", watchdog_config({"watchdog": False}))
@@ -437,6 +456,278 @@ class TheListing(unittest.TestCase):
 
     def test_the_flag_directory_name(self):
         self.assertEqual(HEARTBEAT_DIR, "heartbeat")
+
+
+class Clock:
+    """The `datetime` module as the watchdog and the poll callback's throttle
+    (`timed_call_wrapper`) see it: one settable time, for the driver and the storage alike.
+    """
+
+    timedelta = datetime.timedelta
+
+    def __init__(self, start):
+        self.time = start
+        self.datetime = types.SimpleNamespace(utcnow=self.read, now=self.read)
+
+    def read(self):
+        return self.time
+
+
+class AgesAreMeasuredAtTheListing(unittest.TestCase):
+    """`refresh()` runs once per interval and `verdicts()` on every poll in between, so every
+    age is measured at the time the listing behind it was taken, never at the time of the
+    poll that reads it (`OverManyIntervals` below shows what the poll's clock did)."""
+
+    def listed_at(self, when, flags):
+        w = StallWatchdog("root://x//flags", watchdog_config({}))
+        w.publish = lambda msg: None
+        with mock.patch(f"{MODULE}.gfal_ls_safe", return_value=list(flags)):
+            self.assertTrue(w.refresh(now=when))
+        return w
+
+    def test_a_time_given_to_refresh_is_the_time_ages_are_measured_at(self):
+        w = self.listed_at(NOW, [Flag(7, age_minutes=30), Flag(8, age_minutes=61)])
+        prime(w, jobs((1, 7), (2, 8)))
+        # a day later on the driver's clock, by which both flags would be stale
+        with mock.patch(f"{MODULE}.datetime", Clock(NOW + datetime.timedelta(days=1))):
+            out = w.verdicts(status(1, 2))
+        self.assertEqual([job_id[0] for job_id in out], [2])
+        self.assertIn("61 min old", list(out.values())[0])
+
+    def test_the_time_is_taken_before_the_listing(self):
+        """A flag beaten while the listing ran is no older than the moment it started, and a
+        listing may take up to its timeout."""
+        clock = Clock(NOW)
+        w = StallWatchdog("root://x//flags", watchdog_config({}))
+
+        def slow_listing(*args, **kwargs):
+            clock.time = NOW + datetime.timedelta(minutes=10)
+            return [Flag(7, age_minutes=55)]
+
+        with (
+            mock.patch(f"{MODULE}.datetime", clock),
+            mock.patch(f"{MODULE}.gfal_ls_safe", side_effect=slow_listing),
+        ):
+            self.assertTrue(w.refresh())
+            prime(w, jobs((1, 7)))
+            self.assertEqual(w.verdicts(status(1)), {})
+        self.assertEqual(w._listed_at, NOW)
+
+    def test_a_failed_listing_forgets_when_the_last_good_one_was_taken(self):
+        w = self.listed_at(NOW, [Flag(7, age_minutes=5)])
+        self.assertEqual(w._listed_at, NOW)
+        with mock.patch(f"{MODULE}.gfal_ls_safe", return_value=None):
+            self.assertFalse(w.refresh(now=NOW + datetime.timedelta(minutes=30)))
+        self.assertIsNone(w._listed_at)
+        self.assertEqual(verdicts(w, jobs((1, 7)), status(1)), {})
+
+
+# --------------------------------------------------------------------------------------
+# a driver over many intervals: verdicts on every poll, one listing per interval
+# --------------------------------------------------------------------------------------
+
+#: seconds between two polls of the driver
+POLL = 300
+#: seconds a beat takes to land; Heartbeat._loop waits an interval after each one, so beats
+#: drift against the driver's grid by this much per interval
+WRITE = 5
+INTERVAL = DEFAULTS["interval_minutes"] * 60
+STALE = INTERVAL * DEFAULTS["missed_checks"]
+T0 = datetime.datetime(2026, 10, 8, 0, 0, 0)
+
+
+class SimJob:
+    """One CRAB job: when CRAB reports it running, and when its beats land on the storage."""
+
+    def __init__(
+        self,
+        num,
+        branch,
+        running_from,
+        beats_from,
+        beats_until=None,
+        running_until=None,
+    ):
+        self.num = num
+        self.branch = branch
+        self.running_from = running_from
+        self.running_until = running_until
+        self.beats_from = beats_from
+        self.beats_until = beats_until
+
+    def running(self, t):
+        return self.running_from <= t and (
+            self.running_until is None or t < self.running_until
+        )
+
+    def last_beat(self, t):
+        """When the newest beat landed by `t`, or None before the first one."""
+        if self.beats_until is not None:
+            t = min(t, self.beats_until)
+        n = math.floor((t - self.beats_from - WRITE) / (INTERVAL + WRITE))
+        if n < 0:
+            return None
+        return self.beats_from + WRITE + n * (INTERVAL + WRITE)
+
+
+def stamp(seconds):
+    """A modification time as `gfal-ls --time-style long-iso` lists it: to the minute."""
+    return (T0 + datetime.timedelta(seconds=seconds)).replace(second=0, microsecond=0)
+
+
+def simulate(sim_jobs, hours, query_clock=False):
+    """Drive a real watchdog for `hours` the way FLAF's CRAB backend does.
+
+    Every POLL seconds the job manager's query forms the verdicts on the jobs CRAB reports
+    running -- without a time of its own, as `_apply_watchdog` asks for them -- and then the
+    poll callback lists the flag directory through the throttle `crab_poll_callback` uses.
+    `query_clock` measures the verdicts against the clock of the query instead, as they were
+    before the fix. A condemned job is failed by law and no longer reported running.
+    """
+    clock = Clock(T0)
+    w = StallWatchdog("root://x//flags", watchdog_config({}))
+    w.messages = []
+    w.publish = w.messages.append
+    w.set_jobs(jobs(*[(job.num, job.branch) for job in sim_jobs]))
+    failed = {}
+    listings = []
+
+    def listing(*args, **kwargs):
+        t = (clock.time - T0).total_seconds()
+        listings.append(t)
+        newest = {}
+        for job in sim_jobs:
+            beat = job.last_beat(t)
+            if beat is not None:
+                # flags are named by branch: a later attempt's beat replaces the flag
+                newest[job.branch] = max(beat, newest.get(job.branch, beat))
+        return [
+            types.SimpleNamespace(name=str(branch), date=stamp(beat), is_dir=False)
+            for branch, beat in newest.items()
+        ]
+
+    with (
+        mock.patch(f"{MODULE}.datetime", clock),
+        mock.patch.object(run_tools, "datetime", clock),
+        mock.patch(f"{MODULE}.gfal_ls_safe", side_effect=listing),
+    ):
+        refresh = timed_call_wrapper(w.refresh, w.interval_seconds)
+        for t in range(0, int(hours * 3600) + 1, POLL):
+            clock.time = T0 + datetime.timedelta(seconds=t)
+            nums = [j.num for j in sim_jobs if j.running(t) and j.num not in failed]
+            out = w.verdicts(status(*nums), now=clock.time if query_clock else None)
+            for job_id, reason in out.items():
+                failed[job_id[0]] = (t, reason)
+            refresh()
+    return types.SimpleNamespace(failed=failed, listings=listings, watchdog=w)
+
+
+class OverManyIntervals(unittest.TestCase):
+    """The review blocker this pins: the listing is refreshed once per interval, after the
+    query of the poll that refreshes it, while verdicts are formed on every poll. Measured
+    against the clock of the query, a flag beaten just after one listing is shown by the next
+    at up to an interval old and read until the one after at up to two, so the last poll
+    before a listing failed a healthy job ("heartbeat 60 min old", threshold 60 min).
+    Measured at the listing, a healthy flag is never older than one beat period plus the
+    minute the listing rounds down to.
+
+    Default settings, each case for 21 hours. The phases sweep the beats across a whole
+    listing period, and so across the poll grid too: the 5 s a beat drifts per interval
+    covers only 210 s of it in 21 hours.
+    """
+
+    PHASES = range(0, INTERVAL, 7)
+    HOURS = 21
+
+    def healthy(self, phase):
+        return SimJob(1, 7, running_from=600 + phase, beats_from=720 + phase)
+
+    def test_a_healthy_job_is_never_failed(self):
+        for phase in self.PHASES:
+            with self.subTest(phase=phase):
+                run = simulate([self.healthy(phase)], self.HOURS)
+                self.assertEqual(run.failed, {})
+                self.assertEqual(run.watchdog.messages, [])
+                # not vacuous: its flag was listed and judged throughout
+                self.assertGreaterEqual(len(run.listings), 2 * self.HOURS)
+                self.assertIn((1, TASK), run.watchdog._seen_flag)
+
+    def test_measured_at_the_query_the_same_healthy_job_is_failed(self):
+        """The test above, run against the clock the verdicts used before the fix."""
+        condemned = {}
+        for phase in self.PHASES:
+            run = simulate([self.healthy(phase)], self.HOURS, query_clock=True)
+            if run.failed:
+                condemned[phase] = run.failed[1]
+        self.assertTrue(condemned, "the query clock never failed the healthy job")
+        for t, reason in condemned.values():
+            self.assertIn("min old", reason)
+            # always the last poll before a listing, whose query precedes the refresh
+            self.assertEqual(t % INTERVAL, 0, (t, reason))
+
+    def test_a_job_whose_beats_stop_is_failed_within_the_derived_bound(self):
+        """Beats stop at T. The last one lands at or before T and lists no later, so every
+        listing from T + missed_checks x interval on measures the flag at the threshold or
+        more. The throttle lists at the first poll at least an interval after the previous
+        listing, so listings are less than an interval and a poll apart, and the first such
+        listing is taken before T + (missed_checks + 1) x interval + poll. It runs after the
+        query of its poll, so the verdict is formed by the next poll's query:
+
+            verdict <= T + (missed_checks + 1) x interval + 2 x poll  (T + 100 min)
+
+        and never before the flag has really been stale: the last beat plus the threshold,
+        less the minute the listing rounds down to. The healthy job beside it is untouched.
+        """
+        bound = (DEFAULTS["missed_checks"] + 1) * INTERVAL + 2 * POLL
+        for phase in self.PHASES:
+            stop = 10 * 3600 + 13 * phase  # sweeps more than two listing periods
+            stalled = SimJob(
+                2, 8, running_from=900 + phase, beats_from=960 + phase, beats_until=stop
+            )
+            with self.subTest(phase=phase, stop=stop):
+                run = simulate([self.healthy(phase), stalled], self.HOURS)
+                self.assertEqual(list(run.failed), [2])
+                t, reason = run.failed[2]
+                self.assertLessEqual(t, stop + bound)
+                self.assertGreaterEqual(t, stalled.last_beat(stop) + STALE - 60)
+                self.assertIn("min old", reason)
+
+
+class AnEarlierAttemptsFlagOnTheListingClock(unittest.TestCase):
+    """`AStaleFlagLeftByAnEarlierAttempt` (test_crab_watchdog_integration.py) pins that a flag
+    left by an earlier attempt of the branch does not condemn the attempt now running inside
+    the grace for its first beat. Those tests give the verdicts the clock of the query; here
+    they are driven as in production, measured at the listing.
+
+    The earlier attempt beats at 01:29:30, is killed at 01:29:50 without removing its flag
+    (as an out-of-memory kill does) and is reported failed from 01:35. The new attempt is
+    first seen running at 02:00 and starts beating 35 min after it got its slot: the bundle
+    is fetched and unpacked and law checks the task's inputs before luigi's START event
+    starts the heartbeat.
+    """
+
+    def attempts(self):
+        old = SimJob(
+            1,
+            7,
+            running_from=1700,
+            beats_from=1755,
+            beats_until=5390,
+            running_until=5700,
+        )
+        new = SimJob(2, 7, running_from=7150, beats_from=7150 + 35 * 60)
+        return [old, new]
+
+    def test_measured_at_the_query_the_new_attempt_is_not_condemned(self):
+        run = simulate(self.attempts(), hours=6, query_clock=True)
+        self.assertEqual(run.failed, {})
+
+    # Which flags may belong to the new attempt is decided on the poll that first saw it
+    # running (02:00), not on the listing in force then (01:30): the earlier attempt's flag
+    # stamped 01:29 must not count as the new attempt's evidence.
+    def test_measured_at_the_listing_the_new_attempt_is_not_condemned(self):
+        run = simulate(self.attempts(), hours=6)
+        self.assertEqual(run.failed, {})
 
 
 class TheSettings(unittest.TestCase):
@@ -576,6 +867,36 @@ class TheJobSideHeartbeat(unittest.TestCase):
     def test_the_interval_is_at_least_one_second(self):
         self.assertEqual(Heartbeat(self.URI, 0).interval, 1.0)
         self.assertEqual(Heartbeat(self.URI, 1800).interval, 1800.0)
+
+    def test_a_beat_is_bounded(self):
+        """gfal-copy's default limit is two hours; a beat hanging that long would hold back
+        every later one. One write may take at most write_timeout_seconds, and never longer
+        than the interval."""
+        _, copy, _, _ = self.run_heartbeat()
+        self.assertEqual(
+            copy.call_args.kwargs.get("timeout"), Heartbeat.write_timeout_seconds
+        )
+        with mock.patch(f"{MODULE}.gfal_copy") as copy:
+            Heartbeat(self.URI, 90.7)._write()
+        self.assertEqual(copy.call_args.kwargs.get("timeout"), 90)
+
+    def test_a_failed_beat_is_tried_again_soon(self):
+        """The driver tolerates `missed_checks` intervals; waiting a whole interval after a
+        failed beat would make one failure look like a stall."""
+        hb = Heartbeat(self.URI, 1800)
+        waits = []
+
+        class Stop:
+            def wait(self, seconds):
+                waits.append(seconds)
+                return len(waits) >= 2
+
+        hb._stop = Stop()
+        with mock.patch(
+            f"{MODULE}.gfal_copy", side_effect=[RuntimeError("down"), None]
+        ):
+            hb._loop()
+        self.assertEqual(waits, [Heartbeat.retry_seconds, 1800])
 
 
 if __name__ == "__main__":

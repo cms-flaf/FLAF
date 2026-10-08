@@ -202,8 +202,8 @@ These apply to both batch backends (HTCondor and [CRAB](crab.md)).
   retries offered by law are parked, and the next poll tries again. The message gives the path,
   the errno and a hint (`klist -f` shows the Kerberos expiry and the renewable window, `tokens`
   the AFS token). Skipping for more than 30 minutes raises, and with `--no-poll`, which would
-  not submit the round later, it raises at once. law's `rel_path` no longer depends on a `stat`
-  succeeding, so one failed stat cannot make law mistake its own module for a directory.
+  not submit the round later, it raises at once. One failed `stat` of the software tree cannot
+  make law mistake its own module for a directory.
 - **A resumed workflow that lost its outputs stops.** When a workflow is resumed (its job file
   exists) and more than 10 % of all its jobs — and at least 2 — come back for missing outputs
   (jobs it had recorded as finished, or live jobs reported finished without them), each of those

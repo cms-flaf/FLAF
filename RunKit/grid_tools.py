@@ -379,7 +379,7 @@ def gfal_ls_recursive(path, voms_token=None, verbose=1):
     return sorted(set(all_files), key=lambda f: f.full_name)
 
 
-def gfal_ls_safe(path, voms_token=None, catch_stderr=False, verbose=1):
+def gfal_ls_safe(path, voms_token=None, catch_stderr=False, verbose=1, timeout=None):
     """List `path`, or None if that did not work for any reason.
 
     Only for best-effort callers; anything that decides whether a path exists needs
@@ -387,7 +387,11 @@ def gfal_ls_safe(path, voms_token=None, catch_stderr=False, verbose=1):
     """
     try:
         return gfal_ls(
-            path, voms_token=voms_token, catch_stderr=catch_stderr, verbose=verbose
+            path,
+            voms_token=voms_token,
+            catch_stderr=catch_stderr,
+            verbose=verbose,
+            timeout=timeout,
         )
     except GfalError:
         return None

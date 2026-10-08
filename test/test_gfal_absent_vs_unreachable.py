@@ -244,6 +244,16 @@ class ListingTimeout(unittest.TestCase):
         self.assertNotIn("--timeout", cmd)
         self.assertNotIn("-t", cmd)
 
+    def test_a_best_effort_listing_can_be_bounded(self):
+        # the stall watchdog lists its flag directory this way, inside the poll loop
+        cmd = self.command(
+            grid_tools.gfal_ls_safe, "davs://host/x", voms_token="t", timeout=300
+        )
+        self.assertEqual(cmd[cmd.index("--timeout") + 1], "300")
+        self.assertEqual(cmd[-1], "davs://host/x")
+        cmd = self.command(grid_tools.gfal_ls_safe, "davs://host/x", voms_token="t")
+        self.assertNotIn("--timeout", cmd)
+
     @unittest.skipUnless(shutil.which("gfal-ls"), "gfal-ls is not installed")
     def test_the_real_gfal_ls_accepts_the_bound(self):
         with tempfile.TemporaryDirectory() as tmp:

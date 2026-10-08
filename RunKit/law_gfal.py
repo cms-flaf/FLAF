@@ -8,6 +8,7 @@ from .grid_tools import (
     get_voms_proxy_info,
     GfalError,
     gfal_copy_safe,
+    gfal_ls_checked,
     gfal_ls_safe,
     gfal_rm,
     gfal_stat,
@@ -323,8 +324,27 @@ def apply_shipped_path_cache(fs):
     pc.load_entries(_shipped_path_cache_entries)
 
 
+def require_fresh_negatives():
+    """From now on, answer "absent" only from a listing taken by this process after this call.
+
+    `exists()` answers a missing file from cached knowledge (its own entry, a directory
+    listing marker, an absent ancestor), shared between processes through the cache server,
+    where a listing stays valid for 24 h by default. CRAB jobs cannot reach that server, so
+    a file that a CRAB job wrote after its directory was listed reads as absent everywhere
+    until the marker expires; clearing only the in-process caches would not help, because
+    the next lookup falls through to the same marker on the server. After this call, a
+    negative answer for a directory not listed by this process since the call costs one
+    listing, which also republishes the directory's entries to the cache server. Positive
+    answers stay cache-served.
+    """
+    GFALFileInterface.negatives_valid_after = time.time()
+
+
 class GFALFileInterface(RemoteFileInterface):
     local_prefix = "file://"
+
+    # Set by require_fresh_negatives(); 0 keeps every cached negative usable.
+    negatives_valid_after = 0.0
 
     def __init__(
         self,
@@ -348,6 +368,8 @@ class GFALFileInterface(RemoteFileInterface):
         # Sizes from the most recent listing of each directory, so that collecting input
         # file metadata does not cost a second gfal-ls.
         self.listing_sizes = {}
+        # dir uri -> time of the last listing by this process that the storage answered
+        self._listed_at = {}
         super(GFALFileInterface, self).__init__(base=base)
 
     def is_local(self, path):
@@ -365,24 +387,33 @@ class GFALFileInterface(RemoteFileInterface):
         dir_uri = self.uri(path_dir, base=base)
         result = False
         cached_result, from_local_cache = self.path_cache.get(path_uri)
-        if cached_result is None and self.path_cache.has_listing(dir_uri):
+        from_listing = cached_result is None and self.path_cache.has_listing(dir_uri)
+        if from_listing:
             # The directory has been listed and its cached entries are therefore complete,
             # so this path is absent. A listing is what proves absence: that the directory
-            # itself exists says nothing about its content. Memoize the negative result
-            # locally so repeated checks of the same path do not query the cache server
-            # again (a fresh TCP round-trip per call otherwise).
+            # itself exists says nothing about its content.
             cached_result = False
             from_local_cache = True
+        epoch = GFALFileInterface.negatives_valid_after
+        if (
+            cached_result is False
+            and epoch > 0
+            and self._listed_at.get(dir_uri, 0.0) < epoch
+        ):
+            # See require_fresh_negatives: a cached "absent" may predate a CRAB job's write.
+            cached_result = None
+        elif from_listing:
+            # Memoize the negative result locally so repeated checks of the same path do
+            # not query the cache server again (a fresh TCP round-trip per call otherwise).
             self.path_cache.set_local(path_uri, False)
         use_cache = cached_result is not None
 
         if use_cache:
             result = cached_result
         else:
-            path_dir, path_name = os.path.split(path)
-            dir_entries = self.listdir(path_dir, base=base, silent=True)
+            dir_entries, answered = self._list(dir_uri, silent=True)
             result = path_name in dir_entries
-            if not result:
+            if not result and answered:
                 # Local-only: the listing just taken covers every absent sibling for this
                 # process, while a file-level negative published to the cache server would
                 # outlive the file's creation by a job whose own cache update is lost.
@@ -429,7 +460,16 @@ class GFALFileInterface(RemoteFileInterface):
             for dst_uri in dst_uris:
                 dst_dir_uri, _ = os.path.split(dst_uri)
                 self.path_cache.set(dst_uri, False)
-                gfal_copy_safe(src_uri, dst_uri, voms_token=self.voms_token, verbose=0)
+                # Publish by renaming a checksum-verified upload onto the target, so that
+                # the target never exists with partial content and an existing one is not
+                # removed before its replacement is complete.
+                gfal_copy_safe(
+                    src_uri,
+                    dst_uri,
+                    voms_token=self.voms_token,
+                    copy_mode="copy_rename",
+                    verbose=0,
+                )
                 self.path_cache.set(dst_uri, True)
                 cached_dst_dir, _ = self.path_cache.get(dst_dir_uri)
                 if cached_dst_dir is not True:
@@ -469,40 +509,47 @@ class GFALFileInterface(RemoteFileInterface):
         )
 
     def listdir(self, path, base=None, silent=False, **kwargs):
+        entry_names, _ = self._list(self.uri(path, base=base), silent=silent)
+        return entry_names
+
+    def _list(self, path_uri, silent):
+        """Entry names of the directory `path_uri`, and whether the storage answered.
+
+        Only an answer is cached: a listing, or gfal reporting that the directory does not
+        exist. A listing that fails raises GfalError, or with `silent` returns ([], False)
+        and caches nothing: a negative taken from it would be published to the cache server
+        and hide existing files from every client.
+        """
         GFALFileInterface.listdir_counter += 1
         if self.verbose > 0:
             print(
-                f"GFALFileInterface.listdir: cnt={GFALFileInterface.listdir_counter} path={path}",
+                f"GFALFileInterface.listdir: cnt={GFALFileInterface.listdir_counter} path={path_uri}",
                 file=sys.stderr,
             )
-        path_uri = self.uri(path, base=base)
-        entries = gfal_ls_safe(
-            path_uri, voms_token=self.voms_token, catch_stderr=True, verbose=0
-        )
-        if entries is None:
-            # A failed listing may be a transient error rather than an absent directory.
-            # Confirm before acting on it: the negative is published to the cache server and
-            # suppresses the whole subtree there for every client.
-            entries = gfal_ls_safe(
-                path_uri, voms_token=self.voms_token, catch_stderr=True, verbose=0
-            )
+        listed_at = time.time()
+        try:
+            entries = gfal_ls_checked(path_uri, voms_token=self.voms_token)
+        except GfalError:
+            if not silent:
+                raise
+            return [], False
         if entries is None:
             if not silent:
-                gfal_ls_safe(
-                    path_uri, voms_token=self.voms_token, catch_stderr=False, verbose=1
+                raise GfalError(
+                    f"GFALFileInterface: directory {path_uri} does not exist"
                 )
-                raise GfalError(f"GFALFileInterface: failed to list directory {path}")
-            entry_names = []
+            self._listed_at[path_uri] = listed_at
             self.path_cache.set(path_uri, False)
             # Walk up to record the highest absent ancestor as well, so the server can
             # answer the whole missing subtree by inference and clients can skip the
             # per-subdirectory gfal-ls on subsequent lookups.
             self._mark_absent_ancestors(path_uri)
-        else:
-            entry_names = [entry.name for entry in entries]
-            self.path_cache.set_exists(path_uri, entry_names)
-            self._cache_listing_sizes(path_uri, entries)
-        return entry_names
+            return [], True
+        self._listed_at[path_uri] = listed_at
+        entry_names = [entry.name for entry in entries]
+        self.path_cache.set_exists(path_uri, entry_names)
+        self._cache_listing_sizes(path_uri, entries)
+        return entry_names, True
 
     def _cache_listing_sizes(self, path_uri, entries):
         self.listing_sizes[path_uri] = {
@@ -538,8 +585,8 @@ class GFALFileInterface(RemoteFileInterface):
         # A directory was found absent. Walk upward to record the highest absent ancestor
         # too, so the cache server can answer the whole missing subtree by directory-negative
         # inference and clients can skip the per-subdirectory gfal-ls. A negative cached at a
-        # high level suppresses a large subtree, so each absent ancestor is confirmed with a
-        # second gfal-ls before caching it (a single failure may be transient).
+        # high level suppresses a large subtree, so only gfal reporting the ancestor absent is
+        # cached; a listing that fails stops the climb and records nothing.
         current = dir_uri
         for _ in range(max_climb):
             parent = os.path.dirname(current)
@@ -550,14 +597,12 @@ class GFALFileInterface(RemoteFileInterface):
                 # Already known: False => the subtree is already covered by inference;
                 # True => we reached an existing ancestor, stop.
                 break
-            entries = gfal_ls_safe(
-                parent, voms_token=self.voms_token, catch_stderr=True, verbose=0
-            )
-            if entries is None:
-                # Confirm the absence before caching a wide-reaching negative.
-                entries = gfal_ls_safe(
-                    parent, voms_token=self.voms_token, catch_stderr=True, verbose=0
-                )
+            listed_at = time.time()
+            try:
+                entries = gfal_ls_checked(parent, voms_token=self.voms_token)
+            except GfalError:
+                break
+            self._listed_at[parent] = listed_at
             if entries is None:
                 self.path_cache.set(parent, False)
                 current = parent

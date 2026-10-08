@@ -482,6 +482,7 @@ class AnaTupleFileTask(
         }
 
     def run(self):
+        self._refuse_inline_on_worker()
         with ServiceThread() as service_thread:
             dataset_name, input_file_name, output_name = self.branch_data
             dataset = self.datasets[dataset_name]
@@ -1161,6 +1162,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
         return self._branch_output_targets(self.branch_data)
 
     def run(self):
+        self._refuse_inline_on_worker()
         (
             dataset_name,
             process_group,

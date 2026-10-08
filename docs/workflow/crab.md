@@ -273,7 +273,9 @@ submitted in waves of at least `refill_fraction × parallel_jobs` jobs.
   fresh window. Parked retries are recognised from the attempt counters in the job file, so a
   restarted driver delays a release by at most one window and loses no job.
 - `--no-poll` bypasses the gate: a no-poll run resubmits failures exactly once and returns, so a
-  parked job would not be offered again.
+  parked job would not be offered again. It applies to the workflow it is given to only: law
+  does not pass it on to the remote workflows that one requires, which are polled to completion
+  (and gated) as usual.
 
 ## Status handling
 
@@ -287,15 +289,30 @@ follows.
   so the next submission re-reads it. A **second** refused submission made by this run stops
   the run — a refusal is a verdict on what was sent, and retrying would spend every branch's
   attempts on the same verdict. Refusals left by earlier runs are reported but never count.
+- **Failed submission.** A task the TaskWorker or the schedd failed to submit (`SUBMITFAILED`)
+  has its jobs reported failed by law, which submits them again as a new task, so a one-off
+  failure recovers by itself. The server's failure message is printed once with the project
+  directory. A **second** failed submission made by this run stops the run, quoting the server:
+  a cause that does not go away (for example a MyProxy credential the TaskWorker cannot
+  retrieve) would otherwise spend every branch's attempts. Failed submissions left by earlier
+  runs are reported but never count, and refusals and failed submissions are counted apart.
 - **Waiting task.** `WAITING` (accepted by the server, not yet on a scheduler) is read as
-  pending, not as an error. It is reported on the first poll and every 12 polls after that, and
+  pending, not as an error, whatever command it waits on: law reports a new task
+  (`WAITING on command SUBMIT`) as pending itself, without a limit, and cannot read the other
+  commands at all. It is reported on the first poll and every 12 polls after that, and
   the run stops once one task has been in that state for more than 60 consecutive polls (about
   five hours at the default cadence): the server accepted the task, so the TaskWorker is the place to look.
+  A task in this state that already publishes per-job states keeps them. Only `WAITING` is
+  bounded this way; a task stuck in another state that law reports as pending (`NEW`,
+  `HOLDING`, `QUEUED`, or `SUBMITTED` before the scheduler reports it) is polled without a
+  limit.
 - **Unreadable response.** `crab status` occasionally returns output that cannot be parsed. The
   query is retried (3 times, 15 s apart), then the task's jobs are reported *pending*, with one
   message per task naming the first lines of what crab returned. After more than 10 consecutive
   unreadable polls of one task the run stops. Any query failure is ridden out this way (an
-  expired proxy or a deleted project directory included), so a genuinely dead task surfaces only
+  expired proxy or a project directory that cannot be read included: law then reports
+  `project directory '…' does not exist` without running `crab`, also when the directory is
+  there but unreadable, say behind an expired AFS token), so a genuinely dead task surfaces only
   when the tolerance runs out — about an hour at the default cadence. While a task is degraded
   law sees no failures and resubmits nothing for it; other CRAB tasks are unaffected.
 - **Finished means on storage.** A CRAB `FINISHED` is believed only when the branch's outputs
@@ -317,10 +334,10 @@ follows.
   carries no exception, is said to be so, once per attempt. Jobs failed without an exit code
   (kills, refused tasks, watchdog verdicts) get no such line.
 
-All conditions that end the run (the second refusal, the waiting limit, the unreadable limit) are
-raised from the poll callback, not from the query: law runs queries in a thread pool and turns
-an exception raised there into one more failed query, so the run would only end several polls
-later.
+All conditions that end the run (the second refusal, the second failed submission, the waiting
+limit, the unreadable limit) are raised from the poll callback, not from the query: law runs
+queries in a thread pool and turns an exception raised there into one more failed query, so the
+run would only end several polls later.
 
 ## Stall watchdog
 
@@ -429,7 +446,8 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
     The analyses mark `core` as `hashed: true`, so it is published as
     `core_<hash>.tar.bz2` and a code change produces a new file instead of replacing
     the live one (see [Bundles are named after what they contain](htcondor.md#bundles-are-named-after-what-they-contain)).
-    Unhashed flavours (`soft.tar.bz2`, `cmssw.tar.bz2`, …) keep their name. `BundleTask`
+    Unhashed flavours (`cmssw.tar.bz2`, …) keep their name, except the one that packs
+    `flaf_env`, which is named after the law it carries (`soft_law0.1.21.tar.bz2`). `BundleTask`
     can stay DONE after such a bundle is deleted because of the path-existence cache,
     and workers then get HTTP 404. Rebuild into a sibling file and `mv` it over the
     live path; do not `cp` onto a file jobs may be downloading (a mid-copy can stage

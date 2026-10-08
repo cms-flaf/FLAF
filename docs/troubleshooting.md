@@ -19,6 +19,21 @@ You cloned without `--recursive`, so submodules (FLAF, PlotKit, physics tools) a
 git submodule update --init --recursive
 ```
 
+## `FLAF requires law 0.1.21, but law … is installed`
+FLAF runs with law 0.1.21 only, and refuses to be imported under another release. Source the
+analysis `env.sh` again: it installs the pinned law into `flaf_env` (with network access). In an
+environment of your own, `pip install law==0.1.21`.
+
+A batch job that stops in `env.sh` with `… has law …, FLAF requires 0.1.21, and nothing is
+installed from a law batch job or with FLAF_NO_INSTALL=1` found another law in the environment it
+runs from, and a job never installs one, because other jobs run from that environment too. A job
+without `--bundle` uses the `flaf_env` of the checkout on AFS: source `env.sh` on the submitting
+machine, which brings it to 0.1.21, and resubmit. A bundle job unpacked an environment bundle with
+another law; the bundle that packs `flaf_env` is named after its law release, so that only happens
+when a bundle was replaced by hand. `ERROR: cannot tell which law … holds`, below a Python error,
+means the check itself failed (storage that did not answer, for example), and nothing was
+installed. See [The environment](concepts/environment.md#what-envsh-sets-up).
+
 ## A run unexpectedly drops into `InputFileTask` / Rucio errors
 For a from-scratch production, `InputFileTask` running first is normal. But if a run that should
 reuse existing outputs keeps re-resolving inputs, or fails here, the cause is almost always a
@@ -61,6 +76,10 @@ law index --verbose
 ```
 
 Needed after **adding/renaming/moving** a task class (not after editing an existing one's body).
+
+A batch job that fails with `task family 'FLAF.….<Task>' not found in index` is a different
+problem: law reports a task module it cannot import this way, so the FLAF package was not
+importable on the worker (a bootstrap or bundle that did not set it up).
 
 ## EOS read-after-write lag
 EOS is eventually consistent: a file you just wrote can be briefly invisible to an existence check
@@ -129,6 +148,14 @@ The message carries the server's reason and the project directory. The usual cau
 (`<analysis>/data/cms_psn_sites.json`) is dropped automatically so the next submission re-reads
 CRIC. The jobs are resubmitted as a new task; a second refusal in the same run stops it. Check
 `crab.whitelist` and `crab.blacklist`. See [CRAB → Status handling](workflow/crab.md#status-handling).
+
+## CRAB: the server failed to submit a task (`SUBMITFAILED`)
+law reports the task's jobs failed and submits them again as a new task, and FLAF prints the
+server's `Failure message from server` once with the project directory. A second failed
+submission in the same run stops it, quoting the message: the cause did not go away. A common
+one is a MyProxy credential the TaskWorker cannot retrieve (see the next entry); otherwise
+`crab status -d <project directory>` and the task URL it prints show what the server says. See
+[CRAB → Status handling](workflow/crab.md#status-handling).
 
 ## CRAB: "MyProxy credential valid for at least 5 days" is refused
 The credential must be stored under the SHA1 of the DN with CRAB's retrieval policy. A bare

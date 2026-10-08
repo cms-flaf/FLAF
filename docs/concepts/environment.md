@@ -10,7 +10,8 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
 
 1. **Activates `flaf_env`** — a Python virtual environment built from the CVMFS `LCG_110a` stack
    (`x86_64-el9-gcc15-opt`), under `soft/flaf_env`. This provides Python, ROOT and the FLAF
-   dependencies, and registers the `law` command with tab-completion.
+   dependencies, law pinned to `0.1.21` among them, and registers the `law` command with
+   tab-completion.
 2. **Provides CMSSW** — installs/uses `CMSSW_16_0_6` (compiler `gcc13`) under `soft/`. Most of
    the pipeline runs in `flaf_env`; CMSSW is used only where the configuration asks for it:
    AnaTuple production when `use_cmssw_env_AnaTupleProduction: true` (set by HH_bbtautau only —
@@ -54,6 +55,28 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
     that earlier versions built inside the CMSSW area
     (`soft/CMSSW_16_0_6/src/HiggsAnalysis/CombinedLimit/build`) is removed on the way.
 
+!!! warning "FLAF runs with one law release"
+    FLAF is written against law **0.1.21** exactly: the CRAB job manager's keywords, the CRAB
+    server states law accepts and the run block of law's job script changed in that release, and
+    another one would not fail but submit and poll wrongly. `FLAF/env.sh` pins it
+    (`FLAF_LAW_VERSION`), and `run_tools/law_customizations.py` refuses to be imported under any
+    other release, with `FLAF requires law 0.1.21, but law … is installed`. Every `source env.sh`
+    checks the law in `flaf_env` and, when it differs from the pin, installs the pinned one in
+    place (`Bringing law in … from 0.1.20 to 0.1.21 ...`, network access needed); the rest of the
+    environment is kept. Do it in a checkout whose jobs are not running. This happens on the
+    submitting machine only: inside a law batch job (law sets `LAW_JOB_HOME` there, so a
+    non-bundle HTCondor job that sources `env.sh` from AFS counts as well) and with
+    `FLAF_NO_INSTALL=1` (bundle jobs), a different law stops `env.sh` with
+    `ERROR: … has law …, FLAF requires 0.1.21, and nothing is installed from a law batch job or
+    with FLAF_NO_INSTALL=1. Source env.sh on the submitting machine, …, and resubmit.` instead, so
+    no worker writes into an environment that other jobs run from. A check that cannot read
+    which law `flaf_env` holds stops `env.sh` with `ERROR: cannot tell which law … holds` below
+    Python's own error, and installs nothing. The `soft` bundle
+    is named after the law it carries (`soft_law0.1.21.tar.bz2`), so the first submission after
+    an upgrade rebuilds it even for an existing `--version`; the old `soft.tar.bz2` is no longer
+    used. The CRAB sandbox environment law caches in `$LAW_HOME/cms/cmssw_cache` is rebuilt once
+    on the first CRAB run (the release itself is not reinstalled).
+
 ## Key environment variables
 
 | Variable | Meaning |
@@ -69,7 +92,7 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
 | `ANALYSIS_DATA_PATH` | The local `data/` working area. |
 | `X509_USER_PROXY` | Your VOMS proxy (default `data/voms.proxy`; a value set before sourcing is kept). |
 | `LAW_HOME` / `LAW_CONFIG_FILE` | LAW's home (`.law`) and config (`config/law.cfg`). |
-| `FLAF_NO_INSTALL` | When `1`, `env.sh` refuses to build anything and skips CMSSW/Combine entirely if no CMSSW area is present. Set by the bootstrap of bundle jobs, which have a CMSSW area only when the `cmssw` flavour is shipped. |
+| `FLAF_NO_INSTALL` | When `1`, `env.sh` refuses to build or change anything (a `flaf_env` with another law than the pinned one included) and skips CMSSW/Combine entirely if no CMSSW area is present. Set by the bootstrap of bundle jobs, which have a CMSSW area only when the `cmssw` flavour is shipped. |
 
 ## `cmsEnv`: running inside CMSSW
 

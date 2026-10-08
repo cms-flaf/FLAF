@@ -77,7 +77,7 @@ cd "${ANALYSIS_NAME}"
 # Install (or, for a restored reference, validate) the analysis environment before the
 # requested revisions are applied, so that the reference archive published below carries
 # it. env.sh is a no-op when the installation flags of the current LCG/CMSSW versions are
-# already there, and reinstalls only what those versions changed.
+# already there and flaf_env has the pinned law, and reinstalls only what those changed.
 echo "Preparing the analysis environment..."
 (
   source_analysis_env

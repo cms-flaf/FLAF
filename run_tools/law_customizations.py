@@ -31,6 +31,18 @@ from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget, WLCGDirectoryTa
 from FLAF.Common.Setup import Setup
 from FLAF.AnaProd.CostModel import pack_units
 
+#: the one law release FLAF is written against. The CRAB job manager's keywords, the server
+#: states law accepts and law_job.sh's run block all changed in 0.1.21, so another release
+#: does not fail at import but submits and polls wrongly, in silence.
+LAW_VERSION = "0.1.21"
+if law.__version__ != LAW_VERSION:
+    raise RuntimeError(
+        f"FLAF requires law {LAW_VERSION}, but law {law.__version__} is installed "
+        f"({os.path.dirname(law.__file__)}). Source the analysis env.sh again: it brings "
+        f"flaf_env to law {LAW_VERSION}; in any other environment run "
+        f"`pip install law=={LAW_VERSION}`."
+    )
+
 law.contrib.load("htcondor")
 law.contrib.load("cms")
 
@@ -701,10 +713,27 @@ class BundleTask(Task):
                 path = os.path.join(dir_path, name)
                 yield path, os.path.relpath(path, source)
 
+    def packs_law(self):
+        """Whether this flavour packs flaf_env, and with it the law installation.
+
+        Decided on the paths alone: a stat that fails while the storage blinks must not flip
+        the bundle's name.
+        """
+        env = os.path.abspath(os.environ["FLAF_ENVIRONMENT_PATH"])
+        for pattern in self.bundle_patterns():
+            source = os.path.abspath(self.bundle_source(pattern))
+            if env == source or env.startswith(source + os.sep):
+                return True
+        return False
+
     def output(self):
         name = self.flavour
         if self.bundle_cfg().get("hashed", False):
             name = f"{self.flavour}_{self.source_hash()}"
+        elif self.packs_law():
+            # The job script and wrappers are rendered from the driver's law: an unhashed
+            # environment bundle built before a law upgrade would run them against the old one.
+            name = f"{self.flavour}_law{law.__version__}"
         return self.remote_target(
             self.version, "bundles", self.period, f"{name}.tar.bz2"
         )
@@ -822,29 +851,101 @@ class BundleTask(Task):
         return n
 
 
-def law_job_no_print_deps():
-    """law's job script with ``deps_depth=0``, so a worker does not print huge dependency trees.
+#: law's per-branch run loop in law_job.sh (law 0.1.21): one `law run --branch=b` process
+#: per branch, and the job stops at the first branch that fails
+_LAW_JOB_BRANCH_LOOP_RE = re.compile(
+    r"^    for b in \$\{LAW_JOB_TASK_BRANCHES\}; do\n(?:.*\n)*?^    done\n",
+    re.MULTILINE,
+)
 
-    Regenerated when law's own copy is newer. A stat of law's tree that fails -- the software
-    tree's storage blinking -- reuses the existing copy instead of failing the submission.
+#: what FLAF runs instead: law 0.1.20's grouped run, all branches of a job in one law process
+#: (`--branches=... --workflow=local` for more than one), so a failing branch does not keep
+#: its group-mates from running, and no dependency tree is printed (`--print-deps=0`)
+_LAW_JOB_GROUPED_RUN = r"""    local branch_param="branch"
+    local workflow_param=""
+    if [ "${LAW_JOB_TASK_N_BRANCHES}" != "1" ]; then
+        branch_param="branches"
+        workflow_param="--workflow=local"
+    fi
+
+    _law_job_section "run task ${branch_param} ${LAW_JOB_TASK_BRANCHES_CSV}"
+
+    # build the full command
+    local cmd="${law_exe} run ${LAW_JOB_TASK_MODULE}.${LAW_JOB_TASK_CLASS} ${LAW_JOB_TASK_PARAMS} --${branch_param}=${LAW_JOB_TASK_BRANCHES_CSV} ${workflow_param} --workers=${LAW_JOB_WORKERS}"
+    echo "cmd: ${cmd}"
+    echo
+
+    _law_job_subsection "dependency tree"
+    eval "LAW_LOG_LEVEL=INFO ${cmd} --print-deps=0"
+    local law_ret="$?"
+    if [ "${law_ret}" != "0" ]; then
+        >&2 echo "dependency tree for ${branch_param} ${LAW_JOB_TASK_BRANCHES_CSV} failed (exit code ${law_ret}), stop job"
+        _law_job_call_hook law_hook_job_failed "50" "${law_ret}"
+        _law_job_finalize "50" "${law_ret}"
+        return "$?"
+    fi
+
+    echo
+    _law_job_subsection "execute attempt 1"
+    export LAW_JOB_ATTEMPT="1"
+    date +"%d/%m/%Y %T.%N (%Z)"
+    eval "${cmd}"
+    law_ret="$?"
+    echo "task exit code: ${law_ret}"
+    date +"%d/%m/%Y %T.%N (%Z)"
+
+    if [ "${law_ret}" != "0" ] && [ "${LAW_JOB_AUTO_RETRY}" = "yes" ]; then
+        echo
+        _law_job_subsection "execute attempt 2"
+        export LAW_JOB_ATTEMPT="2"
+        date +"%d/%m/%Y %T.%N (%Z)"
+        eval "${cmd}"
+        law_ret="$?"
+        echo "task exit code: ${law_ret}"
+        date +"%d/%m/%Y %T.%N (%Z)"
+    fi
+
+    if [ "${law_ret}" != "0" ]; then
+        >&2 echo "execution of ${branch_param} ${LAW_JOB_TASK_BRANCHES_CSV} failed (exit code ${law_ret}), stop job"
+        _law_job_call_hook law_hook_job_failed "60" "${law_ret}"
+        _law_job_finalize "60" "${law_ret}"
+        return "$?"
+    fi
+"""
+
+#: law_job.sh path -> (file name, content) of the script generated from it in this process
+_grouped_law_job_scripts = {}
+
+
+def grouped_law_job_script():
+    """law's job script with its per-branch run loop replaced by FLAF's grouped run.
+
+    The file is named after its content, so a different law, or a change of the block here,
+    gives a new file instead of reusing a stale one. law's script is read once per process: a
+    read of the software tree that fails later -- its storage blinking -- does not fail the
+    submission.
     """
     original = law.util.law_src_path("job", "law_job.sh")
-    custom = os.path.join(os.getenv("ANALYSIS_DATA_PATH"), "law_job_no_print_deps.sh")
-    if os.path.exists(custom):
-        try:
-            stale = os.path.getmtime(original) > os.path.getmtime(custom)
-        except OSError:
-            stale = False
-        if not stale:
-            return custom
-    with open(original) as f:
-        content = f.read()
-    content = re.sub(r'\bdeps_depth="[0-9]+"', 'deps_depth="0"', content)
-    tmp = f"{custom}.tmp{os.getpid()}"
-    with open(tmp, "w") as f:
-        f.write(content)
-    os.chmod(tmp, 0o755)
-    os.replace(tmp, custom)
+    if original not in _grouped_law_job_scripts:
+        with open(original) as f:
+            content, n = _LAW_JOB_BRANCH_LOOP_RE.subn(
+                lambda _: _LAW_JOB_GROUPED_RUN, f.read()
+            )
+        if n != 1:
+            raise RuntimeError(
+                f"{original} (law {law.__version__}) has {n} per-branch run loops where "
+                "FLAF expects exactly one, so the grouped run cannot be put in its place"
+            )
+        digest = hashlib.sha256(content.encode()).hexdigest()[:12]
+        _grouped_law_job_scripts[original] = (f"law_job_flaf_{digest}.sh", content)
+    name, content = _grouped_law_job_scripts[original]
+    custom = os.path.join(os.getenv("ANALYSIS_DATA_PATH"), name)
+    if not os.path.exists(custom):
+        tmp = f"{custom}.tmp{os.getpid()}"
+        with open(tmp, "w") as f:
+            f.write(content)
+        os.chmod(tmp, 0o755)
+        os.replace(tmp, custom)
     return custom
 
 
@@ -1243,7 +1344,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         from law.job.base import JobInputFile
 
         return JobInputFile(
-            path=law_job_no_print_deps(), copy=True, share=True, render_job=True
+            path=grouped_law_job_script(), copy=True, share=True, render_job=True
         )
 
 
@@ -1261,27 +1362,20 @@ BundleAwareHTCondorWorkflowProxyBase = HTCondorWorkflow.workflow_proxy_cls
 
 
 class LawProxyState:
-    """Access to workflow-proxy state whose names differ between law versions.
+    """Workflow-proxy state of law that the FLAF proxies read and change.
 
-    law 0.1.20 keeps the skip-verdict cache and the retry counters as ``_skip_jobs`` /
-    ``_job_retries``; older releases (such as the copy vendored in the inference
-    submodule) expose them without the underscore.  Both spellings hold the same state,
-    so read whichever the installed version provides instead of pinning to one.
+    law 0.1.21 keeps the skip-verdict cache and the retry counters in ``_skip_jobs`` /
+    ``_job_retries``, outside its API. They are named for that release alone: the module
+    refuses any other law release at import (``LAW_VERSION``).
     """
-
-    def _law_state(self, *names):
-        for name in names:
-            if hasattr(self, name):
-                return getattr(self, name)
-        raise AttributeError(f"none of {names} found on {type(self).__name__}")
 
     @property
     def _cost_skip_jobs(self):
-        return self._law_state("_skip_jobs", "skip_jobs")
+        return self._skip_jobs
 
     @property
     def _cost_job_retries(self):
-        return self._law_state("_job_retries", "job_retries")
+        return self._job_retries
 
 
 class SubmissionGuards(LawProxyState):
@@ -1417,7 +1511,7 @@ class SubmissionGuards(LawProxyState):
         # branches are incomplete on a fresh look counts as lost; the others are marked
         # skippable, so that law's submit() passes them by and its next poll books them done.
         require_fresh_negatives()
-        skip_jobs = self._law_state("_skip_jobs", "skip_jobs")
+        skip_jobs = self._skip_jobs
         lost = []
         for job_num in candidates:
             if all(self.task.as_branch(b).complete() for b in retry_jobs[job_num]):
@@ -1800,8 +1894,6 @@ class FLAFCrabJobFileFactory(law.cms.CrabJobFileFactory):
     ``Site.storageSite`` / ``Data.outLFNDirBase`` remain required by the CRAB client
     for a valid config and the submit-time write check, but FLAF never places analysis
     outputs there.
-
-    Also strips deprecated ``JobType.sendPythonFolder`` (rejected by modern CRAB).
     """
 
     def create(self, **kwargs):
@@ -1820,7 +1912,6 @@ class FLAFCrabJobFileFactory(law.cms.CrabJobFileFactory):
             c.crab.General.transferOutputs = False
             c.crab.General.transferLogs = False
             if getattr(c.crab, "JobType", None) is not None:
-                c.crab.JobType.sendPythonFolder = None
                 c.crab.JobType.outputFiles = None
                 c.crab.JobType.disableAutomaticOutputCollection = True
         c.output_files = []
@@ -1835,7 +1926,7 @@ class FLAFCrabJobFileFactory(law.cms.CrabJobFileFactory):
 
     @staticmethod
     def _rewrite_crab_job_file(job_file):
-        """Rewrite the generated CRAB cfg to drop output transfer and deprecated keys."""
+        """Rewrite the generated CRAB cfg to drop output transfer."""
         with open(job_file) as f:
             lines = f.readlines()
 
@@ -1843,10 +1934,6 @@ class FLAFCrabJobFileFactory(law.cms.CrabJobFileFactory):
         skip_list = False
         for ln in lines:
             stripped = ln.strip()
-
-            # Skip deprecated option entirely.
-            if "sendPythonFolder" in ln:
-                continue
 
             # Force no CRAB-side transfers (FLAF owns remote I/O).
             if "General.transferOutputs" in ln:
@@ -1974,10 +2061,25 @@ class CrabTaskNotScheduledYet(Exception):
         )
 
 
+class CrabTaskSubmitFailed(Exception):
+    """A task the CRAB server failed to submit, carrying law's report of its jobs (failed)."""
+
+    def __init__(self, state, message, proj_dir, result):
+        self.state = state
+        self.message = message
+        self.proj_dir = proj_dir
+        self.result = result
+        super(CrabTaskSubmitFailed, self).__init__(
+            f"the CRAB server failed to submit {os.path.basename(str(proj_dir))} ({state}): "
+            f"{message or 'the server gave no failure message'}"
+        )
+
+
 class FLAFCrabJobManager(law.cms.CrabJobManager):
     """CRAB job manager that rides out a status response it cannot read, recognises a task
-    the server refused or has not scheduled yet, keeps the CRAB client out of the AFS home,
-    feeds the per-site job record, reports why jobs failed and applies the stall watchdog.
+    the server refused, failed to submit or has not scheduled yet, keeps the CRAB client out
+    of the AFS home, feeds the per-site job record, reports why jobs failed and applies the
+    stall watchdog.
 
     ``crab status`` occasionally returns output with no "Status on the CRAB server" line
     at all. law then raises, and because a group failure is mapped onto every job of the
@@ -2022,15 +2124,21 @@ class FLAFCrabJobManager(law.cms.CrabJobManager):
     #: server statuses of a task that will never produce a job. `SUBMITREFUSED` is set by
     #: the CRAB TaskWorker when it rejects the request outright -- an unknown site name in
     #: the whitelist, say -- and it is absorbing: `crab resubmit` and `crab kill` refuse a
-    #: task in it. Its jobs are reported failed instead, which law retries into a fresh
-    #: task. `SUBMITFAILED` is deliberately absent: that is the TaskWorker or the schedd
-    #: failing rather than refusing, the transient class the retry path already handles.
+    #: task in it. law cannot read its status, so its jobs are reported failed here, which
+    #: law retries into a fresh task.
     terminal_server_states = ("SUBMITREFUSED",)
 
-    #: statuses meaning "accepted, but not on a scheduler yet" that law 0.1.20 does not
-    #: know. Every task now enters the CRAB database as `WAITING` and is promoted later, so
-    #: without this a healthy submission is retried as unreadable and counts against
-    #: `max_unreadable_polls` -- and a backlogged TaskWorker is exactly when a task lingers.
+    #: server statuses of a task the TaskWorker or the schedd failed to submit. law reports
+    #: its jobs failed itself and retries them into a fresh task, which is what recovers a
+    #: one-off failure; only how often that may happen is bounded here.
+    failed_server_states = ("SUBMITFAILED",)
+
+    #: statuses meaning "accepted, but not on a scheduler yet". Every task enters the CRAB
+    #: database as `WAITING` and is promoted later. law reports `WAITING on command SUBMIT`,
+    #: the form of every new task, as pending without a bound, and cannot read the other
+    #: commands at all, which would count against `max_unreadable_polls`; both are
+    #: classified here, so a backlogged TaskWorker -- exactly when a task lingers -- costs
+    #: no retry, and a task that never leaves the state still stops the run.
     pending_server_states = ("WAITING",)
 
     #: polls a task may spend unscheduled before the run is stopped (five hours at the
@@ -2046,6 +2154,12 @@ class FLAFCrabJobManager(law.cms.CrabJobManager):
     #: dropped here, so a second one on a freshly read list is a configuration fault, and
     #: retrying would spend every branch's attempts on the same verdict.
     max_refused_submissions = 2
+
+    #: distinct submissions of this run the server may fail to submit before the run is
+    #: stopped. One can be the TaskWorker's bad luck; a second is a cause that will not go
+    #: away (a MyProxy credential the TaskWorker cannot retrieve, say), and law would spend
+    #: every branch's attempts submitting into it.
+    max_failed_submissions = 2
 
     #: per-site record to feed, injected by CrabWorkflow.crab_create_job_manager; None
     #: disables harvesting
@@ -2071,11 +2185,13 @@ class FLAFCrabJobManager(law.cms.CrabJobManager):
         self._in_flight = {}
         #: keys already reported, so a status that repeats every poll is printed once
         self._noted = set()
-        #: project dirs this run submitted: only a refusal of one of them says anything
-        #: about the configuration this run is using
+        #: project dirs this run submitted: only a refusal or a failed submission of one of
+        #: them says anything about the configuration this run is using
         self._submitted_projects = set()
         #: project dirs of this run's submissions the server refused, counted once each
         self._refused_projects = set()
+        #: project dirs of this run's submissions the server failed to submit, the same way
+        self._failed_projects = set()
         #: why the run must stop, read and raised by the poll callback
         self.stop_reason = None
         #: log URLs whose payload error was already printed -- the URL carries the attempt,
@@ -2152,6 +2268,25 @@ class FLAFCrabJobManager(law.cms.CrabJobManager):
         return (status or "").split(" on command ")[0].strip().upper()
 
     @classmethod
+    def server_failure(cls, out):
+        """The `Failure message from server` value, matched per line as law matches it."""
+        for line in (out or "").replace("\r", "").split("\n"):
+            match = cls.query_server_failure_cre.match(line.strip())
+            if match:
+                return match.group(1).strip()
+        return None
+
+    @classmethod
+    def has_per_job_data(cls, out):
+        """Whether a response carries a scheduler status and the per-job JSON line, as law
+        matches them: without both, law reports every job of the task from the server status
+        alone."""
+        lines = (out or "").replace("\r", "").split("\n")
+        return any(
+            cls.query_scheduler_status_cre.match(line) for line in lines
+        ) and any(cls.query_json_line_cre.match(line) for line in lines)
+
+    @classmethod
     def server_warnings(cls, out):
         """The `Warning:` lines of a status response -- where a refusal states its reason.
 
@@ -2187,13 +2322,15 @@ class FLAFCrabJobManager(law.cms.CrabJobManager):
         Attach the head of it — the status lines live in the first few lines, and the
         per-job JSON that follows is megabytes, so a slice is enough.
 
-        A task the server has refused, and one it has merely not scheduled yet, are both
-        reported by law as an unreadable status; they are told apart here, on the server
-        status law itself extracted. The test happens only after law has refused the
-        response, so a task that still publishes per-job JSON keeps its real job states.
+        Tasks without per-job information are classified on the server status: a refused
+        task, which law cannot read; a task not scheduled yet, which law either reports
+        pending without a bound (`WAITING on command SUBMIT`) or cannot read (any other
+        command); and a task the server failed to submit, which law reports failed. The
+        last two are raised only when the response has no per-job JSON, so a task that
+        still publishes it keeps its real job states.
         """
         try:
-            return super(FLAFCrabJobManager, cls).parse_query_output(
+            result = super(FLAFCrabJobManager, cls).parse_query_output(
                 out, proj_dir, job_ids, skip_transfers=skip_transfers
             )
         except Exception as exc:
@@ -2212,6 +2349,12 @@ class FLAFCrabJobManager(law.cms.CrabJobManager):
                 f"{exc}\n    first lines of what crab returned ({len(out or '')} bytes):"
                 f"\n      {shown}"
             )
+        state = cls.server_state(out)
+        if state in cls.pending_server_states and not cls.has_per_job_data(out):
+            raise CrabTaskNotScheduledYet(state)
+        if state in cls.failed_server_states and not cls.has_per_job_data(out):
+            raise CrabTaskSubmitFailed(state, cls.server_failure(out), proj_dir, result)
+        return result
 
     def query(self, proj_dir, job_ids=None, *args, **kwargs):
         proj_dir = str(proj_dir)
@@ -2228,6 +2371,9 @@ class FLAFCrabJobManager(law.cms.CrabJobManager):
             except CrabTaskNotScheduledYet as exc:
                 # not an error at all, so neither the delay nor the unreadable count applies
                 return self._not_scheduled_yet(exc, proj_dir, job_ids)
+            except CrabTaskSubmitFailed as exc:
+                # law's own verdict, read without error: nothing to retry
+                return self._submit_failed(exc, proj_dir)
             except Exception as exc:
                 # law raises before parsing when the client exits non-zero, with the output
                 # it read inside the message: a refusal must be recognised there too
@@ -2381,6 +2527,37 @@ class FLAFCrabJobManager(law.cms.CrabJobManager):
             )
             for job_id in job_ids
         }
+
+    def _submit_failed(self, exc, proj_dir):
+        """Return law's report of a task the server failed to submit: every job failed, which
+        law retries into a new task. `code` is None there, so no site is charged.
+
+        Counted like a refusal: a second failed submission of this run stops it.
+        """
+        self._unreadable.pop(proj_dir, None)
+        ours = str(proj_dir) in self._submitted_projects
+        if ours:
+            self._failed_projects.add(str(proj_dir))
+        whose = (
+            "this submission"
+            if ours
+            else "a submission left by an earlier run (nothing this run sent)"
+        )
+        report = (
+            f"the CRAB server failed {whose} ({exc.state}); law submits its jobs again as "
+            f"a new task.\n  project:  {proj_dir}\n  server:   "
+            f"{exc.message or '<the server gave no failure message>'}"
+        )
+        self._note_once(("submit failed", proj_dir), report)
+        if len(self._failed_projects) >= self.max_failed_submissions:
+            # recorded, not raised (see the class docstring); law's failed jobs are returned
+            # below either way
+            self.stop_reason = (
+                f"{len(self._failed_projects)} submissions made by this run have failed on "
+                "the CRAB server, so the next one would too: law would spend every "
+                "branch's attempts on it.\n" + report
+            )
+        return exc.result
 
     def _apply_watchdog(self, result):
         """Turn a stalled job into a failed one, on this poll's fresh status.
@@ -2617,7 +2794,7 @@ class _FLAFCrabWorkflowProxy(SubmissionGuards, _FLAFCrabWorkflowProxyBase):
         # first poll of a resumed run sends finished branches back to the grid.
         require_fresh_negatives()
         self._existing_branches = None
-        self._law_state("_skip_jobs", "skip_jobs").clear()
+        self._skip_jobs.clear()
         return super(_FLAFCrabWorkflowProxy, self).run()
 
     def _crab_number(self, key, default):
@@ -2825,7 +3002,7 @@ class _FLAFCrabWorkflowProxy(SubmissionGuards, _FLAFCrabWorkflowProxyBase):
                 f"VOMS proxy at {proxy} is missing or expired; run "
                 "`voms-proxy-init --voms cms -valid 192:00`"
             )
-        kwargs = {"proxy": proxy}
+        kwargs = {"proxy_file": proxy}
         # CRABClient names the credential sha1(DN) and looks under no other name, so one
         # stored under the plain DN -- what a bare `myproxy-init -d` leaves behind -- is
         # invisible to the TaskWorker and must not satisfy this gate: the task would be
@@ -3276,16 +3453,16 @@ process.out = cms.EndPath(process.output)
         return FLAFCrabJobFileFactory
 
     def crab_job_file(self):
-        # Same deps_depth=0 patch as HTCondor: avoid huge print_deps on the worker.
+        # the same grouped run as HTCondor (see grouped_law_job_script)
         from law.job.base import JobInputFile
 
         return JobInputFile(
-            path=law_job_no_print_deps(), copy=True, share=True, render_job=True
+            path=grouped_law_job_script(), copy=True, share=True, render_job=True
         )
 
     def crab_job_config(self, config, job_nums, branches=None):
-        # law 0.1.20 calls crab_job_config(config, list(keys), list(values)); the base
-        # signature documents a single submit_jobs arg, but the call site passes two lists.
+        # law 0.1.21 calls crab_job_config(config, job_nums, branches) once per submission,
+        # with the job numbers and their branch lists as two parallel lists.
         if not self.bundle_flavours:
             raise RuntimeError(
                 f"{self.__class__.__name__}: --workflow crab requires bundle_flavours"

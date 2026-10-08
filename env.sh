@@ -243,6 +243,8 @@ load_flaf_env() {
 
   local FLAF_LCG_VERSION="LCG_110a"
   local FLAF_LCG_ARCH="x86_64-el9-gcc15-opt"
+  # the only law release FLAF runs with (LAW_VERSION in run_tools/law_customizations.py)
+  local FLAF_LAW_VERSION="0.1.21"
   if [[ ! -f "$FLAF_ENVIRONMENT_PATH/.${FLAF_LCG_VERSION}_${FLAF_LCG_ARCH}" ]]; then
     if [[ "${FLAF_NO_INSTALL:-0}" == "1" ]]; then
       echo "ERROR: FLAF environment not found at $FLAF_ENVIRONMENT_PATH and FLAF_NO_INSTALL=1"
@@ -254,9 +256,31 @@ load_flaf_env() {
       run_cmd rm -rf "$FLAF_ENVIRONMENT_PATH"
     fi
     echo "Creating FLAF environment in $FLAF_ENVIRONMENT_PATH ..."
-    run_cmd $FLAF_PATH/run_tools/mk_flaf_env.sh "$FLAF_ENVIRONMENT_PATH" "$FLAF_LCG_VERSION" "$FLAF_LCG_ARCH"
+    run_cmd $FLAF_PATH/run_tools/mk_flaf_env.sh "$FLAF_ENVIRONMENT_PATH" "$FLAF_LCG_VERSION" "$FLAF_LCG_ARCH" \
+      "$FLAF_LAW_VERSION"
   fi
   source "$FLAF_ENVIRONMENT_PATH/bin/activate"
+  # The marker above records the LCG release only: an environment built for another law is
+  # brought to the pinned one here, on the submitting machine only. A batch job (law exports
+  # LAW_JOB_HOME before the bootstrap sources this file) runs from an environment that other jobs
+  # share, so it never installs into it; and a check that fails says nothing about which law is
+  # there, so it never leads to an install either. site-packages is listed first because
+  # importlib.metadata skips a directory it cannot list, which would read as "no law".
+  local flaf_law_installed
+  if ! flaf_law_installed="$(python3 -c 'import importlib.metadata as m, os, sysconfig; os.listdir(sysconfig.get_paths()["purelib"]); print(next((d.version for d in m.distributions(name="law")), ""))')"; then
+    echo "ERROR: cannot tell which law $FLAF_ENVIRONMENT_PATH holds: the check above failed"
+    kill -INT $$
+    return 1
+  fi
+  if [[ "$flaf_law_installed" != "$FLAF_LAW_VERSION" ]]; then
+    if [[ "${FLAF_NO_INSTALL:-0}" == "1" || -n "$LAW_JOB_HOME" ]]; then
+      echo "ERROR: $FLAF_ENVIRONMENT_PATH has law ${flaf_law_installed:-<none>}, FLAF requires $FLAF_LAW_VERSION, and nothing is installed from a law batch job or with FLAF_NO_INSTALL=1. Source env.sh on the submitting machine, which brings it to law $FLAF_LAW_VERSION, and resubmit."
+      kill -INT $$
+      return 1
+    fi
+    echo "Bringing law in $FLAF_ENVIRONMENT_PATH from ${flaf_law_installed:-<none>} to $FLAF_LAW_VERSION ..."
+    run_cmd python3 -m pip install "law==$FLAF_LAW_VERSION"
+  fi
 
   local os_version=$(cat /etc/os-release | grep VERSION_ID | sed -E 's/VERSION_ID="([0-9]+).*"/\1/')
   local os_prefix=$(get_os_prefix $os_version)

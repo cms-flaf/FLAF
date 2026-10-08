@@ -27,11 +27,12 @@ link_all() {
 
 install() {
     local env_base=$1
+    local law_version=$2
 
     echo "Installing packages in $env_base"
     run_cmd source $env_base/bin/activate
     run_cmd pip install --upgrade pip
-    run_cmd pip install luigi==3.8.1 law scinum
+    run_cmd pip install luigi==3.8.1 "law==$law_version" scinum
     run_cmd pip install https://github.com/riga/plotlib/archive/refs/heads/master.zip
     run_cmd pip install fastcrc
     run_cmd pip install bayesian-optimization
@@ -146,9 +147,10 @@ action() {
     local env_base="$1"
     local lcg_version="$2"
     local lcg_arch="$3"
+    local law_version="$4"
     # currently tuned for LCG_110a x86_64-el9-gcc15-opt
     run_cmd "$this_file" create "$env_base" "$lcg_version" "$lcg_arch"
-    run_cmd "$this_file" install "$env_base"
+    run_cmd "$this_file" install "$env_base" "$law_version"
     run_cmd "$this_file" install_gh_cli "$env_base"
     run_cmd touch "$env_base/.${lcg_version}_${lcg_arch}"
 }

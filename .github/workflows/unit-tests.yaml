@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyyaml luigi==3.8.1 law==0.1.20 pytest
+          pip install pyyaml luigi==3.8.1 law==0.1.21 pytest
 
       # Only the suites that need neither ROOT nor CVMFS nor a grid proxy; the CRAB and
       # remote-storage mechanics they cover run on a batch node only, where nothing else
@@ -48,6 +48,7 @@ jobs:
           test/test_crab_wave_gate.py
           test/test_fresh_negatives.py
           test/test_gfal_absent_vs_unreachable.py
+          test/test_law_version.py
           test/test_path_cache.py
           test/test_remote_log_names.py
           test/test_submission_guards.py

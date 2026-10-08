@@ -34,13 +34,19 @@ class Recorder:
     """Stands in for the gfal CLI, recording what would have been done to the storage.
 
     `contents` maps a path to its content. With `refuse_existing`, a rename onto an existing
-    name fails, as on a storage that does not replace the destination of a rename.
+    name fails, as on a storage that does not replace the destination of a rename. With
+    `corrupt`, every copy of SOURCE arrives damaged, so that its checksum never matches.
+    With `rm_fails`, every removal is recorded and then fails.
     """
 
-    def __init__(self, existing=None, refuse_existing=False):
+    def __init__(
+        self, existing=None, refuse_existing=False, corrupt=False, rm_fails=False
+    ):
         self.contents = {SOURCE: "new"}
         self.contents.update({TARGET: "old"} if existing is None else existing)
         self.refuse_existing = refuse_existing
+        self.corrupt = corrupt
+        self.rm_fails = rm_fails
         self.removed = []
         self.copied = []
         self.renamed = []
@@ -64,10 +70,15 @@ class Recorder:
 
     def _rm(self, path, **kw):
         self.removed.append(path)
+        if self.rm_fails:
+            raise GfalError(f'gfal_rm: unable to remove "{path}"')
         self.contents.pop(path, None)
 
     def _copy(self, src, dst, **kw):
         self.copied.append((src, dst))
+        if self.corrupt and src == SOURCE:
+            self.contents[dst] = "corrupt"
+            return
         # A source that is not tracked is a local file, e.g. the copy_flag marker.
         self.contents[dst] = self.contents.get(src, src)
 
@@ -187,7 +198,64 @@ class StorageThatDoesNotReplaceOnRename(unittest.TestCase):
                     verbose=0,
                 )
         self.assertNotIn(TARGET, rec.contents)
-        self.assertEqual(rec.removed, [])
+        # Nothing is removed to make the rename succeed; the only removal is the upload that
+        # could not be published (see AFailedPublishLeavesNoOrphan).
+        self.assertEqual(
+            [p for p in rec.removed if not grid_tools.is_copy_rename_tmp(p)], []
+        )
+        self.assertEqual(
+            [p for p in rec.contents if grid_tools.is_copy_rename_tmp(p)], []
+        )
+
+
+class AFailedPublishLeavesNoOrphan(unittest.TestCase):
+    """The tmp name of `copy_rename` is unique to one call, so no later attempt and no other
+    writer would ever remove it: a call that fails for good removes its own upload, and still
+    fails. The `copy_flag` tmp is the flag that marks the target incomplete and stays.
+    """
+
+    def failing_publish(self, mode, n_retries=2, **recorder_kwargs):
+        with contextlib.ExitStack() as stack:
+            rec = Recorder(corrupt=True, **recorder_kwargs).install(stack)
+            with self.assertRaises(GfalError) as caught:
+                grid_tools.gfal_copy_safe(
+                    SOURCE,
+                    TARGET,
+                    copy_mode=mode,
+                    voms_token="tok",
+                    n_retries=n_retries,
+                    retry_sleep_interval=0,
+                    verbose=0,
+                )
+        return rec, caught.exception
+
+    @staticmethod
+    def tmps(rec):
+        return [p for p in rec.contents if grid_tools.is_copy_rename_tmp(p)]
+
+    def test_an_upload_that_never_verifies_is_removed_and_the_copy_fails(self):
+        rec, err = self.failing_publish("copy_rename")
+        self.assertIn("Unable to copy", str(err))
+        self.assertEqual(self.tmps(rec), [])
+        ((_, tmp),) = set(rec.copied)
+        self.assertTrue(grid_tools.is_copy_rename_tmp(tmp), tmp)
+        self.assertEqual(rec.removed[-1], tmp)
+        self.assertEqual(rec.renamed, [])
+        self.assertEqual(rec.contents[TARGET], "old", "the published file is kept")
+        self.assertNotIn(TARGET, rec.removed)
+
+    def test_a_failed_removal_does_not_mask_the_copy_error(self):
+        rec, err = self.failing_publish("copy_rename", n_retries=1, rm_fails=True)
+        self.assertIn("Unable to copy", str(err))
+        self.assertNotIn("gfal_rm", str(err))
+        (tmp,) = self.tmps(rec)
+        self.assertEqual(rec.removed, [tmp], "the removal was tried and is best effort")
+
+    def test_copy_flag_keeps_its_flag(self):
+        rec, err = self.failing_publish("copy_flag", n_retries=1)
+        self.assertIn("Unable to copy", str(err))
+        self.assertIn(TARGET + grid_tools.COPY_TMP_SUFFIX, rec.contents)
+        self.assertEqual(rec.removed, [TARGET], "only the clearing before the copy")
 
 
 class GfalCopyForce(unittest.TestCase):

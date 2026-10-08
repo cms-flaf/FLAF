@@ -1,4 +1,5 @@
 import json
+import math
 import time
 import os
 import sys
@@ -346,6 +347,12 @@ class GFALFileInterface(RemoteFileInterface):
     # Set by require_fresh_negatives(); 0 keeps every cached negative usable.
     negatives_valid_after = 0.0
 
+    # A failed listing is reported once per directory within this many seconds. It is not
+    # remembered otherwise: every path asks again, so that once the storage answers, the
+    # rest of the directory is judged on a real listing -- a remembered failure would turn a
+    # brief blip into "absent" for every file of the directory.
+    failed_listing_report_seconds = 60.0
+
     def __init__(
         self,
         base,
@@ -370,6 +377,8 @@ class GFALFileInterface(RemoteFileInterface):
         self.listing_sizes = {}
         # dir uri -> time of the last listing by this process that the storage answered
         self._listed_at = {}
+        # dir uri -> time a failed listing of it was last reported
+        self._failed_at = {}
         super(GFALFileInterface, self).__init__(base=base)
 
     def is_local(self, path):
@@ -459,10 +468,11 @@ class GFALFileInterface(RemoteFileInterface):
             src_uri = src
             for dst_uri in dst_uris:
                 dst_dir_uri, _ = os.path.split(dst_uri)
-                self.path_cache.set(dst_uri, False)
-                # Publish by renaming a checksum-verified upload onto the target, so that
-                # the target never exists with partial content and an existing one is not
-                # removed before its replacement is complete.
+                # Publish by renaming a checksum-verified upload onto the target, so that the
+                # target never exists with partial content and an existing one is not removed
+                # before its replacement is complete. No "absent" is published for the target
+                # meanwhile: it stays in place until the rename, and a failed upload leaves it
+                # intact.
                 gfal_copy_safe(
                     src_uri,
                     dst_uri,
@@ -529,9 +539,18 @@ class GFALFileInterface(RemoteFileInterface):
         listed_at = time.time()
         try:
             entries = gfal_ls_checked(path_uri, voms_token=self.voms_token)
-        except GfalError:
+        except GfalError as e:
             if not silent:
                 raise
+            last = self._failed_at.get(path_uri, -math.inf)
+            if listed_at - last >= self.failed_listing_report_seconds:
+                self._failed_at[path_uri] = listed_at
+                reason = str(e).strip().splitlines()[-1] if str(e).strip() else repr(e)
+                print(
+                    f"GFALFileInterface: could not list {path_uri} ({reason}); files in it "
+                    "read as missing until it can be listed, and nothing is cached",
+                    file=sys.stderr,
+                )
             return [], False
         if entries is None:
             if not silent:

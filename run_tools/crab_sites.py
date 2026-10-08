@@ -338,20 +338,38 @@ class SiteStats:
 
     # -- recording --------------------------------------------------------------------------
 
-    def set_in_flight(self, counts, source=None):
+    #: in-flight counts of a source that has not reported for this long stop counting: a
+    #: workflow that stopped polling (it ended, or its run was stopped) would otherwise keep
+    #: its last snapshot in every other workflow's denominator for the rest of the process
+    in_flight_stale_seconds = 3600.0
+
+    def set_in_flight(self, counts, source=None, now=None):
         """Jobs still pending or running per site, as of the latest poll of `source`.
 
         Each source's counts replace that source's previous ones only, and `in_flight` is
-        their sum, so job managers sharing one record do not overwrite each other's.
+        their sum over the sources heard from recently, so job managers sharing one record
+        do not overwrite each other's.
         """
+        now = time.time() if now is None else now
         with self._lock:
-            self._in_flight_by_source[source] = {
-                s: n for s, n in (counts or {}).items() if is_site(s)
-            }
-            total = Counter()
-            for per_site in self._in_flight_by_source.values():
-                total.update(per_site)
-            self.in_flight = dict(total)
+            self._in_flight_by_source[source] = (
+                now,
+                {s: n for s, n in (counts or {}).items() if is_site(s)},
+            )
+            self._sum_in_flight(now)
+
+    def _sum_in_flight(self, now):
+        """`in_flight` as the sum over the sources heard from within the stale window."""
+        cutoff = now - self.in_flight_stale_seconds
+        self._in_flight_by_source = {
+            src: (t, per_site)
+            for src, (t, per_site) in self._in_flight_by_source.items()
+            if t >= cutoff
+        }
+        total = Counter()
+        for _, per_site in self._in_flight_by_source.values():
+            total.update(per_site)
+        self.in_flight = dict(total)
 
     def record(self, site, ok, now=None):
         """Note one finished (`ok=True`) or failed job at `site`."""
@@ -376,6 +394,9 @@ class SiteStats:
         with self._lock:
             self._prune(now)
             self._expire(now)
+            # a source that stopped reporting must not stay in the denominator: a whitelist
+            # may be built before the first poll of the workflow that is submitting
+            self._sum_in_flight(now)
             # re-judge here as well: the in-flight counts move between polls even when
             # nothing new fails
             self._quarantine(now)

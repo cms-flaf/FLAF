@@ -109,9 +109,11 @@ class Heartbeat:
         try:
             with os.fdopen(fd, "w") as f:
                 json.dump(payload, f)
-            # force: gfal-copy does not overwrite, and an in-place overwrite is the signal -- a
-            # remove-then-copy would leave a window in which the flag is simply absent, which the
-            # driver cannot tell from a stalled job
+            # force: gfal-copy refuses an existing destination otherwise, and the signal is the
+            # flag's modification time moving. Over davs gfal implements the overwrite as a
+            # delete and a fresh upload, so on storage that keeps deleted files (CERNBox) every
+            # beat leaves one entry in the recycle bin, and a beat that fails between the two
+            # leaves no flag until the next one -- read by the driver as a job on its way out.
             gfal_copy(path, self.uri, voms_token=self.voms_token, force=True, verbose=0)
             self._beats += 1
         finally:
@@ -150,6 +152,9 @@ class StallWatchdog:
     manager's `query()`, which law calls once per CRAB project **concurrently**, so every piece of
     state here is taken under one lock.
     """
+
+    #: running jobs below which a mostly-stale listing is not read as a storage fault
+    min_running_for_fault_guard = 10
 
     def __init__(self, flag_dir_uri, cfg=None, voms_token=None, publish=None):
         # may be a callable: resolving the uri builds the remote file system, which shells out to
@@ -326,9 +331,14 @@ class StallWatchdog:
             if not stale:
                 return {}
             # writing to the storage can break while reading it still works, and then every flag
-            # goes stale at once while every job is healthy
+            # goes stale at once while every job is healthy. With only a few jobs running that
+            # proportion says nothing, though: it is exactly the tail of a production, where
+            # the last jobs stall and hold its completion (598 of 600 done behind two), so the
+            # guard needs enough running jobs to read the proportion at all.
             fraction = float(self.cfg["max_stale_fraction"])
-            if running and len(stale) > max(1, int(fraction * len(running))):
+            if len(running) >= self.min_running_for_fault_guard and len(stale) > int(
+                fraction * len(running)
+            ):
                 self.publish(
                     f"watchdog: {len(stale)} of {len(running)} running jobs have a stale "
                     f"heartbeat -- reading that as a storage fault, not {len(stale)} dead jobs, "

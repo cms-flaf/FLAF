@@ -920,5 +920,71 @@ class InFlightCountsFromSeveralManagers(SharedRegistryTestCase):
         self.assertEqual(st.blacklist(now=NOW), [])
 
 
+class AnInFlightReportGoesStale(SharedRegistryTestCase):
+    """A workflow that stops polling -- it ended, or its run was aborted -- leaves its last
+    in-flight snapshot behind. Counted for the rest of the process, those jobs keep
+    inflating the denominator of every site they were at, and a black hole with a few
+    hundred jobs on record as in flight never reaches the failure rate that quarantines it.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.st = SiteStats.shared(self.path)
+        self.limit = self.st.in_flight_stale_seconds
+
+    def test_a_source_not_heard_from_for_longer_than_the_limit_drops_out(self):
+        self.st.set_in_flight({HOLE: 300}, source="aborted", now=NOW)
+        self.st.set_in_flight({GOOD: 5}, source="live", now=NOW + self.limit + 1)
+        self.assertEqual(self.st.in_flight, {GOOD: 5})
+        # and stays out: the next report of the live source does not bring it back
+        self.st.set_in_flight({GOOD: 6}, source="live", now=NOW + self.limit + 2)
+        self.assertEqual(self.st.in_flight, {GOOD: 6})
+
+    def test_a_source_heard_from_within_the_limit_still_counts(self):
+        self.st.set_in_flight({HOLE: 300}, source="quiet", now=NOW)
+        self.st.set_in_flight({GOOD: 5}, source="live", now=NOW + self.limit - 1)
+        self.assertEqual(self.st.in_flight, {HOLE: 300, GOOD: 5})
+
+    def test_a_source_that_keeps_reporting_is_judged_by_its_latest_report(self):
+        """Its first report is long past the limit; its latest one is not."""
+        self.st.set_in_flight({HOLE: 300}, source="a", now=NOW)
+        self.st.set_in_flight({GOOD: 5}, source="b", now=NOW + 0.6 * self.limit)
+        self.st.set_in_flight({HOLE: 200}, source="a", now=NOW + 0.9 * self.limit)
+        self.st.set_in_flight({GOOD: 4}, source="b", now=NOW + 1.5 * self.limit)
+        self.assertEqual(self.st.in_flight, {HOLE: 200, GOOD: 4})
+
+    def test_a_source_heard_from_again_counts_again(self):
+        self.st.set_in_flight({HOLE: 300}, source="a", now=NOW)
+        self.st.set_in_flight({GOOD: 5}, source="b", now=NOW + 2 * self.limit)
+        self.st.set_in_flight({HOLE: 7}, source="a", now=NOW + 2 * self.limit + 1)
+        self.assertEqual(self.st.in_flight, {HOLE: 7, GOOD: 5})
+
+    def failing_hole(self):
+        """Every job the black hole ended has failed, hours ago (no burst), against a
+        healthy baseline: quarantined on the standing rate test unless something inflates
+        its denominator."""
+        for _ in range(10):
+            self.st.record(HOLE, False, now=NOW - 5 * HOUR)
+        for _ in range(40):
+            self.st.record(GOOD, True, now=NOW - 5 * HOUR)
+
+    def test_an_aborted_workflow_does_not_shield_a_black_hole_once_stale(self):
+        self.failing_hole()
+        self.st.set_in_flight({HOLE: 300}, source="aborted", now=NOW - 2 * HOUR)
+        # while its report is fresh, 300 jobs in flight there are a real denominator
+        self.assertEqual(self.st.blacklist(now=NOW - 2 * HOUR), [])
+        self.st.set_in_flight({GOOD: 3}, source="live", now=NOW)
+        self.assertEqual(self.st.blacklist(now=NOW), [HOLE])
+
+    # Staleness is applied when the record is judged too, not only when a source reports:
+    # a workflow's first submission comes before its own first poll.
+    def test_nor_at_the_first_submission_of_the_next_workflow(self):
+        """A workflow submitted after the aborted one went quiet has not polled yet, so
+        no fresh report has replaced the stale one when its whitelist is built."""
+        self.failing_hole()
+        self.st.set_in_flight({HOLE: 300}, source="aborted", now=NOW - 2 * HOUR)
+        self.assertEqual(self.st.blacklist(now=NOW), [HOLE])
+
+
 if __name__ == "__main__":
     unittest.main()

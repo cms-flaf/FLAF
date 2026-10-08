@@ -197,6 +197,19 @@ class FreshNegatives(unittest.TestCase):
         self.storage.down = False
         self.assertTrue(fs.exists("data/file_1.root"))
 
+    def test_a_failed_fresh_listing_is_no_listing_for_the_siblings(self):
+        # Two CRAB outputs in one directory; the storage blinks on the first lookup. The
+        # second must be judged on a listing taken after the blink, not on the old marker.
+        self.storage.tree["data"].append("file_2.root")
+        fs = self.client()
+        require_fresh_negatives()
+        self.storage.down = True
+        self.assertFalse(fs.exists("data/file_1.root"))
+        self.storage.down = False
+        self.assertTrue(fs.exists("data/file_2.root"))
+        self.assertTrue(fs.exists("data/file_1.root"))
+        self.assertEqual(self.storage.listed, [DATA, DATA])
+
 
 if __name__ == "__main__":
     unittest.main()

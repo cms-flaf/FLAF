@@ -10,9 +10,11 @@ Both remote proxies (`_BundleAwareHTCondorWorkflowProxy`, `_FLAFCrabWorkflowProx
   the tree lives on ended a 16000-branch production twice. FLAF rebinds `rel_path`, probes the
   job sources before a round, skips the round (parking the offered retries) while they cannot
   be read, and refuses to build a job file against a tree that went away mid-round.
-* A resumed workflow whose recorded-finished jobs lost their outputs (consumed downstream, or
-  storage unreachable during the check) would resubmit most of a production (DSProd: 8300
-  jobs); the run stops instead.
+* A resumed workflow whose jobs come back in large numbers for missing outputs (storage
+  unreachable during the check, or outputs removed after use) would resubmit most of a
+  production (DSProd: 8300 jobs); the run stops instead -- counting only the jobs whose
+  branches are still incomplete on a fresh look -- and leaves the submission file as it found
+  it, so that the next run judges the same jobs again.
 * A batch job must not rebuild an upstream product inline in a slot sized for another task.
 
 Where law is involved, law's real code runs: the proxies are built with their real
@@ -61,6 +63,7 @@ try:
 finally:
     if _root_placeholder:
         sys.modules.pop("ROOT", None)
+from FLAF.RunKit.law_gfal import GFALFileInterface  # noqa: E402
 
 # loaded by law_customizations (law.contrib.load("htcondor"), law.contrib.load("cms"))
 import law.contrib.cms.job as cms_job  # noqa: E402
@@ -70,6 +73,7 @@ import law.contrib.htcondor.workflow as htcondor_workflow  # noqa: E402
 RUNNING = BaseJobManager.RUNNING
 FINISHED = BaseJobManager.FINISHED
 FAILED = BaseJobManager.FAILED
+RETRY = BaseJobManager.RETRY
 
 #: what `job_source_error` answers for a path that does not exist (POSIX ENOENT)
 ENOENT = f"[Errno {errno.ENOENT}]"
@@ -118,6 +122,8 @@ class ScriptedJobManager(BaseJobManager):
 
     `script[job_id]` lists the states the batch system answers with, one per query; the last
     one repeats. An id not in the script (a job submitted during the test) answers FINISHED.
+    `on_query(job_id, status)`, when set, runs before each answer -- where a job writes its
+    outputs before it is seen in the state it reports.
     """
 
     # as for law's HTCondor and CRAB managers: law submits through the proxy's _submit_group
@@ -126,10 +132,13 @@ class ScriptedJobManager(BaseJobManager):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.script = {}
+        self.on_query = None
 
     def query(self, job_id, **kwargs):
         states = self.script.get(job_id) or [FINISHED]
         status = states.pop(0) if len(states) > 1 else states[0]
+        if self.on_query is not None:
+            self.on_query(job_id, status)
         code = {FINISHED: 0, FAILED: 1}.get(status)
         error = "payload exited with 1" if status == FAILED else None
         return self.job_status_dict(
@@ -146,6 +155,26 @@ class ScriptedJobManager(BaseJobManager):
         raise AssertionError("nothing is cleaned up here")
 
 
+class FakeBranchTask:
+    """A branch of `FakeWorkflowTask`, as the workflow proxy asks it whether it is complete.
+
+    Complete by the rule of a task whose outputs may be merged away downstream (as
+    HistFromNtupleProducerTask with `remove_merged_inputs`): its output exists, or the marker
+    left in its place does. law's own view of the workflow is the output collection alone,
+    which knows nothing of markers.
+    """
+
+    def __init__(self, workflow, branch):
+        self.workflow = workflow
+        self.branch = branch
+
+    def complete(self):
+        self.workflow.events.append(("complete", self.branch))
+        return os.path.exists(self.workflow.output_path(self.branch)) or os.path.exists(
+            self.workflow.marker_path(self.branch)
+        )
+
+
 class FakeWorkflowTask:
     """The workflow task behind a remote proxy, as law's proxy, run() and poll() read it.
 
@@ -153,6 +182,9 @@ class FakeWorkflowTask:
     loop must not wait between iterations here. Outputs are real local files, one per branch,
     collected in a real `law.TargetCollection`.
     """
+
+    #: law's default for both workflow types: the job data is dumped on every poll iteration
+    dump_intermediate_job_data = True
 
     tasks_per_job = 1
     submission_threads = 1
@@ -192,6 +224,8 @@ class FakeWorkflowTask:
         self.messages = []
         self.n_polls = 0
         self.on_poll = None
+        #: ("complete", branch) for each branch asked whether it is complete
+        self.events = []
         self.jobs_file = law.LocalFileTarget(os.path.join(workdir, "jobs.json"))
         self.collection = law.TargetCollection(
             OrderedDict(
@@ -202,12 +236,27 @@ class FakeWorkflowTask:
     def output_path(self, branch):
         return os.path.join(self.workdir, "outputs", f"branch_{branch}.root")
 
+    def marker_path(self, branch):
+        return self.output_path(branch) + ".merged"
+
     def produce(self, branches):
         for b in branches:
             _touch(self.output_path(b))
 
+    def merge_away(self, branches):
+        """What a downstream merge with `remove_merged_inputs` leaves: a marker, no output."""
+        for b in branches:
+            _touch(self.marker_path(b))
+            os.remove(self.output_path(b))
+
+    def as_branch(self, branch):
+        return FakeBranchTask(self, branch)
+
     def outputs(self):
         return {"jobs": self.jobs_file, "collection": self.collection}
+
+    def is_controlling_remote_jobs(self):
+        return False
 
     def get_task_family(self):
         return "FakeWorkflowTask"
@@ -276,9 +325,14 @@ class FakeWorkflowTask:
     crab_workflow_run_context = htcondor_workflow_run_context
 
     def htcondor_dump_intermediate_job_data(self):
-        return False
+        return self.dump_intermediate_job_data
 
     crab_dump_intermediate_job_data = htcondor_dump_intermediate_job_data
+
+    def htcondor_job_resources(self, job_num, branches):
+        return {}
+
+    crab_job_resources = htcondor_job_resources
 
     def htcondor_post_submit_delay(self):
         return 0
@@ -378,6 +432,26 @@ class _ProxyCase(unittest.TestCase):
         clock = mock.patch.object(lc, "time", self.clock)
         clock.start()
         self.addCleanup(clock.stop)
+        #: what the proxies do in order: ("fresh",) for each require_fresh_negatives(), and
+        #: what the tasks and job managers built by `proxy()` add
+        self.events = []
+        real_require_fresh_negatives = lc.require_fresh_negatives
+
+        def require_fresh_negatives():
+            self.events.append(("fresh",))
+            real_require_fresh_negatives()
+
+        for patch in (
+            mock.patch.object(lc, "require_fresh_negatives", require_fresh_negatives),
+            # the process-wide epoch that require_fresh_negatives() moves is put back
+            mock.patch.object(
+                GFALFileInterface,
+                "negatives_valid_after",
+                GFALFileInterface.negatives_valid_after,
+            ),
+        ):
+            patch.start()
+            self.addCleanup(patch.stop)
 
     def break_tree(self):
         """The storage under the software tree blinks: FLAF's bootstrap.sh cannot be read."""
@@ -390,7 +464,9 @@ class _ProxyCase(unittest.TestCase):
         return os.path.join(self.tree, *lc._FLAF_JOB_SOURCES[0])
 
     def proxy(self, n_branches):
-        return build_proxy(self.proxy_cls, self.workdir, n_branches)
+        proxy = build_proxy(self.proxy_cls, self.workdir, n_branches)
+        proxy.task.events = self.events
+        return proxy
 
     def skip_messages(self, proxy):
         return [m for m in proxy.task.messages if "skipping this submission round" in m]
@@ -855,7 +931,7 @@ class CrabWhenTheJobSourcesAreUnreadable(_WhenTheJobSourcesAreUnreadable, _Proxy
 
 
 # ---------------------------------------------------------------------------------------------
-# (5) a resumed workflow that finds its recorded-finished jobs without outputs
+# (5) a resumed workflow whose jobs come back in large numbers for missing outputs
 # ---------------------------------------------------------------------------------------------
 
 
@@ -865,17 +941,20 @@ class _MassLostOutputsBrake:
     law re-checks every job it had recorded as finished: one whose outputs are gone carries no
     job id any more and comes back as "unknown job id"; one that was still live and is now
     reported finished without outputs comes back as "initially missing task outputs". Both are
-    retried in the first poll -- which, for outputs consumed downstream or a storage outage
-    during the check, means redoing the production.
+    retried in the first poll -- which, for a storage outage during the check or outputs removed
+    after use, means redoing the production. law judges from the output collection as it
+    gathered it; the brake counts a job only when its branches are still incomplete when the
+    task's own complete() is asked again.
     """
 
     N_JOBS = 20
 
-    def resumed(self, finished=(), running=(), outputs=(), script=None):
+    def resumed(self, finished=(), running=(), outputs=(), script=None, attempts=None):
         """Write the submission file of a previous run and return a proxy that will resume it.
 
         `finished` jobs were recorded FINISHED (dummy id), `running` ones RUNNING with id
-        r<num>; only the jobs in `outputs` have their output on disk.
+        r<num>; only the jobs in `outputs` have their output on disk. `attempts` is the retry
+        counter earlier runs left in the file.
         """
         proxy = self.proxy(self.N_JOBS)
         data = JobData()
@@ -883,6 +962,7 @@ class _MassLostOutputsBrake:
             data.jobs[num] = job(num, FINISHED)
         for num in running:
             data.jobs[num] = job(num, RUNNING, job_id=f"r{num}")
+        data.attempts.update(attempts or {})
         self.assertEqual(len(data.jobs), self.N_JOBS)
         proxy.task.jobs_file.dump(data, formatter="json", indent=4)
         proxy.task.produce(num - 1 for num in outputs)
@@ -895,13 +975,27 @@ class _MassLostOutputsBrake:
             finished=jobs, outputs=[num for num in jobs if num not in lost]
         )
 
+    def stop_message(self, n_lost):
+        return f"{n_lost} of the {self.N_JOBS} jobs of this resumed workflow"
+
+    def asked_complete(self):
+        """The branches whose complete() was asked, in order."""
+        return [event[1] for event in self.events if event[0] == "complete"]
+
     def test_mass_lost_outputs_stop_the_run_before_anything_is_submitted(self):
         proxy = self.all_finished(lost=range(1, 6))
         with self.assertRaises(RuntimeError) as caught:
             proxy.run()
-        self.assertIn(f"5 of {self.N_JOBS}", str(caught.exception))
-        self.assertIn("--ignore-submission", str(caught.exception))
+        msg = str(caught.exception)
+        self.assertIn(self.stop_message(5), msg)
+        self.assertIn("still missing on a fresh look", msg)
+        self.assertIn("--ignore-submission", msg)
         self.assertEqual(proxy.submitted, [])
+        # the verdict rests on the task's own rule, asked after absence was made to rest on a
+        # fresh listing
+        self.assertEqual(sorted(self.asked_complete()), [0, 1, 2, 3, 4])
+        first_complete = self.events.index(("complete", self.asked_complete()[0]))
+        self.assertIn(("fresh",), self.events[:first_complete])
 
     def test_a_single_lost_job_is_retried(self):
         proxy = self.all_finished(lost=[7])
@@ -914,12 +1008,15 @@ class _MassLostOutputsBrake:
         proxy = self.all_finished(lost=range(1, allowed + 1))
         proxy.run()
         self.assertEqual(proxy.submitted, [list(range(1, allowed + 1))])
+        # within the fraction, nothing is looked at again
+        self.assertEqual(self.asked_complete(), [])
 
     def test_lost_outputs_beyond_the_fraction_stop_the_run(self):
         allowed = int(lc.SubmissionGuards.max_lost_fraction * self.N_JOBS)
         proxy = self.all_finished(lost=range(1, allowed + 2))
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(RuntimeError) as caught:
             proxy.run()
+        self.assertIn(self.stop_message(allowed + 1), str(caught.exception))
         self.assertEqual(proxy.submitted, [])
 
     def test_initially_missing_outputs_are_counted_with_the_lost_ones(self):
@@ -933,7 +1030,7 @@ class _MassLostOutputsBrake:
         )
         with self.assertRaises(RuntimeError) as caught:
             proxy.run()
-        self.assertIn(f"3 of {self.N_JOBS}", str(caught.exception))
+        self.assertIn(self.stop_message(3), str(caught.exception))
         self.assertEqual(proxy.submitted, [])
 
     def test_genuine_failures_beside_the_lost_outputs_are_not_counted(self):
@@ -972,7 +1069,7 @@ class _MassLostOutputsBrake:
         for num in range(1, self.N_JOBS + 1):
             proxy.job_data.jobs[num] = job(num, FINISHED)
         proxy._submitted = True
-        proxy._snapshot_recorded_finished()
+        proxy._snapshot_resumed_jobs()
         proxy._stop_on_mass_lost_outputs({1: [0]})
         proxy._stop_on_mass_lost_outputs(
             {num: [num - 1] for num in range(1, self.N_JOBS + 1)}
@@ -995,8 +1092,9 @@ class _MassLostOutputsBrake:
             outputs=range(6, 21),
             script={f"r{num}": [FINISHED] for num in range(1, 21)},
         )
-        with self.assertRaises(RuntimeError):
+        with self.assertRaises(RuntimeError) as caught:
             proxy.run()
+        self.assertIn(self.stop_message(5), str(caught.exception))
         self.assertEqual(proxy.submitted, [])
 
     # A skipped round parks the offered generation in `unsubmitted_jobs`, where law would
@@ -1015,6 +1113,153 @@ class _MassLostOutputsBrake:
             proxy.run()
         self.assertEqual(proxy.submitted, [])
 
+    # -- what a stop leaves behind --------------------------------------------------------------
+
+    @staticmethod
+    def lost_and_live_script():
+        """Live jobs 11 and 12 report finished; 13-20 are still running."""
+        script = {f"r{num}": [FINISHED] for num in (11, 12)}
+        script.update({f"r{num}": [RUNNING] for num in range(13, 21)})
+        return script
+
+    def lost_and_live(self):
+        """5 of 20 jobs come back: recorded-finished 1-3 lost their outputs, and live 11 and 12
+        are reported finished without theirs. Jobs 2 and 11 had been retried before."""
+        return self.resumed(
+            finished=range(1, 11),
+            running=range(11, 21),
+            outputs=range(4, 11),
+            script=self.lost_and_live_script(),
+            attempts={2: 1, 11: 2},
+        )
+
+    def test_a_stop_leaves_the_submission_file_as_it_found_it(self):
+        """law dumps the job data on every poll by default -- after it has rewritten the jobs
+        that came back as retries and counted their attempts, before it offers them to
+        submit(). Left like that, the next run would find them as retries, not as finished
+        or live jobs, and resubmit them without a verdict."""
+        proxy = self.lost_and_live()
+        before = proxy.task.jobs_file.load(formatter="json")
+        dumped = []
+        dump = proxy.dump_job_data
+
+        def recorded_dump():
+            dumped.append(
+                (
+                    {num: data["status"] for num, data in proxy.job_data.jobs.items()},
+                    dict(proxy.job_data.attempts),
+                )
+            )
+            dump()
+
+        proxy.dump_job_data = recorded_dump
+        with self.assertRaises(RuntimeError) as caught:
+            proxy.run()
+        self.assertIn(self.stop_message(5), str(caught.exception))
+        self.assertEqual(proxy.submitted, [])
+        # law's own dump of the first poll, then the brake's
+        self.assertEqual(len(dumped), 2, "law's intermediate dump did not happen")
+        statuses, attempts = dumped[0]
+        self.assertEqual(
+            {num for num, status in statuses.items() if status == RETRY},
+            {1, 2, 3, 11, 12},
+        )
+        self.assertEqual(attempts, {1: 1, 2: 2, 3: 1, 11: 3, 12: 1})
+        after = proxy.task.jobs_file.load(formatter="json")
+        self.assertEqual(after["jobs"], before["jobs"])
+        self.assertEqual(after["attempts"], {"2": 1, "11": 2})
+        self.assertEqual(after["unsubmitted_jobs"], {})
+
+    def test_the_next_resumed_run_stops_again(self):
+        with self.assertRaises(RuntimeError):
+            self.lost_and_live().run()
+        again = self.proxy(self.N_JOBS)
+        again.task.manager.script = self.lost_and_live_script()
+        with self.assertRaises(RuntimeError) as caught:
+            again.run()
+        self.assertIn(self.stop_message(5), str(caught.exception))
+        self.assertEqual(again.submitted, [])
+        self.assertEqual(again.job_data.attempts, {2: 1, 11: 2})
+
+    # law's intermediate dump of the first poll comes before submit(), where the brake
+    # judges; until then the jobs that came back for missing outputs are written as they were
+    # loaded, so a driver ending in between leaves the next run something to judge.
+    def test_a_run_ended_before_the_verdict_leaves_it_to_the_next_run(self):
+        proxy = self.all_finished(lost=range(1, 6))
+
+        def driver_ends(iteration):
+            raise KeyboardInterrupt
+
+        proxy.task.on_poll = driver_ends
+        with self.assertRaises(KeyboardInterrupt):
+            proxy.run()
+        self.assertEqual(proxy.submitted, [])
+        again = self.proxy(self.N_JOBS)
+        with self.assertRaises(RuntimeError) as caught:
+            again.run()
+        self.assertIn(self.stop_message(5), str(caught.exception))
+        self.assertEqual(again.submitted, [])
+
+    # -- what does not count as lost --------------------------------------------------------------
+
+    def test_live_jobs_that_finished_during_startup_are_not_counted(self):
+        """20 live jobs; 3 of them finish, outputs written, after law has gathered the existing
+        outputs (luigi's scheduling, then run()) and before its first status query. law reads
+        them as "initially missing task outputs" -- 3 of 20, above the fraction -- but their
+        outputs are there when asked again, so the run goes on."""
+        early = (1, 2, 3)
+        script = {f"r{num}": [FINISHED] for num in early}
+        script.update({f"r{num}": [RUNNING, FINISHED] for num in range(4, 21)})
+        proxy = self.resumed(running=range(1, 21), script=script)
+        task = proxy.task
+
+        def job_writes_its_output(job_id, status):
+            self.events.append(("query", job_id))
+            if status == FINISHED and job_id.startswith("r"):
+                task.produce([int(job_id[1:]) - 1])
+
+        task.manager.on_query = job_writes_its_output
+        # luigi's scheduling: law gathers the existing outputs and caches its verdicts
+        proxy.process_resources()
+        proxy.run()
+
+        self.assertEqual(
+            {num: data["status"] for num, data in proxy.job_data.jobs.items()},
+            {num: FINISHED for num in range(1, self.N_JOBS + 1)},
+        )
+        # law resubmits them still, on the verdict it cached; what is at stake here is the stop
+        self.assertLessEqual(
+            {num for nums in proxy.submitted for num in nums}, set(early)
+        )
+        self.assertEqual(sorted(self.asked_complete()), [0, 1, 2])
+        # asked after the jobs were seen finished, with absence resting on a fresh listing
+        first_query = next(i for i, e in enumerate(self.events) if e[0] == "query")
+        first_complete = self.events.index(("complete", self.asked_complete()[0]))
+        self.assertIn(("fresh",), self.events[first_query:first_complete])
+
+    def test_branches_complete_by_their_own_rule_are_not_counted(self):
+        """5 of 20 recorded-finished jobs had their outputs merged away downstream, markers left
+        in their place. law, which reads the output collection only, retries them as "unknown
+        job id"; the task's own complete() counts them done."""
+        proxy = self.all_finished()
+        proxy.task.merge_away(range(5))
+        proxy.run()
+        self.assertEqual(sorted(self.asked_complete()), [0, 1, 2, 3, 4])
+        self.assertEqual(
+            {num: data["status"] for num, data in proxy.job_data.jobs.items()},
+            {num: FINISHED for num in range(1, self.N_JOBS + 1)},
+        )
+
+    def test_only_branches_still_incomplete_are_counted(self):
+        # 5 merged away and 3 genuinely lost: 8 come back, 3 count -- still above the fraction
+        proxy = self.all_finished(lost=range(6, 9))
+        proxy.task.merge_away(range(5))
+        with self.assertRaises(RuntimeError) as caught:
+            proxy.run()
+        self.assertIn(self.stop_message(3), str(caught.exception))
+        self.assertEqual(proxy.submitted, [])
+        self.assertEqual(sorted(self.asked_complete()), list(range(8)))
+
 
 class HTCondorMassLostOutputsBrake(_MassLostOutputsBrake, _ProxyCase):
     proxy_cls = lc._BundleAwareHTCondorWorkflowProxy
@@ -1022,6 +1267,90 @@ class HTCondorMassLostOutputsBrake(_MassLostOutputsBrake, _ProxyCase):
 
 class CrabMassLostOutputsBrake(_MassLostOutputsBrake, _ProxyCase):
     proxy_cls = lc._FLAFCrabWorkflowProxy
+
+
+class TheJobDataIsDumpedOnEveryPoll(unittest.TestCase):
+    """What the brake has to undo depends on law dumping the job data on every poll, as the
+    stand-in task does: pinned against law and against FLAF's workflows, which keep it.
+    """
+
+    def test_law_and_flaf_dump_on_every_poll(self):
+        for workflow, law_workflow, name in (
+            (
+                lc.HTCondorWorkflow,
+                law.htcondor.HTCondorWorkflow,
+                "htcondor_dump_intermediate_job_data",
+            ),
+            (lc.CrabWorkflow, law.cms.CrabWorkflow, "crab_dump_intermediate_job_data"),
+        ):
+            with self.subTest(name=name):
+                self.assertIs(getattr(workflow, name), getattr(law_workflow, name))
+                self.assertIs(getattr(law_workflow, name)(None), True)
+                self.assertIs(FakeWorkflowTask.dump_intermediate_job_data, True)
+
+
+class CrabResumedRunGathersOutputsAgain(_ProxyCase):
+    """A resumed CRAB run judges which outputs exist from what it gathers when it starts to
+    run, not from what luigi's scheduling gathered: a CRAB worker cannot publish to the
+    path-cache server, and an output written while no driver was polling must not send its
+    branch back to the grid."""
+
+    proxy_cls = lc._FLAFCrabWorkflowProxy
+
+    def resumed_live(self, n_jobs, finished_early=()):
+        """A resumed file of `n_jobs` live jobs; those in `finished_early` report finished from
+        the first status query on, the others one query later. A job writes its output when it
+        is first seen finished."""
+        proxy = self.proxy(n_jobs)
+        data = JobData()
+        for num in range(1, n_jobs + 1):
+            data.jobs[num] = job(num, RUNNING, job_id=f"r{num}")
+        proxy.task.jobs_file.dump(data, formatter="json", indent=4)
+        task = proxy.task
+        task.manager.script = {
+            f"r{num}": [FINISHED] if num in finished_early else [RUNNING, FINISHED]
+            for num in range(1, n_jobs + 1)
+        }
+
+        def job_writes_its_output(job_id, status):
+            self.events.append(("query", job_id))
+            if status == FINISHED and job_id.startswith("r"):
+                task.produce([int(job_id[1:]) - 1])
+
+        task.manager.on_query = job_writes_its_output
+        return proxy
+
+    def test_outputs_written_after_scheduling_are_found(self):
+        proxy = self.resumed_live(4, finished_early=(1, 2))
+        # luigi's scheduling: law gathers the existing outputs and caches its verdicts
+        proxy.process_resources()
+        # jobs 1 and 2 finish, outputs written, while luigi is still scheduling
+        proxy.task.produce([0, 1])
+        proxy.run()
+        self.assertEqual(proxy.submitted, [])
+        self.assertEqual(
+            {num: data["status"] for num, data in proxy.job_data.jobs.items()},
+            {num: FINISHED for num in range(1, 5)},
+        )
+        # finished on sight: never queried, never offered as retries, never judged
+        self.assertEqual({e[1] for e in self.events if e[0] == "query"}, {"r3", "r4"})
+        self.assertEqual([e for e in self.events if e[0] == "complete"], [])
+
+    def test_absence_rests_on_listings_taken_from_run_on(self):
+        proxy = self.resumed_live(2)
+        gather = proxy._get_existing_branches
+
+        def recorded_gather(*args, **kwargs):
+            self.events.append(("gather",))
+            return gather(*args, **kwargs)
+
+        proxy._get_existing_branches = recorded_gather
+        proxy.process_resources()
+        n_before_run = len(self.events)
+        proxy.run()
+        after_run = self.events[n_before_run:]
+        self.assertIn(("gather",), after_run)
+        self.assertIn(("fresh",), after_run[: after_run.index(("gather",))])
 
 
 # ---------------------------------------------------------------------------------------------

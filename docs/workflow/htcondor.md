@@ -205,12 +205,15 @@ These apply to both batch backends (HTCondor and [CRAB](crab.md)).
   not submit the round later, it raises at once. law's `rel_path` no longer depends on a `stat`
   succeeding, so one failed stat cannot make law mistake its own module for a directory.
 - **A resumed workflow that lost its outputs stops.** When a workflow is resumed (its job file
-  exists) and more than 10 % of the jobs — and at least 2 — that it had recorded as finished are
-  missing their outputs, the run stops instead of resubmitting them. The cause is either that the
-  storage was unreachable while outputs were checked (run again once it is back) or that the
-  outputs were consumed downstream, e.g. merged and removed (`HistMergerTask` with
-  `remove_merged_inputs`): those branches are done and the downstream task does not need them.
-  To redo the work on purpose, run again with `--ignore-submission`.
+  exists) and more than 10 % of all its jobs — and at least 2 — come back for missing outputs
+  (jobs it had recorded as finished, or live jobs reported finished without them), each of those
+  jobs is checked again with absence resting on fresh listings and by the task's own completeness
+  rule (so branches whose inputs were merged and replaced by markers, as with `HistMergerTask`
+  and `remove_merged_inputs`, count as done). If more than 10 % are still missing, the run stops
+  instead of resubmitting them, and their entries in the job file are put back as they were, so
+  a later run judges them again. The usual cause is storage that was unreachable while outputs
+  were checked: run again once it is back. To redo the work on purpose, run again with
+  `--ignore-submission`.
 - **A job does not rebuild upstream products.** In a batch job, `AnaTupleFileTask`,
   `AnaTupleMergeTask`, `AnalysisCacheTask`, `HistTupleProducerTask`,
   `HistFromNtupleProducerTask` and `HistMergerTask` refuse to run as an inline requirement of a

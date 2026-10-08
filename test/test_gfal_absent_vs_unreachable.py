@@ -10,9 +10,13 @@ and then raised, or with `silent` answered without caching anything; only gfal r
 ENOENT means absent.
 """
 
+import contextlib
+import io
 import os
+import shutil
 import sys
 import tempfile
+import types
 import unittest
 from unittest import mock
 
@@ -74,6 +78,8 @@ UNRESOLVED_XROOTD = (
 )
 # killed by a timeout before writing anything (xrootd to a closed port keeps reconnecting)
 KILLED = ("", -9)
+# `gfal-ls --timeout 10` against an xrootd endpoint that never answers (lxplus, 2026-10-08)
+TIMED_OUT_XROOTD = ("Command timed out after 10 seconds!\n", 110)
 
 NOT_ABSENT = {
     "no proxy file, davs": NO_PROXY_FILE_DAVS,
@@ -83,6 +89,7 @@ NOT_ABSENT = {
     "unresolved host, davs": UNRESOLVED_DAVS,
     "unresolved host, xrootd": UNRESOLVED_XROOTD,
     "killed without output": KILLED,
+    "gfal's own timeout, xrootd": TIMED_OUT_XROOTD,
 }
 
 
@@ -207,6 +214,42 @@ class CheckedListing(unittest.TestCase):
             with self.assertRaises(GfalError):
                 gfal_ls_checked("davs://host/x", voms_token="t", attempts=0)
         ls.assert_not_called()
+
+
+class ListingTimeout(unittest.TestCase):
+    """gfal's own limit is 1800 s per call, and a checked listing makes up to three: an
+    endpoint that hangs would hold one exists() for an hour and a half."""
+
+    @staticmethod
+    def command(fn, *args, **kwargs):
+        with mock.patch.object(
+            grid_tools, "ps_call", return_value=(0, [], None)
+        ) as call:
+            fn(*args, **kwargs)
+        (cmd,), _ = call.call_args
+        return cmd
+
+    def test_a_checked_listing_is_bounded_by_default(self):
+        cmd = self.command(gfal_ls_checked, "davs://host/x", voms_token="t")
+        self.assertEqual(cmd[0], "gfal-ls")
+        self.assertEqual(cmd[cmd.index("--timeout") + 1], "300")
+        self.assertEqual(cmd[-1], "davs://host/x")
+
+    def test_the_bound_can_be_chosen(self):
+        cmd = self.command(gfal_ls_checked, "davs://host/x", voms_token="t", timeout=30)
+        self.assertEqual(cmd[cmd.index("--timeout") + 1], "30")
+
+    def test_a_plain_listing_keeps_the_gfal_default(self):
+        cmd = self.command(grid_tools.gfal_ls, "davs://host/x", voms_token="t")
+        self.assertNotIn("--timeout", cmd)
+        self.assertNotIn("-t", cmd)
+
+    @unittest.skipUnless(shutil.which("gfal-ls"), "gfal-ls is not installed")
+    def test_the_real_gfal_ls_accepts_the_bound(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            open(os.path.join(tmp, "a.root"), "w").close()
+            entries = gfal_ls_checked("file://" + tmp, voms_token="/none", attempts=1)
+        self.assertEqual([e.name for e in entries], ["a.root"])
 
 
 BASE = "davs://server:1234/store/test"
@@ -356,6 +399,61 @@ class NothingReachesTheServer(unittest.TestCase):
             with listing(None):
                 self.assertFalse(self.client().exists("data/file_0.root"))
         self.assertIs(self.server.entries.get(os.path.join(BASE, "data")), False)
+
+
+class AFailedListingIsAskedAgain(unittest.TestCase):
+    """A failed listing answers "missing" for the one lookup that took it. Remembered for the
+    directory, a brief blip would answer "missing" for every file in it; what is limited per
+    directory is the warning, which a persistent outage would otherwise print per file.
+    """
+
+    def setUp(self):
+        self.fs = make_interface()
+        self.stderr = io.StringIO()
+        redirect = contextlib.redirect_stderr(self.stderr)
+        redirect.__enter__()
+        self.addCleanup(redirect.__exit__, None, None, None)
+
+    def warnings_for(self, path):
+        uri = self.fs.uri(path)
+        return [
+            line
+            for line in self.stderr.getvalue().splitlines()
+            if "could not list" in line and f"{uri} " in line
+        ]
+
+    def test_a_sibling_after_a_brief_outage_is_answered_from_a_real_listing(self):
+        recovered = [Entry("file_0.root"), Entry("file_1.root")]
+        with listing(mock.Mock(side_effect=[UNREACHABLE, recovered])) as ls:
+            self.assertFalse(self.fs.exists("data/file_0.root"))
+            self.assertTrue(self.fs.exists("data/file_1.root"))
+            self.assertEqual(ls.call_count, 2, "the sibling was listed again")
+            self.assertTrue(self.fs.exists("data/file_0.root"))
+            self.assertFalse(self.fs.exists("data/file_2.root"))
+            self.assertEqual(ls.call_count, 2, "the listing answers the rest")
+
+    def test_a_persistent_outage_is_reported_once_per_directory_per_interval(self):
+        now = [1000.0]
+        clock = types.SimpleNamespace(time=lambda: now[0])
+        interval = GFALFileInterface.failed_listing_report_seconds
+        with mock.patch.object(law_gfal, "time", clock), listing(UNREACHABLE) as ls:
+            for i in range(5):
+                self.assertFalse(self.fs.exists(f"data/file_{i}.root"))
+            for i in range(3):
+                self.assertFalse(self.fs.exists(f"other/file_{i}.root"))
+            self.assertEqual(ls.call_count, 8, "every lookup asked the storage")
+            self.assertEqual(len(self.warnings_for("data")), 1)
+            self.assertEqual(len(self.warnings_for("other")), 1)
+            self.assertIn("Host is down", self.warnings_for("data")[0])
+
+            now[0] += interval - 1
+            self.assertFalse(self.fs.exists("data/file_5.root"))
+            self.assertEqual(len(self.warnings_for("data")), 1)
+
+            now[0] += 2
+            self.assertFalse(self.fs.exists("data/file_6.root"))
+            self.assertEqual(len(self.warnings_for("data")), 2)
+            self.assertEqual(len(self.warnings_for("other")), 1)
 
 
 if __name__ == "__main__":

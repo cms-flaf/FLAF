@@ -276,23 +276,55 @@ class TestWaveGate(_FlafCrabCase):
             self.decide(n_backlog=5, n_retry=0, n_active=4795, parked_min_ago=4)
         )
 
-    def test_an_unreadable_release_window_falls_back_to_the_default(self):
-        # a nan or an inf passes `float()` and would then disable the release for ever, since
-        # `waited >= nan` is never true; an empty yaml value arrives as None
-        for value in ("soon", float("nan"), float("inf"), None, [45]):
-            with self.subTest(value=value):
+    #: what a `crab:` block can hold that is not a number: a nan or an inf passes `float()`
+    #: and would then disable the release for ever, since `waited >= nan` is never true; an
+    #: empty yaml value arrives as None
+    NOT_A_NUMBER = ("soon", "", float("nan"), float("inf"), float("-inf"), None, [45])
+
+    def test_a_setting_that_is_not_a_number_is_an_error(self):
+        # no silent default: the value read is the value configured, or the run stops and
+        # names the key
+        readers = {
+            "refill_fraction": self.proxy._crab_refill_fraction,
+            "retry_release_minutes": self.proxy._crab_retry_release_minutes,
+        }
+        for key, read in readers.items():
+            for value in self.NOT_A_NUMBER:
+                with self.subTest(key=key, value=value):
+                    self.crab_cfg.clear()
+                    self.crab_cfg[key] = value
+                    with self.assertRaisesRegex(ValueError, rf"\bcrab\.{key}\b"):
+                        read()
+
+    def test_the_gate_does_not_decide_on_a_setting_that_is_not_a_number(self):
+        for value in self.NOT_A_NUMBER:
+            with self.subTest(key="refill_fraction", value=value):
+                self.crab_cfg.clear()
+                self.crab_cfg["refill_fraction"] = value
+                with self.assertRaisesRegex(ValueError, r"\bcrab\.refill_fraction\b"):
+                    self.decide(n_backlog=5, n_retry=0, n_active=4795)
+            with self.subTest(key="retry_release_minutes", value=value):
+                self.crab_cfg.clear()
                 self.crab_cfg["retry_release_minutes"] = value
-                self.assertEqual(
-                    self.proxy._crab_retry_release_minutes(), RELEASE_MINUTES
-                )
-                self.assertTrue(
+                with self.assertRaisesRegex(
+                    ValueError, r"\bcrab\.retry_release_minutes\b"
+                ):
                     self.decide(
                         n_backlog=5,
                         n_retry=0,
                         n_active=4795,
                         parked_min_ago=RELEASE_MINUTES + 1,
                     )
-                )
+
+    def test_numbers_out_of_range_are_clamped(self):
+        for value, expected in ((1.5, 1.0), (-0.2, 0.0), ("0.5", 0.5), (1, 1.0)):
+            with self.subTest(refill_fraction=value):
+                self.crab_cfg["refill_fraction"] = value
+                self.assertEqual(self.proxy._crab_refill_fraction(), expected)
+        for value, expected in ((-3, 0.0), ("30", 30.0), (0, 0.0)):
+            with self.subTest(retry_release_minutes=value):
+                self.crab_cfg["retry_release_minutes"] = value
+                self.assertEqual(self.proxy._crab_retry_release_minutes(), expected)
 
     def test_the_size_bar_ignores_the_retries_offered_this_poll(self):
         # a whole generation of retries is parked first and goes out on the next poll as
@@ -573,10 +605,17 @@ class TestBrakeBeforeGate(_ParkingCase):
     # the stall watchdog lists remote storage from the poll callback, and there is none here
     crab_settings = {"watchdog": {"enabled": False}}
 
+    def produce(self, branches):
+        """Write the outputs of `branches` where the task's own output() puts them."""
+        for branch in branches:
+            self.task.as_branch(branch).output().touch()
+
     def resume_after_mass_loss(self):
         """A second driver, whose first driver recorded every job as finished.
 
-        The outputs of the first `N_LOST` jobs are gone; those of the rest are found.
+        The outputs of the first `N_LOST` jobs are gone; those of the rest are found. law's
+        collection of this task covers branch 0 only, so what law gathered is set directly;
+        the files back the same answer for the branch tasks' own complete().
         """
         for job_num in range(1, self.N_RECORDED + 1):
             self.proxy.job_data.jobs[job_num] = self.proxy.job_data_cls.job_data(
@@ -586,16 +625,17 @@ class TestBrakeBeforeGate(_ParkingCase):
                 code=0,
             )
         self.proxy.dump_job_data()
+        self.produce(range(self.N_LOST + 1, self.N_RECORDED + 1))
         resumed = self.resume()
         resumed._existing_branches = set(range(self.N_LOST + 1, self.N_RECORDED + 1))
         return resumed
 
-    def poll(self, resumed, iterations, before_iteration=None):
-        """Run law's own poll() on `resumed`, which must stop the run within `iterations`.
+    @contextlib.contextmanager
+    def driven(self, resumed, iterations, before_iteration=None, stop_at=None):
+        """law's own poll() on `resumed` may run inside, for at most `iterations` iterations.
 
-        law takes the snapshot of the recorded-finished jobs, turns those without outputs
-        into "unknown job id" retries and offers them to submit(). `before_iteration(i)` runs
-        at the start of the poll callback of iteration `i`, before that iteration submits.
+        `before_iteration(i)` runs at the start of the poll callback of iteration `i`, before
+        that iteration submits; the callback ends the loop gracefully at iteration `stop_at`.
         A submission, or an iteration past `iterations`, fails the test where it happens.
         """
         # the credentials are set up once per run (FLAF's setup_job_manager probes the CMSSW
@@ -610,6 +650,8 @@ class TestBrakeBeforeGate(_ParkingCase):
         self.poll_iterations = 0
 
         def guarded(poll_data):
+            if self.poll_iterations == stop_at:
+                return False
             if self.poll_iterations >= iterations:
                 raise _PollWentOn(
                     f"the poll loop reached iteration {self.poll_iterations} instead of "
@@ -630,8 +672,8 @@ class TestBrakeBeforeGate(_ParkingCase):
                 f"{self.poll_iterations - 1} instead of stopping the run"
             )
 
-        # the Kerberos renewal shells out to `kinit -R`, and the completeness check moves a
-        # process-wide epoch that is put back afterwards
+        # the Kerberos renewal shells out to `kinit -R`, and the completeness check and the
+        # brake move a process-wide epoch that is put back afterwards
         with mock.patch.object(
             type(resumed), "_submit_group", side_effect=refuse
         ), mock.patch.object(lc, "update_kinit"), mock.patch.object(
@@ -639,8 +681,17 @@ class TestBrakeBeforeGate(_ParkingCase):
             "negatives_valid_after",
             GFALFileInterface.negatives_valid_after,
         ):
+            yield
+
+    def poll(self, resumed, iterations, before_iteration=None):
+        """Run law's own poll() on `resumed`, which must stop the run within `iterations`.
+
+        law takes the snapshot of the resumed job data, turns the recorded-finished jobs
+        without outputs into "unknown job id" retries and offers them to submit().
+        """
+        with self.driven(resumed, iterations, before_iteration):
             with self.assertRaisesRegex(
-                RuntimeError, rf"\b{self.N_LOST} of {self.N_RECORDED}\b"
+                RuntimeError, rf"\b{self.N_LOST} of the {self.N_RECORDED} jobs\b"
             ):
                 resumed.poll()
         self.assertIsNone(resumed._retry_parked_since)
@@ -654,6 +705,10 @@ class TestBrakeBeforeGate(_ParkingCase):
         self.assertEqual(dict(resumed.job_data.unsubmitted_jobs), {})
         on_disk = self.submission_file(resumed).load(formatter="json")
         self.assertEqual(on_disk["unsubmitted_jobs"], {})
+        # and the file holds the jobs as the first driver recorded them, for the next run
+        statuses = {data["status"] for data in on_disk["jobs"].values()}
+        self.assertEqual(statuses, {resumed.job_manager.FINISHED})
+        self.assertEqual(on_disk["attempts"], {})
 
     # A mass retry offered while the software tree cannot be read would be parked by the
     # skipped round and released later as backlog, where the brake no longer sees it; the
@@ -675,12 +730,30 @@ class TestBrakeBeforeGate(_ParkingCase):
         # the brake judges the first generation only and only above `max_lost_fraction`: a
         # few lost outputs are ordinary retries, held back by the gate like any other
         resumed = self.resume_after_mass_loss()
-        resumed._snapshot_recorded_finished()
+        resumed._snapshot_resumed_jobs()
         with self.law_submission(resumed) as submitted:
             self.park(1, 2, 3, 4, 5, n_active=3270, p=resumed)
         self.assertEqual(submitted, [])
         self.assertEqual(list(resumed.job_data.unsubmitted_jobs), [1, 2, 3, 4, 5])
         self.assertIsNotNone(resumed._retry_parked_since)
+
+    def test_a_mass_retry_whose_outputs_are_back_is_neither_stopped_nor_sent_back(self):
+        # law gathered the outputs before the first 1500 were written (jobs finishing while
+        # the driver was restarted): they come back as retries, but the task's own complete()
+        # finds them. The run goes on, nothing is parked or submitted (a submission fails the
+        # test), and law's next poll books them finished.
+        resumed = self.resume_after_mass_loss()
+        self.produce(range(1, self.N_LOST + 1))
+        with self.driven(resumed, iterations=2, stop_at=1):
+            resumed.poll()
+        self.assertEqual(self.poll_iterations, 1)
+        self.assertEqual(dict(resumed.job_data.unsubmitted_jobs), {})
+        self.assertIsNone(resumed._retry_parked_since)
+        finished = resumed.job_manager.FINISHED
+        self.assertEqual(
+            {resumed.job_data.jobs[n]["status"] for n in range(1, self.N_LOST + 1)},
+            {finished},
+        )
 
 
 class TestLawFailureBudgetKept(_FlafCrabCase):

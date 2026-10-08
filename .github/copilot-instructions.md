@@ -79,14 +79,19 @@ Each of these has caused a production incident. They are ordered by how much dam
   not-found (errno `ENOENT`, `gfal_ls_checked`) is an absence; a timeout, SSL error or missing
   credential is a failure, and a negative cached from it is published to the cache server and
   hides existing files from every client. `exists()` may answer `False` for a failed listing but
-  must cache nothing. Do not reintroduce `gfal_ls_safe` where a path's existence is decided.
+  must cache nothing — not even a "this directory failed" memo: the next lookup must list again,
+  or a short blip condemns every file of the directory. Do not reintroduce `gfal_ls_safe` where a
+  path's existence is decided.
 - **Uploads are published by rename.** `gfal_copy_safe(..., copy_mode="copy_rename")` uploads to
   `<target>.flaf-tmp-<pid>-<uuid>`, verifies the checksum and renames onto the target; the target
   must never exist while partial, and an existing good file must not be removed before the
-  replacement is complete. Orphaned `.flaf-tmp-*` files are harmless (they do not match `*.root`).
+  replacement is complete, and no "absent" may be published for the target during the upload.
+  Orphaned `.flaf-tmp-*` files match no output pattern but take quota.
 - A CRAB worker cannot reach the path-cache server, so a driver that believes an "absent" from a
-  cached listing reads files the workers wrote as missing; the CRAB completeness check takes a
-  fresh listing first (`require_fresh_negatives`).
+  cached listing reads files the workers wrote as missing; the CRAB completeness check and the
+  start of every CRAB workflow run (where law judges which outputs exist) take fresh listings
+  first (`require_fresh_negatives`, and the existing-branch memos law filled while scheduling are
+  dropped).
 
 ### CRAB backend (`run_tools/law_customizations.py`, `run_tools/crab_sites.py`, `run_tools/crab_watchdog.py`)
 
@@ -105,13 +110,19 @@ Each of these has caused a production incident. They are ordered by how much dam
 - **The wave gate must keep `len(job_data)`**: parked jobs go into `unsubmitted_jobs` (counted by
   `JobData.__len__`, dumped to disk), never out of `job_data` altogether, because the poll loop
   snapshots the job count once. `--no-poll` bypasses the gate. Only the backlog is measured against
-  the wave size, and a parked retry is released after `retry_release_minutes`.
+  the wave size, and the oldest parked retry is released after `retry_release_minutes`.
+- **The lost-outputs brake (`SubmissionGuards`) runs before anything can park a retry
+  generation** (a skipped round, the wave gate): a parked mass retry would be released later
+  where the brake no longer sees it. It re-checks candidates with `as_branch(b).complete()` on
+  fresh listings (outputs that appeared, marker-aware completeness), and before raising it puts
+  the jobs back in the job file, because law has already rewritten and dumped them.
 - **CRAB `maxMemoryMB` is a kill line** (exit 50660, never retried by CRAB): an explicit request is
   honoured or refused, never clamped down; cores are snapped up to 1/2/4/8.
 - **CLI-presence helpers match exactly** (`_cli_has_param`, `_cli_has_tasks_per_job`): an option
   addressed to one task must not disable a default for every other task; the bare
   `--tasks-per-job` belongs to the root task only. `parallel_jobs` and `poll_interval` are in
-  `prefer_params_cli`, so the prefixed form reaches its task.
+  `prefer_params_cli`, so another task's prefixed form reaches that task, while the bare and the
+  root task's prefixed form are copied to every task by `req` and count for all of them.
 - **Workers never require bundles, and neither renew nor delete the delegated proxy.**
 - **Code behind `LAW_CRAB_JOB_NUMBER` / `LAW_JOB_HOME` / `on_batch_node()` runs only on a worker,
   so it needs a test that sets the variable** (a `NameError` there shipped past a green

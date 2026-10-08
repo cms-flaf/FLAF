@@ -96,21 +96,25 @@ CRAB workers cannot reach the path-cache server, so a directory listing publishe
 job wrote its file keeps answering "absent" for that file until it expires (24 h by default). On
 `--workflow crab` the driver therefore takes one fresh listing per output directory per poll
 before it accepts an absence, and believes a CRAB `FINISHED` only when the outputs are on
-storage (see [CRAB → Status handling](workflow/crab.md#status-handling)). A *plain* status check
+storage (see [CRAB → Status handling](workflow/crab.md#status-handling)); a (re)started driver
+takes fresh listings before it judges which outputs exist. A *plain* status check
 (`--print-status`) started separately has no such guarantee: drop the cached entries as above if
 it disagrees with the storage.
 
 A listing that **fails** (timeout, SSL error, expired proxy) is never cached as "absent": only a
-confirmed not-found is. Leftover `<name>.flaf-tmp-<pid>-<uuid>` files next to outputs are
-orphans of killed uploads (uploads are published by rename,
-[Storage](concepts/storage.md#how-uploads-are-published-and-absence-is-decided)) and can be
-deleted.
+confirmed not-found is. Such a listing prints `GFALFileInterface: could not list …` (once per
+directory per minute); every file looked up in it reads as missing while it lasts, and each
+lookup lists again, so the first successful listing settles the rest of the directory.
+Leftover `<name>.flaf-tmp-<pid>-<uuid>` files next to outputs are orphans of killed uploads
+(uploads are published by rename,
+[Storage](concepts/storage.md#how-uploads-are-published-and-absence-is-decided)); they take
+quota until deleted, and can be deleted.
 
-## A resumed run stops with "jobs that a previous run recorded as finished no longer have their outputs"
-The run found more than 10 % of the jobs of a resumed batch workflow (at least 2) recorded as
-finished but without outputs, and stopped before resubmitting them. If the storage was
-unreachable, run again once it is back. If the outputs were consumed downstream (merged and
-removed), those branches are done. To redo the work on purpose use `--ignore-submission`. See
+## A resumed run stops with "… jobs of this resumed workflow came back for missing outputs"
+More than 10 % of the jobs of a resumed batch workflow (at least 2) came back for missing
+outputs and were still missing on a fresh check, so the run stopped before resubmitting them;
+their entries in the job file were left as they were. If the storage was unreachable, run again
+once it is back. To redo the work on purpose use `--ignore-submission`. See
 [HTCondor → Submission safeguards](workflow/htcondor.md#submission-safeguards).
 
 ## `… is not readable (…), so no job file can be built` / skipped submission rounds

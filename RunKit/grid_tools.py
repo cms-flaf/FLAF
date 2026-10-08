@@ -233,13 +233,25 @@ def gfal_copy_safe(
                     f'Failed to rename "{output_file_tmp}" to "{output_file}".'
                 )
 
-    repeat_until_success(
-        download,
-        n_retries=n_retries,
-        retry_sleep_interval=retry_sleep_interval,
-        verbose=verbose,
-        exception=GfalError(f'Unable to copy "{input_file}" to "{output_file}".'),
-    )
+    try:
+        repeat_until_success(
+            download,
+            n_retries=n_retries,
+            retry_sleep_interval=retry_sleep_interval,
+            verbose=verbose,
+            exception=GfalError(f'Unable to copy "{input_file}" to "{output_file}".'),
+        )
+    except GfalError:
+        if copy_mode == "copy_rename":
+            # The tmp name is unique to this call, so no later attempt would ever remove
+            # it: a full-size orphan next to the target. Best effort -- the storage may be
+            # what failed.
+            try:
+                if gfal_exists(output_file_tmp, voms_token=voms_token):
+                    gfal_rm(output_file_tmp, voms_token=voms_token, recursive=False)
+            except GfalError:
+                pass
+        raise
 
 
 def _rename_onto(tmp_file, output_file, voms_token):
@@ -310,11 +322,14 @@ def gfal_copy(
         ) from None
 
 
-def gfal_ls(path, voms_token=None, catch_stderr=False, verbose=1):
+def gfal_ls(path, voms_token=None, catch_stderr=False, verbose=1, timeout=None):
     voms_token = get_voms_proxy_token(voms_token)
+    cmd = ["gfal-ls", "--long", "--all", "--time-style", "long-iso"]
+    if timeout is not None:
+        cmd += ["--timeout", str(int(timeout))]
     try:
         _, output, _ = ps_call(
-            ["gfal-ls", "--long", "--all", "--time-style", "long-iso", path],
+            cmd + [path],
             shell=False,
             env=gfal_env(voms_token),
             catch_stdout=True,
@@ -394,17 +409,24 @@ def is_absent_error(err):
     return len(codes) > 0 and int(codes[-1]) == errno.ENOENT
 
 
-def gfal_ls_checked(path, voms_token=None, attempts=3, delay=2.0):
+def gfal_ls_checked(path, voms_token=None, attempts=3, delay=2.0, timeout=300):
     """List `path`; return None only when gfal says that it is not there.
 
     Any other failure (a timeout, an SSL error, a missing credential, an endpoint under
     load) is retried with a growing delay and then raised as GfalError. A caller that reads
     "could not list" as "not there" concludes that a product is missing: in DSProd one
-    failed listing per job turned into 1400 failed CRAB jobs.
+    failed listing per job turned into 1400 failed CRAB jobs. Each attempt is bounded by
+    `timeout` seconds; gfal's own default is half an hour against an endpoint that hangs.
     """
     for attempt in range(1, attempts + 1):
         try:
-            return gfal_ls(path, voms_token=voms_token, catch_stderr=True, verbose=0)
+            return gfal_ls(
+                path,
+                voms_token=voms_token,
+                catch_stderr=True,
+                verbose=0,
+                timeout=timeout,
+            )
         except GfalError as e:
             if is_absent_error(e):
                 return None

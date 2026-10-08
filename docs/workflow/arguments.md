@@ -37,7 +37,7 @@ also provides built-in options for status and cleanup.
 | Option | Default | Meaning |
 |---|---|---|
 | `--transfer-logs` | on | Keep each job's log (HTCondor and CRAB). With a remote `fs_default` the log is uploaded to `<version>/logs/<Task>/<period>/` there (plus the producer name for the analysis-cache tasks); with a local `fs_default` the log is part of the job's output sandbox, which HTCondor copies back to the task's local directory under `data/` only with `--htcondor-spool False` (with the default `-spool` it stays on the schedd until `condor_transfer_data` is run, which law does not do). On CRAB the file is `stdall_<first branch>_crab<tag>.<job number>.txt` (see [CRAB](crab.md#submit)). Switch off with `--transfer-logs False`. |
-| `--parallel-jobs` | unbounded (HTCondor) / **2000** (`AnaTupleFileTask` on HTCondor, `anaTuple_scheduling.parallel_jobs`) / **5000** (CRAB, `crab.parallel_jobs`) | Cap concurrent jobs. On CRAB this is also the max size of each CRAB task. `--<Task>-parallel-jobs` caps that task alone. |
+| `--parallel-jobs` | unbounded (HTCondor) / **2000** (`AnaTupleFileTask` on HTCondor, `anaTuple_scheduling.parallel_jobs`) / **5000** (CRAB, `crab.parallel_jobs`) | Cap concurrent jobs. On CRAB this is also the max size of each CRAB task. The bare form, and the launched task's prefixed form, are copied to every task it requires; `--<Task>-parallel-jobs` for another task caps that task alone. |
 | `--tasks-per-job` | `1` (`10` for `HistTupleProducerTask`) | Branches per job. Applies to the launched task only; set it for an upstream task with `--<Task>-tasks-per-job`. On `AnaTupleFileTask`, jobs are normally composed by [estimated cost](htcondor.md#how-branches-become-jobs) instead; passing this option explicitly restores fixed-size chunking. |
 | `--max-runtime` | *(task default)* | Per-job wall-clock limit in hours: 12 unless the task sets its own (e.g. 40 for `AnaTupleFileTask`, 48 for `AnaTupleMergeTask`). On HTCondor, a resubmitted `AnaTupleFileTask` job gets a longer limit, unless `--tasks-per-job` is given. |
 | `--n-cpus` | `1` (4 for `AnaTupleFileTask`, `AnaTupleCostProbeTask` and `HistTupleProducerTask`; 2 for `AnaTupleMergeTask`, `HistFromNtupleProducerTask` and `HistMergerTask`) | CPUs requested per job. `AnalysisCacheTask` always takes `n_cpus` and `max_runtime` (and, on CRAB, `crab_memory`) from its producer's entry in `payload_producers`. |
@@ -47,7 +47,9 @@ also provides built-in options for status and cleanup.
 
 The per-task defaults of `--n-cpus` and `--max-runtime` apply to the task you launch. They are
 **not** handed from a requiring task to the tasks it requires: each dependency keeps its own
-default, or the value given for it with `--<Task>-n-cpus` / `--<Task>-max-runtime`.
+default, or the value given for it with `--<Task>-n-cpus` / `--<Task>-max-runtime` — unless the
+requiring task pins it, as most FLAF production tasks do for what they require (they pass the
+dependency's own default explicitly, which wins over the prefixed option).
 
 ## CRAB options (on every workflow task)
 
@@ -71,8 +73,9 @@ is retired and raises an error if present.
 
 !!! note "`--parallel-jobs` and `--poll-interval` for one task"
     `--<Task>-parallel-jobs` and `--<Task>-poll-interval` reach the task they name, on CRAB and
-    HTCondor alike, and are not overridden by the CRAB defaults or `crab.*` values. (A bare
-    `--parallel-jobs` is copied to every task of the graph.)
+    HTCondor alike, and are not overridden by the CRAB defaults or `crab.*` values. The bare
+    form — and, the same for luigi, the prefixed form of the task that is launched — is copied
+    to every task of the graph.
 
 ## Status & cleanup (LAW built-ins)
 
@@ -187,4 +190,6 @@ stages.
     is handed down by it and wins over the prefixed value — except for the ones FLAF prefers from
     the command line: `version`, the three version shortcuts, `tasks_per_job`, `parallel_jobs` and
     `poll_interval`. The per-task resources `--n-cpus`, `--max-runtime` and `--crab-memory` are
-    never handed down, so their prefixed form always reaches its task.
+    never handed down implicitly, so their prefixed form reaches its task unless the requiring
+    task pins the value explicitly (FLAF's production tasks pin `--n-cpus` and `--max-runtime`
+    of what they require to its defaults; `--crab-memory` is never pinned).

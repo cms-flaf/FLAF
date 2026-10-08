@@ -228,6 +228,62 @@ class NoVerdictIsIssued(unittest.TestCase):
         self.assertNotIn("7", w._ages)
 
 
+class TheStorageFaultGuardNeedsEnoughRunningJobs(unittest.TestCase):
+    """The incident this module exists for was the tail of a production: 598 of 600
+    branches done, the last two stalled. Read as a proportion, two stale flags out of two
+    running jobs is 100 %, which the storage-fault guard took for a broken storage, so the
+    very jobs the watchdog is for were never rescued. The proportion is read only from
+    `min_running_for_fault_guard` running jobs up; below that, stale jobs are judged one by
+    one, still bounded by `max_per_interval` and `max_per_branch`."""
+
+    def stale_of_running(self, n_running, n_stale):
+        """`n_running` jobs running, one branch each, of which the first `n_stale` stalled."""
+        flags = [
+            Flag(b, age_minutes=99 if b < n_stale else 5) for b in range(n_running)
+        ]
+        w = watchdog(flags)
+        job_map = jobs(*[(n, n) for n in range(n_running)])
+        return w, verdicts(w, job_map, status(*range(n_running)))
+
+    def assertNoStorageFault(self, w):
+        self.assertFalse(any("storage fault" in m for m in w.messages), w.messages)
+
+    def test_the_last_two_running_jobs_both_stalled_are_both_failed(self):
+        w, out = self.stale_of_running(2, 2)
+        self.assertEqual(len(out), 2)
+        self.assertNoStorageFault(w)
+
+    def test_nine_of_nine_stale_are_failed_up_to_the_per_interval_cap(self):
+        w, out = self.stale_of_running(9, 9)
+        self.assertEqual(len(out), DEFAULTS["max_per_interval"])
+        self.assertNoStorageFault(w)
+        self.assertTrue(any("max_per_interval" in m for m in w.messages), w.messages)
+
+    def test_ten_running_with_six_stale_is_read_as_a_storage_fault(self):
+        w, out = self.stale_of_running(10, 6)
+        self.assertEqual(out, {})
+        self.assertTrue(any("storage fault" in m for m in w.messages), w.messages)
+
+    def test_ten_running_with_five_stale_get_their_verdicts(self):
+        w, out = self.stale_of_running(10, 5)
+        self.assertEqual(len(out), 5)
+        self.assertNoStorageFault(w)
+
+    def test_a_write_fault_in_the_tail_costs_each_branch_one_attempt_at_most(self):
+        """The price of reading a few jobs at face value: a storage that stops taking
+        writes while only a few jobs run gets them all failed -- once. Their resubmissions
+        stall the same way and are left to CRAB's wall-clock limit."""
+        flags = [Flag(b, age_minutes=99) for b in range(3)]
+        w = watchdog(flags)
+        self.assertEqual(
+            len(verdicts(w, jobs((0, 0), (1, 1), (2, 2)), status(0, 1, 2))), 3
+        )
+        relist(w, flags)  # the next interval: the per-interval cap starts again
+        resubmitted = jobs((10, 0), (11, 1), (12, 2))
+        self.assertEqual(verdicts(w, resubmitted, status(10, 11, 12)), {})
+        self.assertNoStorageFault(w)
+
+
 class AFlagThatDisappears(unittest.TestCase):
     """Found by the first dry-run wave, which issued two `no heartbeat` verdicts against a job
     that had just finished successfully: the heartbeat context removes the flag on the way out,

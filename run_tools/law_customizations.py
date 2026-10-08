@@ -1284,7 +1284,7 @@ class LawProxyState:
         return self._law_state("_job_retries", "job_retries")
 
 
-class SubmissionGuards:
+class SubmissionGuards(LawProxyState):
     """Remote-workflow-proxy mixin: what both FLAF proxies check before a submission round.
 
     * A software tree that cannot be read. The job file is built inside law's submit(), and
@@ -1292,15 +1292,17 @@ class SubmissionGuards:
       so one blink of the storage the tree lives on fails the whole workflow and ends the
       driver (DSProd, twice on consecutive days). The round is skipped instead -- the offered
       retries are parked, so no attempt is spent on it -- and the next poll tries again.
-    * A resumed workflow that finds most of the jobs it had recorded as finished without
-      their outputs. law retries those (as "unknown job id" -- a recorded-finished job keeps
-      no job id -- or as "initially missing task outputs" for one that was still live), so an
-      output consumed downstream or a storage outage during that check would resubmit most of
-      a production (DSProd: 8300 jobs). The run stops instead and says why.
+    * A resumed workflow whose jobs come back in large numbers for missing outputs. law
+      retries a job it had recorded as finished whose outputs are gone ("unknown job id" -- a
+      recorded-finished job keeps no job id) and a live one reported finished without them
+      ("initially missing task outputs"), so a storage outage during that check, or outputs
+      removed after use, would resubmit most of a production (DSProd: 8300 jobs). The run
+      stops instead and says why.
     """
 
     #: share of a resumed workflow's jobs that may come back for missing outputs in one go
     max_lost_fraction = 0.1
+    min_lost_jobs = 2
 
     #: how long submission rounds may be skipped for an unreadable software tree
     max_skip_minutes = 30.0
@@ -1308,19 +1310,92 @@ class SubmissionGuards:
     #: law's error for a still-live job whose outputs are missing on a resumed run
     missing_outputs_error = "initially missing task outputs"
 
-    _recorded_finished = None
+    _resumed_jobs = None
+    _resumed_attempts = None
     _lost_outputs_judged = False
     _skipping_since = None
 
-    def _snapshot_recorded_finished(self):
-        """The jobs a previous run recorded as finished, taken before the first poll."""
-        if self._submitted and self._recorded_finished is None:
-            finished = self.job_manager.FINISHED
-            self._recorded_finished = {
-                job_num
-                for job_num, data in self.job_data.jobs.items()
-                if (data or {}).get("status") == finished
-            }
+    def _snapshot_resumed_jobs(self):
+        """The job data a resumed run starts from, taken before the first poll changes it."""
+        if self._submitted and self._resumed_jobs is None:
+            self._resumed_jobs = copy.deepcopy(dict(self.job_data.jobs))
+            self._resumed_attempts = dict(self.job_data.attempts)
+
+    def _lost_output_candidates(self, job_nums):
+        """Of `job_nums`, the jobs that came back for missing outputs: recorded as finished
+        when this run started, or reported finished by a live job without them."""
+        before = self._resumed_jobs or {}
+        finished = self.job_manager.FINISHED
+        return [
+            job_num
+            for job_num in job_nums
+            if (before.get(job_num) or {}).get("status") == finished
+            or (self.job_data.jobs.get(job_num) or {}).get("error")
+            == self.missing_outputs_error
+        ]
+
+    def _restore_resumed(self, job_nums):
+        """Put jobs back as this run loaded them (entry and attempts); returns what was
+        there before, for `_put_back`."""
+        replaced = {}
+        jobs = self._resumed_jobs or {}
+        attempts = self._resumed_attempts or {}
+        for job_num in job_nums:
+            replaced[job_num] = (
+                self.job_data.jobs.get(job_num),
+                self.job_data.attempts.get(job_num),
+            )
+            if job_num in jobs:
+                self.job_data.jobs[job_num] = jobs[job_num]
+            if job_num in attempts:
+                self.job_data.attempts[job_num] = attempts[job_num]
+            else:
+                self.job_data.attempts.pop(job_num, None)
+        return replaced
+
+    def _put_back(self, replaced):
+        for job_num, (data, attempts) in replaced.items():
+            if data is not None:
+                self.job_data.jobs[job_num] = data
+            if attempts is None:
+                self.job_data.attempts.pop(job_num, None)
+            else:
+                self.job_data.attempts[job_num] = attempts
+
+    def dump_job_data(self):
+        """Until the first retry generation of a resumed run has been judged, write the jobs
+        that came back for missing outputs as they were loaded.
+
+        law dumps its rewrite of them (a retry, one more attempt) before it hands them to
+        submit(), where they are judged; a driver ending in between would leave the next run
+        retries it does not recognise, and nothing to judge.
+        """
+        if (
+            not self._submitted
+            or self._resumed_jobs is None
+            or self._lost_outputs_judged
+        ):
+            return super(SubmissionGuards, self).dump_job_data()
+        failed = (self.job_manager.RETRY, self.job_manager.FAILED)
+        pending = self._lost_output_candidates(
+            [
+                n
+                for n, d in self.job_data.jobs.items()
+                if (d or {}).get("status") in failed
+            ]
+        )
+        if not pending:
+            return super(SubmissionGuards, self).dump_job_data()
+        replaced = self._restore_resumed(pending)
+        try:
+            return super(SubmissionGuards, self).dump_job_data()
+        finally:
+            self._put_back(replaced)
+
+    def _too_many_lost(self, n_lost):
+        return n_lost >= self.min_lost_jobs and n_lost > self.max_lost_fraction * len(
+            self.job_data
+        )
 
     def _stop_on_mass_lost_outputs(self, retry_jobs):
         """Raise instead of resubmitting, when most of a resumed workflow lost its outputs.
@@ -1332,27 +1407,38 @@ class SubmissionGuards:
         """
         if not self._submitted or self._lost_outputs_judged or not retry_jobs:
             return
+        candidates = self._lost_output_candidates(retry_jobs)
         self._lost_outputs_judged = True
-        recorded = self._recorded_finished or set()
-        lost = [
-            job_num
-            for job_num in retry_jobs
-            if job_num in recorded
-            or (self.job_data.jobs.get(job_num) or {}).get("error")
-            == self.missing_outputs_error
-        ]
-        n_jobs = len(self.job_data)
-        if len(lost) < 2 or len(lost) <= self.max_lost_fraction * n_jobs:
+        if not self._too_many_lost(len(candidates)):
             return
+        # law judged from what it gathered while the workflow was scheduled, through cached
+        # existence answers: a live job may have finished since, and a branch may be complete
+        # by its task's own rule (e.g. inputs merged and replaced by markers). Only a job whose
+        # branches are incomplete on a fresh look counts as lost; the others are marked
+        # skippable, so that law's submit() passes them by and its next poll books them done.
+        require_fresh_negatives()
+        skip_jobs = self._law_state("_skip_jobs", "skip_jobs")
+        lost = []
+        for job_num in candidates:
+            if all(self.task.as_branch(b).complete() for b in retry_jobs[job_num]):
+                skip_jobs[job_num] = True
+            else:
+                lost.append(job_num)
+        if not self._too_many_lost(len(lost)):
+            return
+        # law has already rewritten these jobs as retries and counted the attempt; write them
+        # as they were, so that the next run finds and judges them again
+        self._restore_resumed(candidates)
+        self.dump_job_data()
         raise RuntimeError(
-            f"{len(lost)} of {n_jobs} jobs that a previous run recorded as finished no longer "
-            "have their outputs, so this run would redo most of the workflow. Nothing was "
-            "submitted.\n"
+            f"{len(lost)} of the {len(self.job_data)} jobs of this resumed workflow came back "
+            f"for missing outputs (more than {self.max_lost_fraction:.0%}), and their outputs "
+            "are still missing on a fresh look, so this run would redo a large part of the "
+            "workflow. Nothing was submitted, and the submission file was left as it was.\n"
             "  - if the storage was unreachable while the outputs were checked, run again once "
             "it is back;\n"
-            "  - if the outputs were consumed downstream (e.g. merged and removed), those "
-            "branches are done and the downstream task does not need them;\n"
-            "  - to redo the work deliberately, run again with --ignore-submission."
+            "  - if the outputs were removed on purpose, or the work is to be redone, run again "
+            "with --ignore-submission."
         )
 
     def _park_retries(self, retry_jobs):
@@ -1411,7 +1497,7 @@ class SubmissionGuards:
         return True
 
     def poll(self):
-        self._snapshot_recorded_finished()
+        self._snapshot_resumed_jobs()
         return super(SubmissionGuards, self).poll()
 
 
@@ -1922,9 +2008,10 @@ class FLAFCrabJobManager(law.cms.CrabJobManager):
     #: in-flight site counts of a project not queried for this long stop counting
     in_flight_stale_seconds = 3600.0
 
-    #: freshly failed jobs whose stdout is read for the payload's own error, per poll. A
-    #: wave that fails by the hundred fails for a handful of reasons, and one line each is
-    #: what is wanted -- not one HTTP fetch per job while the poll waits.
+    #: freshly failed jobs whose stdout is read for the payload's own error, per CRAB task
+    #: and poll (law queries each task separately). A wave that fails by the hundred fails
+    #: for a handful of reasons, and one line each is what is wanted -- not one HTTP fetch
+    #: per job while the poll waits.
     max_failure_reports = 5
 
     #: how much of a job's stdout is kept while looking for its error
@@ -2429,7 +2516,7 @@ class FLAFCrabJobManager(law.cms.CrabJobManager):
                 print(f"could not report a failed job ({exc}); its stdout is at {url}")
         if len(failures) > len(shown):
             print(
-                f"... and {len(failures) - len(shown)} more failed job(s) this poll whose "
+                f"... and {len(failures) - len(shown)} more failed job(s) of this task whose "
                 f"reason was not fetched (max_failure_reports={self.max_failure_reports}); "
                 "their stdout is linked from the job data"
             )
@@ -2514,29 +2601,50 @@ class _FLAFCrabWorkflowProxy(SubmissionGuards, _FLAFCrabWorkflowProxyBase):
         self._retry_parked_since = None
         self._apply_crab_parallel_jobs()
         self._apply_crab_poll_interval()
+        # read once here, so that a setting that is not a number stops the run at the start
+        # rather than at the first retry, deep inside a production
+        self._crab_refill_fraction()
+        self._crab_retry_release_minutes()
+
+    def run(self):
+        # law judges which outputs exist from what it gathered while luigi scheduled the
+        # workflow, through cached existence answers -- and a CRAB worker cannot reach the
+        # path-cache server, so an output written while no driver was polling (a restarted
+        # driver, a workflow waiting for its turn) still reads as absent there. Gather it
+        # again, with every "absent" resting on a listing taken from here on: otherwise the
+        # first poll of a resumed run sends finished branches back to the grid.
+        require_fresh_negatives()
+        self._existing_branches = None
+        self._law_state("_skip_jobs", "skip_jobs").clear()
+        return super(_FLAFCrabWorkflowProxy, self).run()
+
+    def _crab_number(self, key, default):
+        """A finite number from the `crab:` config; a value that is not one is an error, not
+        a silent default (`waited >= nan` is never true, for one)."""
+        raw = self.task._crab_cfg().get(key, default)
+        try:
+            value = math.nan if isinstance(raw, bool) else float(raw)
+        except (TypeError, ValueError):
+            value = math.nan
+        if not math.isfinite(value):
+            raise ValueError(f"crab.{key} must be a number, got {raw!r}")
+        return value
 
     def _crab_refill_fraction(self):
-        raw = self.task._crab_cfg().get(
-            "refill_fraction", _CRAB_DEFAULT_REFILL_FRACTION
+        return min(
+            max(
+                self._crab_number("refill_fraction", _CRAB_DEFAULT_REFILL_FRACTION), 0.0
+            ),
+            1.0,
         )
-        try:
-            frac = float(raw)
-        except (TypeError, ValueError):
-            frac = _CRAB_DEFAULT_REFILL_FRACTION
-        return min(max(frac, 0.0), 1.0)
 
     def _crab_retry_release_minutes(self):
-        raw = self.task._crab_cfg().get(
-            "retry_release_minutes", _CRAB_DEFAULT_RETRY_RELEASE_MINUTES
+        return max(
+            self._crab_number(
+                "retry_release_minutes", _CRAB_DEFAULT_RETRY_RELEASE_MINUTES
+            ),
+            0.0,
         )
-        try:
-            minutes = float(raw)
-        except (TypeError, ValueError):
-            minutes = _CRAB_DEFAULT_RETRY_RELEASE_MINUTES
-        if not math.isfinite(minutes):
-            # `waited >= nan` is never true, so a nan would disable the release silently
-            minutes = _CRAB_DEFAULT_RETRY_RELEASE_MINUTES
-        return max(minutes, 0.0)
 
     def _apply_crab_parallel_jobs(self):
         """CRAB default is 5000 jobs in flight; yaml then CLI override.
@@ -2588,13 +2696,14 @@ class _FLAFCrabWorkflowProxy(SubmissionGuards, _FLAFCrabWorkflowProxyBase):
     def _update_retry_release_clock(self, after_release=False):
         """Keep a release window running exactly while the wave gate holds a retry back.
 
-        It is (re)started wherever the parked set changes, not only where this proxy parks
-        a generation itself: a release takes only as many parked retries as there are free
-        slots and leaves the rest behind, and a resumed run reads them from the submission
-        file while law hands it an empty retry generation on every poll. Only the timestamp
-        lives in memory, so a restarted driver delays a release by at most one window and
-        never loses a job. `after_release` starts a fresh window for the retries a release
-        could not take, rather than an expired one that would open the gate on every poll.
+        The window starts when the first retry is parked and is not moved by later ones, so
+        the oldest parked retry waits at most one window. It is checked on every round, not
+        only where this proxy parks a generation itself: a resumed run reads parked retries
+        from the submission file while law hands it an empty retry generation on every poll.
+        Only the timestamp lives in memory, so a restarted driver delays a release by at most
+        one window and never loses a job. `after_release` starts a fresh window for the
+        retries a release could not take, rather than an expired one that would open the gate
+        on every poll.
         """
         if not self._parked_retries():
             self._retry_parked_since = None

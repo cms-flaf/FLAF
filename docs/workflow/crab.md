@@ -15,9 +15,11 @@ fields are derived from `fs_default`, not configured separately.
 1. A valid **VOMS proxy** for the CMS VO (`voms-proxy-init --voms cms -valid 192:00`).
 2. A **MyProxy** credential valid for **at least 5 days**, in the form **CRAB** reads it:
    stored under the SHA1 of your DN (the username CRAB looks for), with the retrieval policy
-   of the CRAB task workers. FLAF accepts no other credential, and fails early if the VOMS
-   proxy is missing or expired, or if no such credential with at least 5 days left is found
-   (instead of waiting for a server-side `SUBMITFAILED`). There is no password-file fallback.
+   of the CRAB task workers. FLAF fails early if the VOMS proxy is missing or expired, or if
+   no credential under the SHA1 username with at least 5 days left is found (instead of
+   waiting for a server-side `SUBMITFAILED`). It cannot see the retrieval policy, so a
+   credential made by hand under that name without one passes the check and is refused by
+   the server; create it as below. There is no password-file fallback.
    Create it with the CRAB client, in a shell with the analysis `env.sh` sourced:
 
     ```sh
@@ -40,7 +42,10 @@ fields are derived from `fs_default`, not configured separately.
         ```
 
         The credential then cannot outlive the proxy: its lifetime is clamped to the whole
-        days left on the proxy. The two variables are set for this one command only and must
+        days left on the proxy, so a fresh 8-day proxy gives a 7-day credential, which clears
+        the 5-day minimum for about two days. The client's warning that "your user
+        certificate is going to expire in 7 days" refers to the proxy standing in for the
+        certificate. The two variables are set for this one command only and must
         **never be exported**: they precede the proxy in the GSI search order and break
         other commands.
 
@@ -95,8 +100,8 @@ crab:
 | `whitelist` | Restricts `Site.whitelist`. Default: `T1_*`, `T2_*`, `T3_*`. |
 | `blacklist` | Sites (or glob patterns) to exclude. Removed from the whitelist itself — see [Sites and quarantine](#sites-and-quarantine). |
 | `parallel_jobs` | Default for `--parallel-jobs` on CRAB (CLI wins). Default: `5000`. Caps how many CRAB jobs are in flight and thus the size of each CRAB task. CRAB itself refuses more than 10 000 jobs in one task. |
-| `refill_fraction` | Minimum wave size, as a fraction of `parallel_jobs`. Default: `0.2`. See [The wave gate](#the-wave-gate). |
-| `retry_release_minutes` | How long the wave gate may hold a retry back before releasing it whatever the wave size. Default: `45`. |
+| `refill_fraction` | Minimum wave size, as a fraction of `parallel_jobs`. Default: `0.2`. See [The wave gate](#the-wave-gate). A value that is not a number is an error. |
+| `retry_release_minutes` | How long the wave gate may hold a retry back before releasing it whatever the wave size. Default: `45`. A value that is not a number is an error. |
 | `poll_interval` | Minutes between `crab status` polls (CLI `--poll-interval` wins). Default: `5`. Each poll is one multi-MB `crab status --json` per live CRAB task. |
 | `min_runtime_min` | Lower bound, in minutes, for CRAB `JobType.maxJobRuntimeMin` (`--max-runtime` converted to minutes), since every job first downloads and unpacks its bundles. Default: `60`. It must parse as a whole number: an unparseable value raises an error instead of silently leaving CRAB's own 1250 min default (which would kill every longer job). |
 | `auto_blacklist` | Mapping (or `false`). Automatic site quarantine, on by default — see [below](#automatic-site-quarantine). |
@@ -182,8 +187,9 @@ status`) and keeps a site out of the *next* CRAB task — retries included — w
 recent jobs mostly fail. The failure rate is measured over jobs *sent* to the site
 (ended + still in flight), judged against the other sites' record, so a bug of your own
 (which fails everywhere) never quarantines anything. The record is per analysis and advisory —
-deleting the JSON file resets it — and one record is shared by every CRAB workflow of a law
-run.
+deleting the JSON file resets it. One record is shared by every CRAB workflow of a law
+process; with `--workers` above 1, luigi runs workflows in separate processes, each of which
+saves its own view, so the last one to save wins.
 
 - **Rate test:** a site is quarantined when it has at least `min_failures` failures, at least
   `min_failure_rate` of the jobs sent to it failed, that is `relative_factor` times the other
@@ -233,10 +239,10 @@ law run FLAF.Analysis.tasks.HistTupleProducerTask \
 | Option | Why |
 |---|---|
 | `--workflow crab` | Submit via CRAB instead of local/HTCondor. |
-| `--parallel-jobs` | Jobs in flight (default **5000** on CRAB; on HTCondor unlimited, except 2000 for `AnaTupleFileTask`). Each refill is one CRAB task. Also `crab.parallel_jobs` in `global.yaml`. Given as `--<Task>-parallel-jobs` it applies to that task. |
+| `--parallel-jobs` | Jobs in flight (default **5000** on CRAB; on HTCondor unlimited, except 2000 for `AnaTupleFileTask`). Each refill is one CRAB task. Also `crab.parallel_jobs` in `global.yaml`. The bare form, and the prefixed form of the task that is launched, are copied to every task it requires; `--<Task>-parallel-jobs` for another task applies to that task. |
 | `--max-runtime` / `--n-cpus` | Same as HTCondor; mapped to CRAB `maxJobRuntimeMin` (at least `crab.min_runtime_min`) / `numCores` (rounded up to 1, 2, 4 or 8). See [Resources](#resources). |
 | `--crab-memory` | CRAB `maxMemoryMB` in MB (CRAB only); default the most CRAB grants for the cores. See [Resources](#resources). |
-| `--poll-interval` | Minutes between `crab status` polls (default `5`). Given as `--<Task>-poll-interval` it applies to that task. |
+| `--poll-interval` | Minutes between `crab status` polls (default `5`). Like `--parallel-jobs`: the bare and the launched task's prefixed form reach every required task, `--<Task>-poll-interval` for another task applies to that task. |
 | `--transfer-logs` | On by default; each job uploads its log to `<version>/logs/<Task>/<period>/stdall_<first branch>_crab<tag>.<N>.txt` on `fs_default` (with the producer name after `<period>` for per-producer tasks). `<N>` is the CRAB job number and `<tag>` the unique suffix of the CRAB task: CRAB numbers the jobs of every task from 1 and a production is many tasks, so the number alone would let one job's log overwrite another's. CRAB's own log transfer stays off. |
 
 You do **not** need `--bundle` for CRAB — bundles are forced whenever the workflow is `crab`.
@@ -262,9 +268,10 @@ submitted in waves of at least `refill_fraction × parallel_jobs` jobs.
   cannot fill one (the tail of a production, or any production smaller than a wave), whatever is
   waiting is submitted at once.
 - A retry parked for `crab.retry_release_minutes` (default 45) is released however small the
-  wave it makes. The clock is restarted whenever the parked set changes; it survives a restart
-  of the driver in the sense that the parked retries are recognised from the attempt counters in
-  the job file, so a restart delays a release by at most one window and loses no job.
+  wave it makes. The window starts with the first retry parked and is not moved by later ones,
+  so the oldest parked retry waits at most one window; retries a release could not take get a
+  fresh window. Parked retries are recognised from the attempt counters in the job file, so a
+  restarted driver delays a release by at most one window and loses no job.
 - `--no-poll` bypasses the gate: a no-poll run resubmits failures exactly once and returns, so a
   parked job would not be offered again.
 
@@ -298,10 +305,12 @@ follows.
   output check a failed job would be written off as done. Every "absent" answer of a poll rests
   on a listing taken after the status: one listing per output directory per poll, which also
   republishes the directory to the path-cache server. CRAB workers cannot reach that server, so
-  without this the files they write would read as absent for up to 24 h.
+  without this the files they write would read as absent for up to 24 h. For the same reason a
+  driver that is (re)started takes fresh listings before it judges which outputs exist: jobs
+  that finished while no driver was polling are accepted, not sent back to the grid.
 - **Why a job failed.** Each newly failed job that has a job-level exit code gets one line with
   the exit code, the site and the last exception line of its stdout, fetched from the schedd
-  with your proxy: at most 5 jobs per poll, the last 4 MB of the stdout, 30 s per socket
+  with your proxy: at most 5 jobs per CRAB task and poll, the last 4 MB of the stdout, 30 s per socket
   operation and 60 s per transfer; the rest are counted. A stdout that cannot be read, or
   carries no exception, is said to be so, once per attempt. Jobs failed without an exit code
   (kills, refused tasks, watchdog verdicts) get no such line.
@@ -326,12 +335,18 @@ behind two such jobs. The watchdog finds them. It is on by default for CRAB.
   running job that never wrote a flag is failed after `missed_checks + 1` intervals.
 - CRAB has no per-job kill, so the slot is **abandoned**, not freed: it is reclaimed when
   `maxJobRuntimeMin` expires.
-- A flag that disappears means the job is exiting, and is not a verdict. A flag older than the
-  current attempt is ignored.
+- A flag that disappears is read as the job exiting, and is not a verdict. A flag older than
+  the current attempt is ignored.
+- Over `davs://` the flag is rewritten as a delete followed by a fresh upload. On storage that
+  keeps deleted files (CERNBox, the usual `fs_default`), every beat therefore leaves an entry
+  in the recycle bin, about `2 × running jobs` per hour at the default interval; and a beat that
+  fails between the two leaves no flag until the next one, which reads as a job on its way out.
 - Brakes: no more than `max_per_interval` verdicts in one interval, `max_per_branch` rescues
   per branch (a branch that stalls wherever it runs is the branch's problem), and no verdicts at
-  all when more than `max_stale_fraction` of the running jobs look stale: that is read as a
-  storage fault. A job failed by the watchdog is charged to the site it was last seen at,
+  all when more than `max_stale_fraction` of the running jobs look stale while at least 10 are
+  running: that is read as a storage fault. With fewer running jobs — the tail of a production,
+  where the last stalled jobs hold its completion — the proportion says nothing, and they get
+  their verdicts. A job failed by the watchdog is charged to the site it was last seen at,
   once.
 
 `crab.watchdog: false` disables it. Settings (`DEFAULTS` in `FLAF/run_tools/crab_watchdog.py`);

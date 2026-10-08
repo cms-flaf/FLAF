@@ -256,6 +256,50 @@ class TestSharedListing(unittest.TestCase):
                 self.assertTrue(consumer.exists("data"))
                 self.assertTrue(consumer.exists("data/file_0.root"))
 
+    def _failed_upload(self, path):
+        producer = self._client()
+        with producer.patch_ls():
+            with mock.patch.object(
+                law_gfal,
+                "gfal_copy_safe",
+                side_effect=GfalError(f'Unable to copy "x.root" to "{path}".'),
+            ):
+                with self.assertRaises(GfalError):
+                    producer.filecopy("file:///tmp/x.root", path)
+        return producer
+
+    def test_a_failed_upload_leaves_a_known_target_visible(self):
+        # copy_rename keeps the target in place until the rename, so a failed upload leaves
+        # it intact; an "absent" published before the upload would hide it from everyone.
+        target = os.path.join(BASE, "data/file_0.root")
+        with self.server.patch():
+            first = self._client()
+            with first.patch_ls():
+                self.assertTrue(first.exists("data/file_0.root"))
+
+            producer = self._failed_upload("data/file_0.root")
+            self.assertIs(self.server.entries.get(target), True)
+            with producer.patch_ls():
+                self.assertTrue(producer.exists("data/file_0.root"))
+
+            other = self._client()
+            with other.patch_ls():
+                n0 = GFALFileInterface.listdir_counter
+                self.assertTrue(other.exists("data/file_0.root"))
+                self.assertEqual(GFALFileInterface.listdir_counter - n0, 0)
+
+    def test_a_failed_upload_publishes_nothing_for_an_unknown_target(self):
+        target = os.path.join(BASE, "data/file_0.root")
+        with self.server.patch():
+            producer = self._failed_upload("data/file_0.root")
+            self.assertNotIn(target, self.server.entries)
+
+            other = self._client()
+            with other.patch_ls():
+                self.assertTrue(other.exists("data/file_0.root"))
+            with producer.patch_ls():
+                self.assertTrue(producer.exists("data/file_0.root"))
+
     def test_snapshot_ships_a_marker_only_for_a_listing_taken_here(self):
         # The submit-time snapshot shipped to jobs must not claim that a partial set of
         # entries is a complete listing.

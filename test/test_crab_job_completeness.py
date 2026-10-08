@@ -16,6 +16,9 @@ file from a listing marker that the path-cache server shares between processes, 
 cannot reach that server, so the marker of a listing taken before the worker wrote its product
 says "absent" in every process. Clearing the driver's own cache does not help -- the next
 lookup falls through to the server -- which is why the check bumps the fresh-negatives epoch.
+A driver that resumes a workflow meets the same marker for every product written while no
+driver polled, before its first poll: the CRAB proxy's run() gathers the existing outputs again
+on fresh listings (`AResumedRun`, driven through law's whole run()).
 
 Nothing about completeness is replaced. law's real poll loop runs the real FLAF job manager's
 `query()`, law's real `crab status` parsing with the query kwargs FLAF pins, the branch's own
@@ -50,6 +53,7 @@ except ImportError:
 
 import law  # noqa: E402
 import law.contrib.cms.job  # noqa: E402
+import luigi.task_register  # noqa: E402
 from law.job.dashboard import NoJobDashboard  # noqa: E402
 
 from FLAF.run_tools import crab_watchdog  # noqa: E402
@@ -104,6 +108,38 @@ class ProductTask(lc.Task, lc.HTCondorWorkflow, lc.CrabWorkflow, law.LocalWorkfl
         raise AssertionError("nothing in these tests runs a branch")
 
 
+class ResumedProductTask(ProductTask):
+    """Six branches over two directories, so that what a run lists is visible per directory."""
+
+    def create_branch_map(self):
+        return {branch: f"part_{branch % 2}" for branch in range(6)}
+
+    def output(self):
+        return self.remote_target(
+            self.version,
+            self.__class__.__name__,
+            self.period,
+            self.branch_data,
+            f"product_{self.branch}.root",
+        )
+
+
+def merged_marker(product):
+    """What a downstream merge leaves in place of a product it consumed (issue #229)."""
+    return product.sibling(product.basename + ".merged", type="f")
+
+
+class MergedProductTask(ResumedProductTask):
+    """Complete by its own rule as well, as HistFromNtupleProducerTask is: a branch whose
+    product a downstream merge removed and replaced by its marker is done."""
+
+    def complete(self):
+        if not self.is_branch():
+            return super().complete()
+        product = self.output()
+        return product.exists() or merged_marker(product).exists()
+
+
 class Entry:
     """The fields of grid_tools.FileInfo that law_gfal reads off a listing."""
 
@@ -133,6 +169,10 @@ class FakeStorage:
             parent, _, name = uri.rpartition("/")
             self.dirs.setdefault(parent, set()).add(name)
             uri = parent
+
+    def remove(self, uri):
+        parent, _, name = uri.rpartition("/")
+        self.dirs[parent].discard(name)
 
     def ls(self, uri, **kwargs):
         self.listings.append(uri)
@@ -176,7 +216,7 @@ def crab_status_output(states):
 class Harness:
     """The pieces every test needs: storage, cache server, file system and a task."""
 
-    def __init__(self, case, workflow="crab", **task_params):
+    def __init__(self, case, workflow="crab", task_cls=ProductTask, **task_params):
         self.case = case
         self.storage = FakeStorage()
         self.server = FakeCacheServer()
@@ -220,13 +260,15 @@ class Harness:
             get_fs=lambda name, custom_paths=None: self.fs,
         )
         # a fresh version per harness: luigi caches task instances by their parameters
-        self.task = ProductTask(
+        self.task_cls = task_cls
+        self.task_params = dict(
             version=f"v_{uuid.uuid4().hex[:8]}",
             period=PERIOD,
             workflow=workflow,
             poll_interval=0.0,
             **task_params,
         )
+        self.task = task_cls(**self.task_params)
         self.product_dir = os.path.dirname(self.product_uri(0))
 
     def _setup(self, *args, **kwargs):
@@ -275,6 +317,28 @@ class PollHarness(Harness):
     ):
         super().__init__(case, workflow=workflow, **task_params)
         self.workflow = workflow
+        self.script(responses, before_query=before_query, max_polls=max_polls)
+        self._job_nums = {}
+
+        self.proxy = self.task.workflow_proxy
+        proxy_cls = {
+            "crab": lc._FLAFCrabWorkflowProxy,
+            "htcondor": lc._BundleAwareHTCondorWorkflowProxy,
+        }[workflow]
+        case.assertIsInstance(self.proxy, proxy_cls)
+        # set by law's run(), which is not what is under test
+        self.proxy.dashboard = self.task.create_job_dashboard() or NoJobDashboard()
+        # a fresh submission, as a production is: law has a separate rule for the first poll
+        # of a RESUMED one (`_submitted and i == 0`), where a finished job with no outputs is
+        # retried as "initially missing task outputs" -- a guard that covers one iteration of
+        # one case and is why the incident happened on a freshly submitted task
+        self.proxy._submitted = False
+        # what law found at the start of the run: nothing (law ORs accepted branches in)
+        self.proxy._existing_branches = set()
+        self.proj_dir = os.path.join(_data_dir, f"crab_{uuid.uuid4().hex[:8]}")
+
+    def script(self, responses, before_query=None, max_polls=None):
+        """Arm the batch-system responses of one poll loop, and clear its records."""
         #: stop the loop after this many polls, the way law lets a poll callback stop it
         self.max_polls = max_polls
         #: per poll: job_num -> the CRAB state (crab) or law's status (htcondor)
@@ -295,25 +359,11 @@ class PollHarness(Harness):
         self.after_poll = []
         #: the fresh-negatives epoch after each poll
         self.epochs = []
+        #: at the top of each iteration of the loop: the storage listings taken so far, and
+        #: what the cache server knows
+        self.listings_at_iteration = []
+        self.server_at_iteration = []
         self.messages = []
-        self._job_nums = {}
-
-        self.proxy = self.task.workflow_proxy
-        proxy_cls = {
-            "crab": lc._FLAFCrabWorkflowProxy,
-            "htcondor": lc._BundleAwareHTCondorWorkflowProxy,
-        }[workflow]
-        case.assertIsInstance(self.proxy, proxy_cls)
-        # set by law's run(), which is not what is under test
-        self.proxy.dashboard = self.task.create_job_dashboard() or NoJobDashboard()
-        # a fresh submission, as a production is: law has a separate rule for the first poll
-        # of a RESUMED one (`_submitted and i == 0`), where a finished job with no outputs is
-        # retried as "initially missing task outputs" -- a guard that covers one iteration of
-        # one case and is why the incident happened on a freshly submitted task
-        self.proxy._submitted = False
-        # what law found at the start of the run: nothing (law ORs accepted branches in)
-        self.proxy._existing_branches = set()
-        self.proj_dir = os.path.join(_data_dir, f"crab_{uuid.uuid4().hex[:8]}")
 
     def job(self, job_num, branch):
         if self.workflow == "crab":
@@ -334,6 +384,8 @@ class PollHarness(Harness):
         for ever, and with no poll interval that would hang the test instead of failing it.
         """
         self.iterations += 1
+        self.listings_at_iteration.append(list(self.storage.listings))
+        self.server_at_iteration.append(dict(self.server.entries))
         if self.iterations > len(self.responses) + 3:
             raise AssertionError(
                 f"the poll loop did not end after {self.iterations - 1} polls: "
@@ -384,7 +436,8 @@ class PollHarness(Harness):
             self.offered.append(dict(retry_jobs))
         return OrderedDict()
 
-    def run(self):
+    def _patches(self):
+        """The doubles of every poll loop: the batch system and the task's environment."""
         real_complete = ProductTask.complete
 
         def spy(task_self):
@@ -395,9 +448,6 @@ class PollHarness(Harness):
 
         proxy_cls = type(self.proxy)
         patches = [
-            mock.patch.object(
-                proxy_cls, "submit", autospec=True, side_effect=self._submit
-            ),
             mock.patch.object(
                 ProductTask,
                 f"{self.workflow}_poll_callback",
@@ -435,6 +485,14 @@ class PollHarness(Harness):
                     side_effect=self._condor_q,
                 )
             )
+        return patches
+
+    def run(self):
+        patches = self._patches() + [
+            mock.patch.object(
+                type(self.proxy), "submit", autospec=True, side_effect=self._submit
+            )
+        ]
         with contextlib.ExitStack() as stack:
             for patch in patches:
                 stack.enter_context(patch)
@@ -445,6 +503,75 @@ class PollHarness(Harness):
 
     def error(self, job_num):
         return self.proxy.job_data.jobs[job_num]["error"]
+
+
+class RunHarness(PollHarness):
+    """Drives whole CRAB driver runs through the workflow's run(), as luigi's worker does.
+
+    Around PollHarness's poll loop everything is real here as well: the FLAF CRAB proxy's
+    run(), law's `_run_impl()` (the submission file, the branches whose outputs exist, what to
+    submit) and law's submit() behind FLAF's (the mass-lost-outputs brake, the job-source
+    probe, the wave gate). Only `_submit_group`, which writes the CRAB job file and runs `crab
+    submit`, is a double.
+
+    Each driver is a process of its own: a new task instance with its own local caches and a
+    fresh-negatives epoch of zero, sharing the storage, the cache server and the submission
+    file with the drivers before it.
+    """
+
+    def __init__(self, case, task_cls=ResumedProductTask, **task_params):
+        super().__init__(case, responses=[], task_cls=task_cls, **task_params)
+        self.new_driver()
+
+    def new_driver(self):
+        # luigi hands out one task instance per parameter set and process
+        luigi.task_register.Register.clear_instance_cache()
+        GFALFileInterface.negatives_valid_after = 0.0
+        self.fs = self.new_fs()
+        self.task = self.task_cls(**self.task_params)
+        self.proxy = self.task.workflow_proxy
+        self.case.assertIsInstance(self.proxy, lc._FLAFCrabWorkflowProxy)
+        #: the jobs this driver handed to `crab submit`, per submission round
+        self.submitted = []
+
+    def product_dirs(self):
+        return sorted({os.path.dirname(self.product_uri(b)) for b in range(6)})
+
+    def _submit_group(self, proxy_self, submit_jobs, **kwargs):
+        self.submitted.append(dict(submit_jobs))
+        # one CRAB task holds every job, numbered as law numbers them
+        manager = proxy_self.job_manager
+        job_ids = [
+            manager.JobId(job_num, "fake_crab_task", self.proj_dir)
+            for job_num in submit_jobs
+        ]
+        return job_ids, {
+            job_num: {"job": None, "config": None, "log": None}
+            for job_num in submit_jobs
+        }
+
+    def drive(self, responses, before_query=None, max_polls=None):
+        """Schedule the workflow and run it."""
+        self.script(responses, before_query=before_query, max_polls=max_polls)
+        # what luigi asks while it schedules the workflow: law gathers the branches whose
+        # outputs exist, and its per-job skip verdicts, right here (`process_resources`)
+        self.task.complete()
+        self.task.process_resources()
+        self.storage.listings.clear()
+        patches = self._patches() + [
+            mock.patch.object(
+                lc._FLAFCrabWorkflowProxy,
+                "_submit_group",
+                autospec=True,
+                side_effect=self._submit_group,
+            ),
+            # the job-source probe in front of every submission round reads this tree
+            mock.patch.dict(os.environ, {"FLAF_PATH": flaf_repo}),
+        ]
+        with contextlib.ExitStack() as stack:
+            for patch in patches:
+                stack.enter_context(patch)
+            self.task.run()
 
 
 class TheProductsDecide(unittest.TestCase):
@@ -658,6 +785,187 @@ class TheSharedListingTrap(unittest.TestCase):
                 self.assertEqual(
                     h.storage.listings, [], "the stale server marker answered"
                 )
+
+
+class AResumedRun(unittest.TestCase):
+    """A driver that picks a CRAB workflow up from its submission file.
+
+    Jobs go on finishing while no driver polls -- the driver was restarted, or the workflow
+    waited for its turn -- and a CRAB worker cannot tell the path-cache server what it wrote,
+    so the listing the previous driver published still answers "absent" for those products.
+    law gathers the existing outputs while luigi schedules the workflow, and on the first
+    poll of a resumed run it sends a job reported finished whose outputs it did not gather
+    back to the grid ("initially missing task outputs"). The FLAF proxy's run() gathers them
+    again first, with every "absent" resting on a listing taken from there on.
+    """
+
+    finished_while_away = (2, 3, 4)
+
+    def resumable(self, task_cls=ResumedProductTask):
+        return RunHarness(
+            self, task_cls=task_cls, acceptance=1.0, tolerance=0.0, retries=1
+        )
+
+    def old_driver_then_away(self):
+        """The old driver submits and polls once; then three jobs finish while none polls."""
+        h = self.resumable()
+        # produced by an earlier submission: the old driver books jobs 1 and 2 as finished
+        # without submitting them, and lists both directories doing so
+        h.produce(0)
+        h.produce(1)
+        h.drive([{job: "running" for job in (3, 4, 5, 6)}], max_polls=1)
+
+        self.assertEqual(h.submitted, [{3: [2], 4: [3], 5: [4], 6: [5]}])
+        finished, running = h.proxy.job_manager.FINISHED, h.proxy.job_manager.RUNNING
+        self.assertEqual(
+            {num: status for num, (status, _) in h.after_poll[-1].items()},
+            {1: finished, 2: finished, 3: running, 4: running, 5: running, 6: running},
+        )
+        for directory in h.product_dirs():
+            marker = law_gfal.listing_marker(directory)
+            self.assertIs(h.server.entries.get(marker), True)
+        for branch in self.finished_while_away:
+            h.produce(branch)
+            self.assertIsNone(h.server.entries.get(h.product_uri(branch)))
+        h.new_driver()
+        return h
+
+    def resume(self, h):
+        """The new driver: CRAB reports jobs 3-5 finished, and job 6 finishes a poll later."""
+        h.drive(
+            [
+                {3: "finished", 4: "finished", 5: "finished", 6: "running"},
+                {3: "finished", 4: "finished", 5: "finished", 6: "finished"},
+            ],
+            before_query={1: lambda: h.produce(5)},
+        )
+
+    def test_jobs_that_finished_meanwhile_are_accepted(self):
+        h = self.old_driver_then_away()
+        self.resume(h)
+
+        manager = h.proxy.job_manager
+        self.assertEqual(h.queries, 2)
+        for poll in h.after_poll:
+            for job_num, (status, error) in poll.items():
+                self.assertNotIn(
+                    status,
+                    (manager.RETRY, manager.FAILED),
+                    f"job {job_num} was sent back: {error}",
+                )
+        self.assertEqual(
+            {num: status for num, (status, _) in h.after_poll[0].items()},
+            {**{job: manager.FINISHED for job in range(1, 6)}, 6: manager.RUNNING},
+        )
+        for job_num in range(1, 7):
+            self.assertEqual(h.status(job_num), manager.FINISHED)
+        self.assertEqual(h.submitted, [], "a finished job was submitted again")
+        self.assertEqual(dict(h.proxy.job_data.attempts), {})
+
+    def test_the_resync_lists_each_directory_once(self):
+        """Six products in two directories, three of them unknown to the cache server and
+        one still missing: two listings, before the first poll."""
+        h = self.old_driver_then_away()
+        self.resume(h)
+
+        self.assertEqual(sorted(h.listings_at_iteration[0]), h.product_dirs())
+
+    def test_the_resync_republishes_what_the_workers_wrote(self):
+        h = self.old_driver_then_away()
+        self.resume(h)
+
+        # before the first poll, not only once something later lists the directory again
+        for branch in self.finished_while_away:
+            uri = h.product_uri(branch)
+            self.assertIs(h.server_at_iteration[0].get(uri), True)
+        # another process now finds every product without listing anything
+        n_listings = len(h.storage.listings)
+        other = h.new_fs()
+        for branch in range(6):
+            self.assertTrue(other.exists(h.product_path(branch)))
+        self.assertEqual(len(h.storage.listings), n_listings)
+
+    def test_without_the_resync_they_go_back_to_the_grid(self):
+        """The proxy's run() with its resync, or a part of it, left out. Each of the three
+        steps is needed on its own: the epoch, so that the stale "absent" is not believed;
+        the existing branches and the skip verdicts, both gathered while luigi scheduled the
+        workflow, so that law does not reuse them."""
+        law_run = lc._FLAFCrabWorkflowProxyBase.run
+        steps = ("fresh negatives", "existing branches", "skip verdicts")
+
+        def run_without(dropped):
+            def run(proxy):
+                if "fresh negatives" not in dropped:
+                    lc.require_fresh_negatives()
+                if "existing branches" not in dropped:
+                    proxy._existing_branches = None
+                if "skip verdicts" not in dropped:
+                    proxy._skip_jobs.clear()
+                return law_run(proxy)
+
+            return run
+
+        for dropped in [steps] + [(step,) for step in steps]:
+            with self.subTest(dropped=dropped):
+                h = self.old_driver_then_away()
+                with mock.patch.object(
+                    lc._FLAFCrabWorkflowProxy,
+                    "run",
+                    autospec=True,
+                    side_effect=run_without(dropped),
+                ):
+                    self.resume(h)
+
+                manager = h.proxy.job_manager
+                for job_num in (3, 4, 5):
+                    self.assertEqual(
+                        h.after_poll[0][job_num],
+                        (manager.RETRY, "initially missing task outputs"),
+                    )
+
+    @staticmethod
+    def merge(h, branch):
+        """A downstream merge consumes a product and leaves its marker. It runs where the
+        cache server is reachable, so it publishes both, as GFALFileInterface's remove() and
+        filecopy() do."""
+        product_uri = h.product_uri(branch)
+        marker = merged_marker(h.task.as_branch(branch).output())
+        marker_uri = h.fs.file_interface.uri(marker.path)
+        h.storage.remove(product_uri)
+        h.storage.add(marker_uri)
+        h.server.set_status([(product_uri, False), (marker_uri, True)])
+
+    # The brake recounts candidates by the branch task's own complete(); one found complete
+    # is marked skippable for law, whose cached verdict (from the output collection) would
+    # otherwise send it back to the grid.
+    def test_branches_done_by_their_own_rule_are_not_sent_back(self):
+        """Products consumed by a downstream merge and replaced by its markers, as
+        HistMergerTask does with `remove_merged_inputs`: the branches are complete, the
+        brake's fresh look says so, and the jobs must not go back to the grid."""
+        h = self.resumable(MergedProductTask)
+        for directory in h.product_dirs():
+            h.storage.add(directory, is_dir=True)
+        h.drive(
+            [{**{job: "finished" for job in range(1, 6)}, 6: "running"}],
+            before_query={0: lambda: [h.produce(branch) for branch in range(5)]},
+            max_polls=1,
+        )
+        for job_num in range(1, 6):
+            self.assertEqual(h.status(job_num), h.proxy.job_manager.FINISHED)
+        for branch in range(5):
+            self.merge(h, branch)
+        h.new_driver()
+
+        # a resubmitted job is reported running in the second poll
+        h.drive(
+            [
+                {6: "running"},
+                {**{job: "running" for job in range(1, 6)}, 6: "finished"},
+            ],
+            before_query={1: lambda: h.produce(5)},
+            max_polls=2,
+        )
+        self.assertEqual(h.submitted, [], "branches that are done were resubmitted")
 
 
 class TheSwitchItself(unittest.TestCase):

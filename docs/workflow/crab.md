@@ -360,7 +360,7 @@ unknown keys are refused:
 |---|---|---|
 | `enabled` | `true` | Switch. |
 | `interval_minutes` | `30` | How often a job refreshes its flag and how often the driver lists the directory. Must be at least 1. |
-| `missed_checks` | `2` | Intervals a flag may stay unchanged before the job is failed. Must be at least 1. |
+| `missed_checks` | `2` | Intervals a flag may stay unchanged before the job is failed. Must be at least 2: a healthy flag reads up to one interval, plus its write time, old just before its next beat. |
 | `max_per_interval` | `5` | Most verdicts in one interval. |
 | `max_per_branch` | `1` | Most rescues of one branch. |
 | `max_stale_fraction` | `0.5` | A listing in which more than this fraction of the running jobs look stale issues no verdicts. |
@@ -403,8 +403,11 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
     in-process path cache and ships it with the job; the worker loads that
     snapshot and uses a longer local TTL (`24 × localPathCacheValidity`, at
     least 24 h, or `WLCGFileSystem.crabLocalPathCacheValidity` when set) so concurrent
-    jobs do not re-stat the same remote paths. The driver compensates for the missing
-    server link on its side: see [Finished means on storage](#status-handling).
+    jobs do not re-stat the same remote paths. An "absent" (a missing file, or a listing
+    that implies one) recorded before the driver's latest fresh listing, or learned from the
+    cache server, is not shipped: it may predate a file another CRAB job wrote. The driver
+    compensates for the missing server link on its side: see
+    [Finished means on storage](#status-handling).
 
 !!! note "Workers read their proxy with `voms-proxy-info -dont-verify-ac`"
     A stale CRL for the VOMS server makes plain `voms-proxy-info` exit non-zero while the proxy

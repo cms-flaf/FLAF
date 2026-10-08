@@ -70,9 +70,15 @@ def watchdog_config(crab_cfg):
             f"unknown watchdog setting(s) {sorted(unknown)}; known: {sorted(DEFAULTS)}"
         )
     cfg = dict(DEFAULTS, **raw)
-    if int(cfg["interval_minutes"]) < 1 or int(cfg["missed_checks"]) < 1:
+    if int(cfg["interval_minutes"]) < 1:
+        raise RuntimeError("watchdog.interval_minutes must be >= 1")
+    # A healthy flag reads up to one interval, plus its write time and the minute the
+    # listing rounds down to, old just before its next beat: with a single interval allowed
+    # healthy jobs cross the threshold.
+    if int(cfg["missed_checks"]) < 2:
         raise RuntimeError(
-            "watchdog.interval_minutes and watchdog.missed_checks must both be >= 1"
+            "watchdog.missed_checks must be >= 2: a healthy flag can read just over one "
+            "interval old before its next beat"
         )
     return cfg
 
@@ -85,6 +91,13 @@ class Heartbeat:
     storage hiccup that killed the payload would be far worse than a missed beat.
     """
 
+    #: how long one write (or the final removal) may take, and how soon a beat that failed is
+    #: tried again: the driver tolerates `missed_checks` intervals, so a failed beat must not
+    #: wait a whole interval more. Repeated failures back off, up to half an interval, so that
+    #: thousands of jobs do not hammer a storage that is already failing.
+    write_timeout_seconds = 300
+    retry_seconds = 60
+
     def __init__(self, uri, interval_seconds, voms_token=None, label=None, log=None):
         self.uri = uri
         self.interval = max(1.0, float(interval_seconds))
@@ -94,6 +107,7 @@ class Heartbeat:
         self._stop = threading.Event()
         self._thread = None
         self._beats = 0
+        self._failures = 0
 
     def _write(self):
         # the driver only ever reads the modification time; the content is for a human looking at
@@ -114,7 +128,7 @@ class Heartbeat:
             # delete and a fresh upload, so on storage that keeps deleted files (CERNBox) every
             # beat leaves one entry in the recycle bin, and a beat that fails between the two
             # leaves no flag until the next one -- read by the driver as a job on its way out.
-            # bounded: a copy hanging longer would hold back every later beat
+            # Bounded: a copy hanging longer would hold back every later beat.
             gfal_copy(
                 path,
                 self.uri,
@@ -127,20 +141,19 @@ class Heartbeat:
         finally:
             os.unlink(path)
 
-    #: how soon a beat that failed is tried again, and how long one write may take: the
-    #: driver tolerates `missed_checks` intervals, so a failed beat must not wait a whole
-    #: interval more before the next attempt
-    retry_seconds = 60
-    write_timeout_seconds = 300
-
     def _loop(self):
         while True:
             wait = self.interval
             try:
                 self._write()
+                self._failures = 0
             except Exception as exc:  # never let the heartbeat break the payload
                 self.log(f"heartbeat: could not refresh {self.uri}: {exc}")
-                wait = min(self.interval, self.retry_seconds)
+                self._failures += 1
+                wait = min(
+                    self.retry_seconds * 2 ** min(self._failures - 1, 16),
+                    self.interval / 2,
+                )
             if self._stop.wait(wait):
                 return
 
@@ -154,7 +167,12 @@ class Heartbeat:
         if self._thread is not None:
             self._thread.join(timeout=30)
         try:
-            gfal_rm(self.uri, voms_token=self.voms_token, verbose=0)
+            gfal_rm(
+                self.uri,
+                voms_token=self.voms_token,
+                verbose=0,
+                timeout=int(min(self.interval, self.write_timeout_seconds)),
+            )
         except Exception as err:
             # a flag left behind must not fail a payload that has already finished
             self.log(f"heartbeat: could not remove {self.uri}: {err}")
@@ -184,12 +202,10 @@ class StallWatchdog:
         self._ages = None  # branch name -> mtime, from the last listing that worked
         self._listed = False
         self._listed_at = None  # when the listing behind `_ages` was taken
-        self._first_running = (
-            {}
-        )  # (crab_num, task_name) -> listing time when first seen running
-        self._first_seen = (
-            {}
-        )  # (crab_num, task_name) -> query time when first seen running
+        # (crab_num, task_name) -> when first seen running, on the listing's clock (the
+        # grace for a first beat) and on the query's (which flags may be this attempt's)
+        self._first_running = {}
+        self._first_seen = {}
         self._per_branch = {}  # branch -> verdicts issued so far
         self._by_id = {}  # (crab_num, task_name) -> (job_num, branches)
         self._seen_flag = set()  # job ids a flag has ever been observed for

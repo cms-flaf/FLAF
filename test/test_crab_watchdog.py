@@ -770,6 +770,16 @@ class TheSettings(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 watchdog_config({"watchdog": bad})
 
+    def test_a_single_missed_check_is_refused(self):
+        # a healthy flag reads up to one interval plus its write time old just before its
+        # next beat, so a threshold of one interval condemns healthy jobs
+        with self.assertRaises(RuntimeError) as caught:
+            watchdog_config({"watchdog": {"missed_checks": 1}})
+        self.assertIn("missed_checks", str(caught.exception))
+        self.assertEqual(
+            watchdog_config({"watchdog": {"missed_checks": 2}})["missed_checks"], 2
+        )
+
 
 class TheJobSideHeartbeat(unittest.TestCase):
     """The storage is stubbed; what is checked is the thread, the overwrite and the removal."""
@@ -807,7 +817,13 @@ class TheJobSideHeartbeat(unittest.TestCase):
         )
         self.assertEqual(copy.call_args.kwargs.get("voms_token"), "/tmp/proxy")
         self.assertEqual(copy.call_args.kwargs.get("verbose"), 0)
-        rm.assert_called_once_with(self.URI, voms_token="/tmp/proxy", verbose=0)
+        # the removal is bounded like a beat: a hanging delete would hold a finished job
+        rm.assert_called_once_with(
+            self.URI,
+            voms_token="/tmp/proxy",
+            verbose=0,
+            timeout=Heartbeat.write_timeout_seconds,
+        )
         self.assertTrue(hb._thread.daemon)
         self.assertFalse(hb._thread.is_alive())
         self.assertEqual(log, [])
@@ -897,6 +913,23 @@ class TheJobSideHeartbeat(unittest.TestCase):
         ):
             hb._loop()
         self.assertEqual(waits, [Heartbeat.retry_seconds, 1800])
+
+    def test_repeated_failures_back_off_up_to_half_an_interval(self):
+        """Thousands of jobs retrying every minute would hammer a storage that is already
+        failing; a success starts over."""
+        hb = Heartbeat(self.URI, 1800)
+        waits = []
+
+        class Stop:
+            def wait(self, seconds):
+                waits.append(seconds)
+                return len(waits) >= 7
+
+        hb._stop = Stop()
+        effects = [RuntimeError("down")] * 5 + [None, RuntimeError("down")]
+        with mock.patch(f"{MODULE}.gfal_copy", side_effect=effects):
+            hb._loop()
+        self.assertEqual(waits, [60, 120, 240, 480, 900, 1800, 60])
 
 
 if __name__ == "__main__":

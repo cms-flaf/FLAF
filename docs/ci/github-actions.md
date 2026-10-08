@@ -35,7 +35,8 @@ analysis PR is checked with the current FLAF tooling and configuration.
 
 | Workflow | Runs on | What it checks | Repos |
 |---|---|---|---|
-| `formatting-check.yaml` | PRs to `main` | The files the PR changes: `black --check` (Python), `clang-format --dry-run --Werror` (C++: `.cpp`, `.h`, `.hpp`, `.cc`), `yamllint -s` (YAML). The repository's own `.clang-format`/`.yamllint` is used if it has one, otherwise FLAF's. | all seven |
+| `formatting-check.yaml` | PRs to `main` | The files the PR changes: `black --check` (Python), `clang-format --dry-run --Werror` (C++: `.cpp`, `.h`, `.hpp`, `.cc`), `yamllint -s` (YAML). The repository's own `.clang-format`/`.yamllint` is used if it has one, otherwise FLAF's. In FLAF, when a Python file changed, it also runs `flake8 --select=F821,F811` (undefined or shadowed names) over the whole package: a dropped import surfaces only where the name is used, which can be a branch that runs on a CRAB worker alone. | all seven (the `flake8` step: FLAF only) |
+| `unit-tests.yaml` | PRs to `main` and pushes to `main` | The pure-Python suites of `test/` that need neither ROOT, CVMFS nor a grid proxy — the CRAB backend, the path cache and the remote-storage mechanics — with `pytest`. They cover code that otherwise runs on a batch node only. | FLAF only |
 | `repo-sanity-checks.yaml` | every PR | Two jobs: the growth of the repository after a simulated squash merge (fails above 1024 KiB unless the PR has the `big changes` label), and no binary files among the changed files (use Git LFS for those). | all seven |
 | `test-setup-loading.yaml` | PRs to `main` in the analyses | Actually loads `Setup` for the seven Run 3 eras listed in the analysis's wrapper (a real load with ROOT mocked, not a dry run) and checks that every shape weight in each era's `weights.yaml` comes from a correction that era enables — catches config typos and broken references early. | HH_bbtautau, HH_bbWW, H_mumu |
 | `trigger-flaf-integration.yaml` | new or edited PR comments | Parses a `@cms-flaf-bot` comment and starts the integration test. See [Integration pipeline](integration-pipeline.md). | all seven |
@@ -49,8 +50,10 @@ analysis PR is checked with the current FLAF tooling and configuration.
     - `formatting-check`, `test-setup-loading` and FLAF's two config checks below run only on PRs
       whose base is `main`; a PR to another branch (e.g. `next_prod`) gets only
       `repo-sanity-checks` (and `deploy-docs` if it touches the docs).
-    - The unit suites in `FLAF/test/` (`test_path_cache.py`, `test_bundle_hash.py`, …) are not run
-      by any workflow — see [Contributing](../contributing.md#run-the-tests).
+    - Only the unit suites listed in `unit-tests.yaml` (the CRAB backend, the path cache and the
+      storage suites) run in CI. The other suites in `FLAF/test/` (`test_bundle_hash.py`, …) need
+      ROOT or CVMFS and are not run by any workflow — see
+      [Contributing](../contributing.md#run-the-tests).
 
 FLAF itself additionally runs, on PRs to `main`:
 

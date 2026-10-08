@@ -11,6 +11,23 @@ import zlib
 from threading import Timer
 
 
+def error_output(data, max_chars=2000):
+    """The tail of a failed command's captured stderr, for its exception message.
+
+    Without it an exception carries only the return code, while callers have to tell
+    apart, for example, a `gfal-ls` of a path that is not there from one whose endpoint
+    could not be reached.
+    """
+    if not data:
+        return None
+    if isinstance(data, bytes):
+        data = data.decode("utf-8", "replace")
+    text = str(data).strip()
+    if len(text) > max_chars:
+        text = "..." + text[-max_chars:]
+    return text or None
+
+
 class PsCallError(RuntimeError):
     def __init__(self, cmd_str, return_code, additional_message=None):
         msg = f'Error while running "{cmd_str}".'
@@ -134,7 +151,9 @@ def ps_call(
         expected_return_codes is not None
         and proc.returncode not in expected_return_codes
     ):
-        raise PsCallError(cmd_str, proc.returncode)
+        # With print_output, a captured stderr is merged into the captured stdout.
+        stderr = output if catch_stderr and print_output else err
+        raise PsCallError(cmd_str, proc.returncode, error_output(stderr))
     if decode:
         if catch_stdout:
             output_decoded = output.decode("utf-8")
@@ -237,6 +256,11 @@ def natural_sort(l):
     return sorted(l, key=alphanum_key)
 
 
+def on_batch_node():
+    """True inside a law remote job (HTCondor or CRAB); law exports LAW_JOB_HOME there."""
+    return bool(os.getenv("LAW_JOB_HOME"))
+
+
 def check_root_file_integrity(file_name, tmp_file=None, verbose=1):
     if tmp_file is None:
         tmp_file_desc, tmp_file = tempfile.mkstemp()
@@ -293,8 +317,6 @@ def get_tree_entries(file_name, tree_name="Events", verbose=0):
 
 
 if __name__ == "__main__":
-    import sys
-
     cmd = sys.argv[1]
     out = getattr(sys.modules[__name__], cmd)(*sys.argv[2:])
     if out is not None:

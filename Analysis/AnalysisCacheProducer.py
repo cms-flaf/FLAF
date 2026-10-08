@@ -257,7 +257,6 @@ def createAnalysisCache(
 
 if __name__ == "__main__":
     import argparse
-    import os
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--period", required=True, type=str)

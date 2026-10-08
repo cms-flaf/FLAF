@@ -82,15 +82,19 @@ from the analysis checkout with `env.sh` sourced:
   task's remote log, so use a throwaway version name.
 - **Unit suites** — the other `FLAF/test/test_*.py` files (path cache, bundle hashing, stitching
   variables, cost model, …) are standalone scripts, mostly `unittest` modules; run one directly,
-  e.g. `python3 FLAF/test/test_path_cache.py`. **No CI workflow runs them**, so run the ones covering
-  the code you changed, and extend them when you change that code.
+  e.g. `python3 FLAF/test/test_path_cache.py`. CI's `unit-tests` workflow runs the ones that need
+  neither ROOT nor CVMFS nor a grid proxy (the CRAB backend, the path cache and the storage
+  suites) on every FLAF PR; the others are not run by any workflow, so run the ones covering the
+  code you changed, and extend them when you change that code.
+- **Undefined names** — `run_tools/apply_format.sh`, when run in FLAF, also runs
+  `flake8 --select=F821,F811` over the whole package, as `formatting-check` does in CI.
 
 ## Open the PR and run the checks
 
 On the pull request:
 
 1. The GitHub Actions checks run automatically: repository sanity on every PR, formatting on PRs
-   to `main` in every repo, `test-setup-loading` on analysis PRs to `main`, the cross-section and
+   to `main` in every repo, the unit suites on FLAF PRs to `main`, `test-setup-loading` on analysis PRs to `main`, the cross-section and
    dataset checks on FLAF PRs to `main` that change those files, and the docs build when the docs
    change — see
    [GitHub Actions](ci/github-actions.md).

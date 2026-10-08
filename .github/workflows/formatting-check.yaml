@@ -69,6 +69,15 @@ jobs:
           done
           black --check --diff "${FILES[@]}"
 
+      # A dropped import surfaces only where the name is used, which can be a branch that
+      # runs on a CRAB worker alone, so the whole package is checked, not the changed files.
+      # FLAF only: the analyses that reuse this workflow carry findings of their own.
+      - name: Check for undefined names
+        if: ${{ steps.changed_files.outputs.hasPythonFiles == 'true' && github.repository == 'cms-flaf/FLAF' }}
+        run: |
+          pip install flake8
+          flake8 --select=F821,F811 AnaProd Analysis Common Processors RunKit run_tools test check_deps.py
+
       - name: Install yamllint
         if: ${{ steps.changed_files.outputs.hasYamlFiles == 'true' }}
         run: pip install yamllint

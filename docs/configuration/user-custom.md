@@ -59,6 +59,7 @@ default and fail with a `KeyError` when they are missing. For H→μμ also add
 | `hist_from_ntuple_max_hists` | int | Max histograms `HistFromNtupleProducerTask` books in one RDataFrame pass. The count is variables × selections × (Central + every Up/Down). Default `4000`; `0` disables batching. Lower this (do not raise CI memory) if a job OOMs. |
 | `anaTuple_shift_invariant_columns` | list | Set in the analysis `config/global.yaml`, not here. Regular expressions (`re.search`) of the anaTuple columns no systematic shift changes; they are stored in the central tree only. See [`AnaTupleFileTask`](../reference/tasks.md#anatuplefiletask). A list in a later config file replaces an earlier one. Default: empty. |
 | `anaTuple_scheduling` | map | Tunes how `AnaTupleFileTask` branches are composed into HTCondor jobs. Every key has a default; see below. |
+| `crab` | map | Optional. CRAB backend settings: site lists, `parallel_jobs`, `refill_fraction`, `retry_release_minutes`, `poll_interval`, `min_runtime_min`, `auto_blacklist`, `watchdog`, `ignore_global_blacklist`. A `crab:` block here replaces the `global.yaml` one as a whole. `memory_mb_per_cpu` is retired and raises an error. See [Running on CRAB](../workflow/crab.md#config). |
 
 ### `anaTuple_scheduling`
 

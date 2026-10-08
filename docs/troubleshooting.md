@@ -90,6 +90,51 @@ The pattern is matched against stored paths, which are normalised — repeated s
 collapsed, so a pattern containing the URL scheme (`davs://…`) never matches. Match on the part
 of the path you care about, as above.
 
+### CRAB: outputs written by a job read as missing
+
+CRAB workers cannot reach the path-cache server, so a directory listing published before a CRAB
+job wrote its file keeps answering "absent" for that file until it expires (24 h by default). On
+`--workflow crab` the driver therefore takes one fresh listing per output directory per poll
+before it accepts an absence, and believes a CRAB `FINISHED` only when the outputs are on
+storage (see [CRAB → Status handling](workflow/crab.md#status-handling)); a (re)started driver
+takes fresh listings before it judges which outputs exist. A *plain* status check
+(`--print-status`) started separately has no such guarantee: drop the cached entries as above if
+it disagrees with the storage.
+
+A listing that **fails** (timeout, SSL error, expired proxy) is never cached as "absent": only a
+confirmed not-found is. Such a listing prints `GFALFileInterface: could not list …` (once per
+directory per minute); every file looked up in it reads as missing while it lasts, and each
+lookup lists again, so the first successful listing settles the rest of the directory.
+Leftover `<name>.flaf-tmp-<pid>-<uuid>` files next to outputs are orphans of killed uploads
+(uploads are published by rename,
+[Storage](concepts/storage.md#how-uploads-are-published-and-absence-is-decided)); they take
+quota until deleted, and can be deleted.
+
+## A resumed run stops with "… jobs of this resumed workflow came back for missing outputs"
+More than 10 % of the jobs of a resumed batch workflow (at least 2) came back for missing
+outputs and were still missing on a fresh check, so the run stopped before resubmitting them;
+their entries in the job file were left as they were. If the storage was unreachable, run again
+once it is back. To redo the work on purpose use `--ignore-submission`. See
+[HTCondor → Submission safeguards](workflow/htcondor.md#submission-safeguards).
+
+## `… is not readable (…), so no job file can be built` / skipped submission rounds
+A file the job is built from (law's job scripts, FLAF's `bootstrap.sh` or `stageout_logs.sh`)
+cannot be read, usually because the Kerberos ticket or AFS token expired. Submission rounds are
+skipped, with no loss, until it is readable again, and the run stops after 30 minutes. `klist -f`
+shows the Kerberos expiry and the renewable window, `tokens` the AFS token.
+
+## CRAB: the server refused a task (`SUBMITREFUSED`)
+The message carries the server's reason and the project directory. The usual cause is a
+`Site.whitelist` entry that is not a CMS Processing Site Name; the cached site list
+(`<analysis>/data/cms_psn_sites.json`) is dropped automatically so the next submission re-reads
+CRIC. The jobs are resubmitted as a new task; a second refusal in the same run stops it. Check
+`crab.whitelist` and `crab.blacklist`. See [CRAB → Status handling](workflow/crab.md#status-handling).
+
+## CRAB: "MyProxy credential valid for at least 5 days" is refused
+The credential must be stored under the SHA1 of the DN with CRAB's retrieval policy. A bare
+`myproxy-init` does not do that. Create it with `cmsEnv crab createmyproxy --days 30`
+([CRAB → Prerequisites](workflow/crab.md#prerequisites)).
+
 ## Cross-analysis environment contamination
 The environment caches paths in variables (`FLAF_PATH`, `ANALYSIS_PATH`, `ANALYSIS_SOFT_PATH`, …).
 Reusing a shell that already set up a *different* analysis can pick up the wrong `flaf_env` and

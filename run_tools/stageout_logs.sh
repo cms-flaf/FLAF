@@ -9,14 +9,18 @@ fi
 
 # Resolve local log path and remote basename.
 # HTCondor: law may use a postfix / cluster_process name.
-# CRAB: the sandbox log is always stdall.txt in the job dir; include the CRAB job
-# number in the remote name so concurrent jobs do not overwrite each other.
+# CRAB: the sandbox log is always stdall.txt in the job dir. CRAB numbers the jobs of
+# every CRAB task from 1, and a production submits many CRAB tasks (waves, retries) into
+# one log directory, so the remote name carries the task's unique tag and the job number,
+# led by the first branch the job ran so that a log can be found from law's job data.
+crab_log_tag="{{crab_log_tag}}"
 local_log_file=""
 remote_log_file=""
 
 if [ -n "${LAW_CRAB_JOB_NUMBER:-}" ]; then
     local_log_file="stdall.txt"
-    remote_log_file="stdall_crab${LAW_CRAB_JOB_NUMBER}.txt"
+    first_branch="${LAW_JOB_TASK_BRANCHES_CSV%%,*}"
+    remote_log_file="stdall_${first_branch:-x}_crab${crab_log_tag}.${LAW_CRAB_JOB_NUMBER}.txt"
 else
     postfix="${LAW_HTCONDOR_JOB_POSTFIX}"
     if [ -n "${postfix}" ]; then

@@ -20,6 +20,7 @@ if flaf_parent not in sys.path:
 
 STAGEOUT = os.path.join(flaf_repo, "run_tools", "stageout_logs.sh")
 BASE_URL = "davs://eos.example//logs/AnaTupleFileTask/Run3_2022"
+CRAB_TAG = "1a2b3c4d"
 
 
 def stage_out(env_vars):
@@ -38,7 +39,11 @@ def stage_out(env_vars):
                 f.write(f"#!/bin/sh\n{body}\n")
             os.chmod(path, 0o755)
         with open(STAGEOUT) as f:
-            script = f.read().replace("{{log_remote_base_url}}", BASE_URL)
+            script = (
+                f.read()
+                .replace("{{log_remote_base_url}}", BASE_URL)
+                .replace("{{crab_log_tag}}", CRAB_TAG)
+            )
         script_path = os.path.join(tmp, "stageout_logs.sh")
         with open(script_path, "w") as f:
             f.write(script)
@@ -81,9 +86,17 @@ class TestStageoutScript(unittest.TestCase):
         )
         self.assertEqual(url, BASE_URL + "/stdall_123_7.txt")
 
-    def test_crab_name_is_unchanged(self):
-        url = stage_out({"_local": "stdall.txt", "LAW_CRAB_JOB_NUMBER": "42"})
-        self.assertEqual(url, BASE_URL + "/stdall_crab42.txt")
+    def test_crab_name_is_unique_across_crab_tasks(self):
+        # CRAB numbers the jobs of every CRAB task from 1, and the waves and retries of a
+        # production are separate CRAB tasks staging into one directory.
+        url = stage_out(
+            {
+                "_local": "stdall.txt",
+                "LAW_CRAB_JOB_NUMBER": "42",
+                "LAW_JOB_TASK_BRANCHES_CSV": "17,18",
+            }
+        )
+        self.assertEqual(url, BASE_URL + f"/stdall_17_crab{CRAB_TAG}.42.txt")
 
 
 try:

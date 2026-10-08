@@ -75,6 +75,58 @@ Each of these has caused a production incident. They are ordered by how much dam
   change costs at 10k concurrent jobs.
 - **Freshly written remote files can be invisible for seconds.** Code that writes and then
   immediately checks must retry, not conclude absence.
+- **A failed listing must never be cached (or answered) as "absent".** Only gfal's own
+  not-found (errno `ENOENT`, `gfal_ls_checked`) is an absence; a timeout, SSL error or missing
+  credential is a failure, and a negative cached from it is published to the cache server and
+  hides existing files from every client. `exists()` may answer `False` for a failed listing but
+  must cache nothing — not even a "this directory failed" memo: the next lookup must list again,
+  or a short blip condemns every file of the directory. Do not reintroduce `gfal_ls_safe` where a
+  path's existence is decided.
+- **Uploads are published by rename.** `gfal_copy_safe(..., copy_mode="copy_rename")` uploads to
+  `<target>.flaf-tmp-<pid>-<uuid>`, verifies the checksum and renames onto the target; the target
+  must never exist while partial, and an existing good file must not be removed before the
+  replacement is complete, and no "absent" may be published for the target during the upload.
+  Orphaned `.flaf-tmp-*` files match no output pattern but take quota.
+- A CRAB worker cannot reach the path-cache server, so a driver that believes an "absent" from a
+  cached listing reads files the workers wrote as missing; the CRAB completeness check and the
+  start of every CRAB workflow run (where law judges which outputs exist) take fresh listings
+  first (`require_fresh_negatives`, and the existing-branch memos law filled while scheduling are
+  dropped).
+
+### CRAB backend (`run_tools/law_customizations.py`, `run_tools/crab_sites.py`, `run_tools/crab_watchdog.py`)
+
+- **CRAB gives the whitelist precedence over the blacklist.** Excluded sites (configured blacklist
+  and quarantine alike) must be cut out of the whitelist itself (`resolve_whitelist`), with globs
+  expanded from CRIC's Processing Site Name list (`preset=site-names`, type `psn`), never from the
+  compute-unit list: a non-PSN name gets the whole task refused. A blacklist entry overlapping a
+  whitelist glob always expands the glob, even if the excluded site is missing from the list.
+- **A run is stopped only from `crab_poll_callback`** (via `stop_reason` on the job manager). law
+  runs `query()` in a thread pool and swallows a raise there as one more failed query, so the run
+  would end many polls later, or never.
+- **The site record is harvested keyed by job id from the parsed status**, never from the
+  positional `extra` that law syncs onto `job_data`, and a failure without a job-level exit code
+  (kill, never started, refused task, watchdog verdict) is never charged to a site: counted, a mass
+  kill drives every baseline to ~100 % and the quarantine can no longer fire.
+- **The wave gate must keep `len(job_data)`**: parked jobs go into `unsubmitted_jobs` (counted by
+  `JobData.__len__`, dumped to disk), never out of `job_data` altogether, because the poll loop
+  snapshots the job count once. `--no-poll` bypasses the gate. Only the backlog is measured against
+  the wave size, and the oldest parked retry is released after `retry_release_minutes`.
+- **The lost-outputs brake (`SubmissionGuards`) runs before anything can park a retry
+  generation** (a skipped round, the wave gate): a parked mass retry would be released later
+  where the brake no longer sees it. It re-checks candidates with `as_branch(b).complete()` on
+  fresh listings (outputs that appeared, marker-aware completeness), and before raising it puts
+  the jobs back in the job file, because law has already rewritten and dumped them.
+- **CRAB `maxMemoryMB` is a kill line** (exit 50660, never retried by CRAB): an explicit request is
+  honoured or refused, never clamped down; cores are snapped up to 1/2/4/8.
+- **CLI-presence helpers match exactly** (`_cli_has_param`, `_cli_has_tasks_per_job`): an option
+  addressed to one task must not disable a default for every other task; the bare
+  `--tasks-per-job` belongs to the root task only. `parallel_jobs` and `poll_interval` are in
+  `prefer_params_cli`, so another task's prefixed form reaches that task, while the bare and the
+  root task's prefixed form are copied to every task by `req` and count for all of them.
+- **Workers never require bundles, and neither renew nor delete the delegated proxy.**
+- **Code behind `LAW_CRAB_JOB_NUMBER` / `LAW_JOB_HOME` / `on_batch_node()` runs only on a worker,
+  so it needs a test that sets the variable** (a `NameError` there shipped past a green
+  suite); the whole package is checked with `flake8 --select=F821,F811` in CI.
 
 ### Processors and stitching
 
@@ -178,10 +230,13 @@ genuinely unavailable. Hand-mirroring a class's attributes creates a copy that s
 matching — that is how the path-cache suite went red for a whole merge cycle.
 
 Note what CI actually runs from `test/`: `test_setup_loading.py` (via `test-setup-loading`, on
-analysis PRs only) and the config checkers `checkCrossSections.py`,
+analysis PRs only), the config checkers `checkCrossSections.py`,
 `checkDatasetConfigConsistency.py` and `checkDatasetNaming.py` (on FLAF PRs that change those
-config files). The other suites (`test_*.py`) are not run anywhere, so a broken one is not
-caught automatically.
+config files), and, through `unit-tests.yaml` on every FLAF PR and push to `main`, the pure-Python
+suites that need neither ROOT nor CVMFS nor a grid proxy (the CRAB backend, path cache and
+remote-storage suites). The other suites (`test_*.py` that need ROOT or CVMFS) are not run
+anywhere, so a broken one is not caught automatically. A new suite of the first kind must be added
+to the list in `unit-tests.yaml`, or it is not run either.
 
 ## Documentation must ship with the change
 
@@ -227,9 +282,10 @@ separate PR; say so in the review rather than assuming it will be noticed.
 
 ## Already enforced by CI — do not comment on these
 
-`formatting-check` (black, yamllint, clang-format), `repo-sanity-checks` (binary files, repo size),
-`ds-consistency-check`, `cross-section-check`. Formatting, indentation, quote style and trailing
-whitespace are settled by tooling; comments about them are pure noise.
+`formatting-check` (black, yamllint, clang-format, and in FLAF `flake8 --select=F821,F811` over
+the whole package), `unit-tests` (the pure-Python suites in `test/`), `repo-sanity-checks` (binary
+files, repo size), `ds-consistency-check`, `cross-section-check`. Formatting, indentation, quote
+style and trailing whitespace are settled by tooling; comments about them are pure noise.
 
 `test-setup-loading` (loads `Setup` for all seven Run 3 eras) runs on **analysis** PRs only —
 FLAF's copy is a reusable workflow with no PR trigger. On a FLAF PR, a change that can break
@@ -248,7 +304,7 @@ config loading (`Common/Setup.py`, `config/`) is therefore not checked, and is w
 
 ## Repository facts
 
-Verified 2026-09-30; re-check before relying on any of it.
+Verified 2026-10-08; re-check before relying on any of it.
 
 | | |
 |---|---|
@@ -256,6 +312,6 @@ Verified 2026-09-30; re-check before relying on any of it.
 | Submodule | `PlotKit` only. **`RunKit` is vendored**, not a submodule; imports are `from FLAF.RunKit.<module> import …` |
 | Datasets | `config/<era>/datasets.yaml` for Run 3. Run 2 eras still use the older `samples.yaml` |
 | Eras | `Run3_2022`, `Run3_2022EE`, `Run3_2023`, `Run3_2023BPix`, `Run3_2024`, `Run3_2025`, `Run3_2026`; Run 2 legacy |
-| Workflows | `formatting-check`, `repo-sanity-checks`, `ds-consistency-check`, `cross-section-check`, `test-setup-loading`, `deploy-docs`, `integration-test`, `trigger-flaf-integration` |
+| Workflows | `formatting-check`, `unit-tests`, `repo-sanity-checks`, `ds-consistency-check`, `cross-section-check`, `test-setup-loading`, `deploy-docs`, `integration-test`, `trigger-flaf-integration` |
 | Integration test | Triggered by `@cms-flaf-bot please test`. Its configuration (process lists, eras, versions) lives in **`cms-flaf/FLAF_ci`**, not in this repo |
 | Docs | `docs/`, built with `mkdocs build --strict`; see the documentation section above |

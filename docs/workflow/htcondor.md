@@ -191,6 +191,36 @@ For jobs that should run on the full CMS WLCG (not only CERN HTCondor), use
     jobs include them in the tarball — so testing framework changes on HTCondor works without
     committing first. See [Contributing](../contributing.md).
 
+## Submission safeguards
+
+These apply to both batch backends (HTCondor and [CRAB](crab.md)).
+
+- **An unreadable software tree skips a submission round.** law's own job sources
+  (`law_job.sh`, the CRAB and HTCondor wrappers, `PSet.py`) and FLAF's `bootstrap.sh` and
+  `stageout_logs.sh` are probed before each submission round. If one cannot be read (an expired
+  Kerberos ticket or AFS token, a blinking mount), the round is skipped: nothing is lost, the
+  retries offered by law are parked, and the next poll tries again. The message gives the path,
+  the errno and a hint (`klist -f` shows the Kerberos expiry and the renewable window, `tokens`
+  the AFS token). Skipping for more than 30 minutes raises, and with `--no-poll`, which would
+  not submit the round later, it raises at once. One failed `stat` of the software tree cannot
+  make law mistake its own module for a directory.
+- **A resumed workflow that lost its outputs stops.** When a workflow is resumed (its job file
+  exists) and more than 10 % of all its jobs — and at least 2 — come back for missing outputs
+  (jobs it had recorded as finished, or live jobs reported finished without them), each of those
+  jobs is checked again with absence resting on fresh listings and by the task's own completeness
+  rule (so branches whose inputs were merged and replaced by markers, as with `HistMergerTask`
+  and `remove_merged_inputs`, count as done). If more than 10 % are still missing, the run stops
+  instead of resubmitting them, and their entries in the job file are put back as they were, so
+  a later run judges them again. The usual cause is storage that was unreachable while outputs
+  were checked: run again once it is back. To redo the work on purpose, run again with
+  `--ignore-submission`.
+- **A job does not rebuild upstream products.** In a batch job, `AnaTupleFileTask`,
+  `AnaTupleMergeTask`, `AnalysisCacheTask`, `HistTupleProducerTask`,
+  `HistFromNtupleProducerTask` and `HistMergerTask` refuse to run as an inline requirement of a
+  job submitted for another task. luigi would otherwise rebuild a requirement it reads as
+  incomplete inside that job's slot, which can happen on a listing blink or a stale path-cache
+  entry, and overwrite a file other jobs are reading. The job fails, and law retries it.
+
 ## Caveats
 
 !!! warning "Keep your proxy valid for the whole run"

@@ -164,6 +164,34 @@ operation, but if you script your own existence checks against freshly written o
 a directory listing and a short retry rather than a single `exists()`. See
 [Troubleshooting](../troubleshooting.md#eos-read-after-write-lag).
 
+## How uploads are published and absence is decided
+
+These hold for remote (gfal/WLCG) storage, on every backend (local, HTCondor and CRAB). An
+`fs_*` given as a local path (starting with `/`) is written directly by law, without a
+temporary name or checksum.
+
+- **Uploads are published by rename.** A local file is first uploaded to
+  `<target>.flaf-tmp-<pid>-<uuid>` next to its destination, verified by checksum, and only then
+  renamed onto the target. The target therefore never exists while partial, and an existing good
+  file is not removed before its replacement is complete. An upload whose last attempt fails
+  removes its temporary file; a killed one can leave an orphaned `.flaf-tmp-*` file behind. Such
+  a file is matched by no output pattern (its name does not end in `.root`), but it takes quota
+  until it is deleted. A storage that refuses to rename onto an existing name keeps an
+  identical target and drops the upload, or removes a different target and renames again.
+- **A failed listing is not an absence.** A `gfal-ls` that times out, fails SSL or lacks a
+  credential is retried, and then reported as a failure. Only a listing that gfal itself reports
+  as *not found* (errno `ENOENT`) means that a path is absent, and only that is cached — in the
+  process and on the path-cache server, where a wrong negative would hide existing files from
+  every client. `exists()` answers `False` for a listing that failed, but caches nothing: the
+  next lookup lists again, so once the storage answers, the rest of the directory is judged on a
+  real listing. The failure is reported once per directory per minute. Each listing attempt is
+  limited to 5 minutes.
+- Listings are taken with `TZ=UTC`, so the dates in them do not depend on the host.
+
+On CRAB the driver additionally takes a fresh listing before it accepts an "absent" answer, since
+the workers cannot publish to the path-cache server
+([CRAB → Status handling](../workflow/crab.md#status-handling)).
+
 ## Keeping I/O off shared production areas
 
 When testing, point `fs_default` at *your own* area (and use a personal `--version`) so you never

@@ -35,6 +35,15 @@ if [ ${#PYTHON_FILES[@]} -gt 0 ]; then
     fi
 fi
 
+# In FLAF itself, also check the whole package for undefined or shadowed names: a dropped
+# import surfaces only where the name is used, which can be a branch that runs on a CRAB
+# worker alone (the same check runs in the formatting-check workflow).
+repo_root=$(git rev-parse --show-toplevel)
+if [ ${#PYTHON_FILES[@]} -gt 0 ] && [ -f "$repo_root/run_tools/law_customizations.py" ] && [ -d "$repo_root/RunKit" ]; then
+    echo "Checking for undefined names in $repo_root"
+    (cd "$repo_root" && flake8 --select=F821,F811 AnaProd Analysis Common Processors RunKit run_tools test check_deps.py) || exit 1
+fi
+
 if [ ${#CPP_FILES[@]} -gt 0 ]; then
     if [ -f "$ANALYSIS_PATH/.clang-format" ]; then
         clang_format_style="$ANALYSIS_PATH/.clang-format"

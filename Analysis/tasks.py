@@ -441,6 +441,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
         return self.remote_target(output_path, fs=self.fs_HistTuple)
 
     def run(self):
+        self._refuse_inline_on_worker()
         dataset_name, prod_br, producer_list, aggregate_list, input_index = (
             self.branch_data
         )
@@ -711,6 +712,7 @@ class HistFromNtupleProducerTask(
         return True
 
     def run(self):
+        self._refuse_inline_on_worker()
         dataset_name, prod_br_list, chunk_id = self.branch_data
         var_names = self._branch_variables()
         job_home, remove_job_home = self.law_job_home()
@@ -921,6 +923,7 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         return self.remote_target(output_file_name, fs=self.fs_HistTuple)
 
     def run(self):
+        self._refuse_inline_on_worker()
         var_name, br_indices, datasets = self.branch_data
         customisation_dict = getCustomisationSplit(self.customisations)
 
@@ -1068,6 +1071,9 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
         self.max_runtime = self.global_params["payload_producers"][
             self.producer_to_run
         ].get("max_runtime", 2.0)
+        self.crab_memory = self.global_params["payload_producers"][
+            self.producer_to_run
+        ].get("crab_memory", self.crab_memory)
         self.output_file_extension = self.global_params["payload_producers"][
             self.producer_to_run
         ].get("save_as", "root")
@@ -1214,6 +1220,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
         return self.remote_target(output_path, fs=self.fs_anaCacheTuple)
 
     def run(self):
+        self._refuse_inline_on_worker()
         with ServiceThread() as service_thread:
             dataset_name, prod_br, producer_list, aggregate_list, input_index = (
                 self.branch_data

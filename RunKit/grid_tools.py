@@ -1,4 +1,5 @@
 import datetime
+import errno
 import json
 import math
 import os
@@ -8,6 +9,7 @@ import signal
 import subprocess
 import sys
 import time
+import uuid
 
 if __name__ == "__main__":
     file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -17,6 +19,24 @@ if __name__ == "__main__":
 from .run_tools import ps_call, repeat_until_success, adler32sum, PsCallError
 
 COPY_TMP_SUFFIX = ".tmp"
+
+# Marker of a `copy_rename` upload in progress. Unique per writer, because two jobs publishing
+# the same target (a resubmission racing the job it replaced, or a duplicate) would otherwise
+# share one tmp path and remove each other's upload. It is appended after the target's own
+# extension so that nothing globbing `*.root` picks it up.
+COPY_RENAME_TMP_PREFIX = ".flaf-tmp-"
+
+
+def copy_rename_tmp_suffix():
+    """A fresh, writer-unique suffix for a `copy_rename` upload."""
+    return f"{COPY_RENAME_TMP_PREFIX}{os.getpid()}-{uuid.uuid4().hex[:12]}"
+
+
+def is_copy_rename_tmp(name):
+    """Whether `name` is an in-progress or orphaned `copy_rename` upload."""
+    return COPY_RENAME_TMP_PREFIX in os.path.basename(name)
+
+
 COPY_TMP_LOCAL_FILE = os.path.join(
     os.path.dirname(os.path.abspath(__file__)), ".gfal_copy_safe_tmp"
 )
@@ -51,7 +71,20 @@ class GfalError(RuntimeError):
 
 
 def get_voms_proxy_info():
-    _, output, _ = ps_call(["voms-proxy-info"], catch_stdout=True, split="\n")
+    """Path and remaining lifetime of the current proxy.
+
+    `-dont-verify-ac` skips the attribute-certificate check: with a stale CRL for the VOMS
+    server, plain `voms-proxy-info` exits 1 while the proxy is usable, and a job that reads
+    its proxy while building targets dies before doing any work (309 of 1400 DSProd CRAB
+    jobs, CERN batch nodes included). A missing or unreadable proxy still exits non-zero
+    and raises, with the command's stderr in the exception.
+    """
+    _, output, _ = ps_call(
+        ["voms-proxy-info", "-dont-verify-ac"],
+        catch_stdout=True,
+        catch_stderr=True,
+        split="\n",
+    )
     info = {}
     for line in output:
         if len(line) == 0:
@@ -101,7 +134,13 @@ def create_tmp_local_file():
 
 
 def gfal_env(voms_token):
-    return {"X509_USER_PROXY": voms_token, "GFAL_PYTHONBIN": "/usr/bin/python3"}
+    # `gfal-ls --time-style long-iso` prints times in the client's timezone; UTC keeps a
+    # listing's dates independent of the host and of daylight-saving changes.
+    return {
+        "X509_USER_PROXY": voms_token,
+        "GFAL_PYTHONBIN": "/usr/bin/python3",
+        "TZ": "UTC",
+    }
 
 
 def gfal_copy_safe(
@@ -131,7 +170,9 @@ def gfal_copy_safe(
         raise RuntimeError(f'gfal_copy_safe: unknown copy mode "{copy_mode}".')
     if copy_mode == "copy_flag":
         tmp_local_file = create_tmp_local_file()
-    output_file_tmp = output_file + COPY_TMP_SUFFIX
+        output_file_tmp = output_file + COPY_TMP_SUFFIX
+    else:
+        output_file_tmp = output_file + copy_rename_tmp_suffix()
     output_file_sum_target = (
         output_file if copy_mode == "copy_flag" else output_file_tmp
     )
@@ -141,7 +182,10 @@ def gfal_copy_safe(
         nonlocal attempt
         attempt += 1
         active_verbose = min(verbose + attempt if verbose > 0 else 0, 2)
-        if gfal_exists(output_file, voms_token=voms_token):
+        # Only `copy_flag` copies onto the destination itself and has to clear it first. In
+        # `copy_rename` mode the destination is created only by the rename below; removing it
+        # here would leave nothing published for the whole duration of the upload.
+        if copy_mode == "copy_flag" and gfal_exists(output_file, voms_token=voms_token):
             gfal_rm(output_file, voms_token=voms_token, recursive=False)
         if gfal_exists(output_file_tmp, voms_token=voms_token):
             gfal_rm(output_file_tmp, voms_token=voms_token, recursive=False)
@@ -183,19 +227,54 @@ def gfal_copy_safe(
         if copy_mode == "copy_flag":
             gfal_rm(output_file_tmp, voms_token=voms_token, recursive=False)
         elif copy_mode == "copy_rename":
-            gfal_rename(output_file_tmp, output_file, voms_token=voms_token)
+            _rename_onto(output_file_tmp, output_file, voms_token=voms_token)
             if not gfal_exists(output_file, voms_token=voms_token):
                 raise GfalError(
                     f'Failed to rename "{output_file_tmp}" to "{output_file}".'
                 )
 
-    repeat_until_success(
-        download,
-        n_retries=n_retries,
-        retry_sleep_interval=retry_sleep_interval,
-        verbose=verbose,
-        exception=GfalError(f'Unable to copy "{input_file}" to "{output_file}".'),
-    )
+    try:
+        repeat_until_success(
+            download,
+            n_retries=n_retries,
+            retry_sleep_interval=retry_sleep_interval,
+            verbose=verbose,
+            exception=GfalError(f'Unable to copy "{input_file}" to "{output_file}".'),
+        )
+    except GfalError:
+        if copy_mode == "copy_rename":
+            # The tmp name is unique to this call, so no later attempt would ever remove
+            # it: a full-size orphan next to the target. Best effort -- the storage may be
+            # what failed.
+            try:
+                if gfal_exists(output_file_tmp, voms_token=voms_token):
+                    gfal_rm(output_file_tmp, voms_token=voms_token, recursive=False)
+            except GfalError:
+                pass
+        raise
+
+
+def _rename_onto(tmp_file, output_file, voms_token):
+    """Publish the verified upload `tmp_file` as `output_file`.
+
+    On EOS over xrootd, gfal-rename replaces an existing target, and over davs davix sends
+    MOVE without an Overwrite header, which RFC 4918 treats as "Overwrite: T". For a
+    storage that refuses to rename onto an existing name anyway: an identical target is
+    kept and the upload dropped; a different one is removed and the rename repeated, which
+    leaves the target absent for the duration of those two namespace operations.
+    """
+    try:
+        gfal_rename(tmp_file, output_file, voms_token=voms_token)
+        return
+    except GfalError:
+        if not gfal_exists(output_file, voms_token=voms_token):
+            raise
+    tmp_sum = gfal_sum(tmp_file, voms_token=voms_token, sum_type="adler32")
+    if gfal_sum(output_file, voms_token=voms_token, sum_type="adler32") == tmp_sum:
+        gfal_rm(tmp_file, voms_token=voms_token, recursive=False)
+        return
+    gfal_rm(output_file, voms_token=voms_token, recursive=False)
+    gfal_rename(tmp_file, output_file, voms_token=voms_token)
 
 
 def gfal_copy(
@@ -204,8 +283,13 @@ def gfal_copy(
     voms_token=None,
     number_of_streams=2,
     timeout=7200,
+    force=False,
     verbose=1,
 ):
+    """Copy `input_file` to `output_file`.
+
+    gfal-copy refuses an existing destination unless `force` is set, which overwrites it.
+    """
     voms_token = get_voms_proxy_token(voms_token)
     try:
         catch_output = verbose == 0
@@ -218,6 +302,8 @@ def gfal_copy(
             "--timeout",
             str(timeout),
         ]
+        if force:
+            cmd.append("--force")
         if verbose > 1:
             n_v = min(3, verbose - 1)
             cmd.append("-" + "v" * n_v)
@@ -236,11 +322,14 @@ def gfal_copy(
         ) from None
 
 
-def gfal_ls(path, voms_token=None, catch_stderr=False, verbose=1):
+def gfal_ls(path, voms_token=None, catch_stderr=False, verbose=1, timeout=None):
     voms_token = get_voms_proxy_token(voms_token)
+    cmd = ["gfal-ls", "--long", "--all", "--time-style", "long-iso"]
+    if timeout is not None:
+        cmd += ["--timeout", str(int(timeout))]
     try:
         _, output, _ = ps_call(
-            ["gfal-ls", "--long", "--all", "--time-style", "long-iso", path],
+            cmd + [path],
             shell=False,
             env=gfal_env(voms_token),
             catch_stdout=True,
@@ -290,13 +379,66 @@ def gfal_ls_recursive(path, voms_token=None, verbose=1):
     return sorted(set(all_files), key=lambda f: f.full_name)
 
 
-def gfal_ls_safe(path, voms_token=None, catch_stderr=False, verbose=1):
+def gfal_ls_safe(path, voms_token=None, catch_stderr=False, verbose=1, timeout=None):
+    """List `path`, or None if that did not work for any reason.
+
+    Only for best-effort callers; anything that decides whether a path exists needs
+    `gfal_ls_checked`, which tells an absent path from a listing that failed.
+    """
     try:
         return gfal_ls(
-            path, voms_token=voms_token, catch_stderr=catch_stderr, verbose=verbose
+            path,
+            voms_token=voms_token,
+            catch_stderr=catch_stderr,
+            verbose=verbose,
+            timeout=timeout,
         )
     except GfalError:
         return None
+
+
+# The last line a gfal CLI writes when it fails: `gfal-<cmd> error: <errno> (<strerror>) - ...`
+_GFAL_ERROR_RE = re.compile(r"gfal-[a-z-]+ error: (\d+) \(")
+
+
+def is_absent_error(err):
+    """Whether a gfal error says that the path does not exist.
+
+    Decided by the errno that gfal reports (ENOENT), which it does for xrootd ("Failed to
+    stat file") and for davs ("HTTP 404 : File not found"). The text "No such file or
+    directory" alone is not evidence: davix prints it when the proxy file is missing, before
+    failing with "gfal-ls error: 1 (Operation not permitted)" for every path.
+    """
+    codes = _GFAL_ERROR_RE.findall(str(err))
+    return len(codes) > 0 and int(codes[-1]) == errno.ENOENT
+
+
+def gfal_ls_checked(path, voms_token=None, attempts=3, delay=2.0, timeout=300):
+    """List `path`; return None only when gfal says that it is not there.
+
+    Any other failure (a timeout, an SSL error, a missing credential, an endpoint under
+    load) is retried with a growing delay and then raised as GfalError. A caller that reads
+    "could not list" as "not there" concludes that a product is missing: in DSProd one
+    failed listing per job turned into 1400 failed CRAB jobs. Each attempt is bounded by
+    `timeout` seconds; gfal's own default is half an hour against an endpoint that hangs.
+    """
+    for attempt in range(1, attempts + 1):
+        try:
+            return gfal_ls(
+                path,
+                voms_token=voms_token,
+                catch_stderr=True,
+                verbose=0,
+                timeout=timeout,
+            )
+        except GfalError as e:
+            if is_absent_error(e):
+                return None
+            if attempt == attempts:
+                raise
+            time.sleep(delay * attempt)
+    # Reached only with attempts < 1: nothing was listed, which must not read as "absent".
+    raise GfalError(f"gfal_ls_checked: {attempts} attempts is not a listing of {path}")
 
 
 def gfal_stat(path, voms_token=None):

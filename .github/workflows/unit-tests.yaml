@@ -33,4 +33,22 @@ jobs:
       # test/ need ROOT, and `unittest discover -s test` would resolve `test.<module>` to
       # CPython's own `test` package.
       - name: Run the unit tests
-        run: python -m pytest -q TEST_FILES_PLACEHOLDER
+        run: >-
+          python -m pytest -q
+          test/test_atomic_publish.py
+          test/test_crab_credentials.py
+          test/test_crab_failure_reporting.py
+          test/test_crab_hardening.py
+          test/test_crab_job_completeness.py
+          test/test_crab_refused_submission.py
+          test/test_crab_resources.py
+          test/test_crab_sites.py
+          test/test_crab_watchdog.py
+          test/test_crab_watchdog_integration.py
+          test/test_crab_wave_gate.py
+          test/test_fresh_negatives.py
+          test/test_gfal_absent_vs_unreachable.py
+          test/test_path_cache.py
+          test/test_remote_log_names.py
+          test/test_submission_guards.py
+          test/test_voms_proxy_info.py

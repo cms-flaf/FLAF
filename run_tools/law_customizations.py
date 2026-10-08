@@ -1309,6 +1309,7 @@ class SubmissionGuards:
     missing_outputs_error = "initially missing task outputs"
 
     _recorded_finished = None
+    _lost_outputs_judged = False
     _skipping_since = None
 
     def _snapshot_recorded_finished(self):
@@ -1324,12 +1325,15 @@ class SubmissionGuards:
     def _stop_on_mass_lost_outputs(self, retry_jobs):
         """Raise instead of resubmitting, when most of a resumed workflow lost its outputs.
 
-        Judged once, on the first retry generation after the snapshot: that is where law puts
+        Judged once, on the first retry generation of a resumed run: that is where law puts
         every job whose outputs went missing, and a later genuine failure must not be counted.
+        Called before anything can park that generation -- the wave gate, or a skipped round
+        -- since a parked mass retry would later be released where this no longer sees it.
         """
-        recorded, self._recorded_finished = self._recorded_finished, set()
-        if not retry_jobs or not recorded:
+        if not self._submitted or self._lost_outputs_judged or not retry_jobs:
             return
+        self._lost_outputs_judged = True
+        recorded = self._recorded_finished or set()
         lost = [
             job_num
             for job_num in retry_jobs
@@ -1573,9 +1577,9 @@ class _BundleAwareHTCondorWorkflowProxy(
         return super(_BundleAwareHTCondorWorkflowProxy, self).poll()
 
     def submit(self, retry_jobs=None):
+        self._stop_on_mass_lost_outputs(retry_jobs)
         if self._skip_submission_round(retry_jobs):
             return OrderedDict()
-        self._stop_on_mass_lost_outputs(retry_jobs)
         self._cost_repack_once()
         new_submission_data = super(_BundleAwareHTCondorWorkflowProxy, self).submit(
             retry_jobs=retry_jobs
@@ -1713,6 +1717,7 @@ class FLAFCrabJobFileFactory(law.cms.CrabJobFileFactory):
     """
 
     def create(self, **kwargs):
+        wait_for_job_sources()
         # Prevent law from promoting custom_log_file into CRAB JobType.outputFiles
         # (which would set transferOutputs=True and duplicate FLAF log stageout).
         kwargs = dict(kwargs)
@@ -2319,9 +2324,9 @@ class FLAFCrabJobManager(law.cms.CrabJobManager):
                 msg += f" (last site {site})"
             print(msg)
             if site and self.site_stats is not None:
-                # first stall of this branch only: a branch that hangs wherever it lands is
-                # the branch's problem, and charging each of its stalls to another site is
-                # how a quarantine baseline gets poisoned
+                # once per job id, and the watchdog's max_per_branch bounds the verdicts per
+                # branch: a branch that hangs wherever it lands is the branch's problem, and
+                # charging each of its stalls to another site would poison the baseline
                 with self._stats_lock:
                     key = (str(job_id), "watchdog")
                     if key not in self._stats_seen:
@@ -2462,16 +2467,20 @@ def _cli_has_param(name, task_family=None):
     value or the CRAB default for every other task in the graph. Unlike ``--tasks-per-job``
     (excluded from ``req`` and therefore the root task's alone), the bare form of the
     parameters checked here is copied through ``req`` to every task the root requires, so
-    it counts for all of them; the prefixed form reaches its task because ``Task`` lists
-    these parameters in ``prefer_params_cli``.
+    it counts for all of them, and so does the root task's prefixed form, which ``req``
+    copies just the same; another task's prefixed form reaches that task because ``Task``
+    lists these parameters in ``prefer_params_cli``.
     """
     parser = luigi.cmdline_parser.CmdlineParser.get_instance()
     tokens = list(getattr(parser, "cmdline_args", None) or [])
+    root_task = getattr(getattr(parser, "known_args", None), "root_task", None) or ""
+    root_family = root_task.rsplit(".", 1)[-1]
     wanted = set()
     for variant in (name.replace("_", "-"), name.replace("-", "_")):
         wanted.add(f"--{variant}")
-        if task_family:
-            wanted.add(f"--{task_family}-{variant}")
+        for family in (task_family, root_family):
+            if family:
+                wanted.add(f"--{family}-{variant}")
     return any(tok.split("=", 1)[0] in wanted for tok in tokens)
 
 
@@ -2642,11 +2651,11 @@ class _FLAFCrabWorkflowProxy(SubmissionGuards, _FLAFCrabWorkflowProxyBase):
         return self._parked_retries_are_due()
 
     def submit(self, retry_jobs=None):
-        if self._skip_submission_round(retry_jobs):
-            return OrderedDict()
-        # before the wave gate: holding jobs back returns without delegating, and a mass
+        # before anything can park the retries (a skipped round, the wave gate): a mass
         # retry parked here would be released later where the brake no longer sees it
         self._stop_on_mass_lost_outputs(retry_jobs)
+        if self._skip_submission_round(retry_jobs):
+            return OrderedDict()
         retry_jobs = retry_jobs or OrderedDict()
         # A --no-poll invocation resubmits failures exactly once and then returns, so
         # a parked job would not be offered again until someone runs the task anew —
@@ -2920,7 +2929,7 @@ class CrabWorkflow(law.cms.CrabWorkflow):
                 "`crab.memory_mb_per_cpu` is no longer used: CRAB memory is now the most CRAB "
                 "grants for a job's cores, max(3000, 2500 * cores), and a task that needs a "
                 "different amount asks for it itself -- `--<Task>-crab-memory <MB>` on the "
-                "command line, `crab_memory` in the task's law.cfg section, or "
+                "command line, `crab_memory` in a `[luigi_<Task>]` section of law.cfg, or "
                 "`payload_producers.<producer>.crab_memory` for AnalysisCacheTask. Remove "
                 "the key from the `crab:` block."
             )
@@ -3050,10 +3059,11 @@ process.out = cms.EndPath(process.output)
             self.task_family.replace(".", "_"),
             str(self.version).replace(".", "_"),
             str(self.period).replace(".", "_"),
-            uuid.uuid4().hex[:8],
         ]
-        name = "_".join(parts)
-        return re.sub(r"[^A-Za-z0-9_\-]", "_", name)[:100]
+        # the unique suffix is what tells the CRAB tasks of one workflow apart (and names
+        # their staged logs), so only the prefix is truncated
+        prefix = re.sub(r"[^A-Za-z0-9_\-]", "_", "_".join(parts))[:91]
+        return f"{prefix}_{uuid.uuid4().hex[:8]}"
 
     def crab_bootstrap_file(self):
         from law.job.base import JobInputFile

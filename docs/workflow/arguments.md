@@ -36,35 +36,43 @@ also provides built-in options for status and cleanup.
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--transfer-logs` | on | Keep each job's log (HTCondor and CRAB). With a remote `fs_default` the log is uploaded to `<version>/logs/<Task>/<period>/` there (plus the producer name for the analysis-cache tasks); with a local `fs_default` the log is part of the job's output sandbox, which HTCondor copies back to the task's local directory under `data/` only with `--htcondor-spool False` (with the default `-spool` it stays on the schedd until `condor_transfer_data` is run, which law does not do). Switch off with `--transfer-logs False`. |
-| `--parallel-jobs` | unbounded (HTCondor) / **2000** (`AnaTupleFileTask` on HTCondor, `anaTuple_scheduling.parallel_jobs`) / **5000** (CRAB, `crab.parallel_jobs`) | Cap concurrent jobs. On CRAB this is also the max size of each CRAB task. |
+| `--transfer-logs` | on | Keep each job's log (HTCondor and CRAB). With a remote `fs_default` the log is uploaded to `<version>/logs/<Task>/<period>/` there (plus the producer name for the analysis-cache tasks); with a local `fs_default` the log is part of the job's output sandbox, which HTCondor copies back to the task's local directory under `data/` only with `--htcondor-spool False` (with the default `-spool` it stays on the schedd until `condor_transfer_data` is run, which law does not do). On CRAB the file is `stdall_<first branch>_crab<tag>.<job number>.txt` (see [CRAB](crab.md#submit)). Switch off with `--transfer-logs False`. |
+| `--parallel-jobs` | unbounded (HTCondor) / **2000** (`AnaTupleFileTask` on HTCondor, `anaTuple_scheduling.parallel_jobs`) / **5000** (CRAB, `crab.parallel_jobs`) | Cap concurrent jobs. On CRAB this is also the max size of each CRAB task. `--<Task>-parallel-jobs` caps that task alone. |
 | `--tasks-per-job` | `1` (`10` for `HistTupleProducerTask`) | Branches per job. Applies to the launched task only; set it for an upstream task with `--<Task>-tasks-per-job`. On `AnaTupleFileTask`, jobs are normally composed by [estimated cost](htcondor.md#how-branches-become-jobs) instead; passing this option explicitly restores fixed-size chunking. |
 | `--max-runtime` | *(task default)* | Per-job wall-clock limit in hours: 12 unless the task sets its own (e.g. 40 for `AnaTupleFileTask`, 48 for `AnaTupleMergeTask`). On HTCondor, a resubmitted `AnaTupleFileTask` job gets a longer limit, unless `--tasks-per-job` is given. |
-| `--n-cpus` | `1` (4 for `AnaTupleFileTask`, `AnaTupleCostProbeTask` and `HistTupleProducerTask`; 2 for `AnaTupleMergeTask`, `HistFromNtupleProducerTask` and `HistMergerTask`) | CPUs requested per job. `AnalysisCacheTask` always takes `n_cpus` and `max_runtime` from its producer's entry in `payload_producers`. |
+| `--n-cpus` | `1` (4 for `AnaTupleFileTask`, `AnaTupleCostProbeTask` and `HistTupleProducerTask`; 2 for `AnaTupleMergeTask`, `HistFromNtupleProducerTask` and `HistMergerTask`) | CPUs requested per job. `AnalysisCacheTask` always takes `n_cpus` and `max_runtime` (and, on CRAB, `crab_memory`) from its producer's entry in `payload_producers`. |
 | `--priority` | `0` | Job priority among your HTCondor jobs, from `-20` to `20`. |
 | `--bundle` | off | Ship a code/environment tarball to the worker. See [HTCondor → bundles](htcondor.md#bundles-shipping-the-code-to-workers). Always on for `--workflow crab`. |
 | `--htcondor-spool` | on | Pass `-spool` to `condor_submit`, so the input files (including the proxy) are sent to the schedd instead of being read from a shared filesystem. Switch off with `--htcondor-spool False`. |
 
-The per-task defaults of `--n-cpus` and `--max-runtime` apply to the task you launch. A task
-that LAW creates as a dependency is usually handed the requiring task's values instead, unless
-FLAF resets them to the dependency's own defaults for that requirement.
+The per-task defaults of `--n-cpus` and `--max-runtime` apply to the task you launch. They are
+**not** handed from a requiring task to the tasks it requires: each dependency keeps its own
+default, or the value given for it with `--<Task>-n-cpus` / `--<Task>-max-runtime`.
 
 ## CRAB options (on every workflow task)
 
 | Option | Default | Meaning |
 |---|---|---|
 | `--workflow crab` | — | Submit branches via CMS CRAB (WLCG). See [CRAB](crab.md). |
+| `--crab-memory` | `0` (= the most CRAB grants for the job's cores) | CRAB `maxMemoryMB` per job, in MB. A per-task value, like `--n-cpus`: set it for one task with `--<Task>-crab-memory <MB>`, or as `crab_memory` in a `[luigi_<Task>]` section of `law.cfg`; for `AnalysisCacheTask` as `payload_producers.<producer>.crab_memory`, which overrides the command line. A request above what the cores allow buys cores; one that no core count can hold (above 20000 MB), or below 1000, is refused at submission. See [CRAB → Resources](crab.md#resources). |
 
 Optional site white/black lists go in `global.yaml` under `crab:` (not CLI flags).
 Unset whitelist ⇒ all T1/T2/T3 sites; blacklisted (or auto-quarantined) sites are
 cut out of the whitelist itself — see [CRAB](crab.md). Default `--parallel-jobs`
 on CRAB is 5000 (`crab.parallel_jobs`); jobs are aggregated into CRAB tasks of at
 least `crab.refill_fraction * parallel_jobs` jobs while such a wave is still
-achievable (the tail is released immediately). `Site.storageSite`
-/ `Data.outLFNDirBase` are derived from `fs_default`. Memory is
-`2000 MB * n_cpus` (`crab.memory_mb_per_cpu`; CRAB / site-guaranteed default),
-capped at the CRAB client limit (5000 MB for 1 core, `2500 MB * n_cpus` otherwise).
+achievable (the tail is released immediately, and a retry waits at most
+`crab.retry_release_minutes`). `Site.storageSite` / `Data.outLFNDirBase` are derived from
+`fs_default`. Cores are `--n-cpus` rounded up to 1, 2, 4 or 8 (`--n-cpus` above 8 is refused);
+memory defaults to `max(3000, 2500 * cores)` MB (3000, 5000, 10000 and 20000 MB for 1, 2, 4 and
+8 cores), the most CRAB grants, because `maxMemoryMB` is a kill threshold. `crab.memory_mb_per_cpu`
+is retired and raises an error if present.
 `--transfer-logs` uses FLAF's own log upload to `fs_default`; CRAB's log transfer stays off.
+
+!!! note "`--parallel-jobs` and `--poll-interval` for one task"
+    `--<Task>-parallel-jobs` and `--<Task>-poll-interval` reach the task they name, on CRAB and
+    HTCondor alike, and are not overridden by the CRAB defaults or `crab.*` values. (A bare
+    `--parallel-jobs` is copied to every task of the graph.)
 
 ## Status & cleanup (LAW built-ins)
 
@@ -175,6 +183,8 @@ stages.
 !!! tip "`--<AnyTaskInTree>-<param>` works for parameters the requiring task does not pass on"
     LAW lets you set a parameter of any task in the dependency tree by prefixing it with the
     task's class name, e.g. `--HistFromNtupleProducerTask-n-files-per-job 10`. A parameter that
-    the requiring task also declares (`--test`, `--workflow`, `--n-cpus`, …), or sets explicitly,
+    the requiring task also declares (`--test`, `--workflow`, …), or sets explicitly,
     is handed down by it and wins over the prefixed value — except for the ones FLAF prefers from
-    the command line: `version`, the three version shortcuts and `tasks_per_job`.
+    the command line: `version`, the three version shortcuts, `tasks_per_job`, `parallel_jobs` and
+    `poll_interval`. The per-task resources `--n-cpus`, `--max-runtime` and `--crab-memory` are
+    never handed down, so their prefixed form always reaches its task.

@@ -191,6 +191,33 @@ For jobs that should run on the full CMS WLCG (not only CERN HTCondor), use
     jobs include them in the tarball — so testing framework changes on HTCondor works without
     committing first. See [Contributing](../contributing.md).
 
+## Submission safeguards
+
+These apply to both batch backends (HTCondor and [CRAB](crab.md)).
+
+- **An unreadable software tree skips a submission round.** law's own job sources
+  (`law_job.sh`, the CRAB and HTCondor wrappers, `PSet.py`) and FLAF's `bootstrap.sh` and
+  `stageout_logs.sh` are probed before each submission round. If one cannot be read (an expired
+  Kerberos ticket or AFS token, a blinking mount), the round is skipped: nothing is lost, the
+  retries offered by law are parked, and the next poll tries again. The message gives the path,
+  the errno and a hint (`klist -f` shows the Kerberos expiry and the renewable window, `tokens`
+  the AFS token). Skipping for more than 30 minutes raises, and with `--no-poll`, which would
+  not submit the round later, it raises at once. law's `rel_path` no longer depends on a `stat`
+  succeeding, so one failed stat cannot make law mistake its own module for a directory.
+- **A resumed workflow that lost its outputs stops.** When a workflow is resumed (its job file
+  exists) and more than 10 % of the jobs — and at least 2 — that it had recorded as finished are
+  missing their outputs, the run stops instead of resubmitting them. The cause is either that the
+  storage was unreachable while outputs were checked (run again once it is back) or that the
+  outputs were consumed downstream, e.g. merged and removed (`HistMergerTask` with
+  `remove_merged_inputs`): those branches are done and the downstream task does not need them.
+  To redo the work on purpose, run again with `--ignore-submission`.
+- **A job does not rebuild upstream products.** In a batch job, `AnaTupleFileTask`,
+  `AnaTupleMergeTask`, `AnalysisCacheTask`, `HistTupleProducerTask`,
+  `HistFromNtupleProducerTask` and `HistMergerTask` refuse to run as an inline requirement of a
+  job submitted for another task. luigi would otherwise rebuild a requirement it reads as
+  incomplete inside that job's slot, which can happen on a listing blink or a stale path-cache
+  entry, and overwrite a file other jobs are reading. The job fails, and law retries it.
+
 ## Caveats
 
 !!! warning "Keep your proxy valid for the whole run"

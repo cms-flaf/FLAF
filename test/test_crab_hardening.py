@@ -6,19 +6,40 @@ Each test here encodes a failure observed in the 115k-job DSProd CRAB production
 an unreadable `crab status` response, retries escaping as tiny CRAB tasks, a blacklist
 silently defeated by the whitelist, a worker deleting its own delegated proxy, resource
 parameters leaking through req(), and a worker rebuilding a live bundle.
+
+The later DSProd productions changed what several of them expect, and the tests follow:
+a site is charged only for a failure carrying a job-level code (#23, #46), a parked retry
+goes out once its release window is up and only the backlog is weighed against the wave
+(#25), a submission round is skipped rather than lost when the software tree cannot be
+read (#39), a lifted quarantine keeps the record that earned it (#40), the CRAB site list
+is the CRIC Processing Site Name list and is refused when it is short (#42), and a
+condition that must end the run is recorded for the poll callback instead of being raised
+from a query, where law swallows it (#42; FLAF applies it to an unreadable status too).
+The site list, the quarantine record and the other CRAB mechanics are covered in depth by
+`test_crab_sites.py` and the other `test_crab_*.py` files.
 """
 
+import contextlib
+import importlib.util
 import os
 import sys
 import tempfile
+import time
 import types
 import unittest
+from collections import OrderedDict
 from unittest import mock
 
 flaf_repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 flaf_parent = os.path.dirname(flaf_repo)
 if flaf_parent not in sys.path:
     sys.path.insert(0, flaf_parent)
+
+# law_customizations reaches ROOT only at import time (FLAF.Common.Setup -> Utilities) and
+# nothing tested here calls into it; the unit-test runner has no ROOT, so an empty module
+# stands in for it there.
+if "ROOT" not in sys.modules and importlib.util.find_spec("ROOT") is None:
+    sys.modules["ROOT"] = types.ModuleType("ROOT")
 
 import law
 import law.workflow.remote
@@ -27,102 +48,198 @@ from FLAF.run_tools import law_customizations as lc
 from FLAF.run_tools.crab_sites import SiteStats, processing_sites, resolve_whitelist
 from FLAF.RunKit import grid_helper_tasks
 
+#: `_CRAB_DEFAULT_PARALLEL_JOBS`, and the default `refill_fraction` 0.2 of it: a wave
+#: needs 1000 jobs
+PARALLEL_JOBS = 5000
+MIN_WAVE = 1000
 
-def make_proxy_stub(n_parallel, n_active, n_parallel_max=1_000_000, refill=0.2):
-    stub = types.SimpleNamespace()
-    stub.poll_data = types.SimpleNamespace(n_parallel=n_parallel, n_active=n_active)
-    stub.n_parallel_max = n_parallel_max
-    stub.task = types.SimpleNamespace(_crab_cfg=lambda: {"refill_fraction": refill})
-    stub._crab_refill_fraction = (
-        lambda: lc._FLAFCrabWorkflowProxy._crab_refill_fraction(stub)
+
+def make_manager():
+    return lc.FLAFCrabJobManager(
+        sandbox_name="cmssw::CMSSW_14_0_0::arch=el9_amd64_gcc12"
     )
-    return stub
 
 
-def should_submit(n_waiting, **kwargs):
-    stub = make_proxy_stub(**kwargs)
-    return lc._FLAFCrabWorkflowProxy._should_submit_crab_group(stub, n_waiting)
+def make_crab_proxy(n_active=0, n_parallel=PARALLEL_JOBS, no_poll=False):
+    """A FLAF CRAB proxy over law's real job data and FLAF's real job manager.
+
+    Built with object.__new__: law's __init__ wants a real workflow task, and a FLAF one
+    needs an analysis setup. The task stands in with what the proxy and law's submit()
+    read from it, with no `crab:` settings, so the defaults apply. `dump_job_data` writes
+    to the task's output, so it records what it would have written instead.
+    """
+    proxy = object.__new__(lc._FLAFCrabWorkflowProxy)
+    proxy.task = types.SimpleNamespace(
+        _crab_cfg=lambda: {},
+        no_poll=no_poll,
+        shuffle_jobs=False,
+        append_retry_jobs=False,
+        publish_message=lambda msg: None,
+        forward_dashboard_event=lambda *args: None,
+        crab_destination_info=lambda info: info,
+    )
+    proxy.poll_data = law.workflow.remote.PollData(
+        n_parallel=n_parallel, n_finished_min=-1, n_failed_max=-1, n_active=n_active
+    )
+    proxy.job_data = law.workflow.remote.JobData()
+    proxy.job_manager = make_manager()
+    proxy.dashboard = None
+    proxy._submitted = False
+    proxy._skip_jobs = {}
+    # nothing has been produced yet: no job is skippable and no storage is consulted
+    proxy._existing_branches = set()
+    # as __init__ leaves it: no retry is parked, so no release window is running
+    proxy._retry_parked_since = None
+    proxy.dumped = []
+    proxy.dump_job_data = lambda: proxy.dumped.append(
+        list(proxy.job_data.unsubmitted_jobs)
+    )
+    return proxy
+
+
+def should_submit(n_backlog, n_retry, n_active, parked_min_ago=None):
+    proxy = make_crab_proxy(n_active=n_active)
+    if parked_min_ago is not None:
+        proxy._retry_parked_since = time.monotonic() - parked_min_ago * 60
+    return proxy._should_submit_crab_group(n_backlog, n_retry)
+
+
+@contextlib.contextmanager
+def law_submission(proxy):
+    """Run law's own submit() underneath the proxy, with only the CRAB call replaced.
+
+    Yields the job numbers law actually handed to CRAB.
+    """
+    submitted = []
+
+    def submit_group(submit_jobs, **kwargs):
+        submitted.extend(submit_jobs)
+        return (
+            [f"crab_{job_num}" for job_num in submit_jobs],
+            OrderedDict(
+                (job_num, {"job": "job.jdl", "config": {}, "log": None})
+                for job_num in submit_jobs
+            ),
+        )
+
+    with mock.patch.object(type(proxy), "_submit_group", side_effect=submit_group):
+        yield submitted
 
 
 class TestWaveGate(unittest.TestCase):
-    """The gate must aggregate on jobs waiting, not on free slots."""
+    """The gate must aggregate on jobs waiting, not on free slots.
+
+    Waiting work comes in two parts (DSProd #25): the backlog in `unsubmitted_jobs`, which
+    alone is weighed against the wave size, and the retries this poll offers, which have not
+    waited for anything yet. A parked retry is not held for ever: it goes out once its
+    release window (45 min by default) is up. Here a wave needs 1000 of 5000 slots.
+    """
 
     def test_retry_trickle_is_held_in_part_filled_pool(self):
         # The DSProd incident: 3270 of 5000 slots taken, so 1730 slots free — the old
         # free-slot rule was permanently open and each poll's retry handful became its
-        # own CRAB task. A handful of retries must be held.
-        self.assertFalse(should_submit(5, n_parallel=5000, n_active=3270))
+        # own CRAB task. A handful of retries must be held, whether offered this poll or
+        # parked by an earlier one whose release window still runs.
+        self.assertFalse(should_submit(0, 5, n_active=3270))
+        self.assertFalse(should_submit(5, 0, n_active=3270, parked_min_ago=10))
+
+    def test_parked_trickle_goes_out_once_its_window_is_up(self):
+        # held, but not until a wave it can never fill: that cost one job length per retry
+        # generation, ~10.5 h of a 68.4 h DSProd production
+        self.assertTrue(should_submit(5, 0, n_active=3270, parked_min_ago=46))
+
+    def test_retries_offered_this_poll_do_not_count_towards_the_wave(self):
+        # a whole generation of retries is parked once and goes out on the next poll as
+        # backlog, rather than opening the gate before it has waited at all
+        self.assertFalse(should_submit(0, MIN_WAVE, n_active=0))
+        self.assertTrue(should_submit(MIN_WAVE, 0, n_active=0))
 
     def test_full_wave_with_room_submits(self):
-        self.assertTrue(should_submit(3000, n_parallel=5000, n_active=0))
+        self.assertTrue(should_submit(3000, 0, n_active=0))
 
     def test_full_wave_without_room_is_held(self):
         # 5000 jobs waiting but only 500 slots free: no full wave can run yet.
-        self.assertFalse(should_submit(5000, n_parallel=5000, n_active=4500))
+        self.assertFalse(should_submit(5000, 0, n_active=4500))
 
     def test_tail_is_released(self):
         # Running + waiting can never fill a wave again — holding only delays the tail.
-        self.assertTrue(should_submit(5, n_parallel=5000, n_active=300))
+        self.assertTrue(should_submit(0, 5, n_active=300))
 
     def test_small_production_never_batches(self):
-        self.assertTrue(should_submit(100, n_parallel=5000, n_active=0))
+        self.assertTrue(should_submit(100, 0, n_active=0))
 
     def test_first_wave_of_large_production_submits(self):
-        self.assertTrue(should_submit(20000, n_parallel=5000, n_active=0))
+        self.assertTrue(should_submit(20000, 0, n_active=0))
 
     def test_nothing_waiting_submits(self):
-        self.assertTrue(should_submit(0, n_parallel=5000, n_active=3270))
+        self.assertTrue(should_submit(0, 0, n_active=3270))
 
     def test_unlimited_parallelism_keeps_law_behaviour(self):
-        self.assertTrue(
-            should_submit(1, n_parallel=1_000_000, n_active=0, n_parallel_max=1_000_000)
-        )
+        proxy = make_crab_proxy(n_active=0)
+        proxy.poll_data.n_parallel = proxy.n_parallel_max
+        self.assertTrue(proxy._should_submit_crab_group(0, 1))
 
 
 class TestSubmitParking(unittest.TestCase):
     """Parked retries must move to unsubmitted without changing len(job_data).
 
     law's poll loop snapshots len(job_data) once; changing it mid-poll hangs the loop
-    or ends it early.
+    or ends it early. Every submission round first probes the files a job is built from
+    (DSProd #39); FLAF_PATH points at this checkout, so that probe reads real files.
     """
 
+    def setUp(self):
+        patcher = mock.patch.dict(os.environ, {"FLAF_PATH": flaf_repo})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    @staticmethod
+    def offer_retry(proxy, job_num):
+        """One job law hands back for retry: it counts the attempt before submit() sees it."""
+        proxy.job_data.jobs[job_num] = law.workflow.remote.JobData.job_data(
+            job_id="x", branches=[job_num], status="retry"
+        )
+        proxy.job_data.attempts[job_num] = 1
+        return OrderedDict([(job_num, [job_num])])
+
     def test_parking_preserves_job_data_length(self):
-        proxy = object.__new__(lc._FLAFCrabWorkflowProxy)
-        proxy.poll_data = types.SimpleNamespace(n_parallel=5000, n_active=3270)
-        proxy.n_parallel_max = 1_000_000
-        proxy.task = types.SimpleNamespace(_crab_cfg=lambda: {})
-        proxy.job_data = law.workflow.remote.JobData()
-        proxy.job_data.jobs[7] = {"job_id": "x", "branches": [7], "status": "retry"}
+        proxy = make_crab_proxy(n_active=3270)
         proxy.job_data.unsubmitted_jobs[9] = [9]
-        proxy._can_skip_job = lambda job_num, branches: False
-        dumped = []
-        proxy.dump_job_data = lambda: dumped.append(True)
+        retry_jobs = self.offer_retry(proxy, 7)
 
         n_before = len(proxy.job_data)
-        result = lc._FLAFCrabWorkflowProxy.submit(proxy, retry_jobs={7: [7]})
+        with law_submission(proxy) as submitted:
+            result = proxy.submit(retry_jobs=retry_jobs)
 
-        self.assertEqual(result, {})
+        self.assertEqual(dict(result), {})
+        self.assertEqual(submitted, [])
         self.assertEqual(len(proxy.job_data), n_before)
         self.assertNotIn(7, proxy.job_data.jobs)
-        self.assertEqual(proxy.job_data.unsubmitted_jobs[7], [7])
-        self.assertTrue(dumped)
+        # in front of the backlog: law fills a wave from it in dict order, and a retry
+        # behind a large backlog would not be reached for hours
+        self.assertEqual(list(proxy.job_data.unsubmitted_jobs), [7, 9])
+        self.assertEqual(
+            proxy.dumped[-1], [7, 9], "a killed driver reads the dump, not memory"
+        )
+        self.assertIsNotNone(
+            proxy._retry_parked_since, "a parked retry must be on its release clock"
+        )
 
     def test_no_poll_bypasses_the_gate(self):
         # a --no-poll invocation resubmits failures exactly once and then returns;
         # parking would silently skip that documented one-shot resubmission
-        proxy = object.__new__(lc._FLAFCrabWorkflowProxy)
-        proxy.poll_data = types.SimpleNamespace(n_parallel=5000, n_active=3270)
-        proxy.n_parallel_max = 1_000_000
-        proxy.task = types.SimpleNamespace(_crab_cfg=lambda: {}, no_poll=True)
-        proxy.job_data = law.workflow.remote.JobData()
-        proxy.job_data.jobs[7] = {"job_id": "x", "branches": [7], "status": "retry"}
-        with mock.patch.object(
-            lc._FLAFCrabWorkflowProxyBase, "submit", return_value={"submitted": True}
-        ) as base_submit:
-            result = lc._FLAFCrabWorkflowProxy.submit(proxy, retry_jobs={7: [7]})
-        self.assertEqual(result, {"submitted": True})
-        base_submit.assert_called_once()
-        self.assertIn(7, proxy.job_data.jobs, "nothing may be parked under no_poll")
+        proxy = make_crab_proxy(n_active=3270, no_poll=True)
+        retry_jobs = self.offer_retry(proxy, 7)
+        with law_submission(proxy) as submitted:
+            result = proxy.submit(retry_jobs=retry_jobs)
+        self.assertEqual(submitted, [7])
+        self.assertEqual(list(result), [7])
+        self.assertEqual(proxy.job_data.jobs[7]["job_id"], "crab_7")
+        self.assertEqual(
+            dict(proxy.job_data.unsubmitted_jobs),
+            {},
+            "nothing may be parked under no_poll",
+        )
 
 
 class TestPollInterval(unittest.TestCase):
@@ -221,7 +338,11 @@ class TestCostParallelJobs(unittest.TestCase):
 
 
 class TestResolveWhitelist(unittest.TestCase):
-    """CRAB gives the whitelist precedence, so exclusions must be cut out of it."""
+    """CRAB gives the whitelist precedence, so exclusions must be cut out of it.
+
+    The glob-blacklist cases and the everything-excluded error are pinned, with the same
+    inputs, in test_crab_sites.py.
+    """
 
     SITES = ["T1_DE_KIT", "T2_CH_CERN", "T2_EE_Estonia", "T2_US_MIT", "T3_CH_PSI"]
 
@@ -243,57 +364,18 @@ class TestResolveWhitelist(unittest.TestCase):
         out = resolve_whitelist(["T2_CH_CERN", "T2_US_MIT"], ["T2_US_MIT"], self.SITES)
         self.assertEqual(out, ["T2_CH_CERN"])
 
-    def test_everything_excluded_raises(self):
-        with self.assertRaises(RuntimeError):
-            resolve_whitelist(["T2_US_MIT"], ["T2_US_MIT"], self.SITES)
-
-    def test_glob_blacklist_is_not_inverted_into_a_whitelist(self):
-        # a pattern in the blacklist must exclude what it matches — a literal
-        # membership test would instead expand the tier into explicitly
-        # whitelisted names, silently defeating the exclusion
-        out = resolve_whitelist(["T1_*", "T2_*", "T3_*"], ["T3_*"], self.SITES)
-        self.assertEqual(out, ["T1_*", "T2_*"])
-
-    def test_glob_blacklist_excludes_a_concrete_whitelist_entry(self):
-        out = resolve_whitelist(["T2_CH_CERN", "T2_US_MIT"], ["T2_US_*"], self.SITES)
-        self.assertEqual(out, ["T2_CH_CERN"])
-
     def test_glob_blacklist_expands_partially_covered_glob(self):
         out = resolve_whitelist(["T2_*"], ["T2_US_*"], self.SITES)
         self.assertEqual(out, ["T2_CH_CERN", "T2_EE_Estonia"])
 
 
 class TestProcessingSites(unittest.TestCase):
-    """The site list must come from cache when CRIC is unreachable, and fail loudly
-    only when there is nothing to fall back on."""
+    """With CRIC unreachable and nothing cached, the site list must fail loudly.
+
+    The cache paths (fresh, stale, corrupt, short) are pinned in test_crab_sites.py.
+    """
 
     UNREACHABLE = "http://127.0.0.1:9/nope"
-
-    def test_fresh_cache_avoids_network(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            cache = os.path.join(tmp, "sites.json")
-            with open(cache, "w") as f:
-                f.write('["T1_DE_KIT", "T2_CH_CERN"]')
-            sites = processing_sites(cache, url=self.UNREACHABLE, timeout=1)
-            self.assertEqual(sites, ["T1_DE_KIT", "T2_CH_CERN"])
-
-    def test_stale_cache_used_when_cric_down(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            cache = os.path.join(tmp, "sites.json")
-            with open(cache, "w") as f:
-                f.write('["T2_CH_CERN"]')
-            os.utime(cache, (0, 0))  # far in the past
-            sites = processing_sites(cache, url=self.UNREACHABLE, timeout=1)
-            self.assertEqual(sites, ["T2_CH_CERN"])
-
-    def test_corrupt_stale_cache_still_raises_the_clear_error(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            cache = os.path.join(tmp, "sites.json")
-            with open(cache, "w") as f:
-                f.write("not json {")
-            os.utime(cache, (0, 0))
-            with self.assertRaises(RuntimeError):
-                processing_sites(cache, url=self.UNREACHABLE, timeout=1)
 
     def test_no_cache_and_cric_down_raises(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -346,17 +428,25 @@ class TestSiteStats(unittest.TestCase):
                     stats.record(site, False, now=now)
             self.assertEqual(stats.blacklist(now=now), [])
 
-    def test_quarantine_expires_and_record_restarts(self):
+    def test_quarantine_expires_without_forgetting_the_record(self):
+        # The quarantine still expires, but no longer wipes the record (DSProd #40): a
+        # wiped record let three broken sites cycle back into the whitelist every six
+        # hours. The site returns, is not re-quarantined on the evidence its ban was
+        # served for, and keeps both that evidence and the count its next ban doubles
+        # on. The ban is shorter than the 24 h window, so the window cannot be what
+        # removes the evidence.
         now = 1_000_000.0
         with tempfile.TemporaryDirectory() as tmp:
-            stats = self.make(tmp)
+            stats = self.make(tmp, cfg={"quarantine_hours": 1.0})
             self.feed_black_hole(stats, now)
             self.assertEqual(stats.blacklist(now=now), ["T2_EE_Estonia"])
-            later = now + stats.cfg["quarantine_hours"] * 3600.0 + 1
+            later = stats.sites["T2_EE_Estonia"]["quarantined_until"] + 1
             self.assertEqual(stats.blacklist(now=later), [])
+            record = stats.sites["T2_EE_Estonia"]
             self.assertEqual(
-                stats.sites["T2_EE_Estonia"]["events"], [], "record must restart clean"
+                len(record["events"]), 30, "the evidence that earned the ban was lost"
             )
+            self.assertEqual(record["quarantines"], 1)
 
     def test_placeholder_site_names_are_ignored(self):
         now = 1_000_000.0
@@ -419,12 +509,6 @@ class TestSiteStats(unittest.TestCase):
             self.assertEqual(reloaded.blacklist(now=now), ["T2_EE_Estonia"])
 
 
-def make_manager():
-    return lc.FLAFCrabJobManager(
-        sandbox_name="cmssw::CMSSW_14_0_0::arch=el9_amd64_gcc12"
-    )
-
-
 class TestCrabJobManager(unittest.TestCase):
     """One unreadable `crab status` must not fail every job of the task, must report
     what crab returned, and must not kill the workflow before the tolerance is spent."""
@@ -468,16 +552,34 @@ class TestCrabJobManager(unittest.TestCase):
             m.query("/tmp/proj", job_ids=[jid])
         self.assertNotIn("/tmp/proj", m._unreadable)
 
-    def test_unreadable_status_raises_after_tolerance(self):
+    def test_unreadable_status_stops_the_run_after_tolerance(self):
+        # The stop is recorded in `stop_reason` and raised by the poll callback, not from
+        # query(): law runs queries in a thread pool and turns an exception there into the
+        # poll's result, so a raise from query() would count as one more failed poll while
+        # every other CRAB task lost that poll's status.
         m = make_manager()
         jid = m.JobId(1, "task", "/tmp/proj")
-        m._unreadable["/tmp/proj"] = m.max_unreadable_polls
         with mock.patch.object(
             law.cms.CrabJobManager, "query", side_effect=Exception("still broken")
         ), mock.patch("time.sleep"):
-            with self.assertRaises(Exception) as ctx:
-                m.query("/tmp/proj", job_ids=[jid])
+            # the last tolerated poll still only degrades
+            m._unreadable["/tmp/proj"] = m.max_unreadable_polls - 1
+            m.query("/tmp/proj", job_ids=[jid])
+            self.assertIsNone(m.stop_reason, "the run was stopped before the tolerance")
+            result = m.query("/tmp/proj", job_ids=[jid])
+        self.assertEqual(result[jid]["status"], m.PENDING)
+        self.assertIn("unreadable", m.stop_reason)
+        self.assertIn("still broken", m.stop_reason)
+
+        workflow = mock.Mock(spec=lc.CrabWorkflow)
+        workflow._flaf_crab_job_manager = m
+        with self.assertRaises(RuntimeError) as ctx:
+            lc.CrabWorkflow.crab_poll_callback(workflow, mock.Mock())
         self.assertIn("unreadable", str(ctx.exception))
+
+        # and a manager with nothing to report lets the poll loop go on
+        workflow._flaf_crab_job_manager = make_manager()
+        self.assertTrue(lc.CrabWorkflow.crab_poll_callback(workflow, mock.Mock()))
 
     def test_degrade_without_job_ids_reraises_without_crab_log(self):
         # a proj dir with no readable crab.log leaves nothing to degrade to
@@ -501,9 +603,13 @@ class TestSiteStatsHarvest(unittest.TestCase):
         return m
 
     @staticmethod
-    def job(m, num, proj, status, site):
+    def job(m, num, proj, status, site, code=None):
         jid = m.JobId(num, "task", proj)
-        return jid, {"status": status, "extra": {"site_history": ["T0_X", site]}}
+        return jid, {
+            "status": status,
+            "code": code,
+            "extra": {"site_history": ["T0_X", site]},
+        }
 
     def test_terminal_jobs_recorded_once_in_flight_refreshed(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -511,7 +617,8 @@ class TestSiteStatsHarvest(unittest.TestCase):
             result = dict(
                 [
                     self.job(m, 1, "/p1", m.FINISHED, "T2_CH_CERN"),
-                    self.job(m, 2, "/p1", m.FAILED, "T2_EE_Estonia"),
+                    # what CRAB reports for a payload that failed at the site
+                    self.job(m, 2, "/p1", m.FAILED, "T2_EE_Estonia", code=5),
                     self.job(m, 3, "/p1", m.RUNNING, "T1_DE_KIT"),
                     self.job(m, 4, "/p1", m.PENDING, "T1_DE_KIT"),
                 ]
@@ -525,6 +632,18 @@ class TestSiteStatsHarvest(unittest.TestCase):
             self.assertEqual(stats.sites["T2_EE_Estonia"]["events"][0][1], 0)
             self.assertEqual(stats.in_flight, {"T1_DE_KIT": 2})
             self.assertTrue(os.path.exists(stats.path), "record must be persisted")
+
+    def test_a_failure_without_a_code_is_not_the_sites_doing(self):
+        # a killed task, a refused submission or law's own bookkeeping reports jobs failed
+        # without a job-level code; counted, a mass kill drove every site's baseline to
+        # ~100 % and the quarantine could no longer fire (DSProd #23, #46)
+        with tempfile.TemporaryDirectory() as tmp:
+            m = self.make(tmp)
+            m._harvest_site_stats(
+                "/p1", dict([self.job(m, 1, "/p1", m.FAILED, "T2_CH_CERN")])
+            )
+            self.assertNotIn("T2_CH_CERN", m.site_stats.sites)
+            self.assertEqual(m.site_stats.in_flight, {}, "nor is it still in flight")
 
     def test_in_flight_is_combined_across_projects(self):
         with tempfile.TemporaryDirectory() as tmp:

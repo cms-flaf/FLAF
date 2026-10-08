@@ -164,6 +164,28 @@ operation, but if you script your own existence checks against freshly written o
 a directory listing and a short retry rather than a single `exists()`. See
 [Troubleshooting](../troubleshooting.md#eos-read-after-write-lag).
 
+## How uploads are published and absence is decided
+
+These hold on every backend (local, HTCondor and CRAB).
+
+- **Uploads are published by rename.** A local file is first uploaded to
+  `<target>.flaf-tmp-<pid>-<uuid>` next to its destination, verified by checksum, and only then
+  renamed onto the target. The target therefore never exists while partial, and an existing good
+  file is not removed before its replacement is complete. A killed upload can leave an orphaned
+  `.flaf-tmp-*` file behind; it is harmless, because the name does not end in `.root` and so is
+  matched by no output pattern. A storage that refuses to rename onto an existing name keeps an
+  identical target and drops the upload, or removes a different target and renames again.
+- **A failed listing is not an absence.** A `gfal-ls` that times out, fails SSL or lacks a
+  credential is retried, and then reported as a failure. Only a listing that gfal itself reports
+  as *not found* (errno `ENOENT`) means that a path is absent, and only that is cached — in the
+  process and on the path-cache server, where a wrong negative would hide existing files from
+  every client. `exists()` answers `False` for a listing that failed, but caches nothing.
+- Listings are taken with `TZ=UTC`, so the dates in them do not depend on the host.
+
+On CRAB the driver additionally takes a fresh listing before it accepts an "absent" answer, since
+the workers cannot publish to the path-cache server
+([CRAB → Status handling](../workflow/crab.md#status-handling)).
+
 ## Keeping I/O off shared production areas
 
 When testing, point `fs_default` at *your own* area (and use a personal `--version`) so you never

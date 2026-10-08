@@ -193,7 +193,7 @@ Pulled in automatically by `HistTupleProducerTask` for every histTuple variable 
 on the variables of the active histTuple flavour; also for an `is_global` producer that a
 correction names as its `normCacheProducer` (through `AnalysisCacheAggregationTask` when the
 producer also sets `needs_aggregation`). A producer's `dependencies` run first, and its
-`n_cpus`, `max_runtime` (default 2 h), `save_as` (file type, default `root`) and `cmssw_env`
+`n_cpus`, `max_runtime` (default 2 h), `crab_memory` (CRAB memory in MB, [default](../workflow/crab.md#resources) the most CRAB grants for the cores; it overrides `--AnalysisCacheTask-crab-memory`), `save_as` (file type, default `root`) and `cmssw_env`
 (run inside CMSSW) come from its `payload_producers` entry.
 
 - **Parameter:** `--producer-to-run` (which payload producer to run; required).

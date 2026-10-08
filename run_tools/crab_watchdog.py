@@ -57,6 +57,10 @@ DEFAULTS = {
 }
 
 
+#: shortest refresh interval accepted (see watchdog_config)
+MIN_INTERVAL_MINUTES = 10
+
+
 def watchdog_config(crab_cfg):
     """The `watchdog` block of the CRAB config, merged over the defaults."""
     raw = (crab_cfg or {}).get("watchdog", {})
@@ -70,15 +74,20 @@ def watchdog_config(crab_cfg):
             f"unknown watchdog setting(s) {sorted(unknown)}; known: {sorted(DEFAULTS)}"
         )
     cfg = dict(DEFAULTS, **raw)
-    if int(cfg["interval_minutes"]) < 1:
-        raise RuntimeError("watchdog.interval_minutes must be >= 1")
-    # A healthy flag reads up to one interval, plus its write time and the minute the
-    # listing rounds down to, old just before its next beat: with a single interval allowed
-    # healthy jobs cross the threshold.
+    # A healthy flag reads up to one interval, plus its write time (up to
+    # Heartbeat.write_timeout_seconds) and the minute the listing rounds down to, old just
+    # before its next beat; the threshold is missed_checks intervals. So one missed check
+    # condemns healthy jobs, and so do short intervals -- which also shrink the grace for a
+    # first beat, written only once the payload starts, below what a job takes to unpack.
     if int(cfg["missed_checks"]) < 2:
         raise RuntimeError(
             "watchdog.missed_checks must be >= 2: a healthy flag can read just over one "
             "interval old before its next beat"
+        )
+    if int(cfg["interval_minutes"]) < MIN_INTERVAL_MINUTES:
+        raise RuntimeError(
+            f"watchdog.interval_minutes must be >= {MIN_INTERVAL_MINUTES}: a beat may take "
+            "minutes to write, and a job its first minutes to start the payload"
         )
     return cfg
 
@@ -93,8 +102,9 @@ class Heartbeat:
 
     #: how long one write (or the final removal) may take, and how soon a beat that failed is
     #: tried again: the driver tolerates `missed_checks` intervals, so a failed beat must not
-    #: wait a whole interval more. Repeated failures back off, up to half an interval, so that
-    #: thousands of jobs do not hammer a storage that is already failing.
+    #: wait a whole interval more. Repeated failures back off, up to a quarter of an interval,
+    #: so that thousands of jobs do not hammer a storage that is already failing while an
+    #: attempt still falls shortly before the threshold.
     write_timeout_seconds = 300
     retry_seconds = 60
 
@@ -152,7 +162,7 @@ class Heartbeat:
                 self._failures += 1
                 wait = min(
                     self.retry_seconds * 2 ** min(self._failures - 1, 16),
-                    self.interval / 2,
+                    self.interval / 4,
                 )
             if self._stop.wait(wait):
                 return

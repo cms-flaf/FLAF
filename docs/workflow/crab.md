@@ -359,7 +359,7 @@ unknown keys are refused:
 | Key | Default | Meaning |
 |---|---|---|
 | `enabled` | `true` | Switch. |
-| `interval_minutes` | `30` | How often a job refreshes its flag and how often the driver lists the directory. Must be at least 1. |
+| `interval_minutes` | `30` | How often a job refreshes its flag and how often the driver lists the directory. Must be at least 10: a beat may take minutes to write, and a job its first minutes before the payload starts beating. |
 | `missed_checks` | `2` | Intervals a flag may stay unchanged before the job is failed. Must be at least 2: a healthy flag reads up to one interval, plus its write time, old just before its next beat. |
 | `max_per_interval` | `5` | Most verdicts in one interval. |
 | `max_per_branch` | `1` | Most rescues of one branch. |
@@ -404,7 +404,7 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
     snapshot and uses a longer local TTL (`24 × localPathCacheValidity`, at
     least 24 h, or `WLCGFileSystem.crabLocalPathCacheValidity` when set) so concurrent
     jobs do not re-stat the same remote paths. An "absent" (a missing file, or a listing
-    that implies one) recorded before the driver's latest fresh listing, or learned from the
+    that implies one) recorded before the driver's current poll, or learned from the
     cache server, is not shipped: it may predate a file another CRAB job wrote. The driver
     compensates for the missing server link on its side: see
     [Finished means on storage](#status-handling).

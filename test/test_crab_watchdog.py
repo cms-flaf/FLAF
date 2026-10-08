@@ -30,6 +30,7 @@ from FLAF.RunKit.run_tools import timed_call_wrapper  # noqa: E402
 from FLAF.run_tools.crab_watchdog import (  # noqa: E402
     DEFAULTS,
     HEARTBEAT_DIR,
+    MIN_INTERVAL_MINUTES,
     Heartbeat,
     StallWatchdog,
     watchdog_config,
@@ -450,9 +451,9 @@ class TheListing(unittest.TestCase):
         ls.assert_not_called()
 
     def test_the_thresholds_follow_the_settings(self):
-        w = StallWatchdog("x", watchdog_config({"watchdog": {"interval_minutes": 7}}))
-        self.assertEqual(w.interval_seconds, 7 * 60)
-        self.assertEqual(w.stale_seconds, 2 * 7 * 60)
+        w = StallWatchdog("x", watchdog_config({"watchdog": {"interval_minutes": 12}}))
+        self.assertEqual(w.interval_seconds, 12 * 60)
+        self.assertEqual(w.stale_seconds, 2 * 12 * 60)
 
     def test_the_flag_directory_name(self):
         self.assertEqual(HEARTBEAT_DIR, "heartbeat")
@@ -780,6 +781,26 @@ class TheSettings(unittest.TestCase):
             watchdog_config({"watchdog": {"missed_checks": 2}})["missed_checks"], 2
         )
 
+    def test_a_short_interval_is_refused(self):
+        # a beat may take up to Heartbeat.write_timeout_seconds plus the minute a listing
+        # rounds down to, and a job its first minutes before the payload beats at all: at
+        # one interval of 1 min, a 2 s write already crosses a 2-check threshold
+        for minutes in (1, 5, MIN_INTERVAL_MINUTES - 1):
+            with self.subTest(minutes=minutes):
+                with self.assertRaises(RuntimeError) as caught:
+                    watchdog_config({"watchdog": {"interval_minutes": minutes}})
+                self.assertIn("interval_minutes", str(caught.exception))
+        self.assertEqual(
+            watchdog_config({"watchdog": {"interval_minutes": MIN_INTERVAL_MINUTES}})[
+                "interval_minutes"
+            ],
+            MIN_INTERVAL_MINUTES,
+        )
+        # the floor leaves room for the longest write and the rounding at two checks
+        self.assertGreater(
+            (2 - 1) * MIN_INTERVAL_MINUTES * 60, Heartbeat.write_timeout_seconds + 60
+        )
+
 
 class TheJobSideHeartbeat(unittest.TestCase):
     """The storage is stubbed; what is checked is the thread, the overwrite and the removal."""
@@ -914,7 +935,7 @@ class TheJobSideHeartbeat(unittest.TestCase):
             hb._loop()
         self.assertEqual(waits, [Heartbeat.retry_seconds, 1800])
 
-    def test_repeated_failures_back_off_up_to_half_an_interval(self):
+    def test_repeated_failures_back_off_up_to_a_quarter_of_an_interval(self):
         """Thousands of jobs retrying every minute would hammer a storage that is already
         failing; a success starts over."""
         hb = Heartbeat(self.URI, 1800)
@@ -929,7 +950,7 @@ class TheJobSideHeartbeat(unittest.TestCase):
         effects = [RuntimeError("down")] * 5 + [None, RuntimeError("down")]
         with mock.patch(f"{MODULE}.gfal_copy", side_effect=effects):
             hb._loop()
-        self.assertEqual(waits, [60, 120, 240, 480, 900, 1800, 60])
+        self.assertEqual(waits, [60, 120, 240, 450, 450, 1800, 60])
 
 
 if __name__ == "__main__":

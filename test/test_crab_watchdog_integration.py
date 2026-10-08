@@ -675,12 +675,12 @@ class WhereTheFlagsLive(FlafTaskTestCase):
         self.assertTrue(w.flag_dir.endswith("/v1/heartbeat/WatchdogUp/P"), w.flag_dir)
 
     def test_the_watchdog_is_built_once_per_workflow_from_the_crab_settings(self):
-        self.crab_cfg({"watchdog": {"interval_minutes": 7, "missed_checks": 3}})
+        self.crab_cfg({"watchdog": {"interval_minutes": 12, "missed_checks": 3}})
         task = self.workflow()
         w = task.job_watchdog()
         self.assertIs(task.job_watchdog(), w)
-        self.assertEqual(w.interval_seconds, 7 * 60)
-        self.assertEqual(w.stale_seconds, 21 * 60)
+        self.assertEqual(w.interval_seconds, 12 * 60)
+        self.assertEqual(w.stale_seconds, 36 * 60)
 
 
 class TheJobManagerIsWiredToTheWorkflow(FlafTaskTestCase):
@@ -798,8 +798,8 @@ class TheJobSideHeartbeat(FlafTaskTestCase):
         self.assertEqual(hb.label, {"task": "WatchdogUp", "branch": 1})
 
     def test_the_interval_comes_from_the_crab_settings(self):
-        self.crab_cfg({"watchdog": {"interval_minutes": 5}})
-        self.assertEqual(self.heartbeat(self.branch()).interval, 5 * 60)
+        self.crab_cfg({"watchdog": {"interval_minutes": 15}})
+        self.assertEqual(self.heartbeat(self.branch()).interval, 15 * 60)
 
     def test_a_job_of_the_submitted_family_beats(self):
         task = self.branch()

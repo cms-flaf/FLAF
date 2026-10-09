@@ -21,8 +21,6 @@ flaf_parent = os.path.dirname(flaf_repo)
 if flaf_parent not in sys.path:
     sys.path.insert(0, flaf_parent)
 
-import law
-
 from FLAF.run_tools import law_customizations
 from FLAF.run_tools.law_customizations import BundleTask
 
@@ -75,7 +73,10 @@ class TestBundleHash(unittest.TestCase):
         os.environ["ANALYSIS_PATH"] = self.ana
         env = mock.patch.dict(
             os.environ,
-            {"FLAF_ENVIRONMENT_PATH": os.path.join(self.ana, "soft", "flaf_env")},
+            {
+                "FLAF_ENVIRONMENT_PATH": os.path.join(self.ana, "soft", "flaf_env"),
+                "FLAF_ENVIRONMENT_ID": "LCG_X_ARCH_Y_0123456789ab",
+            },
         )
         env.start()
         self.addCleanup(env.stop)
@@ -137,8 +138,8 @@ class TestBundleHash(unittest.TestCase):
         BundleTask._source_hash_cache.clear()
         core = make_task("core").output()
         soft = make_task("soft").output()
-        # the environment flavour carries the law release instead (test_law_version.py)
-        self.assertEqual(soft, f"v1/bundles/Era/soft_law{law.__version__}.tar.bz2")
+        # the environment flavour carries the environment's identity instead (test_flaf_env.py)
+        self.assertEqual(soft, "v1/bundles/Era/soft_LCG_X_ARCH_Y_0123456789ab.tar.bz2")
         self.assertTrue(core.startswith("v1/bundles/Era/core_"), core)
         self.assertTrue(core.endswith(".tar.bz2"), core)
         self.assertEqual(len(core.split("core_")[1].split(".tar")[0]), 12)

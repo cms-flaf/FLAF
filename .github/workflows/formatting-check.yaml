@@ -56,7 +56,7 @@ jobs:
 
       - name: Install black
         if: ${{ steps.changed_files.outputs.hasPythonFiles == 'true' }}
-        run: pip install black
+        run: pip install black==26.10.0
 
       - name: Check Python formatting
         if: ${{ steps.changed_files.outputs.hasPythonFiles == 'true' }}
@@ -80,7 +80,7 @@ jobs:
 
       - name: Install yamllint
         if: ${{ steps.changed_files.outputs.hasYamlFiles == 'true' }}
-        run: pip install yamllint
+        run: pip install yamllint==1.38.0
 
       - name: Check YAML formatting
         if: ${{ steps.changed_files.outputs.hasYamlFiles == 'true' }}

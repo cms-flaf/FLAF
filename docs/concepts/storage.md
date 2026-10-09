@@ -56,14 +56,15 @@ by the period (paths below are relative to `<version>/`):
 | `PreHistTupleProduction/<period>/<dataset>/` | `PreHistTupleProductionTask` (one `.done` marker per anaTuple file) | `fs_HistTuple` |
 | `AnalysisCache/<producer>/<period>/`, `AnalysisCacheAggregation/<producer>/<period>/` | `AnalysisCacheTask`, `AnalysisCacheAggregationTask` | `fs_anaCacheTuple` |
 | `Plots/<period>/<variable>/…` | `HistPlotTask` | `fs_plots` |
-| `bundles/<period>/` | `BundleTask` (`<flavour>.tar.bz2`, `<flavour>_<hash>.tar.bz2` for a flavour with `hashed: true`, `<flavour>_law<version>.tar.bz2` for the one that packs `flaf_env`) | `fs_default` |
+| `bundles/<period>/` | `BundleTask` (`<flavour>.tar.bz2`, `<flavour>_<hash>.tar.bz2` for a flavour with `hashed: true`, `<flavour>_<FLAF_ENVIRONMENT_ID>.tar.bz2` for the one that packs `flaf_env`) | `fs_default` |
 | `logs/<Task>/<period>/` | job logs staged by remote jobs (only for a remote `fs_default`) | `fs_default` |
 | `worker_files/<period>/` | input files of bundle HTCondor jobs, uploaded at submission — only when `htcondor_spool` (on by default) is turned off | `fs_default` |
 
 Bundle naming matters when something they pack changes: only flavours with `hashed: true` (in
 the analyses: `core`) get a new name, and an existing unhashed bundle (e.g. `soft`, `cmssw`) is
-never rebuilt — delete it to force a rebuild. The exception is a law upgrade, which renames the
-bundle that packs `flaf_env` (`soft_law<version>`). See
+never rebuilt — delete it to force a rebuild. The exception is the bundle that packs `flaf_env`,
+named after the environment (`soft_<FLAF_ENVIRONMENT_ID>`), so a rebuilt environment gets a new
+one. See
 [Bundles](../workflow/htcondor.md#bundles-are-named-after-what-they-contain).
 
 ## How to write a location

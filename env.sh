@@ -243,44 +243,68 @@ load_flaf_env() {
 
   local FLAF_LCG_VERSION="LCG_110a"
   local FLAF_LCG_ARCH="x86_64-el9-gcc15-opt"
-  # the only law release FLAF runs with (LAW_VERSION in run_tools/law_customizations.py)
-  local FLAF_LAW_VERSION="0.1.21"
-  if [[ ! -f "$FLAF_ENVIRONMENT_PATH/.${FLAF_LCG_VERSION}_${FLAF_LCG_ARCH}" ]]; then
-    if [[ "${FLAF_NO_INSTALL:-0}" == "1" ]]; then
-      echo "ERROR: FLAF environment not found at $FLAF_ENVIRONMENT_PATH and FLAF_NO_INSTALL=1"
-      kill -INT $$
-      return 1
-    fi
-    if [[ -d "$FLAF_ENVIRONMENT_PATH" ]]; then
-      echo "Removing old FLAF environment installation in $FLAF_ENVIRONMENT_PATH ..."
-      run_cmd rm -rf "$FLAF_ENVIRONMENT_PATH"
-    fi
-    echo "Creating FLAF environment in $FLAF_ENVIRONMENT_PATH ..."
-    run_cmd $FLAF_PATH/run_tools/mk_flaf_env.sh "$FLAF_ENVIRONMENT_PATH" "$FLAF_LCG_VERSION" "$FLAF_LCG_ARCH" \
-      "$FLAF_LAW_VERSION"
-  fi
-  source "$FLAF_ENVIRONMENT_PATH/bin/activate"
-  # The marker above records the LCG release only: an environment built for another law is
-  # brought to the pinned one here, on the submitting machine only. A batch job (law exports
-  # LAW_JOB_HOME before the bootstrap sources this file) runs from an environment that other jobs
-  # share, so it never installs into it; and a check that fails says nothing about which law is
-  # there, so it never leads to an install either. site-packages is listed first because
-  # importlib.metadata skips a directory it cannot list, which would read as "no law".
-  local flaf_law_installed
-  if ! flaf_law_installed="$(python3 -c 'import importlib.metadata as m, os, sysconfig; os.listdir(sysconfig.get_paths()["purelib"]); print(next((d.version for d in m.distributions(name="law")), ""))')"; then
-    echo "ERROR: cannot tell which law $FLAF_ENVIRONMENT_PATH holds: the check above failed"
+  # flaf_env is identified by the LCG release and by the script that installs it, pins included;
+  # its marker carries that identity, so a change to either builds a new environment.
+  local flaf_env_script="$FLAF_PATH/run_tools/mk_flaf_env.sh"
+  local flaf_env_script_hash
+  # hashed from stdin: for a file name with a backslash, sha256sum prefixes the digest with one
+  if ! flaf_env_script_hash="$(sha256sum < "$flaf_env_script")"; then
+    echo "ERROR: cannot identify the FLAF environment: hashing $flaf_env_script failed"
     kill -INT $$
     return 1
   fi
-  if [[ "$flaf_law_installed" != "$FLAF_LAW_VERSION" ]]; then
+  export FLAF_ENVIRONMENT_ID="${FLAF_LCG_VERSION}_${FLAF_LCG_ARCH}_${flaf_env_script_hash:0:12}"
+  local flaf_env_marker="$FLAF_ENVIRONMENT_PATH/.$FLAF_ENVIRONMENT_ID"
+  if [[ ! -f "$flaf_env_marker" ]]; then
+    # A law batch job (law exports LAW_JOB_HOME before the bootstrap sources this file) runs from
+    # an environment that other jobs share, so it never builds one.
     if [[ "${FLAF_NO_INSTALL:-0}" == "1" || -n "$LAW_JOB_HOME" ]]; then
-      echo "ERROR: $FLAF_ENVIRONMENT_PATH has law ${flaf_law_installed:-<none>}, FLAF requires $FLAF_LAW_VERSION, and nothing is installed from a law batch job or with FLAF_NO_INSTALL=1. Source env.sh on the submitting machine, which brings it to law $FLAF_LAW_VERSION, and resubmit."
+      echo "ERROR: $FLAF_ENVIRONMENT_PATH was not built by the current $flaf_env_script (no marker .$FLAF_ENVIRONMENT_ID), and nothing is built from a law batch job or with FLAF_NO_INSTALL=1. Source env.sh on the submitting machine, which rebuilds it, and resubmit."
       kill -INT $$
       return 1
     fi
-    echo "Bringing law in $FLAF_ENVIRONMENT_PATH from ${flaf_law_installed:-<none>} to $FLAF_LAW_VERSION ..."
-    run_cmd python3 -m pip install "law==$FLAF_LAW_VERSION"
+    # Whether the environment exists, and whether its marker is missing, is taken from listings,
+    # and a stat that disagrees with them stops: neither a stat that failed nor a listing that is
+    # stale (the storage blinking) may remove a working environment.
+    local flaf_env_parent flaf_env_name flaf_env_listed
+    flaf_env_parent="$(dirname "$FLAF_ENVIRONMENT_PATH")"
+    flaf_env_name="$(basename "$FLAF_ENVIRONMENT_PATH")"
+    if ! mkdir -p "$flaf_env_parent" \
+        || ! flaf_env_listed="$(find -H "$flaf_env_parent" -mindepth 1 -maxdepth 1 -name "$flaf_env_name")"; then
+      echo "ERROR: cannot tell whether $FLAF_ENVIRONMENT_PATH exists ($flaf_env_parent cannot be listed), so it is neither removed nor rebuilt"
+      kill -INT $$
+      return 1
+    fi
+    if [[ -n "$flaf_env_listed" ]]; then
+      if [[ ! -d "$FLAF_ENVIRONMENT_PATH" ]]; then
+        echo "ERROR: cannot tell whether $FLAF_ENVIRONMENT_PATH is an environment: it is listed in $flaf_env_parent but not seen as a directory, so it is neither removed nor rebuilt"
+        kill -INT $$
+        return 1
+      fi
+      if ! flaf_env_listed="$(find -H "$FLAF_ENVIRONMENT_PATH" -mindepth 1 -maxdepth 1 -name ".$FLAF_ENVIRONMENT_ID")" \
+          || [[ -n "$flaf_env_listed" ]]; then
+        echo "ERROR: cannot tell whether $FLAF_ENVIRONMENT_PATH has its marker .$FLAF_ENVIRONMENT_ID, so it is neither removed nor rebuilt"
+        kill -INT $$
+        return 1
+      fi
+      echo "Removing old FLAF environment installation in $FLAF_ENVIRONMENT_PATH ..."
+    elif [[ -e "$FLAF_ENVIRONMENT_PATH" || -L "$FLAF_ENVIRONMENT_PATH" ]]; then
+      echo "ERROR: cannot tell whether $FLAF_ENVIRONMENT_PATH exists: it is seen but not listed in $flaf_env_parent, so it is neither removed nor rebuilt"
+      kill -INT $$
+      return 1
+    fi
+    echo "Creating FLAF environment in $FLAF_ENVIRONMENT_PATH ..."
+    # Each status is checked here rather than by run_cmd, whose SIGINT a shell that ignores it
+    # carries past: the marker must follow a complete build only.
+    if ! rm -rf "$FLAF_ENVIRONMENT_PATH" \
+        || ! "$flaf_env_script" "$FLAF_ENVIRONMENT_PATH" "$FLAF_LCG_VERSION" "$FLAF_LCG_ARCH" \
+        || ! touch "$flaf_env_marker"; then
+      echo "ERROR: building the FLAF environment in $FLAF_ENVIRONMENT_PATH failed"
+      kill -INT $$
+      return 1
+    fi
   fi
+  source "$FLAF_ENVIRONMENT_PATH/bin/activate"
 
   local os_version=$(cat /etc/os-release | grep VERSION_ID | sed -E 's/VERSION_ID="([0-9]+).*"/\1/')
   local os_prefix=$(get_os_prefix $os_version)

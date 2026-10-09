@@ -19,20 +19,20 @@ You cloned without `--recursive`, so submodules (FLAF, PlotKit, physics tools) a
 git submodule update --init --recursive
 ```
 
-## `FLAF requires law 0.1.21, but law … is installed`
-FLAF runs with law 0.1.21 only, and refuses to be imported under another release. Source the
-analysis `env.sh` again: it installs the pinned law into `flaf_env` (with network access). In an
-environment of your own, `pip install law==0.1.21`.
-
-A batch job that stops in `env.sh` with `… has law …, FLAF requires 0.1.21, and nothing is
-installed from a law batch job or with FLAF_NO_INSTALL=1` found another law in the environment it
-runs from, and a job never installs one, because other jobs run from that environment too. A job
-without `--bundle` uses the `flaf_env` of the checkout on AFS: source `env.sh` on the submitting
-machine, which brings it to 0.1.21, and resubmit. A bundle job unpacked an environment bundle with
-another law; the bundle that packs `flaf_env` is named after its law release, so that only happens
-when a bundle was replaced by hand. `ERROR: cannot tell which law … holds`, below a Python error,
-means the check itself failed (storage that did not answer, for example), and nothing was
-installed. See [The environment](concepts/environment.md#what-envsh-sets-up).
+## A batch job stops in `env.sh`: `… was not built by the current …/mk_flaf_env.sh`
+The environment the job runs from is not the one the installation script of its FLAF defines
+(another pin, another LCG release), and a job never builds one, because other jobs run from that
+environment too. A job without `--bundle` uses the `flaf_env` of the checkout on AFS: source
+`env.sh` on the submitting machine, which rebuilds it, and resubmit. A bundle job unpacked a `soft`
+bundle of another environment. That bundle is named after the environment
+(`soft_<FLAF_ENVIRONMENT_ID>`), so this happens when a bundle was replaced by hand, or when
+`run_tools/mk_flaf_env.sh` changed (a `git pull`, say) after `env.sh` was sourced in the shell that
+submitted: source it again there and resubmit. `ERROR: cannot identify the FLAF environment` or
+`ERROR: cannot tell whether …` means that the check itself could not be made (storage that did not
+answer, for example), and nothing was removed or built; source `env.sh` again once the storage
+answers. When it says `… is listed in … but not seen as a directory` and persists, something that
+is no reachable directory (a file, a broken link) sits at `soft/flaf_env`: move it away by hand. See
+[The environment](concepts/environment.md#what-envsh-sets-up).
 
 ## A run unexpectedly drops into `InputFileTask` / Rucio errors
 For a from-scratch production, `InputFileTask` running first is normal. But if a run that should

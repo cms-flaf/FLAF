@@ -31,18 +31,6 @@ from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget, WLCGDirectoryTa
 from FLAF.Common.Setup import Setup
 from FLAF.AnaProd.CostModel import pack_units
 
-#: the one law release FLAF is written against. The CRAB job manager's keywords, the server
-#: states law accepts and law_job.sh's run block all changed in 0.1.21, so another release
-#: does not fail at import but submits and polls wrongly, in silence.
-LAW_VERSION = "0.1.21"
-if law.__version__ != LAW_VERSION:
-    raise RuntimeError(
-        f"FLAF requires law {LAW_VERSION}, but law {law.__version__} is installed "
-        f"({os.path.dirname(law.__file__)}). Source the analysis env.sh again: it brings "
-        f"flaf_env to law {LAW_VERSION}; in any other environment run "
-        f"`pip install law=={LAW_VERSION}`."
-    )
-
 law.contrib.load("htcondor")
 law.contrib.load("cms")
 
@@ -713,8 +701,8 @@ class BundleTask(Task):
                 path = os.path.join(dir_path, name)
                 yield path, os.path.relpath(path, source)
 
-    def packs_law(self):
-        """Whether this flavour packs flaf_env, and with it the law installation.
+    def packs_environment(self):
+        """Whether this flavour packs flaf_env.
 
         Decided on the paths alone: a stat that fails while the storage blinks must not flip
         the bundle's name.
@@ -730,10 +718,17 @@ class BundleTask(Task):
         name = self.flavour
         if self.bundle_cfg().get("hashed", False):
             name = f"{self.flavour}_{self.source_hash()}"
-        elif self.packs_law():
-            # The job script and wrappers are rendered from the driver's law: an unhashed
-            # environment bundle built before a law upgrade would run them against the old one.
-            name = f"{self.flavour}_law{law.__version__}"
+        elif self.packs_environment():
+            # An unhashed bundle is complete once it exists. Named after the environment it
+            # packs, a rebuilt one (another installation script, other pins) is packed anew
+            # instead of shipping the old packages with a job script rendered from the new.
+            environment_id = os.environ.get("FLAF_ENVIRONMENT_ID")
+            if not environment_id:
+                raise RuntimeError(
+                    f"bundle flavour '{self.flavour}' packs flaf_env, but FLAF_ENVIRONMENT_ID, "
+                    "which names it, is not set: source the analysis env.sh"
+                )
+            name = f"{self.flavour}_{environment_id}"
         return self.remote_target(
             self.version, "bundles", self.period, f"{name}.tar.bz2"
         )
@@ -1365,8 +1360,8 @@ class LawProxyState:
     """Workflow-proxy state of law that the FLAF proxies read and change.
 
     law 0.1.21 keeps the skip-verdict cache and the retry counters in ``_skip_jobs`` /
-    ``_job_retries``, outside its API. They are named for that release alone: the module
-    refuses any other law release at import (``LAW_VERSION``).
+    ``_job_retries``, outside its API. They are named for that release alone, the one
+    ``run_tools/mk_flaf_env.sh`` installs.
     """
 
     @property

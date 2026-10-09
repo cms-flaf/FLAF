@@ -178,10 +178,12 @@ reinstalling the environment, or changing anything else packed without a hash, d
 bundle so that the next submission recreates it — and drop its entry from the path-existence
 cache (see [Troubleshooting](../troubleshooting.md)), or `BundleTask` can keep reporting the
 deleted file as present. One change is covered without that: the flavour that packs
-`flaf_env` (`$FLAF_ENVIRONMENT_PATH`, `soft` in the analyses) is named after the law release it
-carries, `soft_law0.1.21.tar.bz2`, because the job script and the wrappers are rendered from the
-driver's law and must run against the same release on the worker. A law upgrade therefore
-rebuilds it under a new name; the old file can be deleted once no job of the version uses it.
+`flaf_env` (`$FLAF_ENVIRONMENT_PATH`, `soft` in the analyses) is named after the environment,
+`soft_<FLAF_ENVIRONMENT_ID>.tar.bz2` (the LCG release and a hash of `run_tools/mk_flaf_env.sh`,
+see [The environment](../concepts/environment.md#what-envsh-sets-up)), because the job script and
+the wrappers are rendered from the driver's packages and must run against the same ones on the
+worker. A change of the installation script, which rebuilds `flaf_env`, therefore rebuilds the
+bundle under a new name; the old file can be deleted once no job of the version uses it.
 
 !!! warning "A symlink can send a bundle job back to AFS anyway"
     Symlinks *inside* a packed directory are kept as symlinks — deliberately, so that the CVMFS

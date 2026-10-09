@@ -447,7 +447,7 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
     `core_<hash>.tar.bz2` and a code change produces a new file instead of replacing
     the live one (see [Bundles are named after what they contain](htcondor.md#bundles-are-named-after-what-they-contain)).
     Unhashed flavours (`cmssw.tar.bz2`, …) keep their name, except the one that packs
-    `flaf_env`, which is named after the law it carries (`soft_law0.1.21.tar.bz2`). `BundleTask`
+    `flaf_env`, which is named after the environment (`soft_<FLAF_ENVIRONMENT_ID>.tar.bz2`). `BundleTask`
     can stay DONE after such a bundle is deleted because of the path-existence cache,
     and workers then get HTTP 404. Rebuild into a sibling file and `mv` it over the
     live path; do not `cp` onto a file jobs may be downloading (a mid-copy can stage

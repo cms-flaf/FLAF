@@ -262,11 +262,13 @@ tab.
   pipeline: a *reference* checkout (default branches, environment installed) is kept in the GitHub
   Actions cache under a weekly key, and the requested revisions are applied on top of it. Set
   `rebuild_cache: "1"` in the trigger variables to force a rebuild from scratch.
-- A cached environment built for another law release than the one `FLAF/env.sh` pins is brought
-  to the pin by `env.sh` itself (a `pip install law==<pin>` in place, on both backends), so a
-  cached reference never makes a run test against a stale law; the saved reference carries the
-  new release once its key rotates (GitHub, weekly) or the EOS cache expires (GitLab, a week), or
-  at once with `rebuild_cache: "1"`.
+- A cached `flaf_env` built by another version of `run_tools/mk_flaf_env.sh` (another pin, say)
+  lacks the marker of the current one, so `env.sh` rebuilds it on both backends, and a cached
+  reference never makes a run test against stale packages. The reference is built from the
+  analyses' default branches, so it carries the new environment only once each analysis has
+  advanced its FLAF to the change and the saved reference is then renewed (its key rotates on
+  GitHub, weekly; the EOS cache expires on GitLab, after a week; or at once with
+  `rebuild_cache: "1"`); until then every run rebuilds `flaf_env`.
 - The build area is mounted at the same path (`/flaf_ci`) in every job, because the installed
   virtualenv and the CMSSW/SCRAM areas record their own location and cannot be relocated.
 - `fs_default` from `ci_custom.yaml` points at the GitLab job directory, so the test script passes

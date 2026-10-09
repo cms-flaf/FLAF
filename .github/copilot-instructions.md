@@ -36,14 +36,22 @@ Each of these has caused a production incident. They are ordered by how much dam
 
 ### law semantics
 
-- **FLAF runs with law 0.1.21 exactly.** `LAW_VERSION` in `run_tools/law_customizations.py` refuses
-  an import under any other release, `env.sh` (`FLAF_LAW_VERSION`) brings `flaf_env` to it, and
-  the CI workflows install it; `test/test_law_version.py` checks that they agree. `env.sh`
-  installs law on the submitting machine only: inside a law job (`LAW_JOB_HOME` set, non-bundle
-  HTCondor jobs included), with `FLAF_NO_INSTALL=1`, or when the version check itself fails, it
-  stops instead, so no worker writes into a shared environment. Adapt the code
-  to a new release and move every pin together; a `getattr`/`try` or version branch that keeps
-  another release working is a silent fallback, not compatibility.
+- **Package versions are pinned in `run_tools/mk_flaf_env.sh`.** Every package it installs is
+  pinned (`==`, or a commit archive URL), law included; `env.sh` names no package and probes no
+  version, and nothing checks a version at import. `env.sh` identifies `flaf_env` by the LCG
+  release and a hash of that script (`FLAF_ENVIRONMENT_ID`, also its marker
+  `.<FLAF_ENVIRONMENT_ID>`), so a pin change rebuilds it on the next `source env.sh` on the
+  submitting machine; inside a law job (`LAW_JOB_HOME` set, non-bundle HTCondor jobs included) or
+  with `FLAF_NO_INSTALL=1` it refuses instead. Whether `flaf_env` exists and lacks its marker is
+  decided from listings, never from a stat alone, and a check that fails (hash, listing, a listed
+  path no stat shows as a directory, an unlisted path a stat shows, a listed marker no stat shows)
+  refuses without removing anything. The marker is written only after the build's own status is
+  checked, never through `run_cmd`, whose `kill -INT` a shell that ignores SIGINT carries past.
+  A dependency bump is a pin change in `run_tools/mk_flaf_env.sh` plus the same version in each
+  CI workflow that installs that package (`test/test_flaf_env.py` enforces it); no version is
+  repeated in `env.sh` or the Python code (adapting the code to a new release is a separate
+  change). A `getattr`/`try` or version branch that keeps another release working is a silent
+  fallback, not compatibility.
 - **The job script is law's `law_job.sh` with its per-branch loop replaced** by the grouped run
   (`grouped_law_job_script`: all branches of a job in one `--branches=… --workflow=local`
   process, `--print-deps=0`). Its generator raises unless law's loop is found exactly once and
@@ -70,6 +78,10 @@ Each of these has caused a production incident. They are ordered by how much dam
   flavour packing code or configuration must be `hashed: true`, or jobs keep unpacking whatever
   was built first and rebuild their branch map from *that* config — branch indices then mean
   different datasets than the submitter intended.
+- **The unhashed flavour that packs `flaf_env` is named `<flavour>_<FLAF_ENVIRONMENT_ID>`**, so an
+  environment rebuilt from another `run_tools/mk_flaf_env.sh` is packed anew instead of shipping
+  the old packages with a job script rendered from the new ones. `BundleTask.output` raises when
+  the identity is not set; it must never fall back to the plain name.
 - **A flavour must list every task whose output it packs** in `task_requires`. Miss one and the
   tarball is built while that task is still writing. FLAF warns about a packed
   `data/<version>/<Task>/<period>` directory that nothing requires; do not silence that warning.
@@ -336,4 +348,4 @@ Verified 2026-10-09; re-check before relying on any of it.
 | Workflows | `formatting-check`, `unit-tests`, `repo-sanity-checks`, `ds-consistency-check`, `cross-section-check`, `test-setup-loading`, `deploy-docs`, `integration-test`, `trigger-flaf-integration` |
 | Integration test | Triggered by `@cms-flaf-bot please test`. Its configuration (process lists, eras, versions) lives in **`cms-flaf/FLAF_ci`**, not in this repo |
 | Docs | `docs/`, built with `mkdocs build --strict`; see the documentation section above |
-| law | `0.1.21`, pinned in `env.sh`, `run_tools/law_customizations.py` and the CI workflows |
+| Package pins | `run_tools/mk_flaf_env.sh` (law `0.1.21`, luigi `3.8.1`, pip `26.2.1`, …); the CI workflows install the same versions |

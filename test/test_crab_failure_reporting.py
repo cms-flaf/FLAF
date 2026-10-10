@@ -11,7 +11,7 @@ schedd, whose URL law already records as `extra["log_file"]`.
 These tests pin reading the payload's error out of a job's stdout (on DSProd's and on real
 FLAF CRAB output), fetching only the tail of that stdout without holding up the poll, and
 reporting each failed attempt once -- both on hand-made job data and on the job data law
-0.1.20 itself parses out of a `crab status --json` response.
+0.1.21 itself parses out of a `crab status --json` response.
 
 Ported from DSProd test/test_failure_reporting.py (the merge-group message tests are
 DSProd-specific and are not ported).
@@ -486,7 +486,7 @@ def job_entry(state, retries=0, site="T2_US_Nebraska", error=None):
 
 
 class TheJobDataLawParsesReachesTheReport(unittest.TestCase):
-    """The real law 0.1.20 `CrabJobManager.query` and `parse_query_output`, fed the status
+    """The real law 0.1.21 `CrabJobManager.query` and `parse_query_output`, fed the status
     response of the failed FLAF CI job -- only the `crab` subprocess and the stdout fetch
     are faked. This is what ties `report_failures` to the keys law actually fills:
     `code` from `Error[0]`, `extra["log_file"]` with the attempt from `Retries`, and the

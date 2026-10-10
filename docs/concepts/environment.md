@@ -10,7 +10,8 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
 
 1. **Activates `flaf_env`** — a Python virtual environment built from the CVMFS `LCG_110a` stack
    (`x86_64-el9-gcc15-opt`), under `soft/flaf_env`. This provides Python, ROOT and the FLAF
-   dependencies, and registers the `law` command with tab-completion.
+   dependencies, at the versions pinned in `run_tools/mk_flaf_env.sh`, and registers the `law`
+   command with tab-completion.
 2. **Provides CMSSW** — installs/uses `CMSSW_16_0_6` (compiler `gcc13`) under `soft/`. Most of
    the pipeline runs in `flaf_env`; CMSSW is used only where the configuration asks for it:
    AnaTuple production when `use_cmssw_env_AnaTupleProduction: true` (set by HH_bbtautau only —
@@ -44,15 +45,45 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
     which links against the ROOT of `flaf_env` (the same happens to both Combine builds when
     `FLAF_COMBINE_VERSION` changes). Run it in a fresh shell, with network access, and
     not in a checkout whose jobs are still queued or running: they use the same `soft/`. A
-    production that reuses an existing `--version` with bundles also needs its unhashed `soft` and
-    `cmssw` bundles deleted, see
-    [Bundles are named after what they contain](../workflow/htcondor.md#bundles-are-named-after-what-they-contain);
-    with an old `soft` bundle the jobs stop with
-    `ERROR: FLAF environment not found at … and FLAF_NO_INSTALL=1`, with an old `cmssw` bundle with
+    production that reuses an existing `--version` with bundles also needs its unhashed `cmssw`
+    bundle deleted, see
+    [Bundles are named after what they contain](../workflow/htcondor.md#bundles-are-named-after-what-they-contain)
+    (the `soft` bundle is named after the environment it packs, so a rebuilt `flaf_env` gets a new
+    one by itself); with an old `cmssw` bundle the jobs stop with
     `ERROR: …/.installed_combine_v11.1.0 not found and FLAF_NO_INSTALL=1`. `LCG_110a` brings Python 3.13
     and ROOT 6.40, which matters for personal scripts run in `flaf_env`. The standalone Combine
     that earlier versions built inside the CMSSW area
     (`soft/CMSSW_16_0_6/src/HiggsAnalysis/CombinedLimit/build`) is removed on the way.
+
+!!! warning "`run_tools/mk_flaf_env.sh` defines `flaf_env`"
+    Every package that `run_tools/mk_flaf_env.sh` installs on top of the LCG view is pinned there
+    (`==`, or the archive of one commit), law and luigi among them; what those packages pull in
+    is not pinned (there is no lock file). `FLAF/env.sh` names no package: it identifies the
+    environment by the LCG release and a hash of that script, exported as `FLAF_ENVIRONMENT_ID`
+    (`LCG_110a_x86_64-el9-gcc15-opt_<12 hex digits>`), and marks a built `flaf_env` with it
+    (`soft/flaf_env/.<FLAF_ENVIRONMENT_ID>`), once the whole build has succeeded. Any change to the
+    script, a moved pin included, changes the identity, so the next `source env.sh` deletes and
+    rebuilds `soft/flaf_env`, as for a new LCG release above: with network access, and not in a
+    checkout whose jobs are queued or running.
+
+    This happens on the submitting machine only. Inside a law batch job (law sets
+    `LAW_JOB_HOME` there, so a non-bundle HTCondor job that sources `env.sh` from AFS counts as
+    well) and with `FLAF_NO_INSTALL=1` (bundle jobs), an environment without the current marker
+    stops `env.sh` with `ERROR: … was not built by the current …/mk_flaf_env.sh (no marker .…),
+    and nothing is built from a law batch job or with FLAF_NO_INSTALL=1. Source env.sh on the
+    submitting machine, which rebuilds it, and resubmit.`, so no worker removes or writes an
+    environment that other jobs run from. Whether `soft/flaf_env` exists, and whether its marker
+    is missing, is taken from listings of `soft/` and of `soft/flaf_env`, never from a stat alone.
+    A check that cannot be made (the script cannot be hashed, a listing fails, or a listing and a
+    stat disagree: `soft/flaf_env` is listed but not seen as a directory, or seen but not listed,
+    or the marker is listed but not seen) stops `env.sh` with
+    `ERROR: cannot identify the FLAF environment: …` or `ERROR: cannot tell whether …`, and
+    nothing is removed or built.
+
+    The bundle that packs `flaf_env` is named after the identity
+    (`soft_<FLAF_ENVIRONMENT_ID>.tar.bz2`), so the first submission after a rebuild packs it anew,
+    also for an existing `--version`. Nothing checks the versions outside `flaf_env`: FLAF does not
+    when it is imported, so an environment of your own needs the same pins.
 
 ## Key environment variables
 
@@ -63,13 +94,14 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
 | `CORRECTIONS_PATH` | The Corrections code in use. Defaults to `$ANALYSIS_PATH/Corrections`. |
 | `ANALYSIS_SOFT_PATH` | Where the built software lives (`$ANALYSIS_PATH/soft`). |
 | `FLAF_ENVIRONMENT_PATH` | The `flaf_env` virtual environment (`$ANALYSIS_SOFT_PATH/flaf_env`). |
+| `FLAF_ENVIRONMENT_ID` | Set by `env.sh`: the identity of `flaf_env`, the LCG release and a hash of `run_tools/mk_flaf_env.sh`. It names the environment's marker and the bundle that packs it. |
 | `FLAF_CMSSW_BASE` | The CMSSW area used by the pipeline. |
 | `FLAF_COMBINE_PATH` | The standalone Combine checkout (`soft/HiggsAnalysis-CombinedLimit`); its build is put on `PATH` (`build/bin`), `LD_LIBRARY_PATH` and `PYTHONPATH`. |
 | `FLAF_COMBINE_VERSION` | The Combine version of both builds (CMSSW area and standalone); `none` switches Combine off. |
 | `ANALYSIS_DATA_PATH` | The local `data/` working area. |
 | `X509_USER_PROXY` | Your VOMS proxy (default `data/voms.proxy`; a value set before sourcing is kept). |
 | `LAW_HOME` / `LAW_CONFIG_FILE` | LAW's home (`.law`) and config (`config/law.cfg`). |
-| `FLAF_NO_INSTALL` | When `1`, `env.sh` refuses to build anything and skips CMSSW/Combine entirely if no CMSSW area is present. Set by the bootstrap of bundle jobs, which have a CMSSW area only when the `cmssw` flavour is shipped. |
+| `FLAF_NO_INSTALL` | When `1`, `env.sh` refuses to build or change anything (a `flaf_env` without the marker of the current `run_tools/mk_flaf_env.sh` included) and skips CMSSW/Combine entirely if no CMSSW area is present. Set by the bootstrap of bundle jobs, which have a CMSSW area only when the `cmssw` flavour is shipped. |
 
 ## `cmsEnv`: running inside CMSSW
 
@@ -131,6 +163,11 @@ flowchart TD
     therefore ignored on the submit host and in non-bundle jobs, but bundles pack `FLAF` from
     `FLAF_PATH`, so bundle jobs read the overlay's configuration. Make configuration edits in the
     submodule copy, or keep the two in sync.
+
+!!! warning "`flaf_env` follows the overlay's installation script"
+    `flaf_env` is identified by the `run_tools/mk_flaf_env.sh` of `FLAF_PATH`. When the overlay
+    and the submodule copy differ there (an overlay with a moved pin, say), every `source env.sh`
+    that switches between the two deletes and rebuilds `soft/flaf_env`.
 
 ## Sharp edges
 

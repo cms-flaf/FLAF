@@ -1,11 +1,14 @@
 #!/bin/bash
 
+# This script is executed, never sourced, so a failure ends it with `exit`: a SIGINT to itself
+# would be carried past by a shell that ignores SIGINT, and env.sh marks the environment
+# complete on this script's exit status.
 run_cmd() {
   "$@"
   RESULT=$?
   if (( $RESULT != 0 )); then
     echo "Error while running '$@'"
-    kill -INT $$
+    exit $RESULT
   fi
 }
 
@@ -16,7 +19,7 @@ link_all() {
     echo "Linking files from $in_dir into $out_dir"
     if [[ ! -d "$in_dir" ]] || ! cd "$out_dir"; then
         echo "ERROR: cannot link $in_dir into $out_dir"
-        kill -INT $$
+        exit 1
     fi
     for f in $(ls $in_dir); do
         if ! [[ $exceptions =~ (^|[[:space:]])"$f"($|[[:space:]]) ]]; then
@@ -28,16 +31,18 @@ link_all() {
 install() {
     local env_base=$1
 
+    # Every package is pinned (==, or the archive of a commit): env.sh identifies flaf_env by a
+    # hash of this file, so changing a pin here rebuilds it.
     echo "Installing packages in $env_base"
     run_cmd source $env_base/bin/activate
-    run_cmd pip install --upgrade pip
-    run_cmd pip install luigi==3.8.1 law scinum
-    run_cmd pip install https://github.com/riga/plotlib/archive/refs/heads/master.zip
-    run_cmd pip install fastcrc
-    run_cmd pip install bayesian-optimization
-    run_cmd pip install yamllint
-    run_cmd pip install black
-    run_cmd pip install cmsstyle  # optional PlotKit backend (ROOT/cmsstyle)
+    run_cmd pip install pip==26.2.1
+    run_cmd pip install luigi==3.8.1 law==0.1.21 scinum==2.2.2
+    run_cmd pip install https://github.com/riga/plotlib/archive/853c4dfeb1b276dd1a975141e56c35969833ab3d.zip
+    run_cmd pip install fastcrc==0.5.0
+    run_cmd pip install bayesian-optimization==3.4.0
+    run_cmd pip install yamllint==1.38.0
+    run_cmd pip install black==26.10.0
+    run_cmd pip install cmsstyle==0.5.0  # optional PlotKit backend (ROOT/cmsstyle)
     # the LCG_110a mplhep 1.1.0 passes a 2-D y to the text of hep.cms.label
     run_cmd pip install mplhep==1.1.3
 }
@@ -93,12 +98,12 @@ create() {
     for dir in "$lcg_site" "$gcc_base/lib64" "$binutils_base/lib"; do
         if [[ ! -d "$dir" ]]; then
             echo "ERROR: $dir not found for $lcg_version $lcg_arch"
-            kill -INT $$
+            exit 1
         fi
     done
     if [[ "$gcc_base" != /cvmfs/sft.cern.ch/lcg/releases/gcc/* || "$binutils_base" != /cvmfs/sft.cern.ch/lcg/releases/binutils/* ]]; then
         echo "ERROR: gcc ($gcc_base) or binutils ($binutils_base) do not come from the LCG release area"
-        kill -INT $$
+        exit 1
     fi
     echo "Using $py, gcc from $gcc_base, binutils from $binutils_base"
 
@@ -150,7 +155,6 @@ action() {
     run_cmd "$this_file" create "$env_base" "$lcg_version" "$lcg_arch"
     run_cmd "$this_file" install "$env_base"
     run_cmd "$this_file" install_gh_cli "$env_base"
-    run_cmd touch "$env_base/.${lcg_version}_${lcg_arch}"
 }
 
 if [[ "$1" == "create" ]]; then

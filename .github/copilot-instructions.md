@@ -36,6 +36,26 @@ Each of these has caused a production incident. They are ordered by how much dam
 
 ### law semantics
 
+- **Package versions are pinned in `run_tools/mk_flaf_env.sh`.** Every package it installs is
+  pinned (`==`, or a commit archive URL), law included; `env.sh` names no package and probes no
+  version, and nothing checks a version at import. `env.sh` identifies `flaf_env` by the LCG
+  release and a hash of that script (`FLAF_ENVIRONMENT_ID`, also its marker
+  `.<FLAF_ENVIRONMENT_ID>`), so a pin change rebuilds it on the next `source env.sh` on the
+  submitting machine; inside a law job (`LAW_JOB_HOME` set, non-bundle HTCondor jobs included) or
+  with `FLAF_NO_INSTALL=1` it refuses instead. Whether `flaf_env` exists and lacks its marker is
+  decided from listings, never from a stat alone, and a check that fails (hash, listing, a listed
+  path no stat shows as a directory, an unlisted path a stat shows, a listed marker no stat shows)
+  refuses without removing anything. The marker is written only after the build's own status is
+  checked, never through `run_cmd`, whose `kill -INT` a shell that ignores SIGINT carries past.
+  A dependency bump is a pin change in `run_tools/mk_flaf_env.sh` plus the same version in each
+  CI workflow that installs that package (`test/test_flaf_env.py` enforces it); no version is
+  repeated in `env.sh` or the Python code (adapting the code to a new release is a separate
+  change). A `getattr`/`try` or version branch that keeps another release working is a silent
+  fallback, not compatibility.
+- **The job script is law's `law_job.sh` with its per-branch loop replaced** by the grouped run
+  (`grouped_law_job_script`: all branches of a job in one `--branches=… --workflow=local`
+  process, `--print-deps=0`). Its generator raises unless law's loop is found exactly once and
+  names the file after its content; it must never fall back to law's unmodified script.
 - **`workflow` is a *significant* luigi parameter and `req()` copies it.** A task pinned to
   `workflow="local"` (e.g. because its output is a `local_target`) therefore drags every task it
   requires onto the local scheduler. Upstream workflow choice must travel on a separate
@@ -58,6 +78,10 @@ Each of these has caused a production incident. They are ordered by how much dam
   flavour packing code or configuration must be `hashed: true`, or jobs keep unpacking whatever
   was built first and rebuild their branch map from *that* config — branch indices then mean
   different datasets than the submitter intended.
+- **The unhashed flavour that packs `flaf_env` is named `<flavour>_<FLAF_ENVIRONMENT_ID>`**, so an
+  environment rebuilt from another `run_tools/mk_flaf_env.sh` is packed anew instead of shipping
+  the old packages with a job script rendered from the new ones. `BundleTask.output` raises when
+  the identity is not set; it must never fall back to the plain name.
 - **A flavour must list every task whose output it packs** in `task_requires`. Miss one and the
   tarball is built while that task is still writing. FLAF warns about a packed
   `data/<version>/<Task>/<period>` directory that nothing requires; do not silence that warning.
@@ -103,13 +127,22 @@ Each of these has caused a production incident. They are ordered by how much dam
 - **A run is stopped only from `crab_poll_callback`** (via `stop_reason` on the job manager). law
   runs `query()` in a thread pool and swallows a raise there as one more failed query, so the run
   would end many polls later, or never.
+- **CRAB server states are classified on law's result too, not only on its errors.** law 0.1.21
+  reports `WAITING on command SUBMIT` pending (without a bound) and `SUBMITFAILED` failed (and
+  resubmits); `parse_query_output` raises `CrabTaskNotScheduledYet` / `CrabTaskSubmitFailed` for
+  them when the response has no per-job JSON, so the 60-poll wait bound and the
+  second-failed-submission stop still apply. A task that publishes per-job JSON keeps its states.
+  Only this run's own submissions (`_submitted_projects`) count towards the second-refusal and
+  second-failed-submission stops; the 60-poll wait bound and the unreadable limit count every
+  task, those left by earlier runs included.
 - **The site record is harvested keyed by job id from the parsed status**, never from the
   positional `extra` that law syncs onto `job_data`, and a failure without a job-level exit code
   (kill, never started, refused task, watchdog verdict) is never charged to a site: counted, a mass
   kill drives every baseline to ~100 % and the quarantine can no longer fire.
 - **The wave gate must keep `len(job_data)`**: parked jobs go into `unsubmitted_jobs` (counted by
   `JobData.__len__`, dumped to disk), never out of `job_data` altogether, because the poll loop
-  snapshots the job count once. `--no-poll` bypasses the gate. Only the backlog is measured against
+  snapshots the job count once. `--no-poll` bypasses the gate; law applies it to the workflow it
+  is given to only, not to the remote workflows that one requires. Only the backlog is measured against
   the wave size, and the oldest parked retry is released after `retry_release_minutes`.
 - **The lost-outputs brake (`SubmissionGuards`) runs before anything can park a retry
   generation** (a skipped round, the wave gate): a parked mass retry would be released later
@@ -304,7 +337,7 @@ config loading (`Common/Setup.py`, `config/`) is therefore not checked, and is w
 
 ## Repository facts
 
-Verified 2026-10-08; re-check before relying on any of it.
+Verified 2026-10-09; re-check before relying on any of it.
 
 | | |
 |---|---|
@@ -315,3 +348,4 @@ Verified 2026-10-08; re-check before relying on any of it.
 | Workflows | `formatting-check`, `unit-tests`, `repo-sanity-checks`, `ds-consistency-check`, `cross-section-check`, `test-setup-loading`, `deploy-docs`, `integration-test`, `trigger-flaf-integration` |
 | Integration test | Triggered by `@cms-flaf-bot please test`. Its configuration (process lists, eras, versions) lives in **`cms-flaf/FLAF_ci`**, not in this repo |
 | Docs | `docs/`, built with `mkdocs build --strict`; see the documentation section above |
+| Package pins | `run_tools/mk_flaf_env.sh` (law `0.1.21`, luigi `3.8.1`, pip `26.2.1`, …); the CI workflows install the same versions |

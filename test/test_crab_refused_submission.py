@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""What a FLAF production does when the CRAB server refuses a submission, or has not scheduled it yet.
+"""What a FLAF production does when the CRAB server refuses a submission, fails to submit it, or
+has not scheduled it yet.
 
 Ported from DSProd (test/test_refused_submission.py), where on 2026-09-12 a 36000-branch
 production died. The CRAB server had refused its task -- `Status on the CRAB server:
@@ -9,12 +10,15 @@ expanded against a site list built by the wrong rule. A refused task never produ
 information, law reports that as an unreadable status, and the task was retried as if it were
 slow: 4 attempts per poll with 15 s between them, for 16 consecutive polls, until the driver died.
 
-Two things are pinned here. A task the server has *refused* is terminal, so its jobs are failed
+Three things are pinned here. A task the server has *refused* is terminal, so its jobs are failed
 and law submits them again as a new task. A task the server has merely not *scheduled* yet is
-normal, so it costs neither the retry delay nor a step towards `max_unreadable_polls` -- law
-0.1.20 does not know the `WAITING` status that every task now starts in.
+normal, so it costs neither the retry delay nor a step towards `max_unreadable_polls`, but it is
+bounded: law 0.1.21 reports `WAITING on command SUBMIT`, the status every task starts in, as
+pending for ever, and cannot read the other `WAITING` commands. A task the server *failed* to
+submit (`SUBMITFAILED`) is reported failed by law 0.1.21 itself and resubmitted; a second such
+submission of the run stops it, as a second refusal does.
 
-A third is FLAF's own: a task that stays unreadable past `max_unreadable_polls` stops the run
+A fourth is FLAF's own: a task that stays unreadable past `max_unreadable_polls` stops the run
 through `CrabWorkflow.crab_poll_callback`, never by raising from `query()`, where law's thread
 pool would swallow the exception and skip the callback for that poll.
 
@@ -65,6 +69,24 @@ finally:
         sys.modules.pop("ROOT", None)
 
 SANDBOX = "cmssw::CMSSW_14_0_0::arch=el9_amd64_gcc12"
+
+#: law checks that a task's project directory exists before it runs `crab status`, so every
+#: task here has a real one
+_projects = tempfile.mkdtemp(prefix="flaf_crab_projects_")
+
+
+def tearDownModule():
+    shutil.rmtree(_projects, ignore_errors=True)
+
+
+def project(name):
+    """A CRAB project directory that exists."""
+    path = os.path.join(_projects, name)
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
+PROJ = project("proj")
 TASK_NAME = "260912_054021:kandroso_crab_AnaTupleFileTask_v1_Run3_2022EE_a741224d"
 
 #: the response of the DSProd incident, trimmed to the lines that decide the outcome
@@ -80,6 +102,17 @@ Log file is /eos/.../crab.log
 WAITING_OUTPUT = REFUSED_OUTPUT.replace(
     "Status on the CRAB server:\tSUBMITREFUSED",
     "Status on the CRAB server:\tWAITING on command SUBMIT",
+)
+
+#: a task the TaskWorker could not submit, as CRABClient prints it off a terminal
+SUBMITFAILED_OUTPUT = REFUSED_OUTPUT.replace(
+    "Status on the CRAB server:\tSUBMITREFUSED",
+    "Status on the CRAB server:\tSUBMITFAILED",
+).replace(
+    "Warning:\t\tA site name T3_CH_CERN_HelixNebula_REHA that user specified is not in the list "
+    "of known CMS Processing Site Names",
+    "Failure message from server:\tThe CRAB server backend could not retrieve your proxy from "
+    "myproxy.cern.ch",
 )
 
 SUBMITTED_OUTPUT = REFUSED_OUTPUT.replace(
@@ -115,7 +148,7 @@ def manager(**attrs):
     return m
 
 
-def job_ids(m, n=3, proj_dir="/proj"):
+def job_ids(m, n=3, proj_dir=PROJ):
     return [m.JobId(i, TASK_NAME, proj_dir) for i in range(1, n + 1)]
 
 
@@ -157,7 +190,7 @@ def crab_answers(out, code=0):
     return patchers, cli
 
 
-def query(m, out, proj_dir="/proj", n=3, code=0, ids=True):
+def query(m, out, proj_dir=PROJ, n=3, code=0, ids=True):
     """One poll of one CRAB task through law's real query; returns (result, ids, slept, cli)."""
     ids = job_ids(m, n, proj_dir) if ids else None
     patchers, cli = crab_answers(out, code)
@@ -198,10 +231,11 @@ class ReadingTheServerStatus(unittest.TestCase):
 
 
 class TellingApartTheThreeUnreadableResponses(unittest.TestCase):
-    """All three reach law's "no per-job information" error; only one is terminal."""
+    """Three responses without per-job information: law cannot read a refused task, and reports
+    a waiting one pending without a bound. Only the refusal is terminal."""
 
     def parse(self, out):
-        return lc.FLAFCrabJobManager.parse_query_output(out, "/proj", [1, 2, 3])
+        return lc.FLAFCrabJobManager.parse_query_output(out, PROJ, [1, 2, 3])
 
     def test_a_refused_task_is_raised_as_refused(self):
         with self.assertRaises(lc.CrabTaskRefused) as caught:
@@ -214,6 +248,50 @@ class TellingApartTheThreeUnreadableResponses(unittest.TestCase):
             self.parse(WAITING_OUTPUT)
         self.assertEqual(caught.exception.state, "WAITING")
 
+    def test_law_itself_reports_a_new_waiting_task_pending(self):
+        """The premise, pinned against the installed law: no error FLAF could act on."""
+        result = law.cms.CrabJobManager.parse_query_output(
+            WAITING_OUTPUT, PROJ, [1, 2, 3]
+        )
+        self.assertEqual(
+            {d["status"] for d in result.values()}, {law.cms.CrabJobManager.PENDING}
+        )
+
+    def test_a_waiting_command_law_cannot_read_is_raised_as_not_scheduled_yet(self):
+        out = WAITING_OUTPUT.replace("on command SUBMIT", "on command RESUBMIT")
+        with self.assertRaises(Exception) as premise:
+            law.cms.CrabJobManager.parse_query_output(out, PROJ, [1, 2, 3])
+        self.assertIn("no per-job information", str(premise.exception))
+        with self.assertRaises(lc.CrabTaskNotScheduledYet) as caught:
+            self.parse(out)
+        self.assertEqual(caught.exception.state, "WAITING")
+
+    def test_half_of_the_job_information_is_none_at_all(self):
+        """law reports per-job states only with both the scheduler status and the per-job JSON;
+        with one of them it reports the task from the server status, so the bound applies.
+        """
+        for name, out in {
+            "scheduler status only": WAITING_OUTPUT
+            + "Status on the scheduler:\tSUBMITTED\n",
+            "job list only": WAITING_OUTPUT
+            + json.dumps({"1": {"State": "running"}})
+            + "\n",
+        }.items():
+            with self.subTest(name), self.assertRaises(lc.CrabTaskNotScheduledYet):
+                self.parse(out)
+
+    def test_a_waiting_task_that_publishes_its_jobs_keeps_their_states(self):
+        out = SCHEDULED_OUTPUT.replace(
+            "Status on the CRAB server:\tSUBMITTED",
+            "Status on the CRAB server:\tWAITING on command RESUBMIT",
+        )
+        result = lc.FLAFCrabJobManager.parse_query_output(
+            out, PROJ, job_ids(manager(), 3)
+        )
+        self.assertEqual(
+            {d["status"] for d in result.values()}, {lc.FLAFCrabJobManager.RUNNING}
+        )
+
     def test_anything_else_keeps_the_old_diagnostic(self):
         with self.assertRaises(Exception) as caught:
             self.parse(UNREADABLE_OUTPUT)
@@ -225,8 +303,8 @@ class TellingApartTheThreeUnreadableResponses(unittest.TestCase):
     def test_a_task_that_still_reports_its_jobs_is_never_touched(self):
         """The expensive mistake: blanket-failing a task whose real per-job states are right there.
 
-        The check runs only after law has refused the response, so a response law *can* parse --
-        whatever the server status says -- is returned unchanged.
+        A refusal is recognised only after law has refused the response, so a response law *can*
+        parse is returned unchanged.
         """
         parsed = {"1": "real per-job states"}
         with mock.patch.object(
@@ -236,7 +314,7 @@ class TellingApartTheThreeUnreadableResponses(unittest.TestCase):
 
 
 class WhenTheServerRefuses(unittest.TestCase):
-    def query(self, m, out=REFUSED_OUTPUT, n=3, proj_dir="/proj", ours=True):
+    def query(self, m, out=REFUSED_OUTPUT, n=3, proj_dir=PROJ, ours=True):
         if ours:
             m._submitted_projects.add(proj_dir)
         result, ids, slept, _ = query(m, out, proj_dir=proj_dir, n=n)
@@ -269,9 +347,9 @@ class WhenTheServerRefuses(unittest.TestCase):
 
     def test_it_does_not_count_towards_the_unreadable_ceiling(self):
         m = manager()
-        m._unreadable["/proj"] = 7
+        m._unreadable[PROJ] = 7
         self.query(m)
-        self.assertNotIn("/proj", m._unreadable)
+        self.assertNotIn(PROJ, m._unreadable)
 
     def test_the_reason_is_reported_once_per_task_not_once_per_poll(self):
         m = manager(max_refused_submissions=99)
@@ -299,8 +377,8 @@ class WhenTheServerRefuses(unittest.TestCase):
 
     def test_a_second_refused_submission_records_a_stop_reason_that_says_why(self):
         m = manager()
-        self.query(m, proj_dir="/proj-1")
-        self.query(m, proj_dir="/proj-2")
+        self.query(m, proj_dir=project("proj-1"))
+        self.query(m, proj_dir=project("proj-2"))
         self.assertIn("refused", m.stop_reason)
         self.assertIn("T3_CH_CERN_HelixNebula_REHA", m.stop_reason)
 
@@ -308,14 +386,14 @@ class WhenTheServerRefuses(unittest.TestCase):
         """The counter is per submission; law re-queries a project every poll."""
         m = manager()
         for _ in range(5):
-            self.query(m, proj_dir="/proj-1")
+            self.query(m, proj_dir=project("proj-1"))
         self.assertIsNone(m.stop_reason)
 
     def test_the_jobs_are_still_failed_on_the_poll_that_stops_the_run(self):
         """law must not be left with a task whose jobs were never marked, whichever way it ends."""
         m = manager()
-        self.query(m, proj_dir="/proj-1")
-        result, ids, _ = self.query(m, proj_dir="/proj-2")
+        self.query(m, proj_dir=project("proj-1"))
+        result, ids, _ = self.query(m, proj_dir=project("proj-2"))
         self.assertEqual(set(result), set(ids))
         self.assertTrue(all(d["status"] == m.FAILED for d in result.values()))
         self.assertIsNotNone(m.stop_reason)
@@ -331,7 +409,7 @@ class ARefusalBehindANonZeroExit(unittest.TestCase):
         m = manager()
         patchers, _ = crab_answers(REFUSED_OUTPUT, code=1)
         with patchers[0], patchers[1], self.assertRaises(Exception) as caught:
-            law.cms.CrabJobManager.query(m, "/proj", job_ids=job_ids(m), **QUERY_KWARGS)
+            law.cms.CrabJobManager.query(m, PROJ, job_ids=job_ids(m), **QUERY_KWARGS)
         self.assertNotIsInstance(caught.exception, lc.CrabTaskRefused)
         self.assertEqual(
             lc.FLAFCrabJobManager.server_state(str(caught.exception)), "SUBMITREFUSED"
@@ -339,7 +417,7 @@ class ARefusalBehindANonZeroExit(unittest.TestCase):
 
     def test_the_jobs_are_failed_at_once_without_a_retry(self):
         m = manager()
-        m._submitted_projects.add("/proj")
+        m._submitted_projects.add(PROJ)
         result, ids, slept, cli = query(m, REFUSED_OUTPUT, code=1)
         self.assertEqual(set(result), set(ids))
         for data in result.values():
@@ -348,8 +426,8 @@ class ARefusalBehindANonZeroExit(unittest.TestCase):
             self.assertIn("T3_CH_CERN_HelixNebula_REHA", str(data["error"]))
         slept.assert_not_called()
         self.assertEqual(len(cli.commands), 1)
-        self.assertNotIn("/proj", m._unreadable)
-        self.assertEqual(m._refused_projects, {"/proj"})
+        self.assertNotIn(PROJ, m._unreadable)
+        self.assertEqual(m._refused_projects, {PROJ})
 
     def test_a_failing_exit_without_a_refusal_is_still_retried(self):
         """The must-not-break side: a non-zero exit of any other kind is a slow task."""
@@ -359,12 +437,12 @@ class ARefusalBehindANonZeroExit(unittest.TestCase):
             self.assertEqual(data["status"], m.PENDING)
         self.assertEqual(slept.call_count, m.query_retries)
         self.assertEqual(len(cli.commands), m.query_retries + 1)
-        self.assertEqual(m._unreadable["/proj"], 1)
+        self.assertEqual(m._unreadable[PROJ], 1)
         self.assertEqual(m._refused_projects, set())
 
 
 class WhenTheServerHasNotScheduledItYet(unittest.TestCase):
-    """Every task now starts in WAITING, which law 0.1.20 does not accept."""
+    """Every task starts in WAITING, which law 0.1.21 reports pending without a bound."""
 
     def test_its_jobs_are_pending_not_failed(self):
         m = manager()
@@ -378,7 +456,7 @@ class WhenTheServerHasNotScheduledItYet(unittest.TestCase):
         _, _, slept, cli = query(m, WAITING_OUTPUT)
         slept.assert_not_called()
         self.assertEqual(len(cli.commands), 1)
-        self.assertNotIn("/proj", m._unreadable)
+        self.assertNotIn(PROJ, m._unreadable)
 
     def test_but_it_is_still_reported_once(self):
         m = manager()
@@ -397,7 +475,7 @@ class ASlowTaskIsStillTreatedAsSlow(unittest.TestCase):
         result, _, slept, cli = query(m, UNREADABLE_OUTPUT)
         for data in result.values():
             self.assertEqual(data["status"], m.PENDING)
-        self.assertEqual(m._unreadable["/proj"], 1)
+        self.assertEqual(m._unreadable[PROJ], 1)
         self.assertEqual(slept.call_count, m.query_retries)
         self.assertEqual(len(cli.commands), m.query_retries + 1)
 
@@ -414,31 +492,31 @@ class ARefusalInheritedFromAnEarlierRun(unittest.TestCase):
 
     def test_old_refusals_do_not_stop_a_corrected_run(self):
         m = manager()
-        for proj in ("/old-1", "/old-2", "/old-3"):
+        for proj in (project("old-1"), project("old-2"), project("old-3")):
             self.query(m, proj)
         self.assertIsNone(m.stop_reason)
 
     def test_but_their_jobs_are_still_failed_so_the_branches_come_back(self):
         """This is the recovery: law resubmits them into a task built with the corrected list."""
         m = manager()
-        result, ids = self.query(m, "/old-1")
+        result, ids = self.query(m, project("old-1"))
         self.assertEqual(set(result), set(ids))
         self.assertTrue(all(d["status"] == m.FAILED for d in result.values()))
 
     def test_the_report_says_it_was_not_this_run_that_sent_it(self):
         m = manager()
         with mock.patch("builtins.print") as printed:
-            self.query(m, "/old-1")
+            self.query(m, project("old-1"))
         self.assertIn("earlier run", "\n".join(printed_text(printed)))
 
     def test_a_refusal_of_this_runs_own_submission_still_counts(self):
         m = manager()
-        self.query(m, "/old-1")
-        self.query(m, "/old-2")
-        m._submitted_projects.update({"/new-1", "/new-2"})
-        self.query(m, "/new-1")
+        self.query(m, project("old-1"))
+        self.query(m, project("old-2"))
+        m._submitted_projects.update({project("new-1"), project("new-2")})
+        self.query(m, project("new-1"))
         self.assertIsNone(m.stop_reason)
-        self.query(m, "/new-2")
+        self.query(m, project("new-2"))
         self.assertIn("made by this run", m.stop_reason)
 
     def test_submitting_is_what_marks_a_task_as_this_runs(self):
@@ -447,6 +525,104 @@ class ARefusalInheritedFromAnEarlierRun(unittest.TestCase):
         with mock.patch.object(law.cms.CrabJobManager, "submit", return_value=[job_id]):
             m.submit("job.jdl")
         self.assertIn("/fresh", m._submitted_projects)
+
+
+class WhenTheServerFailsToSubmit(unittest.TestCase):
+    """`SUBMITFAILED`: the TaskWorker or the schedd failed on the task. law 0.1.21 reports its
+    jobs failed and submits them again, which recovers a one-off failure; a cause that does not
+    go away (a MyProxy credential the TaskWorker cannot retrieve) would instead spend every
+    branch's attempts, so a second failed submission of this run stops it."""
+
+    MESSAGE = "could not retrieve your proxy from myproxy.cern.ch"
+
+    def query(self, m, proj_dir=PROJ, ours=True, out=SUBMITFAILED_OUTPUT):
+        if ours:
+            m._submitted_projects.add(proj_dir)
+        result, ids, slept, cli = query(m, out, proj_dir=proj_dir)
+        return result, ids, slept, cli
+
+    def test_law_itself_reports_its_jobs_failed(self):
+        """The premise, pinned against the installed law rather than assumed."""
+        result = law.cms.CrabJobManager.parse_query_output(
+            SUBMITFAILED_OUTPUT, PROJ, job_ids(manager())
+        )
+        for data in result.values():
+            self.assertEqual(data["status"], law.cms.CrabJobManager.FAILED)
+            self.assertIn(self.MESSAGE, data["error"])
+
+    def test_the_jobs_are_left_failed_as_law_reports_them(self):
+        m = manager()
+        m._unreadable[PROJ] = 4
+        expected = law.cms.CrabJobManager.parse_query_output(
+            SUBMITFAILED_OUTPUT, PROJ, job_ids(m)
+        )
+        with mock.patch("builtins.print"):
+            result, ids, slept, cli = self.query(m)
+        self.assertEqual(result, expected)
+        self.assertTrue(all(d["code"] is None for d in result.values()))
+        slept.assert_not_called()
+        self.assertEqual(len(cli.commands), 1, "a verdict is not queried again")
+        self.assertNotIn(PROJ, m._unreadable)
+
+    def test_one_failed_submission_alone_does_not_stop_the_run(self):
+        m = manager()
+        with mock.patch("builtins.print"):
+            self.query(m)
+        self.assertIsNone(m.stop_reason)
+
+    def test_a_second_failed_submission_records_a_stop_reason_quoting_the_server(self):
+        m = manager()
+        with mock.patch("builtins.print"):
+            self.query(m, proj_dir=project("failed-1"))
+            result, _, _, _ = self.query(m, proj_dir=project("failed-2"))
+        self.assertIn("2 submissions made by this run have failed", m.stop_reason)
+        self.assertIn(self.MESSAGE, m.stop_reason)
+        self.assertIn("failed-2", m.stop_reason)
+        # recorded, not raised: the poll that stops the run still returns law's verdict
+        self.assertTrue(all(d["status"] == m.FAILED for d in result.values()))
+
+    def test_polling_one_failed_task_again_is_one_failure_not_two(self):
+        m = manager()
+        with mock.patch("builtins.print"):
+            for _ in range(5):
+                self.query(m, proj_dir=project("failed-1"))
+        self.assertIsNone(m.stop_reason)
+
+    def test_failures_left_by_earlier_runs_never_count(self):
+        m = manager()
+        with mock.patch("builtins.print") as printed:
+            for name in ("old-failed-1", "old-failed-2", "old-failed-3"):
+                result, _, _, _ = self.query(m, proj_dir=project(name), ours=False)
+        self.assertIsNone(m.stop_reason)
+        # their jobs are still failed, so the branches come back as a new task
+        self.assertTrue(all(d["status"] == m.FAILED for d in result.values()))
+        self.assertIn("earlier run", "\n".join(printed_text(printed)))
+
+    def test_the_reason_is_reported_once_per_task_not_once_per_poll(self):
+        m = manager(max_failed_submissions=99)
+        with mock.patch("builtins.print") as printed:
+            self.query(m)
+            self.query(m)
+        said = "\n".join(printed_text(printed))
+        self.assertEqual(said.count(self.MESSAGE), 1)
+
+    def test_refusals_and_failures_are_counted_apart(self):
+        m = manager()
+        m._submitted_projects.add(project("refused-1"))
+        with mock.patch("builtins.print"):
+            query(m, REFUSED_OUTPUT, proj_dir=project("refused-1"))
+            self.query(m, proj_dir=project("failed-1"))
+        self.assertIsNone(m.stop_reason)
+
+    def test_a_failed_task_that_publishes_its_jobs_keeps_their_states(self):
+        m = manager()
+        out = SCHEDULED_OUTPUT.replace(
+            "Status on the CRAB server:\tSUBMITTED",
+            "Status on the CRAB server:\tSUBMITFAILED",
+        )
+        result, _, _, _ = self.query(m, out=out)
+        self.assertTrue(all(d["status"] == m.RUNNING for d in result.values()))
+        self.assertEqual(m._failed_projects, set())
 
 
 class AnUnscheduledTaskCannotStallForever(unittest.TestCase):
@@ -478,7 +654,30 @@ class AnUnscheduledTaskCannotStallForever(unittest.TestCase):
             query(m, WAITING_OUTPUT)
         result, _, _, _ = query(m, SCHEDULED_OUTPUT)
         self.assertTrue(all(d["status"] == m.RUNNING for d in result.values()))
-        self.assertNotIn("/proj", m._unscheduled)
+        self.assertNotIn(PROJ, m._unscheduled)
+
+    def test_only_waiting_is_bounded_the_other_states_law_holds_pending_are_not(self):
+        """law also reports `NEW`, `HOLDING` and `QUEUED on command SUBMIT` pending; they are left
+        to it, however long they last."""
+        for state in ("QUEUED", "NEW", "HOLDING"):
+            out = WAITING_OUTPUT.replace("WAITING on command", f"{state} on command")
+            with self.subTest(state):
+                premise = law.cms.CrabJobManager.parse_query_output(
+                    out, PROJ, [1, 2, 3]
+                )
+                self.assertEqual(
+                    {d["status"] for d in premise.values()},
+                    {law.cms.CrabJobManager.PENDING},
+                )
+                m = manager(max_unscheduled_polls=4)
+                for _ in range(m.max_unscheduled_polls + 2):
+                    result, _, _, _ = query(m, out)
+                    self.assertTrue(
+                        all(d["status"] == m.PENDING for d in result.values())
+                    )
+                self.assertNotIn(PROJ, m._unscheduled)
+                self.assertNotIn(PROJ, m._unreadable)
+                self.assertIsNone(m.stop_reason)
 
 
 class AFreshlySubmittedTaskIsLawsOwnBusiness(unittest.TestCase):
@@ -486,7 +685,7 @@ class AFreshlySubmittedTaskIsLawsOwnBusiness(unittest.TestCase):
 
     def test_law_reports_its_jobs_pending_without_flaf_intervening(self):
         result = lc.FLAFCrabJobManager.parse_query_output(
-            SUBMITTED_OUTPUT, "/proj", [1, 2]
+            SUBMITTED_OUTPUT, PROJ, [1, 2]
         )
         self.assertEqual(
             [d["status"] for d in result.values()],
@@ -548,7 +747,7 @@ class AnUnreadableTaskStopsTheRunFromTheCallback(unittest.TestCase):
         m = manager(max_unreadable_polls=3)
         self.unreadable_polls(m, 3)
         self.assertIsNone(m.stop_reason)
-        self.assertEqual(m._unreadable["/proj"], 3)
+        self.assertEqual(m._unreadable[PROJ], 3)
 
     def test_the_poll_past_the_ceiling_returns_pending_and_records_the_stop(self):
         m = manager(max_unreadable_polls=3)
@@ -784,7 +983,7 @@ class StoppingTheRunActuallyStopsIt(unittest.TestCase):
     def test_a_second_refused_submission_ends_laws_real_poll_loop(self):
         # one retry each, so that law's tolerance check is not what ends the loop
         loop = RealPollLoop(self, REFUSED_OUTPUT, n_jobs=2, retries=1)
-        loop.manager._submitted_projects.update({"/proj"})
+        loop.manager._submitted_projects.update({PROJ})
         loop.manager._refused_projects.add("/earlier-submission-of-this-run")
         with self.assertRaises(RuntimeError) as caught:
             loop.run()
@@ -795,6 +994,21 @@ class StoppingTheRunActuallyStopsIt(unittest.TestCase):
         for job_num, data in loop.proxy.job_data.jobs.items():
             self.assertEqual(data["status"], loop.manager.RETRY)
             self.assertIn("SUBMITREFUSED", str(data["error"]))
+            self.assertEqual(loop.proxy._job_retries[job_num], 1)
+
+    def test_a_second_failed_submission_ends_laws_real_poll_loop(self):
+        loop = RealPollLoop(self, SUBMITFAILED_OUTPUT, n_jobs=2, retries=1)
+        loop.manager._submitted_projects.update({PROJ})
+        loop.manager._failed_projects.add("/earlier-submission-of-this-run")
+        with self.assertRaises(RuntimeError) as caught:
+            loop.run()
+        self.assertIn("failed on the CRAB server", str(caught.exception))
+        self.assertIn("could not retrieve your proxy", str(caught.exception))
+        self.assertEqual(len(loop.cli.commands), 1)
+        # law booked the failure as an attempt before the run stopped
+        for job_num, data in loop.proxy.job_data.jobs.items():
+            self.assertEqual(data["status"], loop.manager.RETRY)
+            self.assertIn("could not retrieve your proxy", str(data["error"]))
             self.assertEqual(loop.proxy._job_retries[job_num], 1)
 
     def test_a_waiting_task_keeps_laws_real_poll_loop_going(self):

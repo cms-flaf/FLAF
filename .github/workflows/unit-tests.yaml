@@ -24,8 +24,15 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install pyyaml luigi==3.8.1 law==0.1.20 pytest
+          python -m pip install pip==26.2.1
+          pip install pyyaml luigi==3.8.1 law==0.1.21 pytest
+
+      # env.sh is sourced from bash and from zsh, and test_flaf_env.py runs it in both; the runner
+      # has no zsh, and under CI a missing zsh fails those cases.
+      - name: Install zsh
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zsh
 
       # Only the suites that need neither ROOT nor CVMFS nor a grid proxy; the CRAB and
       # remote-storage mechanics they cover run on a batch node only, where nothing else
@@ -46,6 +53,7 @@ jobs:
           test/test_crab_watchdog.py
           test/test_crab_watchdog_integration.py
           test/test_crab_wave_gate.py
+          test/test_flaf_env.py
           test/test_fresh_negatives.py
           test/test_gfal_absent_vs_unreachable.py
           test/test_path_cache.py

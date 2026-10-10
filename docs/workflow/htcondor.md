@@ -76,6 +76,14 @@ that task and restores plain fixed-size chunking — the escape hatch if an esti
 Setting the option for a *different* task does not affect it; in particular a bare
 `--tasks-per-job` given to `law run AnaTupleMergeTask` applies to `AnaTupleMergeTask` only.
 
+However the branches are grouped, a job runs all of its branches in **one** law process
+(`law run <Task> --branches=<list> --workflow=local`, or `--branch=<b>` for a single one), on
+HTCondor and CRAB alike. law 0.1.21's own job script would start one process per branch and stop
+the job at the first branch that fails, leaving its group-mates undone; FLAF's job script, generated
+from law's with only that loop replaced, lets luigi carry on with the other branches, and the job
+still fails (exit code 60) if any of them did. It prints no dependency tree on the worker
+(`--print-deps=0`).
+
 ## Monitor and resume
 
 LAW tracks which branches have finished (by checking their outputs), so a re-run only resubmits the
@@ -169,7 +177,13 @@ The trade-off is that such a flavour is **not** rebuilt when its content changes
 reinstalling the environment, or changing anything else packed without a hash, delete the
 bundle so that the next submission recreates it — and drop its entry from the path-existence
 cache (see [Troubleshooting](../troubleshooting.md)), or `BundleTask` can keep reporting the
-deleted file as present.
+deleted file as present. One change is covered without that: the flavour that packs
+`flaf_env` (`$FLAF_ENVIRONMENT_PATH`, `soft` in the analyses) is named after the environment,
+`soft_<FLAF_ENVIRONMENT_ID>.tar.bz2` (the LCG release and a hash of `run_tools/mk_flaf_env.sh`,
+see [The environment](../concepts/environment.md#what-envsh-sets-up)), because the job script and
+the wrappers are rendered from the driver's packages and must run against the same ones on the
+worker. A change of the installation script, which rebuilds `flaf_env`, therefore rebuilds the
+bundle under a new name; the old file can be deleted once no job of the version uses it.
 
 !!! warning "A symlink can send a bundle job back to AFS anyway"
     Symlinks *inside* a packed directory are kept as symlinks — deliberately, so that the CVMFS
@@ -202,7 +216,9 @@ These apply to both batch backends (HTCondor and [CRAB](crab.md)).
   retries offered by law are parked, and the next poll tries again. The message gives the path,
   the errno and a hint (`klist -f` shows the Kerberos expiry and the renewable window, `tokens`
   the AFS token). Skipping for more than 30 minutes raises, and with `--no-poll`, which would
-  not submit the round later, it raises at once. One failed `stat` of the software tree cannot
+  not submit the round later, it raises at once. `--no-poll` applies to the workflow it is given
+  to only: law does not pass it on to the remote workflows that one requires, which are polled to
+  completion as usual. One failed `stat` of the software tree cannot
   make law mistake its own module for a directory.
 - **A resumed workflow that lost its outputs stops.** When a workflow is resumed (its job file
   exists) and more than 10 % of all its jobs — and at least 2 — come back for missing outputs

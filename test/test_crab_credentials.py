@@ -170,7 +170,7 @@ class MyProxyGate(GateCase):
     def test_hashed_credential_opens_the_gate(self):
         kwargs = self.run_gate(FakeMyProxyInfo(hashed_timeleft=30 * DAY))
         self.assertEqual(kwargs["myproxy_username"], HASHED)
-        self.assertEqual(kwargs["proxy"], self.proxy_file)
+        self.assertEqual(kwargs["proxy_file"], self.proxy_file)
 
     def test_fresh_plain_dn_credential_does_not(self):
         """The regression: a 30-day DN-keyed credential next to a 2-day hashed one."""
@@ -259,6 +259,49 @@ class MyProxyGate(GateCase):
                     getattr(law.contrib.cms.job.CrabJobManager, method)
                 ).parameters
                 self.assertLessEqual(set(kwargs), set(params))
+
+    def test_laws_real_status_query_runs_crab_with_the_gates_proxy(self):
+        """The same, executed: law's own `CrabJobManager.query`, handed the gate's kwargs merged
+        with the workflow's query kwargs as law's poll loop merges them, runs a `crab` found on
+        PATH with `--proxy <file>`.
+        A keyword law does not take never reaches crab: the query is ridden out as unreadable.
+        """
+        kwargs = self.run_gate(FakeMyProxyInfo(hashed_timeleft=30 * DAY))
+        fake_bin = os.path.join(self.tmp, "bin")
+        os.makedirs(fake_bin)
+        crab = os.path.join(fake_bin, "crab")
+        with open(crab, "w") as f:
+            f.write(
+                "#!/bin/bash\n"
+                'printf "%s\\n" "$@" > "$CRAB_ARGV"\n'
+                'printf "Status on the CRAB server:\\tSUBMITTED\\n"\n'
+                'printf "Status on the scheduler:\\tSUBMITTED\\n"\n'
+                'printf \'{"1": {"State": "running"}}\\n\'\n'
+            )
+        os.chmod(crab, 0o755)
+        argv_file = os.path.join(self.tmp, "crab_argv")
+        proj_dir = os.path.join(self.tmp, "crab_task")
+        os.makedirs(proj_dir)
+        manager = self.workflow_proxy.job_manager
+        job_id = manager.JobId(1, "task", proj_dir)
+        env = {"PATH": f"{fake_bin}:{os.environ['PATH']}", "CRAB_ARGV": argv_file}
+        with mock.patch.object(
+            lc.FLAFCrabJobManager,
+            "cmssw_env",
+            new_callable=mock.PropertyMock,
+            return_value=env,
+        ), mock.patch.object(lc.time, "sleep"), mock.patch("builtins.print"):
+            result = manager.query(
+                proj_dir,
+                job_ids=[job_id],
+                **law.util.merge_dicts(kwargs, lc.CrabWorkflow.crab_job_kwargs_query),
+            )
+        self.assertTrue(os.path.exists(argv_file), "crab never ran")
+        with open(argv_file) as f:
+            argv = f.read().splitlines()
+        self.assertEqual(argv[:2], ["status", "--dir"])
+        self.assertEqual(argv[argv.index("--proxy") + 1], self.proxy_file)
+        self.assertEqual(result[job_id]["status"], manager.RUNNING)
 
 
 class VomsProxyGate(GateCase):
@@ -382,7 +425,7 @@ class GateWithLawsOwnHelpers(GateCase):
     def test_hashed_credential_opens_the_gate(self):
         kwargs = self.run_real_gate({HASHED: 30 * DAY})
         self.assertEqual(kwargs["myproxy_username"], HASHED)
-        self.assertEqual(kwargs["proxy"], self.proxy_file)
+        self.assertEqual(kwargs["proxy_file"], self.proxy_file)
         self.assertEqual(self.commands.myproxy_lookups(), [HASHED])
 
     def test_fresh_plain_dn_credential_does_not(self):
@@ -441,7 +484,7 @@ class LawRunsTheGateBeforeSubmitting(GateCase):
         self.assertEqual(job_ids, ["job-0", "job-1"])
         self.assertEqual(len(self.submitted), 1)
         self.assertEqual(self.submitted[0]["myproxy_username"], HASHED)
-        self.assertEqual(self.submitted[0]["proxy"], self.proxy_file)
+        self.assertEqual(self.submitted[0]["proxy_file"], self.proxy_file)
         # law sets the job manager up once per workflow, not once per submission
         self.submit(server)
         self.assertEqual(len(self.submitted), 2)

@@ -41,8 +41,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install pyyaml law luigi
+          python -m pip install pip==26.2.1
+          pip install pyyaml law==0.1.21 luigi==3.8.1
 
       - name: Run Setup loading test
         run: python FLAF/test/test_setup_loading.py ${{ inputs.eras }}

@@ -19,6 +19,21 @@ You cloned without `--recursive`, so submodules (FLAF, PlotKit, physics tools) a
 git submodule update --init --recursive
 ```
 
+## A batch job stops in `env.sh`: `… was not built by the current …/mk_flaf_env.sh`
+The environment the job runs from is not the one the installation script of its FLAF defines
+(another pin, another LCG release), and a job never builds one, because other jobs run from that
+environment too. A job without `--bundle` uses the `flaf_env` of the checkout on AFS: source
+`env.sh` on the submitting machine, which rebuilds it, and resubmit. A bundle job unpacked a `soft`
+bundle of another environment. That bundle is named after the environment
+(`soft_<FLAF_ENVIRONMENT_ID>`), so this happens when a bundle was replaced by hand, or when
+`run_tools/mk_flaf_env.sh` changed (a `git pull`, say) after `env.sh` was sourced in the shell that
+submitted: source it again there and resubmit. `ERROR: cannot identify the FLAF environment` or
+`ERROR: cannot tell whether …` means that the check itself could not be made (storage that did not
+answer, for example), and nothing was removed or built; source `env.sh` again once the storage
+answers. When it says `… is listed in … but not seen as a directory` and persists, something that
+is no reachable directory (a file, a broken link) sits at `soft/flaf_env`: move it away by hand. See
+[The environment](concepts/environment.md#what-envsh-sets-up).
+
 ## A run unexpectedly drops into `InputFileTask` / Rucio errors
 For a from-scratch production, `InputFileTask` running first is normal. But if a run that should
 reuse existing outputs keeps re-resolving inputs, or fails here, the cause is almost always a
@@ -61,6 +76,10 @@ law index --verbose
 ```
 
 Needed after **adding/renaming/moving** a task class (not after editing an existing one's body).
+
+A batch job that fails with `task family 'FLAF.….<Task>' not found in index` is a different
+problem: law reports a task module it cannot import this way, so the FLAF package was not
+importable on the worker (a bootstrap or bundle that did not set it up).
 
 ## EOS read-after-write lag
 EOS is eventually consistent: a file you just wrote can be briefly invisible to an existence check
@@ -129,6 +148,14 @@ The message carries the server's reason and the project directory. The usual cau
 (`<analysis>/data/cms_psn_sites.json`) is dropped automatically so the next submission re-reads
 CRIC. The jobs are resubmitted as a new task; a second refusal in the same run stops it. Check
 `crab.whitelist` and `crab.blacklist`. See [CRAB → Status handling](workflow/crab.md#status-handling).
+
+## CRAB: the server failed to submit a task (`SUBMITFAILED`)
+law reports the task's jobs failed and submits them again as a new task, and FLAF prints the
+server's `Failure message from server` once with the project directory. A second failed
+submission in the same run stops it, quoting the message: the cause did not go away. A common
+one is a MyProxy credential the TaskWorker cannot retrieve (see the next entry); otherwise
+`crab status -d <project directory>` and the task URL it prints show what the server says. See
+[CRAB → Status handling](workflow/crab.md#status-handling).
 
 ## CRAB: "MyProxy credential valid for at least 5 days" is refused
 The credential must be stored under the SHA1 of the DN with CRAB's retrieval policy. A bare

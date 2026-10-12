@@ -23,11 +23,15 @@ and only the batch system (the job manager's `query`, the proxy's `_submit_group
 """
 
 import ast
+import base64
 import contextlib
 import errno
+import hashlib
 import importlib.util
 import os
+import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -353,6 +357,11 @@ class FakeWorkflowTask:
         return self._poll_callback(poll_data)
 
     crab_poll_callback = htcondor_poll_callback
+
+    def htcondor_post_poll_callback(self, success, duration):
+        return None
+
+    crab_post_poll_callback = htcondor_post_poll_callback
 
     def htcondor_destination_info(self, info):
         return info
@@ -686,67 +695,379 @@ class TheCrabJobFileFactory(_JobFileFactoryProbe, unittest.TestCase):
     law_factory_cls = law.cms.CrabJobFileFactory
 
 
-# ---------------------------------------------------------------------------------------------
-# (3) law_job.sh without the dependency print-out
-# ---------------------------------------------------------------------------------------------
+class TheCrabConfigFlafWrites(unittest.TestCase):
+    """law's real CRAB config, built for a job with a log file: CRAB must transfer nothing."""
+
+    def make_config(self, factory_cls):
+        from law.job.base import JobInputFile
+
+        workdir = tempfile.mkdtemp(prefix="flaf_crab_cfg_")
+        self.addCleanup(shutil.rmtree, workdir, ignore_errors=True)
+        script = os.path.join(workdir, "job.sh")
+        with open(script, "w") as f:
+            f.write("#!/bin/bash\n")
+        factory = factory_cls(dir=workdir, mkdtemp=False, cleanup=False)
+        with mock.patch.object(lc, "wait_for_job_sources"):
+            job_file, _ = factory(
+                executable=JobInputFile(script, copy=False, render_job=True),
+                input_files={
+                    "job_file": JobInputFile(script, copy=False, render_job=True)
+                },
+                arguments=["a", "b"],
+                request_name="req_1",
+                work_area=workdir,
+                storage_site="T3_CH_CERNBOX",
+                output_lfn_base="/store/user/someone",
+                custom_log_file="stdall.txt",
+                render_variables={},
+            )
+        with open(job_file) as f:
+            return f.read()
+
+    def test_law_no_longer_writes_send_python_folder(self):
+        """The premise of dropping FLAF's stripping of it, pinned against the installed law."""
+        self.assertNotIn(
+            "sendPythonFolder", self.make_config(law.cms.CrabJobFileFactory)
+        )
+
+    def test_law_alone_would_transfer_the_log(self):
+        """The premise of the rewrite that stays: law promotes the log to a CRAB output."""
+        cfg = self.make_config(law.cms.CrabJobFileFactory)
+        self.assertIn("cfg.General.transferOutputs = True", cfg)
+
+    def test_flafs_config_transfers_nothing(self):
+        cfg = self.make_config(lc.FLAFCrabJobFileFactory)
+        self.assertIn("cfg.General.transferOutputs = False", cfg)
+        self.assertIn("cfg.General.transferLogs = False", cfg)
+        self.assertIn("cfg.JobType.disableAutomaticOutputCollection = True", cfg)
+        self.assertNotIn("JobType.outputFiles", cfg)
+        self.assertNotIn("sendPythonFolder", cfg)
 
 
-class TheNoPrintDepsJobScript(unittest.TestCase):
+# ---------------------------------------------------------------------------------------------
+# (3) law_job.sh with FLAF's grouped run
+# ---------------------------------------------------------------------------------------------
+
+#: the job's `law_exe`: records every call, and fails a run that covers branch FAKE_LAW_FAIL
+#: (any `--branches` list holding it fails as a whole, as luigi does)
+_FAKE_LAW = r"""#!/bin/bash
+echo "$*" >> "$FAKE_LAW_LOG"
+for a in "$@"; do
+    case "$a" in
+        --print-deps=*) [ -n "$FAKE_LAW_FAIL_DEPS" ] && exit 4; exit 0 ;;
+    esac
+done
+for a in "$@"; do
+    case "$a" in
+        --branch=*|--branches=*)
+            case ",${a#*=}," in *",$FAKE_LAW_FAIL,"*) exit 3 ;; esac ;;
+    esac
+done
+exit 0
+"""
+
+#: the `law` on PATH, which law_job.sh asks for its location only: anything else must go to
+#: `law_exe`
+_PATH_LAW = r"""#!/bin/bash
+if [ "$1" = "location" ]; then echo "$FAKE_LAW_HOME"; exit 0; fi
+echo "law on PATH: $*" >> "$FAKE_LAW_LOG"
+exit 99
+"""
+
+#: the job's hooks, sourced as its bootstrap file
+_JOB_HOOKS = r"""law_hook_job_failed() { echo "failed $*" >> "$HOOK_LOG"; }
+law_hook_job_finished() { echo "finished" >> "$HOOK_LOG"; }
+"""
+
+
+def _b64(text):
+    return base64.b64encode(text.encode()).decode()
+
+
+class TheGroupedJobScript(unittest.TestCase):
+    """law 0.1.21 runs a job's branches one `law run --branch=b` process at a time and stops
+    the job at the first that fails, so one bad branch leaves its group-mates undone. FLAF
+    keeps law 0.1.20's grouped run instead: one process for the whole group, which luigi
+    carries past a failing branch, and no dependency tree printed on the worker."""
+
     def setUp(self):
         self.data = tempfile.mkdtemp(prefix="flaf_law_job_")
         self.addCleanup(shutil.rmtree, self.data, ignore_errors=True)
         env = mock.patch.dict(os.environ, {"ANALYSIS_DATA_PATH": self.data})
         env.start()
         self.addCleanup(env.stop)
+        lc._grouped_law_job_scripts.clear()
+        self.addCleanup(lc._grouped_law_job_scripts.clear)
         self.original = law.util.law_src_path("job", "law_job.sh")
-        self.custom = os.path.join(self.data, "law_job_no_print_deps.sh")
-
-    def write_custom(self, content, older_than_original):
-        with open(self.custom, "w") as f:
-            f.write(content)
-        mtime = os.path.getmtime(self.original) + (
-            -3600 if older_than_original else 3600
-        )
-        os.utime(self.custom, (mtime, mtime))
-
-    def read_custom(self):
-        with open(self.custom) as f:
-            return f.read()
-
-    def test_it_is_generated_with_deps_depth_zero(self):
         with open(self.original) as f:
-            self.assertRegex(f.read(), r'deps_depth="[1-9]')
-        self.assertEqual(lc.law_job_no_print_deps(), self.custom)
-        content = self.read_custom()
-        self.assertIn('deps_depth="0"', content)
-        self.assertNotRegex(content, r'deps_depth="[1-9]')
-        self.assertTrue(os.access(self.custom, os.X_OK))
+            self.law_script = f.read()
 
-    def test_it_is_regenerated_when_laws_copy_is_newer(self):
-        self.write_custom("stale copy\n", older_than_original=True)
-        lc.law_job_no_print_deps()
-        content = self.read_custom()
-        self.assertNotIn("stale copy", content)
-        self.assertIn('deps_depth="0"', content)
+    def generated(self):
+        path = lc.grouped_law_job_script()
+        with open(path) as f:
+            return path, f.read()
 
-    def test_an_up_to_date_copy_is_reused(self):
-        self.write_custom("current copy\n", older_than_original=False)
-        self.assertEqual(lc.law_job_no_print_deps(), self.custom)
-        self.assertEqual(self.read_custom(), "current copy\n")
+    def law_copy(self, content):
+        """A law_job.sh of another law, standing in for the installed one."""
+        path = os.path.join(tempfile.mkdtemp(dir=self.data), "law_job.sh")
+        with open(path, "w") as f:
+            f.write(content)
+        return mock.patch.object(law.util, "law_src_path", return_value=path)
 
-    def test_a_failed_stat_of_laws_tree_reuses_the_existing_copy(self):
-        # older than law's copy, so only the failed stat can explain keeping it
-        self.write_custom("existing copy\n", older_than_original=True)
-        real_getmtime = os.path.getmtime
+    def test_laws_own_script_runs_one_process_per_branch(self):
+        """The premise, pinned against the installed law rather than assumed."""
+        self.assertEqual(len(lc._LAW_JOB_BRANCH_LOOP_RE.findall(self.law_script)), 1)
+        self.assertIn("--branch=${b}", self.law_script)
+        self.assertIn("--print-deps=2", self.law_script)
+        self.assertNotIn("--workflow=local", self.law_script)
 
-        def getmtime(path):
-            if os.path.abspath(path) == os.path.abspath(self.original):
-                raise OSError(errno.EACCES, "Permission denied", path)
-            return real_getmtime(path)
+    def test_only_the_run_loop_is_replaced(self):
+        path, content = self.generated()
+        before, after = lc._LAW_JOB_BRANCH_LOOP_RE.split(self.law_script)
+        self.assertTrue(content.startswith(before))
+        self.assertTrue(content.endswith(after))
+        self.assertEqual(
+            content[len(before) : len(content) - len(after)], lc._LAW_JOB_GROUPED_RUN
+        )
+        self.assertNotIn("for b in ${LAW_JOB_TASK_BRANCHES}", content)
+        self.assertIn("${law_exe} run ", content)
+        self.assertIn("--print-deps=0", content)
+        self.assertNotRegex(content, r"--print-deps=[1-9]")
+        self.assertTrue(os.access(path, os.X_OK))
 
-        with mock.patch.object(lc.os.path, "getmtime", side_effect=getmtime):
-            self.assertEqual(lc.law_job_no_print_deps(), self.custom)
-        self.assertEqual(self.read_custom(), "existing copy\n")
+    def test_both_backends_ship_it(self):
+        expected = lc.grouped_law_job_script()
+        for name, job_file in {
+            "htcondor": lc.HTCondorWorkflow.htcondor_job_file,
+            "crab": lc.CrabWorkflow.crab_job_file,
+        }.items():
+            with self.subTest(name):
+                self.assertEqual(job_file(None).path, expected)
+
+    def test_the_file_is_named_after_its_content(self):
+        path, content = self.generated()
+        digest = hashlib.sha256(content.encode()).hexdigest()[:12]
+        self.assertEqual(path, os.path.join(self.data, f"law_job_flaf_{digest}.sh"))
+
+    def test_another_law_gives_another_file_and_leaves_the_first_alone(self):
+        first, first_content = self.generated()
+        with self.law_copy(self.law_script + "# a later law\n"):
+            second, second_content = self.generated()
+        self.assertNotEqual(first, second)
+        self.assertTrue(second_content.endswith("# a later law\n"))
+        with open(first) as f:
+            self.assertEqual(f.read(), first_content)
+
+    def test_an_existing_file_of_that_name_is_reused(self):
+        path, _ = self.generated()
+        with open(path, "w") as f:
+            f.write("current copy\n")
+        self.assertEqual(lc.grouped_law_job_script(), path)
+        with open(path) as f:
+            self.assertEqual(f.read(), "current copy\n")
+
+    def test_a_failed_read_of_laws_tree_later_does_not_fail_the_submission(self):
+        path, content = self.generated()
+        os.remove(path)
+        real_open = open
+
+        def blinking_open(file, *args, **kwargs):
+            if os.path.abspath(str(file)) == os.path.abspath(self.original):
+                raise OSError(errno.EACCES, "Permission denied", file)
+            return real_open(file, *args, **kwargs)
+
+        with mock.patch("builtins.open", side_effect=blinking_open):
+            self.assertEqual(lc.grouped_law_job_script(), path)
+        with open(path) as f:
+            self.assertEqual(f.read(), content)
+
+    def test_a_script_without_exactly_one_run_loop_is_refused(self):
+        loop = lc._LAW_JOB_BRANCH_LOOP_RE.search(self.law_script).group(0)
+        for name, script in {
+            "no loop": self.law_script.replace(loop, ""),
+            "two loops": self.law_script.replace(loop, loop + loop),
+        }.items():
+            with self.subTest(name), self.law_copy(script):
+                lc._grouped_law_job_scripts.clear()
+                with self.assertRaises(RuntimeError) as caught:
+                    lc.grouped_law_job_script()
+                self.assertIn("per-branch run loop", str(caught.exception))
+        self.assertEqual(
+            [n for n in os.listdir(self.data) if n.startswith("law_job_flaf_")], []
+        )
+
+    # the generated script run for real, in bash, with only `law` replaced
+
+    def run_job(self, branches, fail=None, fail_deps=False, auto_retry="yes"):
+        """Run the generated job script; returns (exit code, law calls, hook calls)."""
+        _, content = self.generated()
+        work = tempfile.mkdtemp(dir=self.data)
+        fake_bin = os.path.join(work, "bin")
+        os.makedirs(fake_bin)
+        fake_law = os.path.join(work, "law_exe")
+        for path, script in (
+            (fake_law, _FAKE_LAW),
+            (os.path.join(fake_bin, "law"), _PATH_LAW),
+        ):
+            with open(path, "w") as f:
+                f.write(script)
+            os.chmod(path, 0o755)
+        hooks = os.path.join(work, "hooks.sh")
+        with open(hooks, "w") as f:
+            f.write(_JOB_HOOKS)
+        values = {"law_exe": fake_law, "bootstrap_file": hooks}
+        job = os.path.join(work, "job.sh")
+        with open(job, "w") as f:
+            f.write(
+                re.sub(r"\{\{(\w+)\}\}", lambda m: values.get(m.group(1), ""), content)
+            )
+        logs = {name: os.path.join(work, f"{name}.log") for name in ("law", "hook")}
+        env = dict(
+            os.environ,
+            PATH=f"{fake_bin}:{os.environ.get('PATH', '')}",
+            FAKE_LAW_HOME=work,
+            FAKE_LAW_LOG=logs["law"],
+            FAKE_LAW_FAIL="" if fail is None else str(fail),
+            FAKE_LAW_FAIL_DEPS="1" if fail_deps else "",
+            HOOK_LOG=logs["hook"],
+        )
+        env.pop("LAW_JOB_WRAPPED_BASH", None)
+        args = [
+            "bash",
+            job,
+            "mod",
+            "Task",
+            _b64("--version v1"),
+            _b64(" ".join(map(str, branches))),
+            "1",
+            auto_retry,
+            _b64(""),
+        ]
+        proc = subprocess.run(
+            args, cwd=work, env=env, capture_output=True, text=True, timeout=300
+        )
+        calls = {}
+        for name, log in logs.items():
+            calls[name] = []
+            if os.path.exists(log):
+                with open(log) as f:
+                    calls[name] = f.read().splitlines()
+        return proc.returncode, calls["law"], calls["hook"]
+
+    #: law 0.1.20's grouped command for branches 0, 1, 2 (`--print-deps=3` there)
+    GROUP = "run mod.Task --version v1 --branches=0,1,2 --workflow=local --workers=1"
+
+    def test_a_group_runs_in_one_law_process(self):
+        code, law_calls, hooks = self.run_job([0, 1, 2])
+        self.assertEqual(code, 0)
+        self.assertEqual(law_calls, [f"{self.GROUP} --print-deps=0", self.GROUP])
+        self.assertEqual(hooks, ["finished"])
+
+    def test_one_branch_runs_as_that_branch(self):
+        code, law_calls, _ = self.run_job([7])
+        single = "run mod.Task --version v1 --branch=7 --workers=1"
+        self.assertEqual(code, 0)
+        self.assertEqual(law_calls, [f"{single} --print-deps=0", single])
+
+    def test_a_failing_branch_does_not_keep_the_others_from_their_run(self):
+        """law 0.1.21 would stop after branch 1 and never start branch 2."""
+        code, law_calls, hooks = self.run_job([0, 1, 2], fail=1)
+        self.assertEqual(code, 60)
+        # the dependency print, attempt 1 and the auto-retry, each covering every branch
+        self.assertEqual(
+            law_calls, [f"{self.GROUP} --print-deps=0", self.GROUP, self.GROUP]
+        )
+        self.assertEqual(hooks, ["failed 60 3"])
+
+    def test_without_auto_retry_there_is_one_attempt(self):
+        code, law_calls, _ = self.run_job([0, 1, 2], fail=1, auto_retry="no")
+        self.assertEqual(code, 60)
+        self.assertEqual(law_calls, [f"{self.GROUP} --print-deps=0", self.GROUP])
+
+    def test_a_failing_dependency_print_stops_the_job_with_50(self):
+        code, law_calls, hooks = self.run_job([0, 1, 2], fail_deps=True)
+        self.assertEqual(code, 50)
+        self.assertEqual(law_calls, [f"{self.GROUP} --print-deps=0"])
+        self.assertEqual(hooks, ["failed 50 4"])
+
+    def test_laws_real_local_workflow_runs_the_branches_beside_a_failing_one(self):
+        """What the grouped run relies on, decided by the installed law and luigi themselves:
+        `--branches=0,1,2 --workflow=local` keeps running branches 0 and 2 when branch 1
+        raises, and the job still fails."""
+        real_law = shutil.which("law", path=os.path.dirname(sys.executable))
+        self.assertIsNotNone(real_law, "law's executable next to this python")
+        out = os.path.join(self.data, "outputs")
+        module_dir = os.path.join(self.data, "module")
+        os.makedirs(module_dir)
+        with open(os.path.join(module_dir, "flaf_grouped_probe.py"), "w") as f:
+            f.write(_PROBE_MODULE)
+        cfg = os.path.join(self.data, "law.cfg")
+        with open(cfg, "w") as f:
+            f.write("[core]\nno_lock: True\n")
+        env = {
+            "PATH": f"{os.path.dirname(real_law)}:{os.environ.get('PATH', '')}",
+            "PYTHONPATH": module_dir,
+            "LAW_HOME": os.path.join(self.data, "law_home"),
+            "LAW_CONFIG_FILE": cfg,
+            "PROBE_OUT": out,
+        }
+        with mock.patch.dict(os.environ, env):
+            code = self.run_real_job(real_law)
+        self.assertEqual(code, 60)
+        self.assertEqual(sorted(os.listdir(out)), ["b0", "b2"])
+
+    def run_real_job(self, real_law):
+        _, content = self.generated()
+        work = tempfile.mkdtemp(dir=self.data)
+        job = os.path.join(work, "job.sh")
+        with open(job, "w") as f:
+            f.write(
+                re.sub(
+                    r"\{\{(\w+)\}\}",
+                    lambda m: real_law if m.group(1) == "law_exe" else "",
+                    content,
+                )
+            )
+        env = dict(os.environ)
+        env.pop("LAW_JOB_WRAPPED_BASH", None)
+        args = [
+            "bash",
+            job,
+            "flaf_grouped_probe",
+            "Probe",
+            _b64("--version v1 --local-scheduler True"),
+            _b64("0 1 2"),
+            "1",
+            "no",
+            _b64(""),
+        ]
+        proc = subprocess.run(
+            args, cwd=work, env=env, capture_output=True, text=True, timeout=600
+        )
+        return proc.returncode
+
+
+#: a local workflow whose branch 1 raises, for law's real `law run`
+_PROBE_MODULE = """import os
+
+import law
+import luigi
+
+
+class Probe(law.LocalWorkflow):
+    version = luigi.Parameter()
+
+    def create_branch_map(self):
+        return {0: 0, 1: 1, 2: 2}
+
+    def output(self):
+        return law.LocalFileTarget(os.path.join(os.environ["PROBE_OUT"], f"b{self.branch}"))
+
+    def run(self):
+        if self.branch == 1:
+            raise RuntimeError("branch 1 fails")
+        self.output().dump("done", formatter="text")
+"""
 
 
 # ---------------------------------------------------------------------------------------------
@@ -1266,6 +1587,24 @@ class HTCondorMassLostOutputsBrake(_MassLostOutputsBrake, _ProxyCase):
 
 
 class CrabMassLostOutputsBrake(_MassLostOutputsBrake, _ProxyCase):
+    proxy_cls = lc._FLAFCrabWorkflowProxy
+
+
+class _TheProxyStateIsLaws:
+    """`LawProxyState` names law 0.1.21's private proxy state: on a proxy built by law's own
+    constructor it hands out law's objects, not copies or attributes law never sets."""
+
+    def test_the_job_packing_reads_laws_skip_and_retry_state(self):
+        proxy = self.proxy(2)
+        self.assertIs(proxy._cost_skip_jobs, vars(proxy)["_skip_jobs"])
+        self.assertIs(proxy._cost_job_retries, vars(proxy)["_job_retries"])
+
+
+class HTCondorProxyState(_TheProxyStateIsLaws, _ProxyCase):
+    proxy_cls = lc._BundleAwareHTCondorWorkflowProxy
+
+
+class CrabProxyState(_TheProxyStateIsLaws, _ProxyCase):
     proxy_cls = lc._FLAFCrabWorkflowProxy
 
 

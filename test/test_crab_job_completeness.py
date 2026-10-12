@@ -335,7 +335,9 @@ class PollHarness(Harness):
         self.proxy._submitted = False
         # what law found at the start of the run: nothing (law ORs accepted branches in)
         self.proxy._existing_branches = set()
+        # law checks that it exists before it runs `crab status`
         self.proj_dir = os.path.join(_data_dir, f"crab_{uuid.uuid4().hex[:8]}")
+        os.makedirs(self.proj_dir)
 
     def script(self, responses, before_query=None, max_polls=None):
         """Arm the batch-system responses of one poll loop, and clear its records."""

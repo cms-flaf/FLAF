@@ -48,7 +48,8 @@ Sourcing the analysis's `env.sh` is how you enter the FLAF environment. It:
    (unless `FLAF_PATH` is already set, see
    [Developing shared submodules](../concepts/environment.md#developing-shared-submodules));
 2. **the first time**, builds everything it needs (this is the slow part):
-    - a Python virtual environment `flaf_env` (from the CVMFS `LCG_110a` stack) under `soft/`;
+    - a Python virtual environment `flaf_env` (from the CVMFS `LCG_110a` stack, plus the
+      packages `FLAF/run_tools/mk_flaf_env.sh` installs at pinned versions) under `soft/`;
     - a CMSSW area (`CMSSW_16_0_6`) used by the parts of the pipeline that need CMS software;
     - a standalone [Combine](https://cms-analysis.github.io/HiggsAnalysis-CombinedLimit/)
       (`v11.1.0`) for statistical inference;
@@ -59,13 +60,15 @@ Sourcing the analysis's `env.sh` is how you enter the FLAF environment. It:
 
 !!! note "The first `source env.sh` is slow; later ones are fast"
     The initial build compiles CMSSW and Combine and can take **tens of minutes** and a few GB of
-    disk under `soft/`. It only happens once. Afterwards, `source env.sh` takes a few seconds and
+    disk under `soft/`. It only happens once, and for `flaf_env` again when an update of FLAF
+    changes its LCG release or `run_tools/mk_flaf_env.sh` (see
+    [The environment](../concepts/environment.md#what-envsh-sets-up)). Afterwards, `source env.sh` takes a few seconds and
     just activates the already-built environment. You must `source env.sh` **once per shell**
     (every new terminal).
 
 ??? info "Advanced: skipping the build on worker nodes (`FLAF_NO_INSTALL`)"
     Setting `FLAF_NO_INSTALL=1` makes `env.sh` fail instead of building anything if the
-    environment is missing. This is used on batch workers, where the environment is shipped in a
+    environment is missing or was built by another version of `run_tools/mk_flaf_env.sh`. This is used on batch workers, where the environment is shipped in a
     bundle rather than built on the node. You will not normally set it by hand. See
     [The environment](../concepts/environment.md) and [Running on HTCondor](../workflow/htcondor.md).
 

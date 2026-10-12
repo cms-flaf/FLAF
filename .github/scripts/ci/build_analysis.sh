@@ -76,8 +76,8 @@ cd "${ANALYSIS_NAME}"
 
 # Install (or, for a restored reference, validate) the analysis environment before the
 # requested revisions are applied, so that the reference archive published below carries
-# it. env.sh is a no-op when the installation flags of the current LCG/CMSSW versions are
-# already there, and reinstalls only what those versions changed.
+# it. env.sh is a no-op when the installation flags of the current LCG/CMSSW versions and of
+# run_tools/mk_flaf_env.sh are already there, and reinstalls only what those changed.
 echo "Preparing the analysis environment..."
 (
   source_analysis_env
@@ -119,9 +119,9 @@ if [[ -f config/ci_custom.yaml ]]; then
 fi
 
 # Re-run env.sh for the requested revisions: it is a no-op unless they changed the
-# environment recipe (e.g. a new LCG or CMSSW version), in which case the test jobs -- which
-# run with FLAF_NO_INSTALL=1 -- would otherwise abort. The environment lives in
-# $ANALYSIS_PATH/soft, inside the checkout archived below.
+# environment recipe (e.g. a new LCG or CMSSW version, or a pin in run_tools/mk_flaf_env.sh),
+# in which case the test jobs -- which run with FLAF_NO_INSTALL=1 -- would otherwise abort.
+# The environment lives in $ANALYSIS_PATH/soft, inside the checkout archived below.
 echo "Finalizing the analysis environment..."
 (
   source_analysis_env

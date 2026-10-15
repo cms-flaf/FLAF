@@ -62,10 +62,27 @@ class CreateVomsProxy(law.Task):
                 "one cannot be created there. Check that the batch system delegated a "
                 "proxy."
             )
+        # The old proxy is replaced only by one that exists: voms-proxy-init asks for the
+        # certificate passphrase, so without a controlling terminal (setsid, CI) it fails,
+        # and the old proxy, possibly still valid for hours, has to survive that.
         proxy_file = self.output()
-        if proxy_file.exists():
-            self.publish_message("Removing old proxy.")
-            proxy_file.remove()
-        self.create_proxy(proxy_file)
-        if not proxy_file.exists():
+        new_proxy = law.LocalFileTarget(f"{proxy_file.path}.new.{os.getpid()}")
+        try:
+            self.create_proxy(new_proxy)
+        except PsCallError as e:
+            if new_proxy.exists():
+                new_proxy.remove()
+            kept = (
+                f"the existing one at {proxy_file.path} is kept"
+                if proxy_file.exists()
+                else f"there is none at {proxy_file.path}"
+            )
+            raise RuntimeError(
+                f"Unable to create a voms proxy; {kept}. Re-run the command from a "
+                "terminal, or accept an existing proxy with "
+                "--CreateVomsProxy-time-limit <hours>."
+            ) from e
+        if not new_proxy.exists():
             raise RuntimeError("Unable to create voms proxy")
+        self.publish_message("Moving the new proxy into place.")
+        os.replace(new_proxy.path, proxy_file.path)

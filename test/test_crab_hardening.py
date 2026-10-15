@@ -21,6 +21,7 @@ The site list, the quarantine record and the other CRAB mechanics are covered in
 
 import contextlib
 import importlib.util
+import itertools
 import os
 import sys
 import tempfile
@@ -797,6 +798,117 @@ class TestWorkerGuards(unittest.TestCase):
                     os.path.exists(proxy_path),
                     "complete() must judge, not delete",
                 )
+
+
+#: stands in for voms-proxy-init: writes NEW to the --out path; with FAKE_VOMS_FAIL set it
+#: leaves a partial file and fails like a passphrase prompt without a terminal; with
+#: FAKE_VOMS_SILENT it exits 0 without writing anything
+FAKE_VOMS_PROXY_INIT = """#!/bin/bash
+out=""
+while [ $# -gt 0 ]; do
+    if [ "$1" = "--out" ]; then out="$2"; shift; fi
+    shift
+done
+if [ -n "$FAKE_VOMS_FAIL" ]; then
+    echo PARTIAL > "$out"
+    echo "Enter GRID pass phrase for this identity:" >&2
+    echo "Error: could not read the pass phrase" >&2
+    exit 1
+fi
+if [ -n "$FAKE_VOMS_SILENT" ]; then
+    exit 0
+fi
+echo NEW > "$out"
+"""
+
+_proxy_time_limits = itertools.count(1000)
+
+
+class TestProxyRenewal(unittest.TestCase):
+    """Renewing the proxy on the submit node never leaves the run without one.
+
+    voms-proxy-init asks for the certificate passphrase, so without a controlling
+    terminal it fails; run() used to remove the old proxy first and so lost a proxy
+    still valid for hours (DSProd #56). The old proxy is now replaced only once a new
+    one exists. run() is driven through the real ps_call against a stand-in
+    voms-proxy-init placed first on PATH.
+    """
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = tmp.name
+        bin_dir = os.path.join(self.dir, "bin")
+        os.makedirs(bin_dir)
+        fake = os.path.join(bin_dir, "voms-proxy-init")
+        with open(fake, "w") as f:
+            f.write(FAKE_VOMS_PROXY_INIT)
+        os.chmod(fake, 0o755)
+        self.proxy = os.path.join(self.dir, "x509up")
+        with open(self.proxy, "w") as f:
+            f.write("OLD\n")
+        env = {
+            "PATH": bin_dir + os.pathsep + os.environ.get("PATH", ""),
+            "X509_USER_PROXY": self.proxy,
+        }
+        patcher = mock.patch.dict(os.environ, env)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        for var in ("LAW_JOB_HOME", "FAKE_VOMS_FAIL", "FAKE_VOMS_SILENT"):
+            os.environ.pop(var, None)
+
+    def task(self):
+        # a fresh parameter value per test: luigi caches instances by parameters, and
+        # the proxy path is read when the instance is created
+        return grid_helper_tasks.CreateVomsProxy(
+            time_limit=str(next(_proxy_time_limits))
+        )
+
+    def leftovers(self):
+        return sorted(n for n in os.listdir(self.dir) if n.startswith("x509up.new"))
+
+    def read_proxy(self):
+        with open(self.proxy) as f:
+            return f.read()
+
+    def test_a_failed_renewal_keeps_the_old_proxy(self):
+        os.environ["FAKE_VOMS_FAIL"] = "1"
+        with self.assertRaisesRegex(RuntimeError, "existing one .* is kept"):
+            self.task().run()
+        self.assertEqual(self.read_proxy(), "OLD\n")
+        self.assertEqual(self.leftovers(), [])
+
+    def test_a_failed_first_creation_says_there_is_no_proxy(self):
+        os.remove(self.proxy)
+        os.environ["FAKE_VOMS_FAIL"] = "1"
+        with self.assertRaisesRegex(RuntimeError, "there is none at"):
+            self.task().run()
+        self.assertFalse(os.path.exists(self.proxy))
+        self.assertEqual(self.leftovers(), [])
+
+    def test_a_renewal_that_writes_nothing_keeps_the_old_proxy(self):
+        os.environ["FAKE_VOMS_SILENT"] = "1"
+        with self.assertRaisesRegex(RuntimeError, "Unable to create voms proxy"):
+            self.task().run()
+        self.assertEqual(self.read_proxy(), "OLD\n")
+        self.assertEqual(self.leftovers(), [])
+
+    def test_a_successful_renewal_replaces_the_old_proxy(self):
+        self.task().run()
+        self.assertEqual(self.read_proxy(), "NEW\n")
+        self.assertEqual(self.leftovers(), [])
+
+    def test_a_first_proxy_is_created(self):
+        os.remove(self.proxy)
+        self.task().run()
+        self.assertEqual(self.read_proxy(), "NEW\n")
+        self.assertEqual(self.leftovers(), [])
+
+    def test_a_batch_node_never_renews(self):
+        os.environ["LAW_JOB_HOME"] = self.dir
+        with self.assertRaisesRegex(RuntimeError, "batch node"):
+            self.task().run()
+        self.assertEqual(self.read_proxy(), "OLD\n")
 
 
 if __name__ == "__main__":

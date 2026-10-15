@@ -50,6 +50,7 @@ jobs:
           test/test_crab_refused_submission.py
           test/test_crab_resources.py
           test/test_crab_sites.py
+          test/test_crab_stageout_placeholder.py
           test/test_crab_watchdog.py
           test/test_crab_watchdog_integration.py
           test/test_crab_wave_gate.py

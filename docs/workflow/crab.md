@@ -6,9 +6,9 @@ uses [law's CMS CRAB workflow](https://github.com/riga/law) (`law.contrib.cms.Cr
 
 Analysis **outputs and job logs** use FLAF remote I/O only (`fs_default` via gfal/`davs://`,
 plus `stageout_logs.sh`). CRAB `transferOutputs` / `transferLogs` are forced **off** so
-nothing is duplicated onto CRAB's stageout area. The CRAB client still needs
-`Site.storageSite` / `Data.outLFNDirBase` for a submit-time write check — those
-fields are derived from `fs_default`, not configured separately.
+nothing is duplicated onto CRAB's stageout area. `Site.storageSite` / `Data.outLFNDirBase`
+are still required, so they carry a fixed placeholder (see [Config](#config)) that is
+independent of `fs_default`.
 
 ## Prerequisites
 
@@ -60,18 +60,15 @@ fields are derived from `fs_default`, not configured separately.
 
 ## Config
 
-CRAB's write-check site is taken from `fs_default`:
-
-| `fs_default` | CRAB `storageSite` + `outLFNDirBase` |
-|---|---|
-| `T3_CH_CERNBOX:/store/user/<you>/...` | as written |
-| `davs://eoshome-<initial>.cern.ch:.../eos/user/<initial>/<you>/...` | `T3_CH_CERNBOX` + `/store/user/<you>/...` |
-
-Verify write access before the first campaign:
-
-```sh
-crab checkwrite --site=T3_CH_CERNBOX --lfn=/store/user/$USER
-```
+Every task is submitted with `Site.storageSite = T2_CH_CERN` and
+`Data.outLFNDirBase = /store/group/FLAF_crab_unused`, whatever `fs_default` is. Nothing is ever
+written there: with output and log transfers off, CRAB skips its write check. The pair only has
+to pass two checks at submission: the CRAB server accepts a `/store/user/<name>/` LFN only when
+`<name>` is the submitter's own CERN username (a `/store/group/` LFN from anyone), and the task
+worker resolves the LFN to a write PFN at the site through Rucio (`T3_CH_CERNBOX` maps only
+`/store/user/` LFNs, `T2_CH_CERN` any). So `fs_default` can be any remote storage the jobs can
+write to, including a shared account such as `T3_US_FNALLPC:/store/user/lpcflaf/...` or an
+explicit `root://` URL.
 
 Every CRAB setting is optional and lives in `global.yaml` / `user_custom.yaml` under `crab:`:
 
@@ -432,9 +429,8 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
     is skipped; a missing or unreadable proxy still fails.
 
 !!! warning "First-time CRAB / grid mapfile"
-    New users may need a CRAB username mapping and write access to the chosen storage site
-    LFN. At CERN, prefer `T3_CH_CERNBOX` for `/store/user/...` (maps to personal EOS and
-    usually passes `crab checkwrite`); `T2_CH_CERN /store/user` often does not exist.
+    New users may need a CRAB username mapping (`crab checkusername`). CRAB itself needs no
+    write access anywhere; the jobs need it on `fs_default`.
 
 !!! note "Distant sites still read `fs_default`"
     The default whitelist lets jobs run anywhere, but the bundle and outputs stay

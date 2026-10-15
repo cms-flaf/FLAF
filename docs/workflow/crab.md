@@ -62,13 +62,14 @@ independent of `fs_default`.
 
 Every task is submitted with `Site.storageSite = T2_CH_CERN` and
 `Data.outLFNDirBase = /store/group/FLAF_crab_unused`, whatever `fs_default` is. Nothing is ever
-written there: with output and log transfers off, CRAB skips its write check. The pair only has
-to pass two checks at submission: the CRAB server accepts a `/store/user/<name>/` LFN only when
-`<name>` is the submitter's own CERN username (a `/store/group/` LFN from anyone), and the task
-worker resolves the LFN to a write PFN at the site through Rucio (`T3_CH_CERNBOX` maps only
-`/store/user/` LFNs, `T2_CH_CERN` any). So `fs_default` can be any remote storage the jobs can
-write to, including a shared account such as `T3_US_FNALLPC:/store/user/lpcflaf/...` or an
-explicit `root://` URL.
+written there: with output and log transfers off, CRAB skips its write check. Besides format
+checks, the pair has to pass two substantive checks at submission: the CRAB server accepts a
+`/store/user/<name>/` LFN only when `<name>` is the submitter's own CERN username (a
+`/store/group/` LFN from anyone), and the task worker resolves the LFN to a write PFN at the site
+through Rucio (`T3_CH_CERNBOX` maps only `/store/user/` LFNs, `T2_CH_CERN` any). The CRAB client and server source lines behind each
+check are cited at `CRAB_PLACEHOLDER_STAGEOUT` in `run_tools/law_customizations.py`. So
+`fs_default` can be any remote storage the jobs can write to, including a shared account such as
+`T3_US_FNALLPC:/store/user/lpcflaf/...` or an explicit `root://` URL.
 
 Every CRAB setting is optional and lives in `global.yaml` / `user_custom.yaml` under `crab:`:
 

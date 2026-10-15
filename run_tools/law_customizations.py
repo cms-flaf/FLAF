@@ -3024,13 +3024,22 @@ class _FLAFCrabWorkflowProxy(SubmissionGuards, _FLAFCrabWorkflowProxyBase):
         )
 
 
-#: CRAB's ``(Site.storageSite, Data.outLFNDirBase)`` for every FLAF task. CRAB transfers
-#: nothing for FLAF, so it never writes there and skips its write check (the task worker's
-#: StageoutCheck returns early when neither outputs nor logs are transferred), but the pair
-#: must still pass two checks: the REST server accepts ``/store/user/<name>/`` only when
-#: <name> is the submitter's CERN username, ``/store/group/<name>/`` from anyone; and the
-#: task worker resolves the LFN to a write PFN at the site through Rucio, which at
-#: T3_CH_CERNBOX maps ``/store/user/`` only, while T2_CH_CERN maps any ``/store/`` LFN.
+#: CRAB's ``(Site.storageSite, Data.outLFNDirBase)`` for every FLAF task. CRAB transfers nothing
+#: for FLAF, so nothing is ever written there, but every component the pair passes through
+#: checks it (CRAB client crab-prod v3.260630.00 on cvmfs; dmwm/CRABServer at 30286f7):
+#:
+#: - law: both values non-empty (``law/contrib/cms/job.py:691-694``, law 0.1.21);
+#: - client: ``storageSite`` required only with transfers on (``CRABClient/Commands/submit.py:307-310``);
+#: - REST server: ``storageSite`` must look like a CMS site name (``RESTUserWorkflow.py:339``), and
+#:   ``checkOutLFN`` (``RESTUserWorkflow.py:42-57,241`` -> ``src/python/ServerUtilities.py:341-361``,
+#:   identical to the client's ``lib/ServerUtilities.py:231-251`` that the unit test loads) accepts
+#:   ``/store/user/<name>/`` only for the submitter's CERN username and ``/store/group/<name>/``
+#:   from anyone;
+#: - task worker: StageoutCheck returns early with both transfers off
+#:   (``TaskWorker/Actions/StageoutCheck.py:82-87``), but DagmanCreator resolves
+#:   ``<lfn>/<primaryds>/<request>/<timestamp>/0000`` (``DagmanCreator.py:94-127``) to a Rucio write
+#:   PFN at the site for every task (``DagmanCreator.py:682``); T3_CH_CERNBOX maps ``/store/user/``
+#:   LFNs only, T2_CH_CERN any ``/store/`` LFN (``/cvmfs/cms.cern.ch/SITECONF/<site>/storage.json``).
 CRAB_PLACEHOLDER_STAGEOUT = ("T2_CH_CERN", "/store/group/FLAF_crab_unused")
 
 

@@ -52,7 +52,8 @@ CRAB_CLIENT_LATEST = os.path.join(
 SITECONF = "/cvmfs/cms.cern.ch/SITECONF"
 
 #: what CRAB's DagmanCreator appends to outLFNDirBase before resolving the write PFN:
-#: <primary dataset>/<request name>/<timestamp>/<counter>
+#: <primary dataset>/<request name>/<timestamp>/<counter> (dmwm/CRABServer 30286f7,
+#: src/python/TaskWorker/Actions/DagmanCreator.py:94-127 and :682)
 DIRECT_DEST_SUFFIX = "/CRAB_UserFiles/crab_SomeTask/261015_120000/0000"
 
 #: fs_default values in use: the shared FNAL account (HH_bbWW and HH_bbtautau production),
@@ -161,8 +162,10 @@ class TheSiteConfiguration(unittest.TestCase):
     """The placeholder against the site's storage.json (skipped where /cvmfs is not mounted).
 
     A bare prefix maps every LFN, a rule the LFNs its pattern matches, which is how the CMS
-    lfn2pfn algorithm Rucio runs for the task worker starts; the real Rucio call is not made
-    here, it needs a grid proxy.
+    lfn2pfn algorithm Rucio runs for the task worker starts (dmwm/CMSRucio 5133fbe,
+    src/policy/CMSRucioPolicy/algorithms/lfn2pfn.py:44-47 without rules and :53-74 with them,
+    raising when no rule matches); the real Rucio call is not made here, it needs a grid proxy.
+    The task worker makes it for every task, transfers or not (DagmanCreator.py:682).
     """
 
     @classmethod

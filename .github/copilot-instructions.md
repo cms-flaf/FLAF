@@ -161,7 +161,8 @@ Each of these has caused a production incident. They are ordered by how much dam
   CRAB transfers nothing for FLAF, but the pair must pass the REST server (a `/store/user/<name>/`
   LFN whose `<name>` is not the submitter is refused, so a shared `fs_default` such as
   `/store/user/lpcflaf/` failed every submission) and the task worker's Rucio write-PFN
-  resolution at the site (T3_CH_CERNBOX maps `/store/user/` only).
+  resolution at the site (T3_CH_CERNBOX maps `/store/user/` only). The source of each check is cited at
+  the constant.
 - **Workers never require bundles, and neither renew nor delete the delegated proxy.**
 - **Code behind `LAW_CRAB_JOB_NUMBER` / `LAW_JOB_HOME` / `on_batch_node()` runs only on a worker,
   so it needs a test that sets the variable** (a `NameError` there shipped past a green

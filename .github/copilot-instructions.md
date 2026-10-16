@@ -160,6 +160,10 @@ Each of these has caused a production incident. They are ordered by how much dam
 - **Code behind `LAW_CRAB_JOB_NUMBER` / `LAW_JOB_HOME` / `on_batch_node()` runs only on a worker,
   so it needs a test that sets the variable** (a `NameError` there shipped past a green
   suite); the whole package is checked with `flake8 --select=F821,F811` in CI.
+- **On the submit node `CreateVomsProxy` replaces a proxy only once its renewal has succeeded**
+  (`RunKit/grid_helper_tasks.py`): `voms-proxy-init` needs the certificate passphrase, so a run
+  without a controlling terminal fails it, and removing the old proxy first left such a run with
+  none, although it was still valid for hours.
 
 ### Processors and stitching
 

@@ -339,7 +339,7 @@ def createAnatuple(
         lumiFilter = LumiFilter(lumiFile_path)
         df = lumiFilter.filter(df)
     applyTriggerFilter = dataset_cfg.get("applyTriggerFilter", True)
-    df = df.Define("era", f"static_cast<int>(Period::{era})")
+    df = df.Define("period", f"static_cast<int>(Period::{era})")
     df = df.Define(
         "X_mass", f"static_cast<int>({mass})"
     )  # this has to be moved in specific analyses def

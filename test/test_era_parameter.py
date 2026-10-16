@@ -227,6 +227,18 @@ class PeriodIsRenamed(_ScratchAnalysis):
         self.assertIn("--OtherEraParamProbe-era", str(caught.exception))
         self.assertIn("once per invocation", str(caught.exception))
 
+    def test_a_per_task_era_in_the_configuration(self):
+        with self.assertRaises(ValueError) as caught:
+            self.from_command_line(
+                "EraParamProbe",
+                "--version",
+                "v",
+                "--era",
+                "Run3_2022",
+                config=[("OtherEraParamProbe", "era", "Run3_2023")],
+            )
+        self.assertIn("[OtherEraParamProbe] era", str(caught.exception))
+
     def test_a_plain_command_line_runs(self):
         task = self.from_command_line(
             "EraParamProbe", "--version", "v", "--era", "Run3_2022"

@@ -200,7 +200,7 @@ _era_cli_checked = False
 def _reject_removed_era_flags():
     """Refuse, once per process, the command-line and configuration forms of the era that do
     not exist any more: the root and per-task period flags (renamed to `--era`), and
-    `--<Task>-era` (one era set per invocation)."""
+    `--<Task>-era` or `[<Task>] era` (one era set per invocation)."""
     global _era_cli_checked
     parser = luigi.cmdline_parser.CmdlineParser.get_instance()
     if _era_cli_checked or parser is None:
@@ -228,7 +228,7 @@ def _reject_removed_era_flags():
         raise ValueError(f"{', '.join(renamed)}: 'period' was renamed to 'era' (--era)")
     per_task = [
         f"--{family}-era" for family in families if args.get(f"{family}_era") is not None
-    ]
+    ] + [f"[{family}] era" for family in families if config.has_option(family, "era")]
     if per_task:
         raise ValueError(
             f"{', '.join(per_task)}: the eras are set once per invocation, with --era"

@@ -232,14 +232,14 @@ if __name__ == "__main__":
     parser.add_argument("--var", required=False, type=str, default="tau1_pt")
     # parser.add_argument('--remove-files', required=False, type=bool, default=False)
     parser.add_argument("--ana_path", required=True, type=str)
-    parser.add_argument("--period", required=True, type=str)
+    parser.add_argument("--era", required=True, type=str)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
     parser.add_argument("--user-custom", type=str, default=None)
     args = parser.parse_args()
 
     setup = Setup.Setup(
         args.ana_path,
-        args.period,
+        args.era,
         args.LAWrunVersion,
         user_custom_file=args.user_custom,
     )
@@ -263,7 +263,7 @@ if type(samples_to_consider) == list:
 all_histnames = {}
 
 # Move this rename map to the weights.yaml for Run3, but keep previous Run2 support for now
-if args.period.startswith("Run2"):
+if args.era.startswith("Run2"):
     for process in processes:
         all_histnames[process] = process
         for unc_old in uncReNames.keys():
@@ -277,7 +277,7 @@ if args.period.startswith("Run2"):
                 all_histnames[f"{process}_{unc_old}_{scale}"] = (
                     f"{process}_{new_unc}{scale}"
                 )
-elif args.period.startswith("Run3"):
+elif args.era.startswith("Run3"):
     for process in samples_to_consider:
         all_histnames[process] = process
         for unc_old in setup.weights_config["norm"].keys():

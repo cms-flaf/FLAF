@@ -10,7 +10,7 @@ Runs a single law command for a specific configuration and performs all required
 Usage (after cd to analysis dir + source env.sh + ../flaf_dev.sh):
   python FLAF/test/test_hello_world.py \
     --version myver-a \
-    --period Run3_2022EE \
+    --era Run3_2022EE \
     --workflow local \
     [--force-fail] \
     [--bundle]
@@ -48,13 +48,13 @@ def run_command(cmd, cwd, timeout=300):
         return 124, output
 
 
-def get_remote_log_dir_uri(analysis_root, version, period):
+def get_remote_log_dir_uri(analysis_root, version, era):
     code = f"""
 import os
 os.chdir(r"{analysis_root}")
 from FLAF.test.hello_world_task import HelloWorldTask
-task = HelloWorldTask(version="{version}", period="{period}")
-log_dir = task.remote_dir_target(task.version, "logs", "HelloWorldTask", task.period)
+task = HelloWorldTask(version="{version}", era="{era}")
+log_dir = task.remote_dir_target(task.version, "logs", "HelloWorldTask", task.era[0])
 base = log_dir.uri() if hasattr(log_dir, "uri") else str(log_dir)
 # Prefix with a unique marker: importing Setup prints banners (e.g.
 # "Using physics model: TestModel") to stdout, so we cannot rely on the URI
@@ -70,13 +70,13 @@ print("REMOTE_LOG_URI=" + base.rstrip("/"))
     return None
 
 
-def remove_remote_log_if_exists(analysis_root, version, period):
+def remove_remote_log_if_exists(analysis_root, version, era):
     code = f"""
 import os, re
 os.chdir(r"{analysis_root}")
 from FLAF.test.hello_world_task import HelloWorldTask
-task = HelloWorldTask(version="{version}", period="{period}")
-log_dir = task.remote_dir_target(task.version, "logs", "HelloWorldTask", task.period)
+task = HelloWorldTask(version="{version}", era="{era}")
+log_dir = task.remote_dir_target(task.version, "logs", "HelloWorldTask", task.era[0])
 names = [n for n in (log_dir.listdir() if log_dir.exists() else []) if re.match(r"{LOG_NAME_RE}", n)]
 for name in names:
     log_dir.child(name, type="f").remove()
@@ -86,7 +86,7 @@ print("REMOTE_LOG_REMOVED " + " ".join(names) if names else "REMOTE_LOG_NOT_PRES
     print("[runner] Remote log clean:", out.strip())
 
 
-def fetch_remote_log_content(analysis_root, version, period):
+def fetch_remote_log_content(analysis_root, version, era):
     # The htcondor job stages the log out as the *very last* step before the job
     # exits, and EOS is only eventually consistent: a freshly-staged file can be
     # missing from a stat()/exists() check for a few seconds after the workflow
@@ -97,8 +97,8 @@ def fetch_remote_log_content(analysis_root, version, period):
 import os, re, time
 os.chdir(r"{analysis_root}")
 from FLAF.test.hello_world_task import HelloWorldTask
-task = HelloWorldTask(version="{version}", period="{period}")
-log_dir = task.remote_dir_target(task.version, "logs", "HelloWorldTask", task.period)
+task = HelloWorldTask(version="{version}", era="{era}")
+log_dir = task.remote_dir_target(task.version, "logs", "HelloWorldTask", task.era[0])
 content = None
 for attempt in range(12):
     try:
@@ -131,14 +131,14 @@ else:
     return None
 
 
-def fetch_output_content(analysis_root, version, period):
+def fetch_output_content(analysis_root, version, era):
     # output() must be taken from the *branch* task (branch=0): the workflow-level
     # output() returns a DotDict (jobs json + collection), not the single result file.
     code = f"""
 import os
 os.chdir(r"{analysis_root}")
 from FLAF.test.hello_world_task import HelloWorldTask
-task = HelloWorldTask(version="{version}", period="{period}", branch=0)
+task = HelloWorldTask(version="{version}", era="{era}", branch=0)
 out_t = task.output()
 if out_t.exists():
     with out_t.localize("r") as loc:
@@ -170,7 +170,7 @@ def parse_reported_log_path(output):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", required=True)
-    parser.add_argument("--period", default="Run3_2022EE")
+    parser.add_argument("--era", default="Run3_2022EE")
     parser.add_argument("--workflow", choices=["local", "htcondor"], required=True)
     parser.add_argument("--force-fail", action="store_true")
     parser.add_argument("--bundle", action="store_true")
@@ -193,7 +193,7 @@ def main():
     os.chdir(analysis_root)
 
     version = args.version
-    period = args.period
+    era = args.era
     force = args.force_fail
     bun = args.bundle
 
@@ -204,7 +204,7 @@ def main():
     print(f"[test] Cleaned local {local_ver_dir}")
 
     # Clean remote logs before run
-    remove_remote_log_if_exists(analysis_root, version, period)
+    remove_remote_log_if_exists(analysis_root, version, era)
 
     # Build law command (exact as user specified equivalents)
     cmd = [
@@ -213,8 +213,8 @@ def main():
         "FLAF.test.hello_world_task.HelloWorldTask",
         "--version",
         version,
-        "--period",
-        period,
+        "--era",
+        era,
         "--workflow",
         args.workflow,
         "--branches",
@@ -279,7 +279,7 @@ def main():
             issues.append(f"Expected zero rc for success, got {rc}")
 
     # Message in the log (remote or local depending)
-    log_content = fetch_remote_log_content(analysis_root, version, period)
+    log_content = fetch_remote_log_content(analysis_root, version, era)
     if force:
         expected_msg = (
             f"Forced failure for testing log transfer on crash. version = {version}"
@@ -312,7 +312,7 @@ def main():
     # (direct proxy test above covers the logic for the rewrite)
     if force:
         reported = parse_reported_log_path(full_out)
-        expected_dir = get_remote_log_dir_uri(analysis_root, version, period)
+        expected_dir = get_remote_log_dir_uri(analysis_root, version, era)
         bad_afs_re = r"/data/.*stdall"
         if reported is not None:
             if re.search(bad_afs_re, reported) and "://" not in reported:
@@ -350,7 +350,7 @@ def main():
     # when fs_default is remote davs:// etc, the file lives on EOS not local data/<ver>/;
     # if fetch fails to confirm content (no proxy or remote-only), rely on law rc==0 + msg in captured out)
     if not force:
-        out_content = fetch_output_content(analysis_root, version, period)
+        out_content = fetch_output_content(analysis_root, version, era)
         if out_content is None or "done" not in out_content.lower():
             # note remote fs usage; do not hard-fail the test (success already shown by rc + hello msg)
             print(

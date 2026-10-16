@@ -110,7 +110,7 @@ def createAnatuple(
     compression_settings = (
         snapshotOptions.fCompressionAlgorithm * 100 + snapshotOptions.fCompressionLevel
     )
-    period = setup.global_params["era"]
+    era = setup.global_params["era"]
     dataset_cfg = setup.datasets[dataset_name]
     mass = dataset_cfg.get("mass", -1)
     spin = dataset_cfg.get("spin", -100)
@@ -240,7 +240,7 @@ def createAnatuple(
     shared_mc = None if isData else setup.global_params.get("shared_mc")
     shared_mc_expr = None
     if shared_mc:
-        split_mod, lo, hi, _ = shared_mc_split(period, shared_mc)
+        split_mod, lo, hi, _ = shared_mc_split(era, shared_mc)
         shared_mc_expr = shared_mc_in_era_expr(split_mod, lo, hi)
 
     def initializeDenomReport(key):
@@ -339,7 +339,7 @@ def createAnatuple(
         lumiFilter = LumiFilter(lumiFile_path)
         df = lumiFilter.filter(df)
     applyTriggerFilter = dataset_cfg.get("applyTriggerFilter", True)
-    df = df.Define("period", f"static_cast<int>(Period::{period})")
+    df = df.Define("era", f"static_cast<int>(Period::{era})")
     df = df.Define(
         "X_mass", f"static_cast<int>({mass})"
     )  # this has to be moved in specific analyses def
@@ -538,7 +538,7 @@ if __name__ == "__main__":
     import yaml
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--period", required=True, type=str)
+    parser.add_argument("--era", required=True, type=str)
     parser.add_argument("--inFile", required=True, type=str)
     parser.add_argument("--outDir", required=True, type=str)
     parser.add_argument("--inFileName", required=True, type=str)
@@ -595,7 +595,7 @@ if __name__ == "__main__":
     ROOT.gInterpreter.ProcessLine(f'ParticleDB::Initialize("{args.particleFile}");')
     setup = Setup.getGlobal(
         os.environ["ANALYSIS_PATH"],
-        args.period,
+        args.era,
         args.LAWrunVersion,
         customisations=args.customisations,
         user_custom_file=args.user_custom,

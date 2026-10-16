@@ -221,7 +221,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--period", required=True, type=str)
+    parser.add_argument("--era", required=True, type=str)
     parser.add_argument("--inFile", required=True, type=str)
     parser.add_argument("--outFile", required=True, type=str)
     parser.add_argument("--cacheFiles", required=False, type=str, default=None)
@@ -253,7 +253,7 @@ if __name__ == "__main__":
 
     setup = Setup.getGlobal(
         os.environ["ANALYSIS_PATH"],
-        args.period,
+        args.era,
         args.LAWrunVersion,
         user_custom_file=args.user_custom,
     )

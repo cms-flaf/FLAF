@@ -29,15 +29,15 @@ BUNDLES = {
     "soft": {"patterns": ["soft/flaf_env"]},
     "one_producer": {
         "patterns": [
-            "data/{version}/BuilderTask/{period}",
-            "data/{version}/ListTask/{period}",
+            "data/{version}/BuilderTask/{era}",
+            "data/{version}/ListTask/{era}",
         ],
         "task_requires": {"module": "FLAF.AnaProd.tasks", "class": "BuilderTask"},
     },
     "both_producers": {
         "patterns": [
-            "data/{version}/BuilderTask/{period}",
-            "data/{version}/ListTask/{period}",
+            "data/{version}/BuilderTask/{era}",
+            "data/{version}/ListTask/{era}",
         ],
         "task_requires": [
             {"module": "FLAF.AnaProd.tasks", "class": "BuilderTask"},
@@ -58,12 +58,12 @@ class FakeBundleTask(BundleTask):
         return "/".join(parts)
 
 
-def make_task(flavour, period="Era"):
+def make_task(flavour, era="Era"):
     # luigi's metaclass owns __call__, so the instance is built without it.
     task = object.__new__(FakeBundleTask)
     task.flavour = flavour
     task.version = "v1"
-    task.period = period
+    task.era = (era,)
     return task
 
 
@@ -92,9 +92,9 @@ class TestBundleHash(unittest.TestCase):
             f.write(content)
         return path
 
-    def hash_of(self, flavour="core", period="Era"):
+    def hash_of(self, flavour="core", era="Era"):
         BundleTask._source_hash_cache.clear()
-        return make_task(flavour, period).source_hash()
+        return make_task(flavour, era).source_hash()
 
     def test_editing_a_packed_file_changes_the_hash(self):
         before = self.hash_of()
@@ -158,6 +158,13 @@ class TestBundleProducers(unittest.TestCase):
 
     def entries(self, flavour):
         return [e["class"] for e in make_task(flavour).task_requires_entries()]
+
+    def test_the_renamed_period_placeholder_is_refused(self):
+        BUNDLES["renamed"] = {"patterns": ["data/{version}/ListTask/{period}"]}
+        self.addCleanup(BUNDLES.pop, "renamed")
+        with self.assertRaises(ValueError) as caught:
+            make_task("renamed").bundle_patterns()
+        self.assertIn("renamed to {era}", str(caught.exception))
 
     def test_a_single_entry_is_still_accepted(self):
         self.assertEqual(self.entries("one_producer"), ["BuilderTask"])

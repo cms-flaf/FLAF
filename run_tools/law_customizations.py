@@ -28,7 +28,7 @@ from FLAF.run_tools.crab_watchdog import (
     watchdog_config,
 )
 from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget, WLCGDirectoryTarget
-from FLAF.Common.Setup import Setup
+from FLAF.Common.Setup import Setup, UnknownEraError, known_eras
 from FLAF.AnaProd.CostModel import pack_units
 
 law.contrib.load("htcondor")
@@ -160,6 +160,74 @@ def get_param_value(cls, param_name):
         return None
 
 
+class EraParameter(law.CSVParameter):
+    """FLAF eras, as a sorted tuple of unique known names: `--era Run3_2022` or a comma-separated
+    list. `max_len` limits how many eras a task takes."""
+
+    def __init__(self, max_len=None, **kwargs):
+        super(EraParameter, self).__init__(unique=True, sort=True, min_len=1, **kwargs)
+        self._max_eras = max_len
+
+    def parse(self, inp):
+        value = super(EraParameter, self).parse(inp)
+        eras = known_eras(os.environ["ANALYSIS_PATH"])
+        unknown = [era for era in value if era not in eras]
+        if unknown:
+            raise UnknownEraError(
+                f"unknown era(s) {', '.join(unknown)}; known eras: {', '.join(eras)}"
+            )
+        if self._max_eras is not None and len(value) > self._max_eras:
+            raise ValueError(
+                f"--era {','.join(value)}: several eras in one task are not supported yet"
+            )
+        return value
+
+    def normalize(self, x):
+        # luigi normalises values given programmatically without parsing them
+        return self.parse(x)
+
+
+_era_cli_checked = False
+
+
+def _reject_removed_era_flags():
+    """Refuse, once per process, the command-line and configuration forms of the era that do
+    not exist any more: `--period` and `--<Task>-period` (renamed to `--era`), and
+    `--<Task>-era` (one era set per invocation)."""
+    global _era_cli_checked
+    parser = luigi.cmdline_parser.CmdlineParser.get_instance()
+    if _era_cli_checked or parser is None:
+        return
+    _era_cli_checked = True
+    args = vars(parser.known_args)
+    config = luigi.configuration.get_config()
+    families = [
+        family
+        for family, cls in luigi.task_register.Register._get_reg().items()
+        if isinstance(cls, type)
+        and isinstance(getattr(cls, "era", None), EraParameter)
+    ]
+    renamed = [
+        flag
+        for flag, dest in [("--period", "period")]
+        + [(f"--{family}-period", f"{family}_period") for family in families]
+        if args.get(dest) is not None
+    ] + [
+        f"[{family}] period"
+        for family in families
+        if config.has_option(family, "period")
+    ]
+    if renamed:
+        raise ValueError(f"{', '.join(renamed)}: 'period' was renamed to 'era' (--era)")
+    per_task = [
+        f"--{family}-era" for family in families if args.get(f"{family}_era") is not None
+    ]
+    if per_task:
+        raise ValueError(
+            f"{', '.join(per_task)}: the eras are set once per invocation, with --era"
+        )
+
+
 class Task(law.Task):
     """
     Base task that we use to force a version parameter on all inheriting tasks, and that provides
@@ -245,8 +313,18 @@ class Task(law.Task):
     ]
     # tasks_per_job is a per-task tuning knob: each task keeps its own default (or an
     # explicit CLI value) instead of inheriting the requesting task's value via .req().
-    exclude_params_req = law.Task.exclude_params_req | {"tasks_per_job"}
-    period = luigi.Parameter()
+    exclude_params_req = law.Task.exclude_params_req | {"tasks_per_job", "period"}
+    exclude_params_repr = law.Task.exclude_params_repr | {"period"}
+    exclude_params_index = law.Task.exclude_params_index | {"period"}
+    era = EraParameter(max_len=1)
+    # The removed --period: a parameter only so that the parser accepts it and the run stops
+    # with the rename message instead of "unrecognized arguments".
+    period = luigi.OptionalParameter(
+        default=None,
+        significant=False,
+        visibility=luigi.parameter.ParameterVisibility.PRIVATE,
+        description="renamed to --era",
+    )
     customisations = luigi.Parameter(default="")
     test = luigi.IntParameter(default=-1)
     dataset = luigi.Parameter(default="")
@@ -274,24 +352,57 @@ class Task(law.Task):
         description="If set, combines --anaTuple-version and --anaCache-version (single flag for both).",
     )
 
+    @classmethod
+    def modify_param_args(cls, params, args, kwargs):
+        _reject_removed_era_flags()
+        if kwargs.get("period") is not None:
+            raise ValueError(
+                f"{cls.get_task_family()}: 'period' was renamed to 'era' (use era=...)"
+            )
+        return super(Task, cls).modify_param_args(params, args, kwargs)
+
+    def cli_args(self, exclude=None, replace=None):
+        exclude = set() if exclude is None else set(law.util.make_list(exclude))
+        return super(Task, self).cli_args(exclude=exclude | {"period"}, replace=replace)
+
     def __init__(self, *args, **kwargs):
         super(Task, self).__init__(*args, **kwargs)
-        user_custom_file = None
-        if self.user_custom:
-            user_custom_file = self._resolve_user_custom_path(self.user_custom)
-        self.setup = Setup.getGlobal(
-            os.getenv("ANALYSIS_PATH"),
-            self.period,
-            self.version,
-            custom_process_selection=self.process if len(self.process) > 0 else None,
-            custom_dataset_selection=self.dataset if len(self.dataset) > 0 else None,
-            custom_model_selection=self.model if len(self.model) > 0 else None,
-            customisations=self.customisations,
-            user_custom_file=user_custom_file,
-        )
+        self._setups = {}
+        for era in self.era:
+            self.setup_for(era)
         self._dataset_id_name_list = None
         self._dataset_id_name_dict = None
         self._dataset_name_id_dict = None
+
+    def setup_for(self, era):
+        """The Setup of one of this task's eras."""
+        if era not in self.era:
+            raise ValueError(f"{self.get_task_family()}: {era} is not one of {self.era}")
+        setup = self._setups.get(era)
+        if setup is None:
+            user_custom_file = None
+            if self.user_custom:
+                user_custom_file = self._resolve_user_custom_path(self.user_custom)
+            setup = Setup.getGlobal(
+                os.getenv("ANALYSIS_PATH"),
+                era,
+                self.version,
+                custom_process_selection=(
+                    self.process if len(self.process) > 0 else None
+                ),
+                custom_dataset_selection=(
+                    self.dataset if len(self.dataset) > 0 else None
+                ),
+                custom_model_selection=self.model if len(self.model) > 0 else None,
+                customisations=self.customisations,
+                user_custom_file=user_custom_file,
+            )
+            self._setups[era] = setup
+        return setup
+
+    @property
+    def setup(self):
+        return self.setup_for(self.era[0])
 
     @staticmethod
     def _resolve_user_custom_path(user_custom):
@@ -349,7 +460,7 @@ class Task(law.Task):
         return (
             type(self).__name__,
             self.version,
-            self.period,
+            self.era,
             self.customisations,
             self.dataset,
             self.process,
@@ -385,7 +496,7 @@ class Task(law.Task):
         return dict(cached)
 
     def store_parts(self):
-        return (self.version, self.__class__.__name__, self.period)
+        return (self.version, self.__class__.__name__, self.era[0])
 
     @property
     def cmssw_env(self):
@@ -470,7 +581,7 @@ class Task(law.Task):
         # Remote directory where job logs are staged. Include the producer name when the
         # task has one (AnalysisCacheTask: producer_to_run; AnalysisCacheAggregationTask:
         # producer_to_aggregate) so per-producer logs of the same task do not collide.
-        parts = [self.version, "logs", self.__class__.__name__, self.period]
+        parts = [self.version, "logs", self.__class__.__name__, self.era[0]]
         producer = getattr(self, "producer_to_run", None) or getattr(
             self, "producer_to_aggregate", None
         )
@@ -593,11 +704,11 @@ class BundleTask(Task):
         return list(cfg) if isinstance(cfg, (list, tuple)) else [cfg]
 
     def _warn_about_unrequired_producers(self, reqs):
-        """A packed `data/<version>/<Task>/<period>` directory whose task is not required
+        """A packed `data/<version>/<Task>/<era>` directory whose task is not required
         would be bundled while its jobs are still running."""
         for pattern in self.bundle_patterns():
             parts = pattern.strip("/").split("/")
-            if len(parts) < 3 or parts[0] != "data" or parts[-1] != str(self.period):
+            if len(parts) < 3 or parts[0] != "data" or parts[-1] != self.era[0]:
                 continue
             producer = parts[-2]
             if producer in reqs:
@@ -621,10 +732,13 @@ class BundleTask(Task):
         return self.global_params.get("bundles", {}).get(self.flavour) or {}
 
     def bundle_patterns(self):
-        return [
-            p.format(version=self.version, period=self.period)
-            for p in self.bundle_cfg().get("patterns", [])
-        ]
+        patterns = self.bundle_cfg().get("patterns", [])
+        renamed = [p for p in patterns if "{period}" in p]
+        if renamed:
+            raise ValueError(
+                f"bundle '{self.flavour}': {renamed} use {{period}}, which was renamed to {{era}}"
+            )
+        return [p.format(version=self.version, era=self.era[0]) for p in patterns]
 
     def bundle_source(self, pattern):
         """Where a pattern is read from.
@@ -664,7 +778,7 @@ class BundleTask(Task):
         carrying a large immutable payload (an installed environment, a CMSSW release) opt
         out with `hashed: false`, the default.
         """
-        key = (self.flavour, self.version, self.period)
+        key = (self.flavour, self.version, self.era[0])
         if key not in BundleTask._source_hash_cache:
             digest = hashlib.sha256()
             for pattern in self.bundle_patterns():
@@ -730,7 +844,7 @@ class BundleTask(Task):
                 )
             name = f"{self.flavour}_{environment_id}"
         return self.remote_target(
-            self.version, "bundles", self.period, f"{name}.tar.bz2"
+            self.version, "bundles", self.era[0], f"{name}.tar.bz2"
         )
 
     def run(self):
@@ -1304,7 +1418,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         self._apply_bundle_render_variables(config)
         if self._uses_bundles() and not self.htcondor_spool:
             config._worker_files_remote_dir = self.remote_dir_target(
-                self.version, "worker_files", self.period
+                self.version, "worker_files", self.era[0]
             )
 
         return config
@@ -1816,7 +1930,7 @@ class _BundleAwareHTCondorWorkflowProxy(
 
         # Compute the remote log base directly from the *task*.  Note that `self`
         # here is the workflow *proxy*, which does not carry fs_default / version /
-        # period / remote_dir_target — those live on `self.task`.  (PR #267 instead
+        # era / remote_dir_target — those live on `self.task`.  (PR #267 instead
         # read the `log_remote_base_url` render variable off each job config; that
         # never produced a value the line below doesn't, since the render variable
         # is set under the identical WLCG-fs_default condition with the identical
@@ -3218,7 +3332,7 @@ class CrabWorkflow(law.cms.CrabWorkflow):
         return os.path.join(self.ana_data_path(), "cms_psn_sites.json")
 
     def _heartbeat_dir_parts(self):
-        parts = [self.version, HEARTBEAT_DIR, self.__class__.__name__, self.period]
+        parts = [self.version, HEARTBEAT_DIR, self.__class__.__name__, self.era[0]]
         producer = getattr(self, "producer_to_run", None) or getattr(
             self, "producer_to_aggregate", None
         )
@@ -3317,7 +3431,7 @@ process.out = cms.EndPath(process.output)
         parts = [
             self.task_family.replace(".", "_"),
             str(self.version).replace(".", "_"),
-            str(self.period).replace(".", "_"),
+            self.era[0].replace(".", "_"),
         ]
         # the unique suffix is what tells the CRAB tasks of one workflow apart (and names
         # their staged logs), so only the prefix is truncated

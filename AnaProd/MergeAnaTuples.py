@@ -322,7 +322,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--period", required=True, type=str)
+    parser.add_argument("--era", required=True, type=str)
     parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--work-dir", required=True, type=str)
     parser.add_argument("--customisations", required=False, type=str, default=None)
@@ -339,7 +339,7 @@ if __name__ == "__main__":
 
     setup = Setup.getGlobal(
         os.environ["ANALYSIS_PATH"],
-        args.period,
+        args.era,
         args.LAWrunVersion,
         customisations=args.customisations,
         user_custom_file=args.user_custom,

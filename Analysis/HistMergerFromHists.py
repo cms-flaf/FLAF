@@ -146,7 +146,7 @@ if __name__ == "__main__":
     parser.add_argument("--dataset_names", required=True, type=str)
     parser.add_argument("--var", required=True, type=str)
     parser.add_argument("--outFile", required=True, type=str)
-    parser.add_argument("--period", required=True, type=str)
+    parser.add_argument("--era", required=True, type=str)
     parser.add_argument(
         "--uncSources",
         required=False,
@@ -163,7 +163,7 @@ if __name__ == "__main__":
 
     setup = Setup.Setup(
         os.environ["ANALYSIS_PATH"],
-        args.period,
+        args.era,
         args.LAWrunVersion,
         user_custom_file=args.user_custom,
     )

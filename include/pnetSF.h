@@ -7,10 +7,10 @@
 // https://github.com/LLRCMS/KLUBAnalysis/blob/10821fdc58f6bdb68b0142740f05b8c9f6e23bf9/src/pnetSF.cc#L5
 // 0 = signal, 1 = ttbar , 2 = dy , 3 = other
 
-std::map<std::string, std::vector<float>> getSFmap(float pT_, const std::string &period_, const int whichType) {
+std::map<std::string, std::vector<float>> getSFmap(float pT_, const std::string &era_, const int whichType) {
     std::map<std::string, std::vector<float>> scaleFactors;
     if (whichType == 0) {
-        if (period_ == "Run2_2016_HIPM") {
+        if (era_ == "Run2_2016_HIPM") {
             if (pT_ < 500) {
                 scaleFactors["Tight"] = {1.054, 0.080, -0.077};
                 scaleFactors["Medium"] = {1.052, 0.087, -0.081};
@@ -24,7 +24,7 @@ std::map<std::string, std::vector<float>> getSFmap(float pT_, const std::string 
                 scaleFactors["Medium"] = {0.996, 0.101, -0.097};
                 scaleFactors["Loose"] = {1.002, 0.106, -0.101};
             }
-        } else if (period_ == "Run2_2016") {
+        } else if (era_ == "Run2_2016") {
             if (pT_ < 500) {
                 scaleFactors["Tight"] = {1.031, 0.050, -0.046};
                 scaleFactors["Medium"] = {1.029, 0.051, -0.045};
@@ -38,7 +38,7 @@ std::map<std::string, std::vector<float>> getSFmap(float pT_, const std::string 
                 scaleFactors["Medium"] = {1.077, 0.067, -0.059};
                 scaleFactors["Loose"] = {1.057, 0.077, -0.056};
             }
-        } else if (period_ == "Run2_2017") {
+        } else if (era_ == "Run2_2017") {
             if (pT_ < 500) {
                 scaleFactors["Tight"] = {1.055, 0.057, -0.054};
                 scaleFactors["Medium"] = {1.006, 0.052, -0.052};
@@ -52,7 +52,7 @@ std::map<std::string, std::vector<float>> getSFmap(float pT_, const std::string 
                 scaleFactors["Medium"] = {0.991, 0.038, -0.043};
                 scaleFactors["Loose"] = {0.979, 0.035, -0.038};
             }
-        } else if (period_ == "Run2_2018") {
+        } else if (era_ == "Run2_2018") {
             if (pT_ < 500) {
                 scaleFactors["Tight"] = {0.994, 0.064, -0.064};
                 scaleFactors["Medium"] = {0.966, 0.056, -0.057};
@@ -70,7 +70,7 @@ std::map<std::string, std::vector<float>> getSFmap(float pT_, const std::string 
     } else if (whichType == 1) {
         // HP and MP SFs- defaultto 1
         // TTLikeSFs
-        if (period_ == "Run2_2016_HIPM") {
+        if (era_ == "Run2_2016_HIPM") {
             if (pT_ < 300) {
                 scaleFactors["Tight"] = {1., 0., 0.};
                 scaleFactors["Medium"] = {1., 0., 0.};
@@ -88,7 +88,7 @@ std::map<std::string, std::vector<float>> getSFmap(float pT_, const std::string 
                 scaleFactors["Medium"] = {1., 0., 0.};
                 scaleFactors["Loose"] = {1., 0., 0.};
             }
-        } else if (period_ == "Run2_2016") {
+        } else if (era_ == "Run2_2016") {
             if (pT_ < 300) {
                 scaleFactors["Tight"] = {1., 0., 0.};
                 scaleFactors["Medium"] = {1., 0., 0.};
@@ -107,7 +107,7 @@ std::map<std::string, std::vector<float>> getSFmap(float pT_, const std::string 
                 scaleFactors["Medium"] = {1., 0., 0.};
                 scaleFactors["Loose"] = {1., 0., 0.};
             }
-        } else if (period_ == "Run2_2017") {
+        } else if (era_ == "Run2_2017") {
             if (pT_ < 300) {
                 scaleFactors["Tight"] = {1., 0., 0.};
                 scaleFactors["Medium"] = {1., 0., 0.};
@@ -126,7 +126,7 @@ std::map<std::string, std::vector<float>> getSFmap(float pT_, const std::string 
                 scaleFactors["Medium"] = {1., 0., 0.};
                 scaleFactors["Loose"] = {1., 0., 0.};
             }
-        } else if (period_ == "Run2_2018") {
+        } else if (era_ == "Run2_2018") {
             if (pT_ < 300) {
                 scaleFactors["Tight"] = {1., 0., 0.};
                 scaleFactors["Medium"] = {1., 0., 0.};
@@ -149,7 +149,7 @@ std::map<std::string, std::vector<float>> getSFmap(float pT_, const std::string 
     } else if (whichType == 2) {
         // HP and MP SFs- defaultto 1
         // DYLikeSFs
-        if (period_ == "Run2_2016_HIPM") {
+        if (era_ == "Run2_2016_HIPM") {
             if (pT_ < 300) {
                 scaleFactors["Tight"] = {1., 0., 0.};
                 scaleFactors["Medium"] = {1., 0., 0.};
@@ -167,7 +167,7 @@ std::map<std::string, std::vector<float>> getSFmap(float pT_, const std::string 
                 scaleFactors["Medium"] = {1., 0., 0.};
                 scaleFactors["Loose"] = {1., 0., 0.};
             }
-        } else if (period_ == "Run2_2016") {
+        } else if (era_ == "Run2_2016") {
             if (pT_ < 300) {
                 scaleFactors["Tight"] = {1., 0., 0.};
                 scaleFactors["Medium"] = {1., 0., 0.};
@@ -185,7 +185,7 @@ std::map<std::string, std::vector<float>> getSFmap(float pT_, const std::string 
                 scaleFactors["Medium"] = {1., 0., 0.};
                 scaleFactors["Loose"] = {1., 0., 0.};
             }
-        } else if (period_ == "Run2_2017") {
+        } else if (era_ == "Run2_2017") {
             if (pT_ < 300) {
                 scaleFactors["Tight"] = {1., 0., 0.};
                 scaleFactors["Medium"] = {1., 0., 0.};
@@ -203,7 +203,7 @@ std::map<std::string, std::vector<float>> getSFmap(float pT_, const std::string 
                 scaleFactors["Medium"] = {1., 0., 0.};
                 scaleFactors["Loose"] = {1., 0., 0.};
             }
-        } else if (period_ == "Run2_2018") {
+        } else if (era_ == "Run2_2018") {
             if (pT_ < 300) {
                 scaleFactors["Tight"] = {1., 0., 0.};
                 scaleFactors["Medium"] = {1., 0., 0.};
@@ -232,8 +232,8 @@ std::map<std::string, std::vector<float>> getSFmap(float pT_, const std::string 
 }
 
 float getSFPNet(
-    float pT_, const std::string &period_, const std::string &scale, const std::string &WP, const int whichType) {
-    std::vector<float> SF = getSFmap(pT_, period_, whichType)[WP];
+    float pT_, const std::string &era_, const std::string &scale, const std::string &WP, const int whichType) {
+    std::vector<float> SF = getSFmap(pT_, era_, whichType)[WP];
     if (scale == "Up") {
         return SF[0] + SF[1];
     }

@@ -141,7 +141,7 @@ def createAnalysisCache(
     setup,
     dataset_name,
     inFileName,
-    period,
+    era,
     cacheFileNames,
     snapshotOptions,
     producer_to_run,
@@ -172,10 +172,10 @@ def createAnalysisCache(
     producer_params = inspect.signature(producer_class).parameters
     if "global_params" in producer_params:
         producer = producer_class(
-            producer_config, producer_to_run, period, setup.global_params
+            producer_config, producer_to_run, era, setup.global_params
         )
     else:
-        producer = producer_class(producer_config, producer_to_run, period)
+        producer = producer_class(producer_config, producer_to_run, era)
     saveAs = producer_config.get("save_as", "root")
 
     tmp_fileNames = []
@@ -263,7 +263,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--period", required=True, type=str)
+    parser.add_argument("--era", required=True, type=str)
     parser.add_argument("--inFile", required=True, type=str)
     parser.add_argument("--outFile", required=True, type=str)
     parser.add_argument("--cacheFiles", required=False, type=str, default=None)
@@ -296,7 +296,7 @@ if __name__ == "__main__":
 
     setup = Setup.getGlobal(
         os.environ["ANALYSIS_PATH"],
-        args.period,
+        args.era,
         args.LAWrunVersion,
         user_custom_file=args.user_custom,
     )
@@ -351,7 +351,7 @@ if __name__ == "__main__":
         setup=setup,
         dataset_name=args.dataset,
         inFileName=args.inFile,
-        period=args.period,
+        era=args.era,
         cacheFileNames=cacheFileNames,
         snapshotOptions=snapshotOptions,
         producer_to_run=args.producer,

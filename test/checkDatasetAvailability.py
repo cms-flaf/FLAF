@@ -162,7 +162,7 @@ def collect_setup_datasets(ana_path, era):
     sys.modules.setdefault("ROOT", mock.MagicMock())
     from FLAF.Common.Setup import Setup
 
-    setup = Setup(ana_path=ana_path, period=era, law_run_version="test")
+    setup = Setup(ana_path=ana_path, era=era, law_run_version="test")
     versions = setup.global_params.get("nanoAODVersions", {}) or {}
     result = {}
     for name, dataset in setup.datasets.items():

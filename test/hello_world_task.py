@@ -46,7 +46,7 @@ class HelloWorldTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 
     def output(self):
         return self.remote_target(
-            self.version, self.__class__.__name__, self.period, "hello_world_done.txt"
+            self.version, self.__class__.__name__, self.era[0], "hello_world_done.txt"
         )
 
     def _probe_grid_access(self):

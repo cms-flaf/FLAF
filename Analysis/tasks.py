@@ -85,7 +85,7 @@ def _anaTuple_outputs(task):
         customisations=task.customisations,
         max_runtime=AnaTupleMergeTask.max_runtime._default,
     )
-    key = (wf.version, wf.period, wf.customisations)
+    key = (wf.version, wf.era, wf.customisations)
     cache = _anaTuple_outputs_cache.get(key)
     if cache is None:
         cache = wf.all_branch_outputs()
@@ -436,7 +436,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
             else input_name
         )
         output_path = os.path.join(
-            self.version, "HistTuples", self.period, dataset_name, outFileName
+            self.version, "HistTuples", self.era[0], dataset_name, outFileName
         )
         return self.remote_target(output_path, fs=self.fs_HistTuple)
 
@@ -483,8 +483,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
                 dataset_name,
                 "--histTupleDef",
                 histTupleDef,
-                "--period",
-                self.period,
+                "--era",
+                self.era[0],
                 "--channels",
                 channels,
                 "--LAWrunVersion",
@@ -687,7 +687,7 @@ class HistFromNtupleProducerTask(
             output_path = os.path.join(
                 self.version,
                 "Hists_split",
-                self.period,
+                self.era[0],
                 var_name,
                 dataset_name,
                 f"chunk_{chunk_id}.root",
@@ -767,8 +767,8 @@ class HistFromNtupleProducerTask(
             cmd = [
                 "python3",
                 HistFromNtupleProducer,
-                "--period",
-                self.period,
+                "--era",
+                self.era[0],
                 "--outDir",
                 out_dir,
                 "--channels",
@@ -918,7 +918,7 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     @workflow_condition.output
     def output(self):
         var_name, br_indices, datasets = self.branch_data
-        output_path = os.path.join(self.version, "Hists_merged", self.period, var_name)
+        output_path = os.path.join(self.version, "Hists_merged", self.era[0], var_name)
         output_file_name = os.path.join(output_path, f"{var_name}.root")
         return self.remote_target(output_file_name, fs=self.fs_HistTuple)
 
@@ -939,7 +939,7 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         uncNames = ["Central"]
         unc_cfg_dict = self.setup.weights_config
         uncs_to_exclude = (self.global_params.get("uncs_to_exclude") or {}).get(
-            self.period, []
+            self.era[0], []
         )
         compute_unc_histograms = (
             customisation_dict["compute_unc_histograms"] == "True"
@@ -1004,8 +1004,8 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     ",".join(uncNames),
                     "--channels",
                     channels,
-                    "--period",
-                    self.period,
+                    "--era",
+                    self.era[0],
                     "--LAWrunVersion",
                     self.version,
                 ]
@@ -1213,7 +1213,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
             self.version,
             "AnalysisCache",
             self.producer_to_run,
-            self.period,
+            self.era[0],
             dataset_name,
             outFileName,
         )
@@ -1268,8 +1268,8 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                     analysisCacheProducer_cmd = [
                         "python3",
                         analysis_cache_producer,
-                        "--period",
-                        self.period,
+                        "--era",
+                        self.era[0],
                         "--inFile",
                         local_input.abspath,
                         "--outFile",
@@ -1472,7 +1472,7 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     rel_path = os.path.join(
                         self.version,
                         "Plots",
-                        self.period,
+                        self.era[0],
                         var,
                         custom_region,
                         cat,
@@ -1485,7 +1485,7 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 
     def run(self):
         var = self.branch_data
-        era = self.period
+        era = self.era[0]
         ver = self.version
         customisation_dict = getCustomisationSplit(self.customisations)
 
@@ -1558,8 +1558,8 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     plot_analysis,
                     "--ana_path",
                     self.ana_path(),
-                    "--period",
-                    self.period,
+                    "--era",
+                    self.era[0],
                     "--LAWrunVersion",
                     self.version,
                 ]
@@ -1727,7 +1727,7 @@ class AnalysisCacheAggregationTask(
             self.version,
             "AnalysisCacheAggregation",
             self.producer_to_aggregate,
-            self.period,
+            self.era[0],
             sample_name,
             output_name,
         )
@@ -1755,8 +1755,8 @@ class AnalysisCacheAggregationTask(
                 cacheAggregator,
                 "--outFile",
                 tmpFile,
-                "--period",
-                self.period,
+                "--era",
+                self.era[0],
                 "--producer",
                 self.producer_to_aggregate,
                 "--LAWrunVersion",
@@ -1784,7 +1784,7 @@ class PreHistTupleProductionTask(HistTupleProducerTask):
 
     Reuses HistTupleProducerTask's dependency graph (AnaTupleMerge + AnalysisCache +
     aggregation) but replaces the per-branch histTuple output with a small completion
-    marker, so a single ``law run PreHistTupleProductionTask --version ... --period ...``
+    marker, so a single ``law run PreHistTupleProductionTask --version ... --era ...``
     runs the entire AnaTuple/AnalysisCache subset (e.g. to freeze and share the caches, as
     AnaTupleMergeTask outputs already can be)."""
 
@@ -1804,7 +1804,7 @@ class PreHistTupleProductionTask(HistTupleProducerTask):
         output_path = os.path.join(
             self.version,
             "PreHistTupleProduction",
-            self.period,
+            self.era[0],
             dataset_name,
             os.path.basename(input.abspath) + ".done",
         )

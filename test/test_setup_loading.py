@@ -87,7 +87,7 @@ def test_setup_loading(eras):
     for era in eras:
         print(f"\nTesting era: {era}")
         try:
-            setup = Setup(ana_path=ana_path, period=era, law_run_version="test")
+            setup = Setup(ana_path=ana_path, era=era, law_run_version="test")
 
             assert setup.global_params is not None, "global_params is None"
             assert len(setup.global_params.keys()) > 0, "global_params is empty"

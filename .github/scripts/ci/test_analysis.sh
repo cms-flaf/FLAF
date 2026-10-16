@@ -48,9 +48,11 @@ fs_default:
 EOF
 mkdir -p "${CI_OUTPUT_DIR}"
 
-echo "Running task: ${ANALYSIS_TASK} ${ANALYSIS_ARGS} for era: ${ERA}"
+era_flag="$(law_era_flag)"
+era_value="$(law_era_value "${era_flag}")"
+echo "Running task: ${ANALYSIS_TASK} ${ANALYSIS_ARGS} for ${era_flag} ${era_value}"
 # shellcheck disable=SC2086
-law run "${ANALYSIS_TASK}" --version CI --period "${ERA}" --workflow local \
+law run "${ANALYSIS_TASK}" --version CI "${era_flag}" "${era_value}" --workflow local \
   --workers "${LAW_WORKERS}" --user-custom "${GHA_CUSTOM_CONFIG}" ${ANALYSIS_ARGS}
 
-echo "=== Task ${ANALYSIS_TASK} (${ERA}) completed successfully ==="
+echo "=== Task ${ANALYSIS_TASK} (${era_value}) completed successfully ==="

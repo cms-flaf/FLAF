@@ -154,7 +154,7 @@ See [CI / GitHub Actions](../ci/github-actions.md).
    immediately with `no member named '<era>' in 'Period'`.
 3. Create `<analysis>/config/<new_era>/` with the analysis-specific overrides and signals.
    In `triggers.yaml`, every `jsonTRGcorrection_key` map must include the
-   Corrections period name (`2026_Summer24` for `Run3_2026`). Missing keys
+   Corrections campaign name (`2026_Summer24` for `Run3_2026`). Missing keys
    fail MC jobs with `KeyError` in `TrigCorrProducer`. Until a 2026
    Electron-ID-SF JSON is published, `EleCorrProducer` evaluates that
    correction with year `2025Prompt` (the only year key in the 2025 file
@@ -167,4 +167,4 @@ See [CI / GitHub Actions](../ci/github-actions.md).
    [`cms-flaf/FLAF_ci`](https://github.com/cms-flaf/FLAF_ci) if it should be part of CI runs.
    See [Integration pipeline](../ci/integration-pipeline.md#integration_cfgyaml).
 
-See also [Eras & periods](../concepts/eras.md).
+See also [Eras](../concepts/eras.md).

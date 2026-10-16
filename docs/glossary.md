@@ -31,7 +31,9 @@ Framework and CMS-computing vocabulary, in plain terms. For the quick on-ramp ve
   triggers, …). The analysis configuration (`corrections:` in `global.yaml`, optionally per
   dataset or process) gives each correction the stage(s) where it is applied: `AnaTuple`
   (anaTuple production), `AnaTupleMerge`, `AnalysisCache` or `HistTuple` (e.g. HH→bb̄ττ applies
-  its τ-ID, muon, electron and trigger scale factors at `HistTuple`).
+  its τ-ID, muon, electron and trigger scale factors at `HistTuple`). A `Corrections` object is built
+  per dataset, era and stage and handed to the analysis hooks as `corrections=` (see
+  [Architecture](concepts/architecture.md#corrections-in-the-analysis-hooks)).
 
 **CMSSW**
 : The CMS software framework, installed by `env.sh` under `soft/`. Pipeline steps that need it
@@ -57,8 +59,8 @@ Framework and CMS-computing vocabulary, in plain terms. For the quick on-ramp ve
 : One CMS sample (a simulated process or a chunk of data), declared under a short name (e.g.
   `TTto2L2Nu`) in `datasets.yaml`, with its DAS name per NanoAOD version in `nanoAOD:`. See [Datasets](configuration/datasets.md).
 
-**Era** / **period**
-: A CMS data-taking period (`Run3_2022`, `Run3_2023BPix`, …), passed as `--period`. Selects
+**Era**
+: A CMS data-taking period (`Run3_2022`, `Run3_2023BPix`, …), passed as `--era`. Selects
   datasets, corrections and the NanoAOD version. See [Eras](concepts/eras.md).
 
 **Filesystem (`fs_*`)**

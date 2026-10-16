@@ -10,7 +10,7 @@ the command is otherwise the same.
 
 ```sh
 law run FLAF.AnaProd.tasks.AnaTupleFileTask \
-  --period Run3_2022 --version prod \
+  --era Run3_2022 --version prod \
   --workflow htcondor \
   --parallel-jobs 100
 ```
@@ -18,7 +18,7 @@ law run FLAF.AnaProd.tasks.AnaTupleFileTask \
 | Option | Why you want it |
 |---|---|
 | `--workflow htcondor` | Submit branches as batch jobs instead of running locally. |
-| `--transfer-logs` | **On by default** (turn off with `--transfer-logs False`). Each job's combined stdout/stderr (`stdall*.txt`) is kept: with a remote `fs_default` the job uploads it to `<version>/logs/<Task>/<period>/` on `fs_default` (plus the producer name for per-producer tasks) as `stdall_<first>To<end>_<cluster>.<proc>.txt` (branches `<first>` to `<end>` − 1; `<cluster>.<proc>` is the HTCondor job id), so every attempt of a resubmitted job keeps its own log, and `--print-status` points there; with a local `fs_default` the log is part of the job's output sandbox: HTCondor copies it back to the task's `data/<version>/<Task>/<period>/` directory only with `--htcondor-spool False`, since with the default `-spool` the sandbox stays on the schedd until `condor_transfer_data` is run (law does not run it). |
+| `--transfer-logs` | **On by default** (turn off with `--transfer-logs False`). Each job's combined stdout/stderr (`stdall*.txt`) is kept: with a remote `fs_default` the job uploads it to `<version>/logs/<Task>/<era>/` on `fs_default` (plus the producer name for per-producer tasks) as `stdall_<first>To<end>_<cluster>.<proc>.txt` (branches `<first>` to `<end>` − 1; `<cluster>.<proc>` is the HTCondor job id), so every attempt of a resubmitted job keeps its own log, and `--print-status` points there; with a local `fs_default` the log is part of the job's output sandbox: HTCondor copies it back to the task's `data/<version>/<Task>/<era>/` directory only with `--htcondor-spool False`, since with the default `-spool` the sandbox stays on the schedd until `condor_transfer_data` is run (law does not run it). |
 | `--parallel-jobs 100` | Cap how many jobs are in flight at once. Be a good citizen on the shared pool; very large uncapped submissions are discouraged. |
 | `--branches 0:100` | Submit only a subset (e.g. to retry a range); `start:end` excludes the end, so this is branches 0–99. |
 
@@ -91,7 +91,7 @@ missing ones — batch jobs fail and time out, and resuming is normal. Check pro
 
 ```sh
 law run FLAF.AnaProd.tasks.AnaTupleFileTask \
-  --period Run3_2022 --version prod --workflow htcondor --print-status 1,1
+  --era Run3_2022 --version prod --workflow htcondor --print-status 1,1
 ```
 
 Standard `condor_q` / `condor_status` work for the underlying jobs.
@@ -112,7 +112,7 @@ A batch worker needs your code and environment. FLAF supports two modes:
 flowchart TD
     S["law run ... (batch workflow)"]
     A["job receives ANALYSIS_PATH,<br/>FLAF_PATH, CORRECTIONS_PATH;<br/>bootstrap sources env.sh<br/>from AFS"]
-    B["BundleTask packs each<br/>declared flavour to fs_default:<br/>{version}/bundles/{period}/"]
+    B["BundleTask packs each<br/>declared flavour to fs_default:<br/>{version}/bundles/{era}/"]
     W["job downloads the tarballs,<br/>sets FLAF_NO_INSTALL=1,<br/>sources env.sh from the bundle"]
     S -- "htcondor<br/>without --bundle" --> A
     S -- "htcondor --bundle,<br/>or crab" --> B
@@ -125,6 +125,10 @@ are on (AnaTuple production, for example, adds `cmssw` when it runs in CMSSW). B
 remote `fs_default`. For most work the non-bundle default is correct; use `--bundle` when AFS is
 not available on the target pool.
 
+The `patterns` of a flavour (in the analysis `global.yaml`) can use `{era}` and `{version}`. The former
+`{period}` is refused with `… use {period}, which was renamed to {era}`; the bundle URI
+(`<version>/bundles/<era>/`) is unchanged.
+
 ### A bundle waits for everything it packs
 
 A flavour that packs the output of a task declares it in `task_requires`, and a flavour that
@@ -133,8 +137,8 @@ packs the output of *several* tasks lists all of them:
 ```yaml
   AnaTupleFileList:
     patterns:
-      - data/{version}/AnaTupleFileListBuilderTask/{period}
-      - data/{version}/AnaTupleFileListTask/{period}
+      - data/{version}/AnaTupleFileListBuilderTask/{era}
+      - data/{version}/AnaTupleFileListTask/{era}
     task_requires:
       - module: FLAF.AnaProd.tasks
         class: AnaTupleFileListBuilderTask
@@ -144,7 +148,7 @@ packs the output of *several* tasks lists all of them:
 
 With only the first one listed the bundle is packed as soon as the builder is done, while the
 per-dataset lists of the second are still being written, and the jobs receive a tarball that
-is missing them. FLAF warns when a packed `data/<version>/<Task>/<period>` directory has no
+is missing them. FLAF warns when a packed `data/<version>/<Task>/<era>` directory has no
 matching entry. The producers are requested with the workflow the submission was started
 with, so they are the same task instances the rest of the graph waits on.
 

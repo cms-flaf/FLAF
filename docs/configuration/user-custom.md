@@ -112,7 +112,7 @@ YAML with `--user-custom`. It is loaded *after* every configuration file, `user_
 
 ```sh
 law run FLAF.Analysis.tasks.HistPlotTask \
-  --version my_test --period Run3_2022 --workflow local --branches 0 --test 1000 \
+  --version my_test --era Run3_2022 --workflow local --branches 0 --test 1000 \
   --user-custom /path/to/extra.yaml
 ```
 

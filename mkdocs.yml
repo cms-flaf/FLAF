@@ -81,7 +81,7 @@ nav:
       - Tasks & LAW: concepts/tasks-and-law.md
       - Data flow: concepts/data-flow.md
       - Configuration system: concepts/configuration.md
-      - Eras & periods: concepts/eras.md
+      - Eras: concepts/eras.md
       - MC stitching: concepts/stitching.md
       - Storage & filesystems: concepts/storage.md
       - The environment: concepts/environment.md

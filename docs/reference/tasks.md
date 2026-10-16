@@ -1,7 +1,7 @@
 # Task reference
 
 A concise reference for every FLAF task: what it does, what it branches over, and its task-specific
-parameters. The **common** parameters (`--version`, `--period`, `--workflow`, `--branches`,
+parameters. The **common** parameters (`--version`, `--era`, `--workflow`, `--branches`,
 `--test`, …) apply to all of them and are documented in [Command arguments](../workflow/arguments.md).
 
 Production tasks live in `FLAF/AnaProd/tasks.py` (invoke as `FLAF.AnaProd.tasks.<Name>`); analysis
@@ -215,7 +215,7 @@ producing histTuples. It shares `HistTupleProducerTask`'s dependency graph but w
 per-branch completion marker, so a single
 
 ```sh
-law run FLAF.Analysis.tasks.PreHistTupleProductionTask --version <v> --period <era> --workflow local
+law run FLAF.Analysis.tasks.PreHistTupleProductionTask --version <v> --era <era> --workflow local
 ```
 
 forces every `AnaTupleMergeTask` and `AnalysisCacheTask` (plus their aggregation) to run — handy

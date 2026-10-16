@@ -3,9 +3,9 @@
 The most common ways a FLAF run goes wrong, and how to fix them. If your symptom is not here, check
 the job logs and the task status (`--print-status 3,1`). HTCondor and CRAB jobs keep their logs by
 default (`--transfer-logs` defaults to on, so it need not be passed): when `fs_default` is remote
-storage they are staged to `<version>/logs/<task>/<period>/` there (the two analysis-cache tasks
+storage they are staged to `<version>/logs/<task>/<era>/` there (the two analysis-cache tasks
 add a `<producer>/` level; locally only `AnalysisCacheTask` does). With a local `fs_default` the log stays in the job's output sandbox: HTCondor
-copies it to `data/<version>/<task>/<period>/` in the checkout only with `--htcondor-spool False`;
+copies it to `data/<version>/<task>/<era>/` in the checkout only with `--htcondor-spool False`;
 with the default `-spool` it remains on the schedd until retrieved with `condor_transfer_data`. LAW names a failed job's log file in its output.
 
 ## `law: command not found`
@@ -34,10 +34,23 @@ answers. When it says `… is listed in … but not seen as a directory` and per
 is no reachable directory (a file, a broken link) sits at `soft/flaf_env`: move it away by hand. See
 [The environment](concepts/environment.md#what-envsh-sets-up).
 
+## `'period' was renamed to 'era' (--era)`
+The `period` parameter is gone. Use `--era Run3_2022` instead of `--period Run3_2022`, `era=` instead of
+`period=` in code, and `{era}` instead of `{period}` in a bundle pattern (the message then reads
+`… use {period}, which was renamed to {era}`). The same message is raised for `--<Task>-period` and for a
+`period` entry in the `[<Task>]` section of a law/luigi config file: replace it by `--era` on the command
+line. Outputs written before the rename are found as before, since the paths never changed.
+
+## `the eras are set once per invocation, with --era`
+`--<Task>-era` (or `era` in a `[<Task>]` config section) is refused: the era is a single value given to
+`law run` once and passed to every task of the run. A value with several eras
+(`--era Run3_2022,Run3_2023`) stops with `several eras in one task are not supported yet`: launch the
+run once per era. An unknown era lists the known ones.
+
 ## A run unexpectedly drops into `InputFileTask` / Rucio errors
 For a from-scratch production, `InputFileTask` running first is normal. But if a run that should
 reuse existing outputs keeps re-resolving inputs, or fails here, the cause is almost always a
-**wrong `--period` or `--version`** (so the expected upstream outputs aren't found and LAW falls
+**wrong `--era` or `--version`** (so the expected upstream outputs aren't found and LAW falls
 back to regenerating them), or an **expired proxy**. Double-check the era/version, and:
 
 ```sh

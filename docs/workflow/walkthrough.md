@@ -41,7 +41,7 @@ ERA=Run3_2022
 VER=dev
 ```
 
-Throughout, `--period $ERA` selects the [era](../concepts/eras.md) and `--version $VER` namespaces
+Throughout, `--era $ERA` selects the [era](../concepts/eras.md) and `--version $VER` namespaces
 the [outputs](../concepts/data-flow.md#versions-keep-productions-apart). Add `--workflow local`
 to run on this machine; switch to `--workflow htcondor` to scale up
 ([HTCondor guide](htcondor.md)). Always pass `--workflow`: without it, LAW submits to HTCondor.
@@ -60,17 +60,17 @@ Everything else depends on it, so it runs first — automatically when you launc
 explicitly:
 
 ```sh
-law run FLAF.AnaProd.tasks.InputFileTask --period $ERA --version $VER --workflow local
+law run FLAF.AnaProd.tasks.InputFileTask --era $ERA --version $VER --workflow local
 ```
 
 It always runs locally and is fast and cheap. If a from-scratch run unexpectedly *stays* in
-`InputFileTask` or fails here, suspect a wrong `--period`/`--version` or an expired proxy.
+`InputFileTask` or fails here, suspect a wrong `--era`/`--version` or an expired proxy.
 
 ## Stage 1 — Produce and merge analysis ntuples (anaTuples)
 
 `AnaTupleFileTask` runs the producer (`AnaProd/anaTupleProducer.py`, driven by the analysis's
 `anaTupleDef`) over each NanoAOD file — **one branch per file** — applying the object selections
-and [corrections](../concepts/architecture.md#common-vs-analysis-specific) and writing a slimmed
+and [corrections](../concepts/architecture.md#common-vs-analysis-specific) (a `Corrections` object is built per dataset, era and stage) and writing a slimmed
 **anaTuple** plus a JSON report. It runs in the FLAF environment, or inside CMSSW when the analysis
 sets `use_cmssw_env_AnaTupleProduction: true` (HH→bb̄ττ does). Before the first production jobs,
 `AnaTupleCostProbeTask` times the producer on a few thousand events of one file per dataset so
@@ -86,10 +86,10 @@ several. All data datasets of the era are merged into one sample, `data`. See
 
 ```sh
 # Produce per-file anaTuples (heavy; normally on HTCondor):
-law run FLAF.AnaProd.tasks.AnaTupleFileTask --period $ERA --version $VER --workflow local
+law run FLAF.AnaProd.tasks.AnaTupleFileTask --era $ERA --version $VER --workflow local
 
 # Build the merge plans and merge (runs the steps above first if needed):
-law run FLAF.AnaProd.tasks.AnaTupleMergeTask --period $ERA --version $VER --workflow local
+law run FLAF.AnaProd.tasks.AnaTupleMergeTask --era $ERA --version $VER --workflow local
 ```
 
 !!! tip "Test on a few files first"
@@ -106,7 +106,7 @@ over each merged anaTuple file — **one branch per merged file** — computing 
 and final event weights and writing **histTuples**:
 
 ```sh
-law run FLAF.Analysis.tasks.HistTupleProducerTask --period $ERA --version $VER --workflow local
+law run FLAF.Analysis.tasks.HistTupleProducerTask --era $ERA --version $VER --workflow local
 ```
 
 !!! note "Analysis caches: payload producers run first"
@@ -134,10 +134,10 @@ variable** — ready for plotting and fitting.
 
 ```sh
 # Fill histograms (restrict variables with --variables, set files/job with --n-files-per-job):
-law run FLAF.Analysis.tasks.HistFromNtupleProducerTask --period $ERA --version $VER --workflow local
+law run FLAF.Analysis.tasks.HistFromNtupleProducerTask --era $ERA --version $VER --workflow local
 
 # Merge them:
-law run FLAF.Analysis.tasks.HistMergerTask --period $ERA --version $VER --workflow local
+law run FLAF.Analysis.tasks.HistMergerTask --era $ERA --version $VER --workflow local
 ```
 
 Which variables are produced is controlled by the analysis config and can be narrowed with the
@@ -149,9 +149,9 @@ or the `variables:` list in `user_custom.yaml`.
 `HistPlotTask` produces the final plots — **one branch per variable**:
 
 ```sh
-law run FLAF.Analysis.tasks.HistPlotTask --period $ERA --version $VER --workflow local
+law run FLAF.Analysis.tasks.HistPlotTask --era $ERA --version $VER --workflow local
 # one variable only:
-law run FLAF.Analysis.tasks.HistPlotTask --period $ERA --version $VER --workflow local --branches 0
+law run FLAF.Analysis.tasks.HistPlotTask --era $ERA --version $VER --workflow local --branches 0
 ```
 
 This is the task you most often launch directly: asking for the plots makes LAW produce every
@@ -174,7 +174,7 @@ inference** page (linked from [Analyses](../analyses.md)) and the
 
 ```sh
 law run PlotResonantLimitsTask --version $VER --hists-version <VERSION_OF_THE_MERGED_HISTS> \
-  --period $ERA --workflow local
+  --era $ERA --workflow local
 ```
 
 It runs `PreprocessShapesTask` (only when the configuration declares a `preprocess:` step), then
@@ -214,7 +214,7 @@ You rarely run the stages one by one. Because every task knows its dependencies,
 stage runs all missing upstream stages automatically:
 
 ```sh
-law run FLAF.Analysis.tasks.HistPlotTask --period $ERA --version $VER --workflow local
+law run FLAF.Analysis.tasks.HistPlotTask --era $ERA --version $VER --workflow local
 ```
 
 This holds for stages 0–4; the Stage 5 chain does not produce the merged histograms it reads. Run
@@ -225,11 +225,11 @@ the individual stages explicitly only when you want to **stop at** an intermedia
 
 ```sh
 # Status of the whole tree (task depth 3, target-collection depth 1) — also prints output paths:
-law run FLAF.Analysis.tasks.HistPlotTask --period $ERA --version $VER --workflow local --print-status 3,1
+law run FLAF.Analysis.tasks.HistPlotTask --era $ERA --version $VER --workflow local --print-status 3,1
 
 # Force one stage to be recomputed (remove its outputs, then run it) — keep --workflow, or the
 # re-run goes to HTCondor:
-law run FLAF.Analysis.tasks.HistMergerTask --period $ERA --version $VER --workflow local --remove-output 0,a,y
+law run FLAF.Analysis.tasks.HistMergerTask --era $ERA --version $VER --workflow local --remove-output 0,a,y
 ```
 
 See [Command arguments](arguments.md) for the full option list, and [Running on HTCondor](htcondor.md)

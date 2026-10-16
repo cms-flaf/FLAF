@@ -204,7 +204,7 @@ flowchart TD
   the analysis's `config/ci_custom.yaml` to `config/user_custom.yaml` and runs
 
     ```sh
-    law run <task> --version CI --period <era> --workflow local --workers $LAW_WORKERS <ana>_args
+    law run <task> --version CI --era <era> --workflow local --workers $LAW_WORKERS <ana>_args
     ```
 
     (plus `--process <proc>` in the `test_dataset` jobs). A failed `law run` is retried once;
@@ -215,7 +215,7 @@ flowchart TD
     | Target task | `test_dataset` (per era and process) | `test_era` (per era) | `test_multi_era` |
     |---|---|---|---|
     | `FLAF.Analysis.tasks.NanoAODProducerTask` (listed by the generator, but no such task exists in FLAF), `…HistTupleProducerTask` or `…HistFromNtupleProducerTask` | the target | — | — |
-    | Full name contains `Combine` or `Inference` (e.g. HH_bbWW's `StatInference.law.tasks.ResonantLimitsAndHistPlotTask`) | `HistFromNtupleProducerTask` | `HistPlotTask` | the target, once, with `--period` set to the first era |
+    | Full name contains `Combine` or `Inference` (e.g. HH_bbWW's `StatInference.law.tasks.ResonantLimitsAndHistPlotTask`) | `HistFromNtupleProducerTask` | `HistPlotTask` | the target, once, with `--era` set to the first era |
     | Anything else (e.g. `FLAF.Analysis.tasks.HistPlotTask`) | `HistFromNtupleProducerTask` | the target | — |
 
     The test is a substring match on the full task name, so any task under `StatInference.`
@@ -286,7 +286,7 @@ test job does:
 
 ```sh
 cp config/ci_custom.yaml ci_local.yaml     # then point fs_default at a local path
-law run FLAF.Analysis.tasks.HistPlotTask --version CI --period Run3_2022 --workflow local \
+law run FLAF.Analysis.tasks.HistPlotTask --version CI --era Run3_2022 --workflow local \
     --test 1000 --user-custom ci_local.yaml
 ```
 

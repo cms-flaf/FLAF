@@ -84,7 +84,7 @@ Each of these has caused a production incident. They are ordered by how much dam
   the identity is not set; it must never fall back to the plain name.
 - **A flavour must list every task whose output it packs** in `task_requires`. Miss one and the
   tarball is built while that task is still writing. FLAF warns about a packed
-  `data/<version>/<Task>/<period>` directory that nothing requires; do not silence that warning.
+  `data/<version>/<Task>/<era>` directory that nothing requires; do not silence that warning.
 - Bundles preserve symlinks inside a packed directory verbatim. An absolute symlink into AFS
   therefore still sends every job back to AFS — which is what the bundle exists to avoid.
 
@@ -171,6 +171,24 @@ Each of these has caused a production incident. They are ordered by how much dam
   (`RunKit/grid_helper_tasks.py`): `voms-proxy-init` needs the certificate passphrase, so a run
   without a controlling terminal fails it, and removing the old proxy first left such a run with
   none, although it was still valid for hours.
+
+### Eras (`run_tools/law_customizations.py`, `Common/Setup.py`)
+
+- **The FLAF era is `era`; `period` no longer exists as a parameter, option, keyword or pattern.**
+  `--period`, `--<Task>-period`, `[<Task>] period` and `period=` must keep failing with `'period' was
+  renamed to 'era' (--era)`, and `--<Task>-era` with `the eras are set once per invocation, with --era`;
+  do not add a silent alias. The task parameter is `era = EraParameter(max_len=1)` (a sorted tuple of
+  unique known eras; one era per task for now). Payload scripts take `--era` (one value) and
+  `Setup(ana_path, era, version)` exposes `Setup.era`. Bundle patterns use `{era}`; `{period}` is refused.
+- **Names that stay `period` on purpose:** the AnaTuple column `period` (per-event C++ `Period`), the
+  C++ `Period` enum, `validity_period` cache settings. Output paths (`<version>/<Kind>/<era>/…`), bundle
+  URIs and job-file names are unchanged, so existing outputs must keep being found. Do not rename them.
+- **No global `Corrections`.** Payloads build one per dataset/era/stage with
+  `Utilities.CreateCorrections(setup, dataset_name, stage, aggregated_caches=None)` and pass it to the
+  analysis hooks as the required keyword `corrections=` (`addAllVariables`, `GetDfw`,
+  `DefineWeightForHistograms`). It must stay referenced for the dataframe's lifetime
+  (`dfw.corrections`): its C++ providers are referenced by address. Flag a hook reading a module-level
+  instance, and a `Corrections` created inside a function whose dataframe outlives it.
 
 ### Processors and stitching
 

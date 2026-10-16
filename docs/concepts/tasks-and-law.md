@@ -23,7 +23,7 @@ You almost never run the intermediate stages by hand. You ask for the task whose
 and LAW walks the dependency graph and runs whatever is missing, in order:
 
 ```sh
-law run FLAF.Analysis.tasks.HistPlotTask --version v1 --period Run3_2022 --workflow local
+law run FLAF.Analysis.tasks.HistPlotTask --version v1 --era Run3_2022 --workflow local
 ```
 
 Even though plotting is the *last* stage, this single command will (if needed) resolve input
@@ -105,7 +105,7 @@ LAW gives you commands to see and manage the state of the graph without running 
 
 ## Where do the common options come from?
 
-`--version`, `--period`, `--test`, `--customisations`, `--process`, `--user-custom` and the
+`--version`, `--era`, `--test`, `--customisations`, `--process`, `--user-custom` and the
 `--anaTuple-version` / `--anaCache-version` / `--ana-version` overrides are defined on FLAF's base
 task class (`Task` in `FLAF/run_tools/law_customizations.py`), so they are available on **every**
 FLAF task. `--workflow` and `--branches` come from LAW's workflow classes, and the HTCondor and

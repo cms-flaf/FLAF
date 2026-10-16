@@ -86,3 +86,20 @@ time, and the [data flow](data-flow.md) is what the shared tasks actually do wit
     `FLAF_PATH`/`CORRECTIONS_PATH` at an edited copy — see
     [The environment](environment.md#developing-shared-submodules) and
     [Contributing](../contributing.md).
+
+## Corrections in the analysis hooks
+
+There is no global `Corrections` instance. Each payload (`anaTupleProducer.py`, `HistTupleProducer.py`,
+the analysis-cache producers) builds one per dataset, era and stage with
+`Utilities.CreateCorrections(setup, dataset_name, stage, aggregated_caches=None)` and passes it to the
+analysis hooks as the **required keyword** `corrections=`:
+
+- `addAllVariables(..., *, corrections)` in `anaTupleDef` / `histTupleDef`,
+- `GetDfw(df, setup, dataset_name, *, corrections[, stage])`,
+- `DefineWeightForHistograms(..., corrections)`.
+
+A hook that needs a correction reads it from that argument, never from a module-level object. The
+instance is kept on the DataFrameWrapper (`dfw.corrections`) for as long as the dataframe lives: the
+C++ providers it creates are referenced by address, so a `Corrections` object that is dropped while
+its dataframe is still being evaluated crashes. Inside `Corrections` the POG campaign is called
+`campaign` (`campaign_names`) and the FLAF era `era`.

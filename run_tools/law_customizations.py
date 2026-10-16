@@ -1386,7 +1386,10 @@ class SubmissionGuards(LawProxyState):
       recorded-finished job keeps no job id) and a live one reported finished without them
       ("initially missing task outputs"), so a storage outage during that check, or outputs
       removed after use, would resubmit most of a production (DSProd: 8300 jobs). The run
-      stops instead and says why.
+      stops instead and says why. Each such job is first looked at again, and one whose
+      branches are complete is booked done rather than resubmitted.
+    * The existing outputs are gathered again when the workflow starts to run, not taken from
+      luigi's scheduling.
     """
 
     #: share of a resumed workflow's jobs that may come back for missing outputs in one go
@@ -1487,7 +1490,9 @@ class SubmissionGuards(LawProxyState):
         )
 
     def _stop_on_mass_lost_outputs(self, retry_jobs):
-        """Raise instead of resubmitting, when most of a resumed workflow lost its outputs.
+        """Book the jobs of a resumed run that came back for missing outputs done when their
+        branches are complete on a fresh look, and raise instead of resubmitting when most of
+        the workflow lost its outputs.
 
         Judged once, on the first retry generation of a resumed run: that is where law puts
         every job whose outputs went missing, and a later genuine failure must not be counted.
@@ -1498,13 +1503,14 @@ class SubmissionGuards(LawProxyState):
             return
         candidates = self._lost_output_candidates(retry_jobs)
         self._lost_outputs_judged = True
-        if not self._too_many_lost(len(candidates)):
+        if not candidates:
             return
-        # law judged from what it gathered while the workflow was scheduled, through cached
-        # existence answers: a live job may have finished since, and a branch may be complete
-        # by its task's own rule (e.g. inputs merged and replaced by markers). Only a job whose
-        # branches are incomplete on a fresh look counts as lost; the others are marked
-        # skippable, so that law's submit() passes them by and its next poll books them done.
+        # law judged from cached existence answers, and in its first poll it caches each job's
+        # verdict before it queries the batch system, so a job that finished in between comes
+        # back as "initially missing task outputs"; a branch may also be complete by its task's
+        # own rule (e.g. inputs merged and replaced by markers). Only a job whose branches are
+        # incomplete on a fresh look counts as lost; the others are marked skippable, so that
+        # law's submit() passes them by and its next poll books them done.
         require_fresh_negatives()
         skip_jobs = self._skip_jobs
         lost = []
@@ -1586,6 +1592,19 @@ class SubmissionGuards(LawProxyState):
         )
         self._park_retries(retry_jobs)
         return True
+
+    def run(self):
+        # law judges which outputs exist from what it gathered while luigi scheduled the
+        # workflow, through cached existence answers: a workflow scheduled before its inputs
+        # existed, or waiting for its turn, keeps that early "cannot be skipped", and a CRAB
+        # worker cannot reach the path-cache server, so an output written while no driver was
+        # polling still reads as absent there. Gather it again, with every "absent" resting on
+        # a listing taken from here on: otherwise the first poll of a resumed run sends
+        # finished branches back to the batch system.
+        require_fresh_negatives()
+        self._existing_branches = None
+        self._skip_jobs.clear()
+        return super(SubmissionGuards, self).run()
 
     def poll(self):
         self._snapshot_resumed_jobs()
@@ -2779,18 +2798,6 @@ class _FLAFCrabWorkflowProxy(SubmissionGuards, _FLAFCrabWorkflowProxyBase):
         # rather than at the first retry, deep inside a production
         self._crab_refill_fraction()
         self._crab_retry_release_minutes()
-
-    def run(self):
-        # law judges which outputs exist from what it gathered while luigi scheduled the
-        # workflow, through cached existence answers -- and a CRAB worker cannot reach the
-        # path-cache server, so an output written while no driver was polling (a restarted
-        # driver, a workflow waiting for its turn) still reads as absent there. Gather it
-        # again, with every "absent" resting on a listing taken from here on: otherwise the
-        # first poll of a resumed run sends finished branches back to the grid.
-        require_fresh_negatives()
-        self._existing_branches = None
-        self._skip_jobs.clear()
-        return super(_FLAFCrabWorkflowProxy, self).run()
 
     def _crab_number(self, key, default):
         """A finite number from the `crab:` config; a value that is not one is an error, not

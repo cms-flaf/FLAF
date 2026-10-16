@@ -160,17 +160,19 @@ class InputFileTask(Task, law.LocalWorkflow):
         """Per-file metadata, empty for lists produced before it was recorded."""
         return InputFileTask._load(input_file_list).get("file_info", {})
 
-    WF = None
-    WF_complete_ = False
+    # task_ids of the InputFileTask workflows found complete in this process. Only True is
+    # kept: an incomplete workflow is asked again, since it may complete during the run.
+    _WF_complete_ids = set()
 
     @staticmethod
     def WF_complete(ref_task):
-        if InputFileTask.WF_complete_:
+        wf = InputFileTask.req(ref_task, branch=-1, branches=())
+        if wf.task_id in InputFileTask._WF_complete_ids:
             return True
-        if InputFileTask.WF is None:
-            InputFileTask.WF = InputFileTask.req(ref_task, branch=-1, branches=())
-        InputFileTask.WF_complete_ = InputFileTask.WF.complete()
-        return InputFileTask.WF_complete_
+        if not wf.complete():
+            return False
+        InputFileTask._WF_complete_ids.add(wf.task_id)
+        return True
 
 
 class AnaTupleProducerMixin:
@@ -448,6 +450,9 @@ class AnaTupleFileTask(
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         branch_idx = 0
         branches = {}
         for dataset_id, dataset_name in self.iter_datasets():
@@ -735,15 +740,8 @@ class AnaTupleFileListBuilderTask(
             kwargs["version"] = ana_v
         super(AnaTupleFileListBuilderTask, self).__init__(*args, **kwargs)
 
-    _anaTuple_map_cache = None
-
-    @classmethod
-    def _get_anaTuple_map(cls, ref_task):
-        if cls._anaTuple_map_cache is None:
-            cls._anaTuple_map_cache = AnaTupleFileTask.req(
-                ref_task, branch=-1, branches=()
-            ).create_branch_map()
-        return cls._anaTuple_map_cache
+    def _get_anaTuple_map(self):
+        return AnaTupleFileTask.req(self, branch=-1, branches=()).create_branch_map()
 
     def workflow_requires(self):
         # When the Builder's own outputs (plan + reports on fs_anaTuple at this version) already
@@ -762,7 +760,7 @@ class AnaTupleFileListBuilderTask(
             reqs["inputFile"] = InputFileTask.req(self, branches=())
             return reqs
 
-        if not isinstance(self._get_anaTuple_map(self), dict):
+        if not isinstance(self._get_anaTuple_map(), dict):
             return reqs
         branch_set = set()
         for idx, (dataset_name, process_group) in self.branch_map.items():
@@ -778,7 +776,7 @@ class AnaTupleFileListBuilderTask(
         return reqs
 
     def _get_branch_set_for_dataset(self, dataset_name, process_group):
-        AnaTuple_map = self._get_anaTuple_map(self)
+        AnaTuple_map = self._get_anaTuple_map()
         branch_set = set()
         for br_idx, (anaTuple_dataset_name, _, _) in AnaTuple_map.items():
             match = dataset_name == anaTuple_dataset_name

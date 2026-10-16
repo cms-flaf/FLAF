@@ -34,6 +34,13 @@ answers. When it says `… is listed in … but not seen as a directory` and per
 is no reachable directory (a file, a broken link) sits at `soft/flaf_env`: move it away by hand. See
 [The environment](concepts/environment.md#what-envsh-sets-up).
 
+## `unknown era '…'; known eras: …` / `the configuration says era: …`
+`--period` names one era, and the known eras are the directories `FLAF/config/<era>/` whose
+`global.yaml` says `era: <era>`: the seven Run 3 eras ([Eras](concepts/eras.md)). A typo, a
+comma-separated list or a meta-era name (a datacard era such as a sum of sub-eras) is not one.
+The `era` key itself is set only by that file: an analysis layer, a `user_custom` file or a
+`--customisations` entry that sets it to another value stops the run.
+
 ## A run unexpectedly drops into `InputFileTask` / Rucio errors
 For a from-scratch production, `InputFileTask` running first is normal. But if a run that should
 reuse existing outputs keeps re-resolving inputs, or fails here, the cause is almost always a

@@ -1886,9 +1886,9 @@ class FLAFCrabJobFileFactory(law.cms.CrabJobFileFactory):
     - no ``JobType.outputFiles``
     - ``JobType.disableAutomaticOutputCollection = True`` (law default)
 
-    ``Site.storageSite`` / ``Data.outLFNDirBase`` remain required by the CRAB client
-    for a valid config and the submit-time write check, but FLAF never places analysis
-    outputs there.
+    ``Site.storageSite`` / ``Data.outLFNDirBase`` remain required by law and the CRAB
+    server, so they carry a placeholder (``CRAB_PLACEHOLDER_STAGEOUT``) that FLAF never
+    places analysis outputs in.
     """
 
     def create(self, **kwargs):
@@ -3024,45 +3024,23 @@ class _FLAFCrabWorkflowProxy(SubmissionGuards, _FLAFCrabWorkflowProxyBase):
         )
 
 
-_EOSHOME_FS_RE = re.compile(
-    r"^davs://eoshome-[a-z0-9]+\.cern\.ch(?::\d+)?/eos/user/[a-z0-9]/([^/]+)(/.*)?$",
-    re.IGNORECASE,
-)
-
-
-def _crab_stageout_from_fs_spec(fs_spec):
-    """Map ``fs_default`` to CRAB ``(storageSite, outLFNDirBase)``.
-
-    Accepted forms (same as storage docs):
-
-    - ``T3_CH_CERNBOX:/store/user/<user>/...``
-    - ``davs://eoshome-<initial>.cern.ch:.../eos/user/<initial>/<user>/...``
-      → ``T3_CH_CERNBOX`` + ``/store/user/<user>/...``
-    """
-    if isinstance(fs_spec, (list, tuple)):
-        if not fs_spec:
-            raise RuntimeError("fs_default is empty; CRAB needs a remote filesystem")
-        fs_spec = fs_spec[0]
-    if not isinstance(fs_spec, str) or not fs_spec.strip():
-        raise RuntimeError("fs_default must be a string (or list of strings)")
-    spec = fs_spec.strip().rstrip("/")
-
-    if "://" not in spec and ":" in spec:
-        site, lfn = spec.split(":", 1)
-        site, lfn = site.strip(), lfn.strip()
-        if site and lfn.startswith("/"):
-            return site, lfn
-
-    m = _EOSHOME_FS_RE.match(spec)
-    if m:
-        user, rest = m.group(1), m.group(2) or ""
-        return "T3_CH_CERNBOX", f"/store/user/{user}{rest}"
-
-    raise RuntimeError(
-        "CRAB derives Site.storageSite and Data.outLFNDirBase from fs_default. "
-        "Use a WLCG site path (T3_CH_CERNBOX:/store/user/<you>/...) or a CERN "
-        f"EOS davs://eoshome-... URL. Got: {fs_spec}"
-    )
+#: CRAB's ``(Site.storageSite, Data.outLFNDirBase)`` for every FLAF task. CRAB transfers nothing
+#: for FLAF, so nothing is ever written there, but every component the pair passes through
+#: checks it (CRAB client crab-prod v3.260630.00 on cvmfs; dmwm/CRABServer at 30286f7):
+#:
+#: - law: both values non-empty (``law/contrib/cms/job.py:691-694``, law 0.1.21);
+#: - client: ``storageSite`` required only with transfers on (``CRABClient/Commands/submit.py:307-310``);
+#: - REST server: ``storageSite`` must look like a CMS site name (``RESTUserWorkflow.py:339``), and
+#:   ``checkOutLFN`` (``RESTUserWorkflow.py:42-57,241`` -> ``src/python/ServerUtilities.py:341-361``,
+#:   identical to the client's ``lib/ServerUtilities.py:231-251`` that the unit test loads) accepts
+#:   ``/store/user/<name>/`` only for the submitter's CERN username and ``/store/group/<name>/``
+#:   from anyone;
+#: - task worker: StageoutCheck returns early with both transfers off
+#:   (``TaskWorker/Actions/StageoutCheck.py:82-87``), but DagmanCreator resolves
+#:   ``<lfn>/<primaryds>/<request>/<timestamp>/0000`` (``DagmanCreator.py:94-127``) to a Rucio write
+#:   PFN at the site for every task (``DagmanCreator.py:682``); T3_CH_CERNBOX maps ``/store/user/``
+#:   LFNs only, T2_CH_CERN any ``/store/`` LFN (``/cvmfs/cms.cern.ch/SITECONF/<site>/storage.json``).
+CRAB_PLACEHOLDER_STAGEOUT = ("T2_CH_CERN", "/store/group/FLAF_crab_unused")
 
 
 #: CRAB's own resource limits (CRABClient ServerUtilities.MAX_MEMORY_PER_CORE and
@@ -3127,8 +3105,8 @@ class CrabWorkflow(law.cms.CrabWorkflow):
     ``transferOutputs`` / ``transferLogs`` / ``JobType.outputFiles`` are forced off so
     nothing is duplicated onto CRAB's stageout area.
 
-    ``Site.storageSite`` / ``Data.outLFNDirBase`` are derived from ``fs_default``
-    (submit-time write check only). Cores and memory follow ``crab_resources``: the
+    ``Site.storageSite`` / ``Data.outLFNDirBase`` are a fixed placeholder
+    (``CRAB_PLACEHOLDER_STAGEOUT``). Cores and memory follow ``crab_resources``: the
     cores CRAB accepts for ``n_cpus`` and, unless ``--crab-memory`` asks otherwise, the
     most memory CRAB grants for them.
 
@@ -3323,13 +3301,11 @@ process.out = cms.EndPath(process.output)
         return path
 
     def crab_stageout_location(self):
-        """Return (storageSite, outLFNDirBase) derived from ``fs_default``.
+        """A placeholder CRAB accepts from every user (see ``CRAB_PLACEHOLDER_STAGEOUT``).
 
-        FLAF does **not** store analysis outputs here (CRAB transferOutputs is forced
-        off; products go to ``fs_default``). CRAB still requires these fields and runs
-        a submit-time write check against them.
+        Products and logs go to ``fs_default`` through FLAF's own I/O, never here.
         """
-        return _crab_stageout_from_fs_spec(self.global_params.get("fs_default"))
+        return CRAB_PLACEHOLDER_STAGEOUT
 
     def crab_output_directory(self):
         return law.LocalDirectoryTarget(self.local_path())

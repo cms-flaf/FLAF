@@ -64,8 +64,9 @@ cut out of the whitelist itself — see [CRAB](crab.md). Default `--parallel-job
 on CRAB is 5000 (`crab.parallel_jobs`); jobs are aggregated into CRAB tasks of at
 least `crab.refill_fraction * parallel_jobs` jobs while such a wave is still
 achievable (the tail is released immediately, and a retry waits at most
-`crab.retry_release_minutes`). `Site.storageSite` / `Data.outLFNDirBase` are derived from
-`fs_default`. Cores are `--n-cpus` rounded up to 1, 2, 4 or 8 (`--n-cpus` above 8 is refused);
+`crab.retry_release_minutes`). `Site.storageSite` / `Data.outLFNDirBase` are a fixed
+placeholder, independent of `fs_default` (see [CRAB](crab.md#config)). Cores are `--n-cpus`
+rounded up to 1, 2, 4 or 8 (`--n-cpus` above 8 is refused);
 memory defaults to `max(3000, 2500 * cores)` MB (3000, 5000, 10000 and 20000 MB for 1, 2, 4 and
 8 cores), the most CRAB grants, because `maxMemoryMB` is a kill threshold. `crab.memory_mb_per_cpu`
 is retired and raises an error if present.

@@ -199,7 +199,7 @@ _era_cli_checked = False
 
 def _reject_removed_era_flags():
     """Refuse, once per process, the command-line and configuration forms of the era that do
-    not exist any more: `--period` and `--<Task>-period` (renamed to `--era`), and
+    not exist any more: the root and per-task period flags (renamed to `--era`), and
     `--<Task>-era` (one era set per invocation)."""
     global _era_cli_checked
     parser = luigi.cmdline_parser.CmdlineParser.get_instance()
@@ -216,7 +216,7 @@ def _reject_removed_era_flags():
     ]
     renamed = [
         flag
-        for flag, dest in [("--period", "period")]
+        for flag, dest in [("--period", "period")]  # noqa: era-rename
         + [(f"--{family}-period", f"{family}_period") for family in families]
         if args.get(dest) is not None
     ] + [
@@ -324,9 +324,9 @@ class Task(law.Task):
     exclude_params_repr = law.Task.exclude_params_repr | {"period"}
     exclude_params_index = law.Task.exclude_params_index | {"period"}
     era = EraParameter(max_len=1)
-    # The removed --period: a parameter only so that the parser accepts it and the run stops
+    # The removed period: a parameter only so that the parser accepts it and the run stops
     # with the rename message instead of "unrecognized arguments".
-    period = luigi.OptionalParameter(
+    period = luigi.OptionalParameter(  # noqa: era-rename
         default=None,
         significant=False,
         visibility=luigi.parameter.ParameterVisibility.PRIVATE,
@@ -362,7 +362,7 @@ class Task(law.Task):
     @classmethod
     def modify_param_args(cls, params, args, kwargs):
         _reject_removed_era_flags()
-        if kwargs.get("period") is not None:
+        if kwargs.get("period") is not None:  # noqa: era-rename
             raise ValueError(
                 f"{cls.get_task_family()}: 'period' was renamed to 'era' (use era=...)"
             )
@@ -384,7 +384,9 @@ class Task(law.Task):
     def setup_for(self, era):
         """The Setup of one of this task's eras."""
         if era not in self.era:
-            raise ValueError(f"{self.get_task_family()}: {era} is not one of {self.era}")
+            raise ValueError(
+                f"{self.get_task_family()}: {era} is not one of {self.era}"  # noqa: era-rename
+            )
         setup = self._setups.get(era)
         if setup is None:
             user_custom_file = None
@@ -740,10 +742,10 @@ class BundleTask(Task):
 
     def bundle_patterns(self):
         patterns = self.bundle_cfg().get("patterns", [])
-        renamed = [p for p in patterns if "{period}" in p]
+        renamed = [p for p in patterns if "{period}" in p]  # noqa: era-rename
         if renamed:
             raise ValueError(
-                f"bundle '{self.flavour}': {renamed} use {{period}}, which was renamed to {{era}}"
+                f"bundle '{self.flavour}': {renamed} use {{period}}, which was renamed to {{era}}"  # noqa: era-rename
             )
         return [p.format(version=self.version, era=self.era[0]) for p in patterns]
 

@@ -54,6 +54,7 @@ jobs:
           test/test_crab_watchdog.py
           test/test_crab_watchdog_integration.py
           test/test_crab_wave_gate.py
+          test/test_check_era_rename.py
           test/test_era_parameter.py
           test/test_flaf_env.py
           test/test_fresh_negatives.py
@@ -62,3 +63,14 @@ jobs:
           test/test_remote_log_names.py
           test/test_submission_guards.py
           test/test_voms_proxy_info.py
+
+      # The period -> era rename (multi-era change set): no leftover in FLAF's own files. The CI
+      # scripts pick --era or --period for the checkout they test, the path-cache server's
+      # periods are cache validity times, and two tests spell the old names on purpose.
+      - name: No leftover of the period -> era rename
+        run: >-
+          python3 run_tools/check_era_rename.py --repo .
+          --exclude '.github/scripts/ci/*'
+          --exclude 'RunKit/pathCacheServer.py'
+          --exclude 'test/test_era_parameter.py'
+          --exclude 'test/test_check_era_rename.py'

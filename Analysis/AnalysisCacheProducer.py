@@ -158,7 +158,7 @@ def createAnalysisCache(
     isData = dataset_name == "data"
 
     stage = "AnalysisCache"
-    Utilities.InitializeCorrections(setup, dataset_name, stage=stage)
+    corrections = Utilities.CreateCorrections(setup, dataset_name, stage=stage)
     scale_uncertainties = set()
     if setup.global_params["compute_unc_variations"]:
         scale_uncertainties.update(unc_cfg_dict["shape"].keys())
@@ -209,7 +209,10 @@ def createAnalysisCache(
                 signature = inspect.signature(histTupleDef.GetDfw)
                 if "stage" in signature.parameters:
                     getDfw_kwargs["stage"] = stage
-                dfw = histTupleDef.GetDfw(df, setup, dataset_name, **getDfw_kwargs)
+                dfw = histTupleDef.GetDfw(
+                    df, setup, dataset_name, corrections=corrections, **getDfw_kwargs
+                )
+                dfw.corrections = corrections
                 # dfw = Utilities.DataFrameWrapper(df, defaultColToSave)
                 tmp_fileName = os.path.join(workingDir, f"{fullTreeName}.root")
             elif saveAs == "json":
@@ -225,6 +228,7 @@ def createAnalysisCache(
                         unc_cfg_dict=unc_cfg_dict,
                         final_weight_name=f"weight_{unc_source}_{unc_scale}",
                         df_is_central=isCentral,
+                        corrections=corrections,
                     )
 
                 tmp_fileName = os.path.join(

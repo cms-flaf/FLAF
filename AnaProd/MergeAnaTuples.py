@@ -196,7 +196,7 @@ def mergeAnaTuples(
             processor_instances["ds"] = DefaultAnaCacheProcessor(
                 default_denom_processor=ds_processor_default
             )
-        Corrections.initializeGlobal(
+        corrections = Corrections(
             setup=setup,
             stage="AnaTupleMerge",
             dataset_name=dataset_name,
@@ -205,10 +205,8 @@ def mergeAnaTuples(
             process_cfg=process,
             processors=processor_instances,
             isData=is_data,
-            load_corr_lib=True,
             trigger_class=None,
         )
-        corrections = Corrections.getGlobal()
 
         ana_caches = {}
         for ds_name, reports in input_reports.items():

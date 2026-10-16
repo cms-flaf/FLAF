@@ -419,7 +419,9 @@ def create_processor_instances(global_params, processor_entries, stage, verbose=
 WPInit = False
 
 
-def InitializeCorrections(setup, dataset_name, stage, aggregated_caches=None):
+def CreateCorrections(setup, dataset_name, stage, aggregated_caches=None):
+    """A new Corrections instance for this dataset, era and stage. The caller keeps it for as
+    long as the dataframes built with it (its correction providers are referred to by address)."""
     from Corrections.Corrections import Corrections
     import FLAF.Common.triggerSel as Triggers
 
@@ -467,20 +469,18 @@ def InitializeCorrections(setup, dataset_name, stage, aggregated_caches=None):
     if triggerFile is not None:
         triggerFile = os.path.join(os.environ["ANALYSIS_PATH"], triggerFile)
         trigger_class = Triggers.Triggers(triggerFile)
-    if Corrections._global_instance is None:
-        Corrections.initializeGlobal(
-            setup=setup,
-            stage=stage,
-            dataset_name=dataset_name,
-            dataset_cfg=dataset_cfg,
-            process_name=process_name,
-            process_cfg=process,
-            processors=processor_instances,
-            isData=isData,
-            load_corr_lib=True,
-            trigger_class=trigger_class,
-            aggregated_caches=aggregated_caches,
-        )
+    return Corrections(
+        setup=setup,
+        stage=stage,
+        dataset_name=dataset_name,
+        dataset_cfg=dataset_cfg,
+        process_name=process_name,
+        process_cfg=process,
+        processors=processor_instances,
+        isData=isData,
+        trigger_class=trigger_class,
+        aggregated_caches=aggregated_caches,
+    )
 
 
 class ServiceThread:

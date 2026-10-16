@@ -142,7 +142,7 @@ def createAnatuple(
         processor_instances["ds"] = DefaultAnaCacheProcessor(
             default_denom_processor=ds_processor_default
         )
-    Corrections.initializeGlobal(
+    corrections = Corrections(
         setup=setup,
         stage="AnaTuple",
         dataset_name=dataset_name,
@@ -151,10 +151,8 @@ def createAnatuple(
         process_cfg=process,
         processors=processor_instances,
         isData=isData,
-        load_corr_lib=True,
         trigger_class=trigger_class,
     )
-    corrections = Corrections.getGlobal()
     root_file = ROOT.TFile.Open(inFile)
     tree = root_file.Get(treeName)
     df = ROOT.RDataFrame(tree)
@@ -426,6 +424,7 @@ def createAnatuple(
             setup.global_params,
             channels,
             dataset_cfg,
+            corrections=corrections,
         )
 
         if not isData:

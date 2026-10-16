@@ -78,7 +78,7 @@ def createHistTuple(
     unc_cfg_dict = setup.weights_config
     hist_cfg_dict = setup.hists
     stage = "HistTuple"
-    Utilities.InitializeCorrections(
+    corrections = Utilities.CreateCorrections(
         setup, dataset_name, stage=stage, aggregated_caches=aggregatedCacheNames
     )
     histTupleDef.Initialize()
@@ -148,7 +148,10 @@ def createHistTuple(
             signature = inspect.signature(histTupleDef.GetDfw)
             if "stage" in signature.parameters:
                 getDfw_kwargs["stage"] = stage
-            dfw = histTupleDef.GetDfw(df, setup, dataset_name, **getDfw_kwargs)
+            dfw = histTupleDef.GetDfw(
+                df, setup, dataset_name, corrections=corrections, **getDfw_kwargs
+            )
+            dfw.corrections = corrections
             for var in fullres_variables:
                 dfw.colToSave.append(var)
 
@@ -191,6 +194,7 @@ def createHistTuple(
                     global_params=setup.global_params,
                     final_weight_name=desc["weight"],
                     df_is_central=isCentral,
+                    corrections=corrections,
                 )
                 dfw.colToSave.append(desc["weight"])
 

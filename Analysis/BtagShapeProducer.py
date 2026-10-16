@@ -113,11 +113,12 @@ class BtagShapeProducer:
         final_weight_name,
         df_is_central,
         isData,
+        corrections,
     ):
         histTupleDef.Initialize()
         histTupleDef.analysis_setup(setup)
 
-        dfw = histTupleDef.GetDfw(df, setup, dataset_name)
+        dfw = histTupleDef.GetDfw(df, setup, dataset_name, corrections=corrections)
         histTupleDef.DefineWeightForHistograms(
             dfw=dfw,
             isData=isData,
@@ -128,6 +129,7 @@ class BtagShapeProducer:
             global_params=setup.global_params,
             final_weight_name=final_weight_name,
             df_is_central=df_is_central,
+            corrections=corrections,
         )
-
+        dfw.corrections = corrections
         return dfw

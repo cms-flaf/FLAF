@@ -1,4 +1,5 @@
 import copy
+import functools
 import hashlib
 import importlib
 import law
@@ -160,6 +161,12 @@ def get_param_value(cls, param_name):
         return None
 
 
+@functools.cache
+def _known_eras(ana_path):
+    # parsed on every task instantiation, so read from the configuration once per process
+    return tuple(known_eras(ana_path))
+
+
 class EraParameter(law.CSVParameter):
     """FLAF eras, as a sorted tuple of unique known names: `--era Run3_2022` or a comma-separated
     list. `max_len` limits how many eras a task takes."""
@@ -170,7 +177,7 @@ class EraParameter(law.CSVParameter):
 
     def parse(self, inp):
         value = super(EraParameter, self).parse(inp)
-        eras = known_eras(os.environ["ANALYSIS_PATH"])
+        eras = _known_eras(os.environ["ANALYSIS_PATH"])
         unknown = [era for era in value if era not in eras]
         if unknown:
             raise UnknownEraError(

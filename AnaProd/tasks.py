@@ -760,11 +760,14 @@ class AnaTupleFileListBuilderTask(
             reqs["inputFile"] = InputFileTask.req(self, branches=())
             return reqs
 
-        if not isinstance(self._get_anaTuple_map(), dict):
+        anaTuple_map = self._get_anaTuple_map()
+        if not isinstance(anaTuple_map, dict):
             return reqs
         branch_set = set()
         for idx, (dataset_name, process_group) in self.branch_map.items():
-            branch_set |= self._get_branch_set_for_dataset(dataset_name, process_group)
+            branch_set |= self._get_branch_set_for_dataset(
+                dataset_name, process_group, anaTuple_map
+            )
 
         reqs["AnaTupleFileTask"] = AnaTupleFileTask.req(
             self,
@@ -775,10 +778,9 @@ class AnaTupleFileListBuilderTask(
         )
         return reqs
 
-    def _get_branch_set_for_dataset(self, dataset_name, process_group):
-        AnaTuple_map = self._get_anaTuple_map()
+    def _get_branch_set_for_dataset(self, dataset_name, process_group, anaTuple_map):
         branch_set = set()
-        for br_idx, (anaTuple_dataset_name, _, _) in AnaTuple_map.items():
+        for br_idx, (anaTuple_dataset_name, _, _) in anaTuple_map.items():
             match = dataset_name == anaTuple_dataset_name
             if not match and process_group == "data":
                 anaTuple_dataset = self.datasets[anaTuple_dataset_name]
@@ -797,7 +799,9 @@ class AnaTupleFileListBuilderTask(
             return []
         if not InputFileTask.WF_complete(self):
             return []
-        branch_set = self._get_branch_set_for_dataset(dataset_name, process_group)
+        branch_set = self._get_branch_set_for_dataset(
+            dataset_name, process_group, self._get_anaTuple_map()
+        )
         # leaf gets explicit from resolved version (set via ana in our __init__ or per-task for Builder)
         return [
             AnaTupleFileTask.req(

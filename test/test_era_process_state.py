@@ -23,21 +23,44 @@ flaf_parent = os.path.dirname(flaf_repo)
 if flaf_parent not in sys.path:
     sys.path.insert(0, flaf_parent)
 
-# The unit-test runner has no ROOT; the task modules call it at import time only to configure
-# it. A stand-in is registered for these imports alone, and one already registered by another
-# module is left alone.
-_root_placeholder = (
-    "ROOT" not in sys.modules and importlib.util.find_spec("ROOT") is None
-)
-if _root_placeholder:
-    sys.modules["ROOT"] = mock.MagicMock()
+# The task modules import ROOT, numpy, awkward, uproot and Corrections at module level. The
+# unit-test runner has none of them (FLAF is checked out alone there), and nothing tested here
+# uses them: a stand-in is registered, for these imports alone, for each one that cannot be
+# imported for real (another test module may have left a placeholder ROOT), and the previous
+# entries are put back afterwards.
+_HEAVY_MODULES = [
+    "ROOT",
+    "numpy",
+    "awkward",
+    "uproot",
+    "Corrections",
+    "Corrections.Corrections",
+    "Corrections.CorrectionsCore",
+    "Corrections.lumi",
+]
+
+
+def _importable(name):
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+_replaced = {
+    name: sys.modules.get(name) for name in _HEAVY_MODULES if not _importable(name)
+}
+sys.modules.update({name: mock.MagicMock() for name in _replaced})
 try:
     from FLAF.Common.Setup import ERA_IDS, Setup, UnknownEraError, known_eras
     from FLAF.AnaProd import tasks as ana_prod
     from FLAF.Analysis import tasks as analysis
 finally:
-    if _root_placeholder:
-        sys.modules.pop("ROOT", None)
+    for _name, _module in _replaced.items():
+        if _module is None:
+            sys.modules.pop(_name, None)
+        else:
+            sys.modules[_name] = _module
 
 ERA_A = "Run3_2022"
 ERA_B = "Run3_2023"
@@ -150,8 +173,9 @@ class InputFileListsPerEra(_ScratchAnalysis):
 class BuilderBranchSetsPerEra(_ScratchAnalysis):
     def builder_sets(self, era):
         builder = ana_prod.AnaTupleFileListBuilderTask(version=self.version, period=era)
+        anaTuple_map = builder._get_anaTuple_map()
         return {
-            dataset: builder._get_branch_set_for_dataset(dataset, group)
+            dataset: builder._get_branch_set_for_dataset(dataset, group, anaTuple_map)
             for dataset, group in builder.create_branch_map().values()
         }
 

@@ -177,7 +177,7 @@ class EraParameter(law.CSVParameter):
 
     def parse(self, inp):
         value = super(EraParameter, self).parse(inp)
-        eras = _known_eras(os.environ["ANALYSIS_PATH"])
+        eras = _known_eras(os.getenv("ANALYSIS_PATH"))
         unknown = [era for era in value if era not in eras]
         if unknown:
             raise UnknownEraError(

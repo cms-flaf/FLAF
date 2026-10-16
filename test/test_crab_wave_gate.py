@@ -128,12 +128,16 @@ class _FlafCrabCase(unittest.TestCase):
         loader = mock.patch.object(lc.Setup, "getGlobal", return_value=self.setup)
         loader.start()
         self.addCleanup(loader.stop)
+        # the analysis configuration is faked, so are the eras it knows
+        eras = mock.patch.object(lc, "_known_eras", return_value=("Run3_2022",))
+        eras.start()
+        self.addCleanup(eras.stop)
         self.task = self.make_task()
         self.proxy = self.make_proxy()
 
     def make_task(self, cls=_WaveGateTask, **kwargs):
         kwargs.setdefault("version", f"v{next(_versions)}")
-        kwargs.setdefault("period", "Run3_2022")
+        kwargs.setdefault("era", "Run3_2022")
         kwargs.setdefault("workflow", "crab")
         return cls(**kwargs)
 

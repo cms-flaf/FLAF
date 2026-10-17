@@ -424,7 +424,7 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
     each requirement directory itself, one `gfal-ls` at a time (for a `HistMergerTask` branch,
     one directory per variable for every `HistFromNtupleProducerTask` branch, which outlasted
     a 5 h wall time from CERN to FNAL storage). The driver prints the count when it submits
-    (`path-cache snapshot with N entries; X of the Y outputs of Z requirements found`); an
+    (`path-cache snapshot with N entries; X of the Y outputs of Z requirements found in T s`); an
     output it did not find is left to the job, which refuses to build it inline. An "absent"
     (a missing file, or a listing that implies one) recorded before the driver's current
     poll, or learned from the cache server, is not shipped: it may predate a file another CRAB job wrote. The driver

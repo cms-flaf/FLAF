@@ -1,5 +1,8 @@
 import os
+import socket
 import sys
+import threading
+import types
 import unittest
 from collections import namedtuple
 from unittest import mock
@@ -358,12 +361,49 @@ class TestExistingTargetEntries(unittest.TestCase):
         ]
         lister = make_interface({"data": ["file_0.root"]})
         with server.patch(), lister.patch_ls():
-            shipped = law_gfal.collect_existing_target_entries(targets)
+            shipped, n_found = law_gfal.collect_existing_target_entries(targets)
         self.assertEqual(
             sorted(e["path"] for e in shipped),
             sorted(os.path.join(b, "data/file_0.root") for b in (BASE, mirror)),
         )
         self.assertTrue(all(e["exists"] is True for e in shipped))
+        self.assertEqual(n_found, 1)
+
+
+class TestCacheServerProtocol(unittest.TestCase):
+    def test_a_batch_larger_than_the_send_buffer_is_answered_in_full(self):
+        # get_status_many pipelines a whole batch. Written with one unchecked write() to the
+        # unbuffered socket file, only what fitted in the socket buffer was sent (110 of 163 kB
+        # to cms-flaf.cern.ch); the client then waited out its timeout for the other answers.
+        from FLAF.RunKit import pathCacheClient, pathCacheServer
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            client_end = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_end.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+            client_end.connect(listener.getsockname())
+            server_end, _ = listener.accept()
+        # as socket.create_connection(..., timeout) leaves it
+        client_end.settimeout(2)
+        cache = types.SimpleNamespace(
+            get=lambda path: (path, path.endswith("1.root"), 0)
+        )
+        logger = types.SimpleNamespace(log=lambda *args, **kwargs: None)
+        threading.Thread(
+            target=pathCacheServer.handle_client,
+            args=(server_end, ("loopback", 0), cache, logger),
+            daemon=True,
+        ).start()
+        paths = [os.path.join(BASE, "d" * 150, f"file_{i}.root") for i in range(1000)]
+        with mock.patch.object(
+            pathCacheClient.socket,
+            "create_connection",
+            lambda *args, **kwargs: client_end,
+        ):
+            result = pathCacheClient.get_status_many(paths, "host", 0, timeout=2)
+        self.assertEqual(result, {p: p.endswith("1.root") for p in paths})
 
 
 if __name__ == "__main__":

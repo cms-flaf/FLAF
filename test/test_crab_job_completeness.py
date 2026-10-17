@@ -1230,6 +1230,43 @@ class TheJobChecksItsRequirementsFromTheSnapshot(unittest.TestCase):
         complete, _ = self.check_on_worker(path, 1)
         self.assertEqual(complete, [True, False, True, True])
 
+    def test_every_crab_task_of_a_run_ships_its_own_snapshot(self):
+        """law builds every CRAB task of a run with one job file factory, in one directory, and
+        copies an input marked shared there once (law.job.base provide_input, skip_existing):
+        each later wave or retry shipped the first submission's snapshot."""
+        from law.job.base import JobInputFile
+
+        for uri in self.required.values():
+            self.h.server.entries[uri] = True
+        workdir = tempfile.mkdtemp(prefix="flaf_snapshot_factory_", dir=_data_dir)
+        script = os.path.join(workdir, "job.sh")
+        with open(script, "w") as f:
+            f.write("#!/bin/bash\n")
+        factory = lc.FLAFCrabJobFileFactory(dir=workdir, mkdtemp=False, cleanup=False)
+        shipped = []
+        for n, branches in enumerate(([[0]], [[1]])):
+            config = types.SimpleNamespace(input_files={})
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.h.task._stage_path_cache_input(config, branches)
+            with mock.patch.object(lc, "wait_for_job_sources"):
+                _, c = factory(
+                    executable=JobInputFile(script, copy=False, render_job=True),
+                    input_files={
+                        "job_file": JobInputFile(script, copy=False, render_job=True),
+                        "path_cache": config.input_files["path_cache"],
+                    },
+                    arguments=["a"],
+                    request_name=f"req_{n}",
+                    work_area=workdir,
+                    storage_site="T2_CH_CERN",
+                    output_lfn_base="/store/group/FLAF_crab_unused",
+                    render_variables={},
+                )
+            with open(c.input_files["path_cache"].path_sub_abs) as f:
+                shipped.append({e["path"] for e in json.load(f)["entries"]})
+        self.assertNotIn(self.required[3], shipped[0])
+        self.assertTrue(set(self.required.values()) <= shipped[1])
+
     def test_a_shared_requirement_is_resolved_once(self):
         _, _, out, _ = self.stage()
         self.assertIn("6 of the 6 outputs of 6 requirements", out)

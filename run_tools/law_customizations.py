@@ -334,30 +334,38 @@ class Task(law.Task):
             write_path_cache_file,
         )
 
+        start = time.time()
         requirements = {}
         for branch in sorted({b for job_branches in branches for b in job_branches}):
             for req in self.as_branch(branch).deps():
                 requirements.setdefault(req.task_id, req)
-        targets = law.util.flatten([req.output() for req in requirements.values()])
-        required = collect_existing_target_entries(targets)
+        targets = [
+            t for req in requirements.values() for t in law.util.flatten(req.output())
+        ]
+        required, n_found = collect_existing_target_entries(targets)
         entries = {
             e["path"]: e["exists"] for e in collect_setup_path_cache_entries(self.setup)
         }
         entries.update((e["path"], e["exists"]) for e in required)
         print(
             f"{self.task_family}: path-cache snapshot with {len(entries)} entries; "
-            f"{len(required)} of the {len(targets)} outputs of {len(requirements)} "
-            "requirements found"
+            f"{n_found} of the {len(targets)} outputs of {len(requirements)} "
+            f"requirements found in {time.time() - start:.0f} s"
         )
 
         out_dir = self.local_path()
         os.makedirs(out_dir, exist_ok=True)
-        path = os.path.join(out_dir, SHIPPED_PATH_CACHE_BASENAME)
+        # Named after the workflow: several workflows can submit at once from one local_path().
+        stem, ext = os.path.splitext(SHIPPED_PATH_CACHE_BASENAME)
+        task_hash = self.task_id.rsplit("_", 1)[-1]
+        path = os.path.join(out_dir, f"{stem}_{task_hash}{ext}")
         write_path_cache_file(
             path, [{"path": p, "exists": exists} for p, exists in entries.items()]
         )
+        # Not shared: law builds every CRAB task of a run in one directory and would reuse the
+        # first submission's copy of a shared input for every later wave or retry.
         config.input_files["path_cache"] = JobInputFile(
-            path=path, copy=True, share=True, render=False, increment=False
+            path=path, copy=True, share=False, render=False, increment=True
         )
 
     # Process-local memoization of create_branch_map results, shared across task

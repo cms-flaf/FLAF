@@ -296,7 +296,8 @@ def collect_setup_path_cache_entries(setup):
 
 
 def collect_existing_target_entries(targets):
-    """Snapshot entries for the files among `targets` that exist on GFAL storage.
+    """Snapshot entries for the files among `targets` that exist on GFAL storage, and how many
+    of the targets exist.
 
     Each existence is resolved now, whatever the age of the local entries: the cache server is
     asked in one pipelined request per file interface, and only a directory it does not know
@@ -311,13 +312,17 @@ def collect_existing_target_entries(targets):
         if isinstance(fi, GFALFileInterface):
             groups.setdefault(id(fi), (fi, []))[1].append(target)
     entries = {}
+    n_found = 0
     for fi, group in groups.values():
         uris = [fi.uri(t.fs.abspath(t.path), return_all=True) for t in group]
         fi.path_cache.get_many([uri for target_uris in uris for uri in target_uris])
         for target, target_uris in zip(group, uris):
             if target.exists():
+                n_found += 1
                 entries.update(dict.fromkeys(target_uris, True))
-    return [{"path": path, "exists": exists} for path, exists in entries.items()]
+    return [
+        {"path": path, "exists": exists} for path, exists in entries.items()
+    ], n_found
 
 
 def write_path_cache_file(path, entries):

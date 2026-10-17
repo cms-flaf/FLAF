@@ -320,7 +320,8 @@ analysis PRs only), the config checkers `checkCrossSections.py`,
 `checkDatasetConfigConsistency.py` and `checkDatasetNaming.py` (on FLAF PRs that change those
 config files), and, through `unit-tests.yaml` on every FLAF PR and push to `main`, the pure-Python
 suites that need neither ROOT nor CVMFS nor a grid proxy (the CRAB backend, path cache and
-remote-storage suites). The other suites (`test_*.py` that need ROOT or CVMFS) are not run
+remote-storage suites), plus `run_tools/check_era_rename.py` over FLAF's own files (no leftover of the
+`period` → `era` rename). The other suites (`test_*.py` that need ROOT or CVMFS) are not run
 anywhere, so a broken one is not caught automatically. A new suite of the first kind must be added
 to the list in `unit-tests.yaml`, or it is not run either.
 

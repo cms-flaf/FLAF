@@ -338,5 +338,33 @@ class TestSharedListing(unittest.TestCase):
                 self.assertFalse(second.exists("data/file_2.root"))
 
 
+class TestExistingTargetEntries(unittest.TestCase):
+    def test_a_file_is_recorded_under_every_base_and_other_targets_are_skipped(self):
+        # A reader picks one base at random, so a file found under one is shipped under all.
+        from law import LocalFileTarget
+        from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget
+
+        mirror = BASE.replace("server", "mirror")
+        with mock.patch.object(law_gfal, "get_voms_proxy_info", lambda: {"path": None}):
+            fs = WLCGFileSystem([BASE, mirror])
+        fs.file_interface.path_cache = RemotePathCache("host", 0, 600)
+        server = FakeCacheServer()
+        server.entries[os.path.join(BASE, "data/file_0.root")] = True
+        server.entries[os.path.join(mirror, "data/file_0.root")] = True
+        targets = [
+            WLCGFileTarget("data/file_0.root", fs),
+            WLCGFileTarget("data/file_1.root", fs),
+            LocalFileTarget("/tmp/not_on_grid_storage.root"),
+        ]
+        lister = make_interface({"data": ["file_0.root"]})
+        with server.patch(), lister.patch_ls():
+            shipped = law_gfal.collect_existing_target_entries(targets)
+        self.assertEqual(
+            sorted(e["path"] for e in shipped),
+            sorted(os.path.join(b, "data/file_0.root") for b in (BASE, mirror)),
+        )
+        self.assertTrue(all(e["exists"] is True for e in shipped))
+
+
 if __name__ == "__main__":
     unittest.main()

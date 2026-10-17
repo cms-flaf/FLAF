@@ -316,19 +316,46 @@ class Task(law.Task):
             path=path, copy=True, share=True, render=False, increment=False
         )
 
-    def _stage_path_cache_input(self, config):
-        """Dump the submit-process path cache and ship it with the CRAB job."""
+    def _stage_path_cache_input(self, config, branches):
+        """Dump the submit-process path cache and ship it with the CRAB job.
+
+        Before a job runs its branches, luigi checks that the outputs of their requirements
+        exist, and on a CRAB worker the snapshot is its only path cache. Local entries are
+        shipped only while still valid, so those outputs are resolved here: otherwise a job
+        lists every requirement directory itself, one gfal-ls at a time, which for a
+        HistMergerTask branch (every HistFromNtupleProducerTask branch, one directory per
+        variable each) outlasts the job's wall time.
+        """
         from law.job.base import JobInputFile
         from FLAF.RunKit.law_gfal import (
             SHIPPED_PATH_CACHE_BASENAME,
+            collect_existing_target_entries,
             collect_setup_path_cache_entries,
             write_path_cache_file,
+        )
+
+        requirements = {}
+        for branch in sorted({b for job_branches in branches for b in job_branches}):
+            for req in self.as_branch(branch).deps():
+                requirements.setdefault(req.task_id, req)
+        targets = law.util.flatten([req.output() for req in requirements.values()])
+        required = collect_existing_target_entries(targets)
+        entries = {
+            e["path"]: e["exists"] for e in collect_setup_path_cache_entries(self.setup)
+        }
+        entries.update((e["path"], e["exists"]) for e in required)
+        print(
+            f"{self.task_family}: path-cache snapshot with {len(entries)} entries; "
+            f"{len(required)} of the {len(targets)} outputs of {len(requirements)} "
+            "requirements found"
         )
 
         out_dir = self.local_path()
         os.makedirs(out_dir, exist_ok=True)
         path = os.path.join(out_dir, SHIPPED_PATH_CACHE_BASENAME)
-        write_path_cache_file(path, collect_setup_path_cache_entries(self.setup))
+        write_path_cache_file(
+            path, [{"path": p, "exists": exists} for p, exists in entries.items()]
+        )
         config.input_files["path_cache"] = JobInputFile(
             path=path, copy=True, share=True, render=False, increment=False
         )
@@ -3442,7 +3469,7 @@ process.out = cms.EndPath(process.output)
         self._apply_bootstrap_path_render_variables(config)
         self._apply_bundle_render_variables(config)
         self._stage_user_custom_input(config)
-        self._stage_path_cache_input(config)
+        self._stage_path_cache_input(config, branches)
 
         log_remote_base_url = self._log_remote_base_url()
         config.render_variables["log_remote_base_url"] = log_remote_base_url

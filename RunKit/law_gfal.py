@@ -295,6 +295,31 @@ def collect_setup_path_cache_entries(setup):
     return [{"path": path, "exists": exists} for path, exists in entries.items()]
 
 
+def collect_existing_target_entries(targets):
+    """Snapshot entries for the files among `targets` that exist on GFAL storage.
+
+    Each existence is resolved now, whatever the age of the local entries: the cache server is
+    asked in one pipelined request per file interface, and only a directory it does not know
+    is listed. Only "exists" is recorded; an absent file is left to the reader, which lists
+    it. A file is recorded under every base of its filesystem, since a reader picks one at
+    random.
+    """
+    groups = {}
+    for target in targets:
+        fs = getattr(target, "fs", None)
+        fi = getattr(fs, "file_interface", None)
+        if isinstance(fi, GFALFileInterface):
+            groups.setdefault(id(fi), (fi, []))[1].append(target)
+    entries = {}
+    for fi, group in groups.values():
+        uris = [fi.uri(t.fs.abspath(t.path), return_all=True) for t in group]
+        fi.path_cache.get_many([uri for target_uris in uris for uri in target_uris])
+        for target, target_uris in zip(group, uris):
+            if target.exists():
+                entries.update(dict.fromkeys(target_uris, True))
+    return [{"path": path, "exists": exists} for path, exists in entries.items()]
+
+
 def write_path_cache_file(path, entries):
     with open(path, "w") as f:
         json.dump({"entries": entries}, f)

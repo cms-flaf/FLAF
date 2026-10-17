@@ -68,7 +68,12 @@ Each of these has caused a production incident. They are ordered by how much dam
   shows up there, not in the subclass being changed.
 - **law fixes the "already exists" branch set when luigi schedules a remote workflow**, before
   its requirements run. A workflow whose own requirement creates its outputs will resubmit
-  everything. Clearing `_existing_branches`/`_skip_jobs` at the top of `run()` is the fix.
+  everything. Clearing `_existing_branches`/`_skip_jobs` at the top of `run()` is the fix; both
+  proxies do it in `SubmissionGuards.run()`, after `require_fresh_negatives()`.
+- **In its first poll of a resumed run, law caches each job's skip verdict before it queries the
+  batch system**, so a job that finishes in between comes back as "initially missing task
+  outputs". `SubmissionGuards._stop_on_mass_lost_outputs` looks at every such job again; one
+  whose branches are complete is marked skippable, not resubmitted.
 - **`poll()` snapshots the job count once.** Changing `job_data` mid-poll hangs or ends the loop
   early, and a resumed run never calls `submit()` — hooks belong at the top of `poll()` too.
 
@@ -113,7 +118,8 @@ Each of these has caused a production incident. They are ordered by how much dam
   Orphaned `.flaf-tmp-*` files match no output pattern but take quota.
 - A CRAB worker cannot reach the path-cache server, so a driver that believes an "absent" from a
   cached listing reads files the workers wrote as missing; the CRAB completeness check and the
-  start of every CRAB workflow run (where law judges which outputs exist) take fresh listings
+  start of every batch workflow run, CRAB and HTCondor (where law judges which outputs exist),
+  take fresh listings
   first (`require_fresh_negatives`, and the existing-branch memos law filled while scheduling are
   dropped).
 
@@ -207,6 +213,20 @@ Each of these has caused a production incident. They are ordered by how much dam
   file. A column that a shifted tree takes from `Central` answers `HasColumn` but is not listed by
   `GetColumnNames()`, and `Define` of that name fails: check existence with `HasColumn`.
 - Listing a whole collection as shift-invariant also drops its counter from the shifted trees.
+
+### Process-level state
+
+- **One law process can handle several eras, versions and `user_custom` files.** A class-level
+  cache or latch must be keyed by everything that determines its value — for branch maps and
+  what is derived from them, `Task._branch_map_cache_key()` through `Task.cached_branch_map` — and
+  must never keep law's placeholder map (`[None]`) or a negative completeness verdict. An
+  unkeyed one hands one era's answer to another (cms-flaf/FLAF#338: the Builder selected the
+  second era's branches from the first era's `AnaTupleFileTask` map).
+- `Setup.get_processors(..., create_instances=True)` returns new processor instances on every
+  call; the caller owns them (`mergeAnaTuples` adds its `ds` processor to the dict).
+- `Setup` accepts only `known_eras()` (the `FLAF/config/<era>/` directories whose `global.yaml`
+  says `era: <era>`) and raises when any later layer, `user_custom` file or customisation changes
+  `era`. `ERA_IDS` mirrors the C++ `Period` enum; `test/test_era_process_state.py` compares them.
 
 ### Concurrency
 

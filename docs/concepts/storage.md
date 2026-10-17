@@ -192,7 +192,9 @@ temporary name or checksum.
 
 On CRAB the driver additionally takes a fresh listing before it accepts an "absent" answer, since
 the workers cannot publish to the path-cache server
-([CRAB → Status handling](../workflow/crab.md#status-handling)).
+([CRAB → Status handling](../workflow/crab.md#status-handling)). On both batch backends a
+workflow that starts to run gathers its existing outputs again on fresh listings
+([HTCondor → Submission safeguards](../workflow/htcondor.md#submission-safeguards)).
 
 ## Keeping I/O off shared production areas
 

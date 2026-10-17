@@ -1329,8 +1329,8 @@ class _MassLostOutputsBrake:
         proxy = self.all_finished(lost=range(1, allowed + 1))
         proxy.run()
         self.assertEqual(proxy.submitted, [list(range(1, allowed + 1))])
-        # within the fraction, nothing is looked at again
-        self.assertEqual(self.asked_complete(), [])
+        # each is looked at again, and is still incomplete
+        self.assertEqual(sorted(self.asked_complete()), list(range(allowed)))
 
     def test_lost_outputs_beyond_the_fraction_stop_the_run(self):
         allowed = int(lc.SubmissionGuards.max_lost_fraction * self.N_JOBS)
@@ -1548,15 +1548,35 @@ class _MassLostOutputsBrake:
             {num: data["status"] for num, data in proxy.job_data.jobs.items()},
             {num: FINISHED for num in range(1, self.N_JOBS + 1)},
         )
-        # law resubmits them still, on the verdict it cached; what is at stake here is the stop
-        self.assertLessEqual(
-            {num for nums in proxy.submitted for num in nums}, set(early)
-        )
+        self.assertEqual(proxy.submitted, [])
         self.assertEqual(sorted(self.asked_complete()), [0, 1, 2])
         # asked after the jobs were seen finished, with absence resting on a fresh listing
         first_query = next(i for i, e in enumerate(self.events) if e[0] == "query")
         first_complete = self.events.index(("complete", self.asked_complete()[0]))
         self.assertIn(("fresh",), self.events[first_query:first_complete])
+
+    def test_a_job_that_finished_during_startup_is_not_resubmitted(self):
+        """One live job of 20, below the fraction, finishes and writes its output after law
+        has gathered the existing outputs and before its first status query. law caches its
+        verdict before the query and reads it as "initially missing task outputs"; the job is
+        not sent to the batch system again."""
+        script = {"r1": [FINISHED]}
+        script.update({f"r{num}": [RUNNING, FINISHED] for num in range(2, 21)})
+        proxy = self.resumed(running=range(1, 21), script=script)
+        task = proxy.task
+
+        def job_writes_its_output(job_id, status):
+            if status == FINISHED and job_id.startswith("r"):
+                task.produce([int(job_id[1:]) - 1])
+
+        task.manager.on_query = job_writes_its_output
+        proxy.run()
+        self.assertEqual(proxy.submitted, [])
+        self.assertEqual(
+            {num: data["status"] for num, data in proxy.job_data.jobs.items()},
+            {num: FINISHED for num in range(1, self.N_JOBS + 1)},
+        )
+        self.assertEqual(self.asked_complete(), [0])
 
     def test_branches_complete_by_their_own_rule_are_not_counted(self):
         """5 of 20 recorded-finished jobs had their outputs merged away downstream, markers left
@@ -1628,13 +1648,12 @@ class TheJobDataIsDumpedOnEveryPoll(unittest.TestCase):
                 self.assertIs(FakeWorkflowTask.dump_intermediate_job_data, True)
 
 
-class CrabResumedRunGathersOutputsAgain(_ProxyCase):
-    """A resumed CRAB run judges which outputs exist from what it gathers when it starts to
-    run, not from what luigi's scheduling gathered: a CRAB worker cannot publish to the
-    path-cache server, and an output written while no driver was polling must not send its
-    branch back to the grid."""
-
-    proxy_cls = lc._FLAFCrabWorkflowProxy
+class _ResumedRunGathersOutputsAgain:
+    """A resumed run judges which outputs exist from what it gathers when it starts to run,
+    not from what luigi's scheduling gathered: a workflow scheduled before its inputs existed
+    keeps that early verdict, a CRAB worker cannot publish to the path-cache server, and an
+    output written while no driver was polling must not send its branch back to the batch
+    system."""
 
     def resumed_live(self, n_jobs, finished_early=()):
         """A resumed file of `n_jobs` live jobs; those in `finished_early` report finished from
@@ -1690,6 +1709,14 @@ class CrabResumedRunGathersOutputsAgain(_ProxyCase):
         after_run = self.events[n_before_run:]
         self.assertIn(("gather",), after_run)
         self.assertIn(("fresh",), after_run[: after_run.index(("gather",))])
+
+
+class HTCondorResumedRunGathersOutputsAgain(_ResumedRunGathersOutputsAgain, _ProxyCase):
+    proxy_cls = lc._BundleAwareHTCondorWorkflowProxy
+
+
+class CrabResumedRunGathersOutputsAgain(_ResumedRunGathersOutputsAgain, _ProxyCase):
+    proxy_cls = lc._FLAFCrabWorkflowProxy
 
 
 # ---------------------------------------------------------------------------------------------

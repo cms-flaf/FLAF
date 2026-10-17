@@ -97,10 +97,12 @@ scripted), or, in CI, list them in the `*_eras` variable (e.g.
 combination, run each era with `weight_base_branch: weight_base_cmb` and add
 the histograms.
 
-!!! warning "`--period` must match an existing era directory"
-    If you pass an era that has no `config/<era>/` (or whose datasets are not defined), config
-    loading fails — and if a run unexpectedly drops into `InputFileTask` and queries Rucio for
-    nothing, a wrong `--period`/`--version` combination is the usual cause. See
+!!! warning "`--period` must be one of the known eras"
+    The known eras are the directories `FLAF/config/<era>/` whose `global.yaml` says
+    `era: <era>`; any other `--period` stops at once with `unknown era '…'`
+    ([Troubleshooting](../troubleshooting.md#unknown-era-known-eras-the-configuration-says-era)).
+    If a run unexpectedly drops into `InputFileTask` and queries Rucio for nothing, a wrong
+    `--period`/`--version` combination is the usual cause. See
     [Troubleshooting](../troubleshooting.md).
 
 ## Adding a new era

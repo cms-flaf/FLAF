@@ -24,6 +24,10 @@ inputs:
     description: 'Era for which the task is run.'
     required: false
     default: ''
+  eras:
+    description: 'All eras of the multi-era job, comma-separated (empty for the other jobs).'
+    required: false
+    default: ''
   variables:
     description: 'JSON-serialized variables object (requested revisions, build stage).'
     required: false
@@ -81,6 +85,7 @@ runs:
         ANALYSIS_TASK: ${{ inputs.task }}
         ANALYSIS_ARGS: ${{ inputs.args }}
         ERA: ${{ inputs.era }}
+        ERAS: ${{ inputs.eras }}
         VARIABLES: ${{ inputs.variables }}
         LAW_WORKERS: ${{ inputs.law_workers }}
         BUILD_CACHE_REFRESH: ${{ inputs.build_cache_refresh }}
@@ -103,6 +108,7 @@ runs:
           -e ANALYSIS_TASK \
           -e ANALYSIS_ARGS \
           -e ERA \
+          -e ERAS \
           -e VARIABLES \
           -e LAW_WORKERS \
           -e BUILD_CACHE_REFRESH \

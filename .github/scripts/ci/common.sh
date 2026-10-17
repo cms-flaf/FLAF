@@ -300,3 +300,53 @@ switch_submodule_repo() {
     sync_and_update_submodules
   )
 }
+
+# Version-detecting switches for the period -> era rename (FLAF multi-era change set; removed
+# once no consumer runs a checkout from before it). Both read the checkout they run in, from
+# inside the analysis directory, and fail instead of guessing.
+
+# The law flag that names the era: --era for a FLAF with EraParameter, --period before it.
+law_era_flag() {
+  local customizations="FLAF/run_tools/law_customizations.py"
+  if [[ ! -f ${customizations} ]]; then
+    echo "law_era_flag: ${PWD}/${customizations} not found, cannot tell --era from --period." >&2
+    return 1
+  fi
+  if grep -qE '^class EraParameter\b' "${customizations}"; then
+    echo "--era"
+  elif grep -qE '^\s+period = luigi\.Parameter\(\)\s*$' "${customizations}"; then
+    echo "--period"
+  else
+    echo "law_era_flag: ${PWD}/${customizations} has neither 'class EraParameter' nor" \
+      "'period = luigi.Parameter()'." >&2
+    return 1
+  fi
+}
+
+# The value of that flag: ERA, or for the multi-era job (ERAS set) all its eras when the
+# analysis's StatInference takes several, and ERA for one that takes a single era.
+law_era_value() {
+  local era_flag=$1
+  if [[ -z ${ERAS:-} ]]; then
+    echo "${ERA}"
+    return 0
+  fi
+  local stat_inference=(StatInference/law/*.py)
+  if [[ ! -f ${stat_inference[0]} ]]; then
+    echo "law_era_value: ERAS is set, but ${PWD}/StatInference/law has no task files." >&2
+    return 1
+  fi
+  if grep -qE '^\s+allow_multi_era = True\b' "${stat_inference[@]}"; then
+    if [[ ${era_flag} != "--era" ]]; then
+      echo "law_era_value: StatInference takes several eras, but FLAF takes ${era_flag}." >&2
+      return 1
+    fi
+    echo "${ERAS}"
+  elif grep -qE '^\s+meta_era = luigi\.Parameter\(' "${stat_inference[@]}"; then
+    echo "${ERA}"
+  else
+    echo "law_era_value: ${PWD}/StatInference/law has neither 'allow_multi_era = True' nor" \
+      "'meta_era = luigi.Parameter('." >&2
+    return 1
+  fi
+}

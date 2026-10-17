@@ -246,6 +246,7 @@ jobs:
           task: ${{ matrix.task }}
           args: ${{ matrix.args }}
           era: ${{ matrix.era }}
+          eras: ${{ matrix.eras }}
           ssh_private_key: ${{ secrets.SSH_PRIVATE_KEY }}
           grid_usercert: ${{ secrets.GRID_USERCERT }}
           grid_userkey: ${{ secrets.GRID_USERKEY }}

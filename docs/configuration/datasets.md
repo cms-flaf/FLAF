@@ -150,7 +150,7 @@ See [CI / GitHub Actions](../ci/github-actions.md).
 1. Create `FLAF/config/<new_era>/` with at least `datasets.yaml` and `global.yaml`. The
    `global.yaml` must name the era as `era: <new_era>` on a line of its own (no quotes, no
    trailing comment): that line is what makes the directory a known era, and any other
-   `--period` is refused with `unknown era '…'`.
+   `--era` is refused with `unknown era(s) …; known eras: …`.
 2. Add the era to the C++ `Period` enum in `FLAF/include/AnalysisTools.h` and to the
    `PeriodToHHbTagInput` maps in `FLAF/include/HHbTagScores.h`. AnaTuple production
    JIT-compiles `Period::<era>` (`anaTupleProducer.py`); a missing enumerator fails

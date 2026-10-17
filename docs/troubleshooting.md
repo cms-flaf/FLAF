@@ -34,16 +34,19 @@ answers. When it says `… is listed in … but not seen as a directory` and per
 is no reachable directory (a file, a broken link) sits at `soft/flaf_env`: move it away by hand. See
 [The environment](concepts/environment.md#what-envsh-sets-up).
 
-## `unknown era '…'; known eras: …` / `the configuration says era: …`
+## `unknown era(s) …; known eras: …` / `the configuration says era: …`
 `--era` names one era, and the known eras are the directories `FLAF/config/<era>/` whose
-`global.yaml` says `era: <era>`: the seven Run 3 eras ([Eras](concepts/eras.md)). A typo, a
-comma-separated list or a meta-era name (a datacard era such as a sum of sub-eras) is not one.
+`global.yaml` says `era: <era>`: the seven Run 3 eras ([Eras](concepts/eras.md)). A typo or a
+meta-era name (a datacard era such as a sum of sub-eras) is not one; a payload script started by
+hand with such an `--era` stops with `unknown era '…'; known eras: …` instead. A comma-separated
+list of known eras stops with `several eras in one task are not supported yet` (see below).
 The `era` key itself is set only by that file: an analysis layer, a `user_custom` file or a
 `--customisations` entry that sets it to another value stops the run.
 
 ## `'period' was renamed to 'era' (--era)`
 The `period` parameter is gone. Use `--era Run3_2022` instead of `--period Run3_2022`, `era=` instead of
-`period=` in code, and `{era}` instead of `{period}` in a bundle pattern (the message then reads
+`period=` in code (a `period=` keyword stops with `<Task>: 'period' was renamed to 'era' (use era=...)`),
+and `{era}` instead of `{period}` in a bundle pattern (the message then reads
 `… use {period}, which was renamed to {era}`). The same message is raised for `--<Task>-period` and for a
 `period` entry in the `[<Task>]` section of a law/luigi config file: replace it by `--era` on the command
 line. Outputs written before the rename are found as before, since the paths never changed.

@@ -181,20 +181,24 @@ Each of these has caused a production incident. They are ordered by how much dam
 ### Eras (`run_tools/law_customizations.py`, `Common/Setup.py`)
 
 - **The FLAF era is `era`; `period` no longer exists as a parameter, option, keyword or pattern.**
-  `--period`, `--<Task>-period`, `[<Task>] period` and `period=` must keep failing with `'period' was
-  renamed to 'era' (--era)`, and `--<Task>-era` with `the eras are set once per invocation, with --era`;
+  `--period`, `--<Task>-period` and `[<Task>] period` must keep failing with `'period' was renamed to
+  'era' (--era)`, `period=` with `'period' was renamed to 'era' (use era=...)`, and `--<Task>-era`
+  with `the eras are set once per invocation, with --era`;
   do not add a silent alias. The task parameter is `era = EraParameter(max_len=1)` (a sorted tuple of
   unique known eras; one era per task for now). Payload scripts take `--era` (one value) and
   `Setup(ana_path, era, version)` exposes `Setup.era`. Bundle patterns use `{era}`; `{period}` is refused.
 - **Names that stay `period` on purpose:** the AnaTuple column `period` (per-event C++ `Period`), the
   C++ `Period` enum, `validity_period` cache settings. Output paths (`<version>/<Kind>/<era>/…`), bundle
   URIs and job-file names are unchanged, so existing outputs must keep being found. Do not rename them.
-- **No global `Corrections`.** Payloads build one per dataset/era/stage with
-  `Utilities.CreateCorrections(setup, dataset_name, stage, aggregated_caches=None)` and pass it to the
-  analysis hooks as the required keyword `corrections=` (`addAllVariables`, `GetDfw`,
-  `DefineWeightForHistograms`). It must stay referenced for the dataframe's lifetime
-  (`dfw.corrections`): its C++ providers are referenced by address. Flag a hook reading a module-level
-  instance, and a `Corrections` created inside a function whose dataframe outlives it.
+- **No global `Corrections`.** Payloads build one per dataset/era/stage and pass it to the analysis
+  hooks as the required keyword `corrections=`: `anaTupleProducer.py` constructs `Corrections(...)`
+  directly for `anaTupleDef.addAllVariables`; `HistTupleProducer.py` and `AnalysisCacheProducer.py`
+  use `Utilities.CreateCorrections(setup, dataset_name, stage, aggregated_caches=None)` for
+  `histTupleDef.GetDfw` and `DefineWeightForHistograms`; `MergeAnaTuples.py` constructs one directly
+  per merge (no hook). It must stay referenced for the dataframe's lifetime (`dfw.corrections`, or a
+  local of the function that runs the event loop): its C++ providers are referenced by address. Flag a
+  hook reading a module-level instance, and a `Corrections` created inside a function whose dataframe
+  outlives it.
 
 ### Processors and stitching
 

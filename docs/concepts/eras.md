@@ -4,8 +4,9 @@ Every run targets one **era**, passed as `--era`. An era is a CMS data-taking pe
 selects the matching datasets, corrections and NanoAOD input.
 
 !!! note "`--period` was renamed to `--era`"
-    The former `--period` option, the `--<Task>-period` forms, a `[<Task>] period` entry in a law
-    config and a `period=` keyword now stop at once with `'period' was renamed to 'era' (--era)`.
+    The former `--period` option, the `--<Task>-period` forms and a `[<Task>] period` entry in a
+    law config now stop at once with `'period' was renamed to 'era' (--era)`, and a `period=`
+    keyword with `'period' was renamed to 'era' (use era=...)`.
     Only the user-facing name changed: output paths (`<version>/<Kind>/<era>/…`), bundle URIs and
     job-file names are as before, so existing outputs are found unchanged. The AnaTuple column
     named `period` (the per-event C++ `Period` value), the `Period` enum and the `validity_period`
@@ -110,7 +111,7 @@ the histograms.
 !!! warning "`--era` must be one of the known eras"
     The known eras are the directories `FLAF/config/<era>/` whose `global.yaml` says
     `era: <era>`; any other `--era` stops at once with the list of the known ones
-    ([Troubleshooting](../troubleshooting.md#unknown-era-known-eras-the-configuration-says-era)).
+    ([Troubleshooting](../troubleshooting.md#unknown-eras-known-eras-the-configuration-says-era)).
     If a run unexpectedly drops into `InputFileTask` and queries Rucio for nothing, a wrong
     `--era`/`--version` combination is the usual cause. See
     [Troubleshooting](../troubleshooting.md).

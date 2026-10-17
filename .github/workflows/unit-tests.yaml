@@ -56,6 +56,7 @@ jobs:
           test/test_crab_wave_gate.py
           test/test_check_era_rename.py
           test/test_era_parameter.py
+          test/test_era_process_state.py
           test/test_flaf_env.py
           test/test_fresh_negatives.py
           test/test_gfal_absent_vs_unreachable.py

@@ -224,12 +224,19 @@ These apply to both batch backends (HTCondor and [CRAB](crab.md)).
   to only: law does not pass it on to the remote workflows that one requires, which are polled to
   completion as usual. One failed `stat` of the software tree cannot
   make law mistake its own module for a directory.
+- **Existing outputs are gathered when the workflow starts to run.** law records which branches
+  are complete when luigi schedules the workflow; that record is dropped and taken again, with
+  absence resting on fresh listings, when the workflow starts to run, so outputs written in
+  between (a job that finished while the driver was restarting, a workflow that waited for its
+  inputs) are not sent back to the batch system.
 - **A resumed workflow that lost its outputs stops.** When a workflow is resumed (its job file
-  exists) and more than 10 % of all its jobs — and at least 2 — come back for missing outputs
-  (jobs it had recorded as finished, or live jobs reported finished without them), each of those
-  jobs is checked again with absence resting on fresh listings and by the task's own completeness
-  rule (so branches whose inputs were merged and replaced by markers, as with `HistMergerTask`
-  and `remove_merged_inputs`, count as done). If more than 10 % are still missing, the run stops
+  exists), every job that comes back for missing outputs (a job it had recorded as finished, or a
+  live job reported finished without them, which includes a job that finished during the first
+  status query) is checked again with absence resting on fresh listings and by the task's own
+  completeness rule (so branches whose inputs were merged and replaced by markers, as with
+  `HistMergerTask` and `remove_merged_inputs`, count as done). A job whose branches are complete
+  is booked as finished, not resubmitted. If more than 10 % of all its jobs — and at least 2 —
+  are still missing, the run stops
   instead of resubmitting them, and their entries in the job file are put back as they were, so
   a later run judges them again. The usual cause is storage that was unreachable while outputs
   were checked: run again once it is back. To redo the work on purpose, run again with

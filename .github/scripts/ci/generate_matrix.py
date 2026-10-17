@@ -110,6 +110,8 @@ def main():
                     "task": multi_era_task,
                     "args": task_args,
                     "era": eras[0],
+                    # all eras, for a task that takes several (common.sh law_era_value)
+                    "eras": ",".join(eras),
                 }
             )
 

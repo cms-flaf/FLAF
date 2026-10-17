@@ -313,6 +313,46 @@ def apply_customisations(config_dict, customisations):
         #     cfg_entry[key_entries[-1]] = entry_type(value)
 
 
+#: Every era of the C++ `Period` enum (include/AnalysisTools.h) and its value, which is also
+#: the per-event `period` column of every AnaTuple.
+ERA_IDS = {
+    "Run2_2016_HIPM": 1,
+    "Run2_2016": 2,
+    "Run2_2017": 3,
+    "Run2_2018": 4,
+    "Run3_2022": 5,
+    "Run3_2022EE": 6,
+    "Run3_2023": 7,
+    "Run3_2023BPix": 8,
+    "Run3_2024": 9,
+    "Run3_2025": 10,
+    "Run3_2026": 11,
+}
+
+
+class UnknownEraError(ValueError):
+    pass
+
+
+_ERA_LINE = re.compile(r"^era:\s*(\S+)\s*$", re.MULTILINE)
+
+
+def known_eras(ana_path):
+    """The eras FLAF configures: the directories `<ana_path>/FLAF/config/<era>` whose
+    global.yaml says `era: <era>`."""
+    config_dir = os.path.join(ana_path, "FLAF", "config")
+    eras = []
+    for name in sorted(os.listdir(config_dir)):
+        path = os.path.join(config_dir, name, "global.yaml")
+        if not os.path.isfile(path):
+            continue
+        with open(path) as f:
+            match = _ERA_LINE.search(f.read())
+        if match and match.group(1) == name:
+            eras.append(name)
+    return eras
+
+
 class Setup:
     _global_instances = {}
 
@@ -327,6 +367,11 @@ class Setup:
         customisations=None,
         user_custom_file=None,
     ):
+        eras = known_eras(ana_path)
+        if era not in eras:
+            raise UnknownEraError(
+                f"unknown era '{era}'; known eras: {', '.join(eras)}"
+            )
         self.ana_path = ana_path
         self.era = era
         self.law_run_version = law_run_version
@@ -370,6 +415,13 @@ class Setup:
                 self.global_params["shared_mc"] = reuse_global["shared_mc"]
 
         apply_customisations(self.global_params, customisations)
+        if self.global_params.get("era") != era:
+            raise RuntimeError(
+                f"era '{era}': the configuration says era: "
+                f"{self.global_params.get('era')!r}. The key is set by "
+                f"FLAF/config/{era}/global.yaml, and no other layer, user_custom file "
+                "or customisation may change it."
+            )
 
         phys_models = Config(
             "phys_models", self.config_path_order, ["phys_models.yaml"]
@@ -669,7 +721,10 @@ class Setup:
         )
 
     def get_processors(self, process_name, stage, create_instances=False):
-        key = (process_name, stage, create_instances)
+        """The processor entries of `process_name` for `stage`; with `create_instances`, also
+        a new {name: instance} dict on every call, which the caller owns (mergeAnaTuples adds
+        its 'ds' processor to it)."""
+        key = (process_name, stage)
         if key not in self.processors_cache:
             if process_name in self.base_processes:
                 process = self.base_processes[process_name]
@@ -684,15 +739,14 @@ class Setup:
             for entry in all_processors:
                 if stage in entry["stages"]:
                     stage_processors.append(entry)
-            if create_instances:
-                processors = create_processor_instances(
-                    self.global_params, stage_processors, stage
-                )
-                value = (stage_processors, processors)
-            else:
-                value = stage_processors
-            self.processors_cache[key] = value
-        return self.processors_cache[key]
+            self.processors_cache[key] = stage_processors
+        stage_processors = self.processors_cache[key]
+        if not create_instances:
+            return stage_processors
+        processors = create_processor_instances(
+            self.global_params, stage_processors, stage
+        )
+        return stage_processors, processors
 
     def _create_fs_instance(self, path_or_paths):
         path_to_check = None

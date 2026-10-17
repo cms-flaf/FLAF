@@ -19,8 +19,8 @@ from FLAF.AnaProd.tasks import (
 )
 from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 
-# Process-local cache of the upstream AnaTupleMergeTask outputs, keyed by the resolved
-# AnaTuple (version, period, customisations). HistTupleProducerTask.output() and
+# Process-local cache of the upstream AnaTupleMergeTask outputs, keyed like its branch map
+# (`Task._branch_map_cache_key`). HistTupleProducerTask.output() and
 # AnalysisCacheTask.output() derive their own output name from the anaTuple input file name;
 # resolving that per branch (instantiating AnaTupleMergeTask and building/reducing its branch
 # map each time) is O(nBranches) per branch, i.e. O(nBranches^2) when all outputs are queried
@@ -85,7 +85,7 @@ def _anaTuple_outputs(task):
         customisations=task.customisations,
         max_runtime=AnaTupleMergeTask.max_runtime._default,
     )
-    key = (wf.version, wf.era, wf.customisations)
+    key = wf._branch_map_cache_key()
     cache = _anaTuple_outputs_cache.get(key)
     if cache is None:
         cache = wf.all_branch_outputs()

@@ -204,9 +204,7 @@ class BuilderBranchSetsPerEra(_ScratchAnalysis):
             self.assertEqual(files, expected, era)
 
     def test_the_placeholder_is_never_cached(self):
-        builder = ana_prod.AnaTupleFileListBuilderTask(
-            version=self.version, era=ERA_A
-        )
+        builder = ana_prod.AnaTupleFileListBuilderTask(version=self.version, era=ERA_A)
         self.assertNotIsInstance(builder._get_anaTuple_map(), dict)
         self.write_input_lists(ERA_A)
         self.assertEqual(self.builder_sets(ERA_A), {"data": {0, 1}, "TTto2L2Nu": {2}})

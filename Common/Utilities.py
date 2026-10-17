@@ -421,7 +421,8 @@ WPInit = False
 
 def CreateCorrections(setup, dataset_name, stage, aggregated_caches=None):
     """A new Corrections instance for this dataset, era and stage. The caller keeps it for as
-    long as the dataframes built with it (its correction providers are referred to by address)."""
+    long as the dataframes built with it (its correction providers are referred to by address).
+    """
     from Corrections.Corrections import Corrections
     import FLAF.Common.triggerSel as Triggers
 

@@ -100,7 +100,10 @@ class _ScratchAnalysis(unittest.TestCase):
                 f.write(text)
         env = mock.patch.dict(
             os.environ,
-            {"ANALYSIS_PATH": ana, "ANALYSIS_DATA_PATH": os.path.join(self.tmp, "data")},
+            {
+                "ANALYSIS_PATH": ana,
+                "ANALYSIS_DATA_PATH": os.path.join(self.tmp, "data"),
+            },
         )
         env.start()
         self.addCleanup(env.stop)
@@ -180,7 +183,9 @@ class PeriodIsRenamed(_ScratchAnalysis):
 
     def test_the_root_period_flag(self):
         with self.assertRaises(ValueError) as caught:
-            self.from_command_line("EraParamProbe", "--version", "v", "--period", "Run3_2022")
+            self.from_command_line(
+                "EraParamProbe", "--version", "v", "--period", "Run3_2022"
+            )
         self.assert_renamed(caught)
 
     def test_a_per_task_period_flag(self):

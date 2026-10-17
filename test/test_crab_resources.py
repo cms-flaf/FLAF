@@ -111,7 +111,9 @@ def flaf_env(crab_cfg=None):
         lc.Setup, "getGlobal", return_value=setup
     ), mock.patch.object(
         lc, "_known_eras", return_value=("Run3_2022",)
-    ), mock.patch.dict(os.environ, {"ANALYSIS_DATA_PATH": tmp, "ANALYSIS_PATH": tmp}):
+    ), mock.patch.dict(
+        os.environ, {"ANALYSIS_DATA_PATH": tmp, "ANALYSIS_PATH": tmp}
+    ):
         for var in ("LAW_JOB_HOME", "LAW_CRAB_JOB_NUMBER", "X509_USER_PROXY"):
             os.environ.pop(var, None)
         yield tmp

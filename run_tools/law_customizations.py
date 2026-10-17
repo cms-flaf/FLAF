@@ -211,8 +211,7 @@ def _reject_removed_era_flags():
     families = [
         family
         for family, cls in luigi.task_register.Register._get_reg().items()
-        if isinstance(cls, type)
-        and isinstance(getattr(cls, "era", None), EraParameter)
+        if isinstance(cls, type) and isinstance(getattr(cls, "era", None), EraParameter)
     ]
     renamed = [
         flag
@@ -227,7 +226,9 @@ def _reject_removed_era_flags():
     if renamed:
         raise ValueError(f"{', '.join(renamed)}: 'period' was renamed to 'era' (--era)")
     per_task = [
-        f"--{family}-era" for family in families if args.get(f"{family}_era") is not None
+        f"--{family}-era"
+        for family in families
+        if args.get(f"{family}_era") is not None
     ] + [f"[{family}] era" for family in families if config.has_option(family, "era")]
     if per_task:
         raise ValueError(

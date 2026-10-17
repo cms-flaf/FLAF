@@ -369,9 +369,7 @@ class Setup:
     ):
         eras = known_eras(ana_path)
         if era not in eras:
-            raise UnknownEraError(
-                f"unknown era '{era}'; known eras: {', '.join(eras)}"
-            )
+            raise UnknownEraError(f"unknown era '{era}'; known eras: {', '.join(eras)}")
         self.ana_path = ana_path
         self.era = era
         self.law_run_version = law_run_version

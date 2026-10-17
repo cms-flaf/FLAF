@@ -38,7 +38,10 @@ ALLOWED_NAMES = {
 }
 NOQA = "noqa: era-rename"
 TEXT_SUFFIXES = (".py", ".yaml", ".yml", ".sh", ".cfg", ".ini", ".json")
-TEXT_PATTERNS = {"--period": re.compile(r"--period\b"), "{period}": re.compile(r"\{period\}")}
+TEXT_PATTERNS = {
+    "--period": re.compile(r"--period\b"),
+    "{period}": re.compile(r"\{period\}"),
+}
 
 
 def is_self_era(node):
@@ -108,7 +111,12 @@ def python_findings(path, source):
             if (is_getattr or is_get) and len(node.args) > key_index:
                 key = node.args[key_index]
                 if isinstance(key, ast.Constant) and key.value == "period":
-                    found.append((node.lineno, f"{'getattr' if is_getattr else 'get'}(..., 'period')"))
+                    found.append(
+                        (
+                            node.lineno,
+                            f"{'getattr' if is_getattr else 'get'}(..., 'period')",
+                        )
+                    )
     return found
 
 
@@ -157,7 +165,9 @@ def main():
     for problem in problems:
         print(problem)
     if problems:
-        print(f"{len(problems)} leftover(s) of the period -> era rename", file=sys.stderr)
+        print(
+            f"{len(problems)} leftover(s) of the period -> era rename", file=sys.stderr
+        )
         return 1
     return 0
 

@@ -676,7 +676,9 @@ class WhereTheFlagsLive(FlafTaskTestCase):
         self.assertIs(proxy.job_manager.watchdog, w)
         self.setup.get_fs.assert_not_called()
         self.assertEqual(w.flag_dir, task.heartbeat_dir_target().uri())
-        self.assertTrue(w.flag_dir.endswith("/v1/heartbeat/WatchdogUp/Run3_2022"), w.flag_dir)
+        self.assertTrue(
+            w.flag_dir.endswith("/v1/heartbeat/WatchdogUp/Run3_2022"), w.flag_dir
+        )
 
     def test_the_watchdog_is_built_once_per_workflow_from_the_crab_settings(self):
         self.crab_cfg({"watchdog": {"interval_minutes": 12, "missed_checks": 3}})

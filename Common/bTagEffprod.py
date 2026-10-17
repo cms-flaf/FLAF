@@ -51,7 +51,7 @@ def bTagProdEff(inDir, config, sample_name, range, evtIds):
         "sample_type",
         f"static_cast<int>(SampleType::{config[sample_name]['sampleType']})",
     )
-    df = df.Define("era", f"static_cast<int>(Period::{era})")
+    df = df.Define("period", f"static_cast<int>(Period::{era})")
     df = df.Define("X_mass", f"static_cast<int>({mass})")
 
     df = Baseline.CreateRecoP4(df)

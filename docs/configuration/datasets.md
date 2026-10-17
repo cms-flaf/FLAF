@@ -147,11 +147,17 @@ See [CI / GitHub Actions](../ci/github-actions.md).
 
 ## Adding a new era
 
-1. Create `FLAF/config/<new_era>/` with at least `datasets.yaml` and `global.yaml`.
+1. Create `FLAF/config/<new_era>/` with at least `datasets.yaml` and `global.yaml`. The
+   `global.yaml` must name the era as `era: <new_era>` on a line of its own (no quotes, no
+   trailing comment): that line is what makes the directory a known era, and any other
+   `--period` is refused with `unknown era '…'`.
 2. Add the era to the C++ `Period` enum in `FLAF/include/AnalysisTools.h` and to the
    `PeriodToHHbTagInput` maps in `FLAF/include/HHbTagScores.h`. AnaTuple production
    JIT-compiles `Period::<era>` (`anaTupleProducer.py`); a missing enumerator fails
-   immediately with `no member named '<era>' in 'Period'`.
+   immediately with `no member named '<era>' in 'Period'`. Add the same name and value to
+   `ERA_IDS` in `FLAF/Common/Setup.py`, and the era to the list of known eras in
+   `FLAF/test/test_era_process_state.py`; the unit tests compare both with the enum and the
+   config directories.
 3. Create `<analysis>/config/<new_era>/` with the analysis-specific overrides and signals.
    In `triggers.yaml`, every `jsonTRGcorrection_key` map must include the
    Corrections period name (`2026_Summer24` for `Run3_2026`). Missing keys

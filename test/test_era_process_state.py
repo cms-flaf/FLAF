@@ -285,7 +285,7 @@ class EraValidation(_ScratchAnalysis):
 
 
 class EraIds(unittest.TestCase):
-    def test_the_ids_are_the_cpp_period_values(self):
+    def test_the_ids_are_the_cpp_enum_values(self):
         with open(os.path.join(flaf_repo, "include", "AnalysisTools.h")) as f:
             header = f.read()
         body = re.search(r"enum class Period : int \{(.*?)\};", header, re.S).group(1)

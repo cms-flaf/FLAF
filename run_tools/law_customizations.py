@@ -1562,12 +1562,14 @@ class SubmissionGuards(LawProxyState):
     def _drop_complete_backlog(self):
         """Take out of the backlog the jobs law's submit() would pass by, as it does.
 
-        law's run() lists every job in `unsubmitted_jobs`, also one that luigi's scheduling
-        already recorded in `jobs` as finished because its outputs exist, and JobData counts
-        that one twice until law's submit() drops it from the backlog. poll() fixes the job
-        count once, and it can start with that submit() not having run: a resumed run never
-        calls it, and FLAF holds a round back (unreadable job sources, the CRAB wave gate).
-        The loop then waits for a job that does not exist.
+        poll() fixes the job count, backlog included, once at its start, and law's submit()
+        drops from `unsubmitted_jobs` every job whose branches all exist. On a fresh run such a
+        job is also in `jobs` -- luigi's scheduling (process_resources) recorded it there as
+        finished -- so dropped inside the loop it leaves the count one too high, and the loop
+        waits for a job that does not exist. A fresh run calls submit() right before poll(), but
+        FLAF skips that round when the job sources cannot be read. A resumed run is not affected
+        (run() clears the verdicts before law reloads `jobs`, so law records such a job again
+        before dropping it); there the drop only comes earlier.
         """
         for job_num, branches in list(self.job_data.unsubmitted_jobs.items()):
             if self._can_skip_job(job_num, branches):

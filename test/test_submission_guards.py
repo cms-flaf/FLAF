@@ -1268,7 +1268,9 @@ class _WhenTheJobSourcesAreUnreadable:
         )
 
     def test_a_resumed_backlog_with_a_complete_job_leaves_the_job_count_right(self):
-        """A resumed run polls without calling submit() first."""
+        """A resumed run polls without calling submit() first, and run() clears law's verdicts
+        before law reloads `jobs`: a control, the count is right with or without the drop.
+        """
         proxy = self.proxy(3)
         data = JobData()
         data.jobs[1] = job(1, FINISHED, job_id="r1")

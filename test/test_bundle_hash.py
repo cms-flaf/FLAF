@@ -159,13 +159,6 @@ class TestBundleProducers(unittest.TestCase):
     def entries(self, flavour):
         return [e["class"] for e in make_task(flavour).task_requires_entries()]
 
-    def test_the_renamed_placeholder_is_refused(self):
-        BUNDLES["renamed"] = {"patterns": ["data/{version}/ListTask/{period}"]}  # noqa: era-rename
-        self.addCleanup(BUNDLES.pop, "renamed")
-        with self.assertRaises(ValueError) as caught:
-            make_task("renamed").bundle_patterns()
-        self.assertIn("renamed to {era}", str(caught.exception))
-
     def test_a_single_entry_is_still_accepted(self):
         self.assertEqual(self.entries("one_producer"), ["BuilderTask"])
 

@@ -239,6 +239,20 @@ class PeriodIsRenamed(_ScratchAnalysis):
             )
         self.assertIn("[OtherEraParamProbe] era", str(caught.exception))
 
+    def test_a_period_placeholder_in_a_bundle_pattern(self):
+        global_yaml = os.path.join(os.environ["ANALYSIS_PATH"], "config", "global.yaml")
+        with open(global_yaml, "a") as f:
+            f.write(
+                "bundles:\n"
+                "  renamed:\n"
+                "    patterns:\n"
+                '      - "data/{version}/ListTask/{period}"\n'
+            )
+        task = lc.BundleTask(version="v", era="Run3_2022", flavour="renamed")
+        with self.assertRaises(ValueError) as caught:
+            task.bundle_patterns()
+        self.assertIn("renamed to {era}", str(caught.exception))
+
     def test_a_plain_command_line_runs(self):
         task = self.from_command_line(
             "EraParamProbe", "--version", "v", "--era", "Run3_2022"

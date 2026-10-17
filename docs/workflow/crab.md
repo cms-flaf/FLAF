@@ -425,10 +425,10 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
     one directory per variable for every `HistFromNtupleProducerTask` branch, which outlasted
     a 5 h wall time from CERN to FNAL storage). The driver prints the count when it submits
     (`path-cache snapshot with N entries; X of the Y outputs of Z requirements found in T s`); an
-    output it did not find is left to the job, which refuses to build it inline. An "absent"
+    output it did not find is not shipped, and the job checks it on storage itself. An "absent"
     (a missing file, or a listing that implies one) recorded before the driver's current
-    poll, or learned from the cache server, is not shipped: it may predate a file another CRAB job wrote. The driver
-    compensates for the missing server link on its side: see
+    poll, or learned from the cache server, is not shipped: it may predate a file another
+    CRAB job wrote. The driver compensates for the missing server link on its side: see
     [Finished means on storage](#status-handling).
 
 !!! note "Workers read their proxy with `voms-proxy-info -dont-verify-ac`"

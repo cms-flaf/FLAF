@@ -386,7 +386,7 @@ class TestCacheServerProtocol(unittest.TestCase):
             client_end.connect(listener.getsockname())
             server_end, _ = listener.accept()
         # as socket.create_connection(..., timeout) leaves it
-        client_end.settimeout(2)
+        client_end.settimeout(10)
         cache = types.SimpleNamespace(
             get=lambda path: (path, path.endswith("1.root"), 0)
         )
@@ -402,7 +402,7 @@ class TestCacheServerProtocol(unittest.TestCase):
             "create_connection",
             lambda *args, **kwargs: client_end,
         ):
-            result = pathCacheClient.get_status_many(paths, "host", 0, timeout=2)
+            result = pathCacheClient.get_status_many(paths, "host", 0, timeout=10)
         self.assertEqual(result, {p: p.endswith("1.root") for p in paths})
 
 

@@ -121,6 +121,8 @@ Each of these has caused a production incident. They are ordered by how much dam
   output of those requirements whatever the age of the driver's own entries (only "exists",
   never an absent for them). A job that has to list them itself pays one `gfal-ls` per directory
   (a HistMergerTask branch: every HistFromNtupleProducerTask branch, one directory per variable).
+  The snapshot differs per submission, so its job input is not `share=True`: law builds every CRAB
+  task of a run in one directory and reuses an existing shared input there (`skip_existing`).
 
 ### CRAB backend (`run_tools/law_customizations.py`, `run_tools/crab_sites.py`, `run_tools/crab_watchdog.py`)
 

@@ -1262,10 +1262,25 @@ class TheJobChecksItsRequirementsFromTheSnapshot(unittest.TestCase):
                     output_lfn_base="/store/group/FLAF_crab_unused",
                     render_variables={},
                 )
-            with open(c.input_files["path_cache"].path_sub_abs) as f:
+            sandbox_file = c.input_files["path_cache"].path_sub_abs
+            with open(sandbox_file) as f:
                 shipped.append({e["path"] for e in json.load(f)["entries"]})
         self.assertNotIn(self.required[3], shipped[0])
         self.assertTrue(set(self.required.values()) <= shipped[1])
+
+        # the job finds its copy under the name the factory gave it
+        init_dir = tempfile.mkdtemp(prefix="flaf_job_init_", dir=_data_dir)
+        shutil.copy(sandbox_file, init_dir)
+        with mock.patch.dict(
+            os.environ, {"LAW_JOB_INIT_DIR": init_dir}
+        ), mock.patch.object(law_gfal, "_shipped_path_cache_entries", None):
+            os.environ.pop(law_gfal.SHIPPED_PATH_CACHE_ENV, None)
+            os.environ.pop("LAW_JOB_HOME", None)
+            self.h.fs = WLCGFileSystem(BASE, local_path_cache_validity_period=86400)
+            law_gfal.apply_shipped_path_cache(self.h.fs)
+        listed = len(self.h.storage.listings)
+        self.assertTrue(all(dep.complete() for dep in self.h.task.as_branch(1).deps()))
+        self.assertEqual(self.h.storage.listings[listed:], [])
 
     def test_a_shared_requirement_is_resolved_once(self):
         _, _, out, _ = self.stage()

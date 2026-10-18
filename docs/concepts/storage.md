@@ -60,6 +60,13 @@ by the era (paths below are relative to `<version>/`):
 | `logs/<Task>/<era>/` | job logs staged by remote jobs (only for a remote `fs_default`) | `fs_default` |
 | `worker_files/<era>/` | input files of bundle HTCondor jobs, uploaded at submission — only when `htcondor_spool` (on by default) is turned off | `fs_default` |
 
+A run over [several eras](eras.md#running-several-eras) writes the same paths: every product above
+that carries an era sits where a run over that era alone puts it, so no path holds the set of
+eras or a branch number. The output filesystems `fs_anaTuple`, `fs_HistTuple`, `fs_anaCacheTuple` and
+`fs_plots` may differ between the eras of such a run (for instance through
+`config/<era>/user_custom.yaml`); `fs_default` has to be the same
+([user_custom.yaml](../configuration/user-custom.md#several-eras-in-one-run)).
+
 Bundle naming matters when something they pack changes: only flavours with `hashed: true` (in
 the analyses: `core`) get a new name, and an existing unhashed bundle (e.g. `soft`, `cmssw`) is
 never rebuilt — delete it to force a rebuild. The exception is the bundle that packs `flaf_env`,

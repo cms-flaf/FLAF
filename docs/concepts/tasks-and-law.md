@@ -79,7 +79,8 @@ Two arguments control workflows:
   inherits, which for FLAF's tasks is `htcondor` — so pass `--workflow local` explicitly for a
   local run. (`InputFileTask` and `AnaTupleFileListTask` always run locally.)
 - `--branches 0,2,5:8` runs only selected branches — here 0, 2, 5, 6 and 7; a range `start:end`
-  excludes `end`, as in Python (great for testing one file or one variable).
+  excludes `end`, as in Python (great for testing one file or one variable). Over several eras the
+  numbers carry the era, see [below](#one-workflow-over-several-eras).
 
 !!! tip "`--branches 0` does not mean 'a tiny run of everything'"
     `--branches` only restricts the *task you launched*. Its upstream dependencies still run for
@@ -87,6 +88,21 @@ Two arguments control workflows:
     ntuples and histograms it needs are still produced for all datasets. To make a run genuinely
     small, combine it with `--test 1000` (only the first input file of each dataset, at most 1000
     events of it) and `phys_model: TestModel` (few processes).
+
+### One workflow over several eras
+
+`--era` takes one era or several, separated by commas (`--era Run3_2022,Run3_2022EE`). A run over
+several eras still has **one workflow per stage**, whose branches are those of the eras that
+still need work at that stage. An era whose part of a stage is complete is left out, and what its
+outputs were made from is not requested again.
+
+A **branch** always belongs to one era and is the branch a run over that era alone has — the same
+inputs, payload, output paths and logs. Only its number in the workflow carries the era
+(`era id × 1 000 000 + its number in the era's own map`). What belongs to the stage as a whole —
+the branch map, the requirements, the submission and the polling — spans the eras. Which tasks
+take several eras, the numbering, the settings that must agree between the eras and what stays
+the same as in a run over one era are in [Eras](eras.md#running-several-eras); a task class is
+written for it as described in [Contributing](../contributing.md#writing-code-for-several-eras).
 
 ## Inspecting and cleaning up
 

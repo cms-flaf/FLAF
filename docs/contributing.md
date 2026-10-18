@@ -59,6 +59,47 @@ If you added, renamed or moved a LAW task class, refresh the index so it can be 
 law index --verbose
 ```
 
+## Writing code for several eras
+
+A task over several eras (`--era A,B`) is one workflow whose branches each belong to one era
+([Eras](concepts/eras.md#running-several-eras)). The base class `Task` in
+`FLAF/run_tools/law_customizations.py` keeps the two scopes apart, and a task class follows these
+rules:
+
+- **Class flags.** `allow_multi_era = True` lets a class be constructed over several eras (without
+  it `Task.__init__` raises `<Task> takes one era`). `era_branches = True` marks a workflow whose
+  branches carry the era: its branch map over several eras is the union of the eras' own maps,
+  numbered `era id × 1 000 000 + the number in the era's own map`, with per-era requirements and
+  per-era submission state. It needs `allow_multi_era`. Every stage class of `AnaProd/tasks.py` and
+  `Analysis/tasks.py` sets both.
+- **Read per-era values through `only_era`, never `self.era[0]`.** `self.only_era` is the era of
+  a task over one era and raises `EraScopeError` on a task over several; `self.setup` and the paths
+  and names built from it behave the same. Over several eras use `setup_for(era)`, `single(era)`
+  (this stage over one era) or `common(getter, what)` for a setting that holds for all the eras,
+  which raises `EraDependentValueError` when they disagree (the settings read this way are listed
+  in [Eras](concepts/eras.md#settings-that-must-agree-between-the-eras)). `fs_default` and
+  `cmssw_env` are readable on any task: the first is checked to agree when the task is
+  constructed, the second does not depend on the era.
+- **Branch-level code runs on one era.** A branch of a run over several eras is the branch task of
+  its era's own workflow, so `output()`, `run()`, a branch's `requires()` and the payload calls see
+  one era and that era's own branch numbers.
+- **The requirements of a stage go in `stage_workflow_requires()`**, not in `workflow_requires()`:
+  the latter is a dispatcher that, over several eras, asks each era that still needs work for its
+  `stage_workflow_requires()` and merges the answers into one requirement per stage. Call
+  `super().stage_workflow_requires()` for the bundles.
+- **Build the branch map through `cached_branch_map`**: `create_branch_map` returns
+  `self.cached_branch_map(self._build_branch_map)`, and the union over the eras is made from the
+  single-era maps.
+- **Name eras in requirements only through `with_eras(eras, branches)`**, which derives this stage
+  over other eras and hands on the per-task values (`--tasks-per-job`, `--max-runtime`,
+  `--n-cpus`, `--crab-memory`). `run_tools/check_era_rename.py` reports an `era` keyword in
+  `X.req(...)`, `req_params`, `req_branch` or `req_workflow` outside `with_eras`, and `self.era[...]`
+  in a task class outside `only_era`; a deliberate exception carries `# noqa: era-scope` on the
+  line (the rename findings use `# noqa: era-rename`).
+- **A producer that reads AnaTuples checks the era of their events:** `Utilities.book_era_check(df, era)`
+  before the event loop and `Utilities.check_era(count, era, what)` after it, as `AnaTupleMergeTask`,
+  `HistTupleProducerTask` and `AnalysisCacheTask` do.
+
 ## Validate config changes
 
 - Edited `datasets.yaml`? Run the
@@ -76,10 +117,21 @@ from the analysis checkout with `env.sh` sourced:
   `Setup` for each listed era, as `test-setup-loading` does in CI. It finds the analysis from its
   own location, so run the copy inside the analysis checkout.
 - **Smoke test** — `python3 FLAF/test/test_hello_world.py --version <v> --workflow local`
-  (or `htcondor`; add `--bundle` to go through a bundle, `--force-fail` to check the log transfer
-  of a failing job) runs `FLAF.test.hello_world_task.HelloWorldTask` for one branch and prints
-  `PASS` or `FAIL`. `--era` defaults to `Run3_2022EE`. It first deletes `data/<v>/` and the
-  task's remote log, so use a throwaway version name.
+  (or `htcondor` or `crab`; add `--bundle` to go through a bundle, `--force-fail` to check the log
+  transfer of a failing job, `--user-custom <file>` for an extra configuration file) runs
+  `FLAF.test.hello_world_task.HelloWorldTask` for one branch and prints `PASS` or `FAIL`. `--era`
+  defaults to `Run3_2022EE`; with several (`--era Run3_2022,Run3_2023`) the run is one workflow
+  over all of them, with branch 0 of each era selected by its number in that run, and every era's
+  log and output are checked where a run over that era alone puts them. It first deletes
+  `data/<v>/` and the task's remote log, so use a throwaway version name.
+- **Every stage over several eras** — `python3 FLAF/test/test_era_dimension.py Run3_2022 Run3_2022EE …`
+  (from the analysis checkout, at least two eras) constructs every FLAF stage over those eras on
+  the analysis's own configuration, with each workflow type it supports, and takes it through what
+  the scheduler does before anything runs (proxy, resources, requirements, outputs,
+  completeness). It fails on a setting that differs between the eras where it has to agree, or on
+  a per-era value read on a task over several eras. No grid is needed: the `fs_*` are redirected
+  to a local directory, and ROOT and Corrections are stand-ins. The reusable GitHub workflow
+  `test-era-dimension.yaml` runs it ([GitHub Actions](ci/github-actions.md)).
 - **Unit suites** — the other `FLAF/test/test_*.py` files (path cache, bundle hashing, stitching
   variables, cost model, …) are standalone scripts, mostly `unittest` modules; run one directly,
   e.g. `python3 FLAF/test/test_path_cache.py`. CI's `unit-tests` workflow runs the ones that need

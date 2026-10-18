@@ -9,6 +9,15 @@ tasks live in `FLAF/Analysis/tasks.py` (invoke as `FLAF.Analysis.tasks.<Name>`).
 which they run, see the [walkthrough](../workflow/walkthrough.md) and
 [data flow](../concepts/data-flow.md).
 
+**Eras.** Every task below takes `--era` with one era. The production and analysis tasks of this
+page also take several, separated by commas (`--era Run3_2022,Run3_2022EE`): every stage up to the
+launched one then runs for all of them, as one workflow per stage over the eras that still need work
+there, with branches numbered `era id × 1 000 000 + the number in the era's own map`. The other
+tasks (`BundleTask`, which stays per era, the analyses' Studies tasks and the `StatInference` tasks)
+take one era and refuse several with `<Task> takes one era`. A branch is always one era's: its
+inputs, outputs, paths and logs are those of a run over that era alone. See
+[Running several eras](../concepts/eras.md#running-several-eras).
+
 ## Production tasks (`AnaProd`)
 
 ### `InputFileTask`
@@ -51,8 +60,10 @@ per-event cost varies by more than an order of magnitude between datasets and de
 analysis selection.
 
 Results live at `<version>/AnaTupleCost/<nano-source>/<dataset>.json` on `fs_anaTuple`, keyed by
-version and nano source but **not by era**, so a multi-era production probes each dataset once and
-the later eras skip this stage entirely.
+version and nano source but **not by era**, so a dataset probed for one era is not probed again
+for the others: they find the result and skip this stage. In one run over several eras whose
+results do not exist yet, each era has its own probe branch for a dataset it shares (the eras' branch
+maps are not merged), and these branches write the same file.
 
 A probe that fails is retried once and, if it still fails, writes a result marked not ok and
 prints a warning: calibration is an optimisation and never blocks production. That result counts

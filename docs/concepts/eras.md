@@ -1,7 +1,8 @@
 # Eras
 
-Every run targets one **era**, passed as `--era`. An era is a CMS data-taking period; choosing one
-selects the matching datasets, corrections and NanoAOD input.
+Every run targets one **era**, or several, passed as `--era` (see [Running several eras](#running-several-eras)).
+An era is a CMS data-taking period; choosing one selects the matching datasets, corrections and
+NanoAOD input.
 
 !!! note "`--period` was renamed to `--era`"
     The former `--period` option, the `--<Task>-period` forms and a `[<Task>] period` entry in a
@@ -99,14 +100,16 @@ Each sub-era has its own corrections and luminosity, which is exactly why the
 
 ## Running several eras
 
-A task runs **one era at a time** (`--era` takes one value; several eras in one task are
-"not supported yet"). The eras are set once per invocation: `--<Task>-era` is refused with
-`the eras are set once per invocation, with --era`. To cover multiple eras, launch the task once per era (often
-scripted), or, in CI, list them in the `*_eras` variable (e.g.
-`Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025 Run3_2026`). See the
-[integration pipeline](../ci/integration-pipeline.md). For a 2024+2025+2026
-combination, run each era with `weight_base_branch: weight_base_cmb` and add
-the histograms.
+`--era` takes one era or several, separated by commas; the eras are set once per invocation
+(`--<Task>-era` is refused with `the eras are set once per invocation, with --era`):
+
+```sh
+law run FLAF.Analysis.tasks.HistMergerTask --version v1 --era Run3_2022,Run3_2022EE --workflow htcondor
+```
+
+The list is sorted and duplicates are dropped, so `--era Run3_2022EE,Run3_2022` is the same run.
+`--era Run3_2022` is a run over one era as before, apart from the `--branches` change described
+under [Branch numbers](#branch-numbers).
 
 !!! warning "`--era` must be one of the known eras"
     The known eras are the directories `FLAF/config/<era>/` whose `global.yaml` says
@@ -115,6 +118,120 @@ the histograms.
     If a run unexpectedly drops into `InputFileTask` and queries Rucio for nothing, a wrong
     `--era`/`--version` combination is the usual cause. See
     [Troubleshooting](../troubleshooting.md).
+
+### What a run over several eras does
+
+- **Every stage up to the launched one runs for all the eras.** Each stage is **one workflow**
+  whose branches are those of the eras that still need work there: one HTCondor or CRAB
+  submission and one poll loop per stage, or, with `--workflow local`, the branches of all the
+  eras in one driver.
+- **An era whose part of a stage is complete is pruned.** It is not asked for anything, so the
+  intermediate products its outputs were made from are not requested either, even when they have
+  been removed since (the split AnaTuples after the merge, the histogram chunks replaced by
+  `.merged` markers). Adding an era to a finished one submits nothing for the finished era.
+- **A stage whose branch map is read from an earlier stage's output** (the file lists of
+  `InputFileTask`, the merge plan of `AnaTupleFileListTask`) is built only once that output exists
+  for every era of the run, so the slowest era sets the pace at that point.
+- **Nothing is summed across eras.** Every output belongs to one era, as in a run over one era.
+  Combining eras, such as 2024+2025+2026 with `weight_base_branch: weight_base_cmb`, stays a
+  separate step: add the histograms of the eras.
+- **Shared-MC eras** (`Run3_2025` and `Run3_2026` reuse the 2024 MC datasets, see above) each
+  produce their own AnaTuples: in a run over `Run3_2024,Run3_2025,Run3_2026` the shared MC
+  datasets are read three times and written as three sets of AnaTuples, so the work is not shared
+  between the eras.
+- **Every producer checks the era of its events.** `AnaTupleMergeTask`, `HistTupleProducerTask`
+  and `AnalysisCacheTask` count, in the event loop they run anyway, the events whose `period`
+  column (the C++ `Period` value of the AnaTuple) is not the era the branch runs for, and stop
+  with an error when there is any (placeholder rows, `valid == false`, carry no era and are
+  skipped). An AnaTuple of another era among the inputs is caught this way.
+- **One driver per era.** The branches of an era are tracked in that era's job file (see
+  [HTCondor](../workflow/htcondor.md#several-eras-in-one-submission)). Two instances of one stage
+  that share an era never run at once inside one `law run` (a luigi resource per job-file
+  directory, `flaf_jobs:<directory>`, of capacity 1 unless luigi's `[resources]` configuration
+  section sets another), but two separate `law run` processes on the same era are not guarded
+  against each other, exactly as before.
+
+### Which tasks take several eras
+
+The stages of the production and analysis chain: `InputFileTask`, `AnaTupleCostProbeTask`,
+`AnaTupleFileTask`, `AnaTupleFileListBuilderTask`, `AnaTupleFileListTask`, `AnaTupleMergeTask`,
+`AnalysisCacheTask`, `AnalysisCacheAggregationTask`, `HistTupleProducerTask`,
+`PreHistTupleProductionTask`, `HistFromNtupleProducerTask`, `HistMergerTask` and `HistPlotTask`
+(the classes that set `allow_multi_era` and `era_branches`).
+
+Every other task takes one era and refuses several with
+`<Task> takes one era; got --era Run3_2022,Run3_2023`. That covers the analyses' Studies tasks,
+the `StatInference` tasks and `BundleTask`: bundles stay per era, the stages that ship one
+require the bundles of each era that still has work, and an existing bundle of one era is never
+rebuilt for another. Launch the tasks that refuse several eras once per era.
+
+### Branch numbers
+
+Over **one era** a branch has the number it has in that era's own branch map, as always. Over
+**several eras** it is numbered
+
+```text
+era id × 1 000 000 + its number in that era's own map
+```
+
+where the era id is the C++ `Period` value:
+
+| Era | `Run3_2022` | `Run3_2022EE` | `Run3_2023` | `Run3_2023BPix` | `Run3_2024` | `Run3_2025` | `Run3_2026` |
+|---|---|---|---|---|---|---|---|
+| Era id | 5 | 6 | 7 | 8 | 9 | 10 | 11 |
+
+An era's branch numbers therefore never depend on the other eras of the run: branch 3 of
+`Run3_2022EE` is 6000003 in every run. With `env.sh` sourced,
+`python -m FLAF.Common.Setup --era-branch Run3_2022EE 3` prints it.
+
+- **`--branches` takes these numbers over several eras**, for example
+  `--era Run3_2022,Run3_2022EE --branches 5000000,5000001,6000000:6000010`. Every era of `--era`
+  must have at least one selected branch (otherwise drop it from `--era`), a range has a start
+  and an end and stays inside one era, and every number must belong to an era of the run.
+- **`--branch` is refused** over several eras: use `--era <era> --branch <its number in that era>`.
+- **A run over one era takes that era's own numbers.** A number of a run over several eras
+  (1 000 000 or more) stops with the decoded hint, for example
+  `branch 6000001 is branch 1 of Run3_2022EE in a run over several eras; a run over one era takes that era's own numbers: --era Run3_2022EE --branches 1`.
+- **A `--branches` selection given before the stage's inputs exist** is honoured. For a stage
+  whose branch map is read from an earlier stage's output (see above), a selection given before
+  that output existed used to be widened to all of its branches; it is now kept, in runs over one
+  era as well.
+
+### Settings that must agree between the eras
+
+A run over several eras reads some settings once, for all its eras. They must be the same in every
+era of the run, or constructing the task stops with `EraDependentValueError` naming the key and
+each era's value:
+
+- `fs_default`;
+- `crab` (the whole block), `runTokenServer`, and `WLCGFileSystem.remotePathCacheHost` and
+  `remotePathCachePort`;
+- `anaTuple_scheduling` and `use_cmssw_env_AnaTupleProduction`;
+- of each entry of `payload_producers`: `n_cpus`, `max_runtime`, `crab_memory`, `save_as` and
+  `cmssw_env`.
+
+Everything else may differ per era: the datasets and processes, the corrections, the bundles and
+the output filesystems `fs_anaTuple`, `fs_HistTuple`, `fs_anaCacheTuple` and `fs_plots` (for
+instance in `config/<era>/user_custom.yaml`, see
+[`user_custom.yaml`](../configuration/user-custom.md#several-eras-in-one-run)).
+
+### What stays the same as in a run over one era
+
+Branch tasks, jobs, payloads (one era per subprocess, `--era <the branch's era>`), output paths,
+job files, logs, heartbeats, worker files, bundles and CRAB request names are per era and
+identical to what `--era <that era>` alone writes. A run over several eras and runs over some of
+them therefore find each other's outputs and unfinished jobs, in any order. The `--dataset`
+selection applies to every era: a dataset that exists in only one of the eras fails the run
+(`No datasets selected with a custom selection: …`), so run such a dataset on its own era.
+`--parallel-jobs` is one cap for the whole run, not one per era
+([HTCondor](../workflow/htcondor.md#several-eras-in-one-submission),
+[CRAB](../workflow/crab.md#several-eras-in-one-run)). The error messages of this section are
+explained in [Troubleshooting](../troubleshooting.md#task-takes-one-era-got-era).
+
+In CI, the eras are listed in the `*_eras` variable (e.g.
+`Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025 Run3_2026`). See the
+[integration pipeline](../ci/integration-pipeline.md). For a 2024+2025+2026 combination, run each
+era with `weight_base_branch: weight_base_cmb` and add the histograms.
 
 ## Adding a new era
 

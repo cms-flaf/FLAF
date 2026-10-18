@@ -41,8 +41,9 @@ ERA=Run3_2022
 VER=dev
 ```
 
-Throughout, `--era $ERA` selects the [era](../concepts/eras.md) and `--version $VER` namespaces
-the [outputs](../concepts/data-flow.md#versions-keep-productions-apart). Add `--workflow local`
+Throughout, `--era $ERA` selects the [era](../concepts/eras.md) (several, separated by commas,
+run every stage for all of them: [Running several eras](../concepts/eras.md#running-several-eras))
+and `--version $VER` namespaces the [outputs](../concepts/data-flow.md#versions-keep-productions-apart). Add `--workflow local`
 to run on this machine; switch to `--workflow htcondor` to scale up
 ([HTCondor guide](htcondor.md)). Always pass `--workflow`: without it, LAW submits to HTCondor.
 

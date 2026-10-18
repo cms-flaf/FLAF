@@ -17,12 +17,12 @@ also provides built-in options for status and cleanup.
 | Option | Default | Meaning |
 |---|---|---|
 | `--version` | *(required)* | Label that namespaces this run's outputs. Different versions never collide. |
-| `--era` | *(required)* | The [era](../concepts/eras.md), e.g. `Run3_2022`. A task runs one era at a time; launch it once per era to [cover several](../concepts/eras.md#running-several-eras). |
+| `--era` | *(required)* | The [era](../concepts/eras.md), e.g. `Run3_2022`, or several separated by commas (`Run3_2022,Run3_2022EE`): one run over all of them, with one workflow per stage; see [Running several eras](../concepts/eras.md#running-several-eras) and [below](#several-eras-era-and-branches). A task that does not support several eras refuses them with `<Task> takes one era`. |
 | `--workflow` | `htcondor` | `local` (this machine), `htcondor` (CERN batch), or `crab` (WLCG). Without the option LAW picks the first workflow a task declares, which for FLAF tasks is HTCondor — so always pass it. `InputFileTask` and `AnaTupleFileListTask` always run locally. See [HTCondor](htcondor.md) and [CRAB](crab.md). |
-| `--branches` | *(all)* | Which branches of the launched task to run, e.g. `0`, `0,2`, `5:8` (a `start:end` range excludes its end, so this is 5, 6, 7). Upstream tasks are then asked only for the branches these need — once their branch maps exist; on a from-scratch run the upstream stages that define the branch map are required in full. |
+| `--branches` | *(all)* | Which branches of the launched task to run, e.g. `0`, `0,2`, `5:8` (a `start:end` range excludes its end, so this is 5, 6, 7). Upstream tasks are then asked only for the branches these need — once their branch maps exist; on a from-scratch run the upstream stages that define the branch map are required in full. The selection is kept also when it is given before the task's branch map exists. Over several eras the numbers carry the era, see [below](#several-eras-era-and-branches). |
 | `--test` | `-1` | AnaTuple production only: keep just the **first input file of every dataset** and process at most N events of it (`-1` = everything). See the warning below. |
 | `--process` | `""` | Restrict to some processes: a comma-separated list of names or `^regex` patterns (e.g. `custom_CI_Signal`). A meta-process name expands to its members. |
-| `--dataset` | `""` | Restrict to some datasets: a comma-separated list of names or `^regex` patterns. |
+| `--dataset` | `""` | Restrict to some datasets: a comma-separated list of names or `^regex` patterns. Over several eras the selection has to match something in every era of the run. |
 | `--model` | `""` | Override the physics model for this run. |
 | `--customisations` | `""` | Ad-hoc `key=value;key=value` overrides of existing config entries (see below). |
 | `--user-custom` | `""` | Path to an extra `user_custom`-style YAML, loaded last (see below). |
@@ -32,12 +32,39 @@ also provides built-in options for status and cleanup.
     later full run of the same `--version`, which then reuses it. Give test runs their own
     `--version`. (Test jobs are also not used to calibrate the AnaTuple job-cost model.)
 
+### Several eras: `--era` and `--branches`
+
+A run over several eras is one workflow per stage. Over **one era** `--branches` takes the numbers
+of that era's own branch map, as always. Over **several eras** a branch is numbered
+`era id × 1 000 000 + its number in that era's own map` (`Run3_2022` is 5 … `Run3_2026` is 11; the
+table and `python -m FLAF.Common.Setup --era-branch <era> <number>` are in
+[Eras](../concepts/eras.md#branch-numbers)):
+
+```sh
+# every stage up to HistMergerTask, for both eras
+law run FLAF.Analysis.tasks.HistMergerTask --version v1 --era Run3_2022,Run3_2022EE --workflow htcondor
+# branches 0 and 1 of Run3_2022 and branch 0 of Run3_2022EE
+law run FLAF.Analysis.tasks.HistMergerTask --version v1 --era Run3_2022,Run3_2022EE \
+  --workflow htcondor --branches 5000000,5000001,6000000
+```
+
+- Every era of `--era` needs at least one number in `--branches`; a range has a start and an end
+  and stays inside one era.
+- `--branch` is refused over several eras: use `--era <era> --branch <its number in that era>`.
+- A run over one era refuses the numbers of a run over several eras (1 000 000 and above) and
+  prints the decoded form. See
+  [Troubleshooting](../troubleshooting.md#branch-selection-errors-branch-n-is-branch-m-of-era).
+- `--parallel-jobs` is one cap for the whole run, all eras together
+  ([HTCondor](htcondor.md#several-eras-in-one-submission),
+  [CRAB](crab.md#several-eras-in-one-run)); `--tasks-per-job`, `--max-runtime`, `--n-cpus` and
+  `--crab-memory` apply to the jobs of every era as they would to a run over that era alone.
+
 ## HTCondor options (on every workflow task)
 
 | Option | Default | Meaning |
 |---|---|---|
 | `--transfer-logs` | on | Keep each job's log (HTCondor and CRAB). With a remote `fs_default` the log is uploaded to `<version>/logs/<Task>/<era>/` there (plus the producer name for the analysis-cache tasks); with a local `fs_default` the log is part of the job's output sandbox, which HTCondor copies back to the task's local directory under `data/` only with `--htcondor-spool False` (with the default `-spool` it stays on the schedd until `condor_transfer_data` is run, which law does not do). On CRAB the file is `stdall_<first branch>_crab<tag>.<job number>.txt` (see [CRAB](crab.md#submit)). Switch off with `--transfer-logs False`. |
-| `--parallel-jobs` | unbounded (HTCondor) / **2000** (`AnaTupleFileTask` on HTCondor, `anaTuple_scheduling.parallel_jobs`) / **5000** (CRAB, `crab.parallel_jobs`) | Cap concurrent jobs. On CRAB this is also the max size of each CRAB task. The bare form, and the launched task's prefixed form, are copied to every task it requires; `--<Task>-parallel-jobs` for another task caps that task alone. |
+| `--parallel-jobs` | unbounded (HTCondor) / **2000** (`AnaTupleFileTask` on HTCondor, `anaTuple_scheduling.parallel_jobs`) / **5000** (CRAB, `crab.parallel_jobs`) | Cap concurrent jobs. On CRAB this is also the max size of each CRAB task. Over several eras it is one cap for the whole run, all eras together. The bare form, and the launched task's prefixed form, are copied to every task it requires; `--<Task>-parallel-jobs` for another task caps that task alone. |
 | `--tasks-per-job` | `1` (`10` for `HistTupleProducerTask`) | Branches per job. Applies to the launched task only; set it for an upstream task with `--<Task>-tasks-per-job`. On `AnaTupleFileTask`, jobs are normally composed by [estimated cost](htcondor.md#how-branches-become-jobs) instead; passing this option explicitly restores fixed-size chunking. |
 | `--max-runtime` | *(task default)* | Per-job wall-clock limit in hours: 12 unless the task sets its own (e.g. 40 for `AnaTupleFileTask`, 48 for `AnaTupleMergeTask`). On HTCondor, a resubmitted `AnaTupleFileTask` job gets a longer limit, unless `--tasks-per-job` is given. |
 | `--n-cpus` | `1` (4 for `AnaTupleFileTask`, `AnaTupleCostProbeTask` and `HistTupleProducerTask`; 2 for `AnaTupleMergeTask`, `HistFromNtupleProducerTask` and `HistMergerTask`) | CPUs requested per job. `AnalysisCacheTask` always takes `n_cpus` and `max_runtime` (and, on CRAB, `crab_memory`) from its producer's entry in `payload_producers`. |

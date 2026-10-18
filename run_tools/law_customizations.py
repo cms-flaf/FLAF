@@ -2579,6 +2579,7 @@ class EraJobFiles(law.target.base.Target):
     def load(self, formatter=None, **kwargs):
         merged = {"jobs": OrderedDict(), "unsubmitted_jobs": OrderedDict()}
         merged["attempts"] = OrderedDict()
+        self.loaded_eras = set()
         for era, target in self.targets().items():
             if not target.exists():
                 continue

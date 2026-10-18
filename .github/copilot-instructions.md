@@ -377,7 +377,7 @@ separate PR; say so in the review rather than assuming it will be noticed.
 ## Already enforced by CI — do not comment on these
 
 `formatting-check` (black, yamllint, clang-format, and in FLAF `flake8 --select=F821,F811` over
-the whole package), `unit-tests` (the pure-Python suites in `test/`), `repo-sanity-checks` (binary
+the whole package), `unit-tests` (the pure-Python suites in `test/`, and the `period` → `era` leftover check), `repo-sanity-checks` (binary
 files, repo size), `ds-consistency-check`, `cross-section-check`. Formatting, indentation, quote
 style and trailing whitespace are settled by tooling; comments about them are pure noise.
 

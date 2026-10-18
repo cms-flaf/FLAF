@@ -245,9 +245,11 @@ def _branches_value(items):
     )
 
 
-def _is_placeholder_map(branch_map):
-    """Whether `branch_map` is law's stand-in for a map whose dynamic condition is not met."""
-    return list(branch_map.items()) == [(0, None)]
+def _branch_map_ready(task):
+    """Whether law builds `task`'s real branch map: false while a dynamic workflow condition of
+    its class is not met (law then returns a one-branch placeholder)."""
+    condition = getattr(type(task), "_condition_attr", None)
+    return not condition or bool(getattr(task, condition)())
 
 
 def _requirement_leaves(reqs):
@@ -607,7 +609,7 @@ class Task(law.Task):
                 for number in (start, None if stop is None else stop - 1):
                     if number is not None and number >= ERA_BRANCH_STRIDE:
                         era, local = split_era_branch(number)
-                        if era is None:
+                        if era not in _known_eras(os.getenv("ANALYSIS_PATH")):
                             raise BranchSelectionError(
                                 f"{family}: branch {number} is beyond the "
                                 f"{ERA_BRANCH_STRIDE} numbers of a run over one era"
@@ -731,10 +733,10 @@ class Task(law.Task):
         items = _branch_items(type(self).branches, self._initial_branches)
         if not items:
             return None
-        whole = self.with_eras(self.era).get_branch_map()
-        if _is_placeholder_map(whole):
+        whole = self.with_eras(self.era)
+        if not _branch_map_ready(whole):
             return items
-        keys = set(whole)
+        keys = set(whole.get_branch_map())
         low, high = min(keys), max(keys) + 1
         selected = set()
         for start, stop in items:
@@ -927,10 +929,15 @@ class Task(law.Task):
         ready yet (e.g. the merge plan does not exist), which must stay dynamic so the
         map is rebuilt once the upstream completes.
         """
-        if self.is_workflow() and not self.branches and self._initial_branches:
+        if (
+            self.is_workflow()
+            and self._branch_map is None
+            and not self.branches
+            and self._initial_branches
+        ):
             # law resets a selection given while the map was its placeholder (a dynamic
             # condition not met yet) to the whole map; this runs once the condition holds and
-            # before law applies the selection
+            # before law applies the selection to the first real map
             self.branches = self._initial_branches
         if len(self.era) > 1:
             if not self.era_branches:
@@ -940,12 +947,12 @@ class Task(law.Task):
                 )
             branch_map = {}
             for era in self.era:
-                era_map = self.single(era).get_branch_map()
-                if _is_placeholder_map(era_map):
+                if not _branch_map_ready(self.single(era)):
                     raise RuntimeError(
                         f"{self.get_task_family()}: the branch map of {era} cannot be built "
                         "yet while the one over all eras is being built"
                     )
+                era_map = self.single(era).get_branch_map()
                 base = ERA_IDS[era] * ERA_BRANCH_STRIDE
                 branch_map.update(
                     (base + local, data) for local, data in era_map.items()
@@ -1067,12 +1074,12 @@ class Task(law.Task):
 
     def _create_dataset_mappings(self):
         if self._dataset_id_name_list is None:
+            # read first: on a task over several eras this raises, and must again next time
+            dataset_names = natural_sort(self.datasets.keys())
             self._dataset_id_name_list = []
             self._dataset_id_name_dict = {}
             self._dataset_name_id_dict = {}
-            for dataset_id, dataset_name in enumerate(
-                natural_sort(self.datasets.keys())
-            ):
+            for dataset_id, dataset_name in enumerate(dataset_names):
                 self._dataset_id_name_list.append((dataset_id, dataset_name))
                 self._dataset_id_name_dict[dataset_id] = dataset_name
                 self._dataset_name_id_dict[dataset_name] = dataset_id
@@ -2648,10 +2655,9 @@ class EraMergedProxy:
         """
         if self._era_subs is None:
             task = self.task
-            branch_map = task.get_branch_map()
             subs = OrderedDict()
-            if not _is_placeholder_map(branch_map):
-                eras = {task.era_of(b) for b in branch_map}
+            if _branch_map_ready(task):
+                eras = {task.era_of(b) for b in task.get_branch_map()}
                 for era in task.era:
                     if era not in eras:
                         continue
@@ -2707,6 +2713,10 @@ class EraMergedProxy:
         if self._era_laid_out:
             return
         self._era_laid_out = True
+        if not _branch_map_ready(self.task):
+            raise RuntimeError(
+                f"{self.task!r}: jobs cannot be laid out before the branch map exists"
+            )
         files = self.get_cached_output()["jobs"]
         merged = OrderedDict(
             (key, OrderedDict()) for key in ("jobs", "unsubmitted_jobs", "attempts")
@@ -2804,11 +2814,18 @@ class EraMergedProxy:
             try:
                 with self._era_proxy_installed(sub):
                     ids, data = getattr(sub, method)(era_jobs, **kwargs)
+            except BaseException:
+                # the jobs of the eras submitted in this round run: record their ids before the
+                # run ends, or the next run would submit them again
+                self.dump_job_data()
+                raise
             finally:
                 del sub.dump_job_data
             for job_num, job_id, value in zip(era_jobs, ids, data.values()):
                 job_ids[base + job_num] = job_id
                 submission_data[base + job_num] = value
+                if not isinstance(job_id, Exception):
+                    self.job_data.jobs[base + job_num]["job_id"] = job_id
         return [job_ids[job_num] for job_num in submit_jobs], OrderedDict(
             (job_num, submission_data[job_num]) for job_num in submit_jobs
         )
@@ -4361,8 +4378,8 @@ process.out = cms.EndPath(process.output)
     def crab_poll_callback(self, poll_data):
         # The one hook the poll loop calls outside its own error handling, so the one place
         # a condition found while querying can end the run (see FLAFCrabJobManager).
-        manager = getattr(self.workflow_proxy, "job_manager", None)
-        if getattr(manager, "stop_reason", None):
+        manager = self.workflow_proxy.job_manager
+        if manager.stop_reason:
             raise RuntimeError(manager.stop_reason)
         # A large CRAB production polls for days while law keeps writing its job-status
         # files to the AFS work area — renew the Kerberos ticket, hourly and verbosely: a

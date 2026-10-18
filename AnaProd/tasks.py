@@ -17,6 +17,7 @@ from FLAF.RunKit.run_tools import (
     get_tree_entries,
 )
 from FLAF.run_tools.law_customizations import (
+    EraDependentValueError,
     Task,
     HTCondorWorkflow,
     CrabWorkflow,
@@ -363,7 +364,8 @@ class AnaTupleFileTask(
             model, model_params = CostModel.load(path, params), params
             AnaTupleFileTask._cost_models[path] = (model, model_params)
         if params != model_params:
-            raise RuntimeError(
+            # an era-scope error: the cost-packing fallbacks let it through
+            raise EraDependentValueError(
                 f"{path} is used with two anaTuple_scheduling settings in one process "
                 f"({model_params} and {params}); make them the same in every era"
             )

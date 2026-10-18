@@ -2844,8 +2844,19 @@ class EraMergedProxy:
                 with self._era_proxy_installed(sub):
                     ids, data = getattr(sub, method)(era_jobs, **kwargs)
             except BaseException:
-                # the jobs of the eras submitted in this round run: record their ids before the
-                # run ends, or the next run would submit them again
+                # law booked every job of this round as submitted. The eras submitted so far run:
+                # their ids are recorded, or the next run would submit them again. The jobs not
+                # submitted go back in front of the backlog, where a run over their era alone
+                # would still have them.
+                backlog = OrderedDict(
+                    (job_num, sorted(branches))
+                    for job_num, branches in submit_jobs.items()
+                    if job_num not in job_ids
+                )
+                for job_num in backlog:
+                    self.job_data.jobs.pop(job_num, None)
+                backlog.update(self.job_data.unsubmitted_jobs)
+                self.job_data.unsubmitted_jobs = backlog
                 self.dump_job_data()
                 raise
             finally:

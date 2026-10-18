@@ -2087,6 +2087,83 @@ class CrabARoundThatFailsPartWay(_ARoundThatFailsPartWay, _Case):
     backend = "crab"
 
 
+class HTCondorABatchInterruptedPartWay(_Case):
+    """A batch submission (one job file per job) interrupted after an era's first job: law's
+    intermediate dump has recorded that job's id, which the run keeps as a run over the era
+    alone keeps it, so the next run submits each branch once. A later era's job-file factory
+    failing leaves the earlier eras' ids recorded the same way."""
+
+    backend = "htcondor"
+
+    @contextlib.contextmanager
+    def batched(self, interrupt_era=None):
+        real = FakeBatchedCondorManager.submit_batch
+
+        def submit_batch(manager, job_files, **kwargs):
+            with open(job_files[0]) as f:
+                jdl = f.read()
+            args = re.findall(r"^arguments\s*=\s*(.*)$", jdl, re.M)[0]
+            if decode_job_args(args.strip().strip('"'))[3]["--era"] != interrupt_era:
+                return real(manager, job_files, **kwargs)
+            ids = real(manager, job_files[:1], **kwargs)
+            raise KeyboardInterrupt(f"Ctrl-C after {ids}")
+
+        with mock.patch.object(
+            law.htcondor.HTCondorWorkflow,
+            "htcondor_create_job_manager",
+            lambda task, **kwargs: FakeBatchedCondorManager(**kwargs),
+        ), mock.patch.object(
+            EraJobsUp, "htcondor_dump_intermediate_job_data", lambda task: 1
+        ), mock.patch.object(
+            FakeBatchedCondorManager, "submit_batch", submit_batch
+        ):
+            yield
+
+    def test_the_interrupted_eras_submitted_job_keeps_its_id(self):
+        base = self.version
+        counts = {}
+        for variant, eras in (("together", (A, B)), ("alone", (B,))):
+            self.version = f"{base}_{variant}"
+            self.addCleanup(wipe, self.version)
+            self.addCleanup(Batch().forget, self.version)
+            write_gates(self.version, **{A: 2, B: 2})
+            with in_flight_jobs(finish_after=5), self.batched(interrupt_era=B):
+                with self.assertRaises(KeyboardInterrupt):
+                    self.drive(eras, "--no-poll")
+            interrupted = load_json(self.jobs_file(B, "htcondor_jobs_0To2.json"))
+            self.assertNotIn(
+                interrupted["jobs"]["1"]["job_id"], (None, JobData.dummy_job_id)
+            )
+            self.drive(eras, "--no-poll")
+            counts[variant] = self.submissions()[(B, 0)]
+        self.version = base
+        self.assertEqual(counts, {"together": 1, "alone": 1})
+
+    def test_a_later_eras_factory_failure_keeps_the_earlier_eras_ids(self):
+        write_gates(self.version, **{A: 2, B: 2})
+        create = law.htcondor.HTCondorWorkflow.htcondor_create_job_file_factory
+
+        def factory(task, **kwargs):
+            # law also makes one for the workflow over both eras, which builds no job
+            if task.era == (B,):
+                raise RuntimeError(f"no job file factory for {B}")
+            return create(task, **kwargs)
+
+        with in_flight_jobs(), self.batched(), mock.patch.object(
+            EraJobsUp, "htcondor_create_job_file_factory", factory
+        ):
+            with self.assertRaises(RuntimeError):
+                self.drive((A, B), "--no-poll")
+        recorded = load_json(self.jobs_file(A, "htcondor_jobs_0To2.json"))["jobs"]
+        self.assertEqual(len(recorded), 2)
+        for job in recorded.values():
+            self.assertNotEqual(job["job_id"], JobData.dummy_job_id)
+        self.drive((A, B), "--no-poll")
+        self.assertEqual(
+            self.submissions(), Counter({(A, 0): 1, (A, 1): 1, (B, 0): 1, (B, 1): 1})
+        )
+
+
 # --------------------------------------------------------------------------------------------
 # the lost-outputs guard of a resumed run, per era (I11's guard on a run over several eras)
 # --------------------------------------------------------------------------------------------

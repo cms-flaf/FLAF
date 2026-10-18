@@ -2819,56 +2819,70 @@ class EraMergedProxy:
             ]
         job_man_kwargs = self._setup_job_manager()
         job_ids, submission_data = {}, {}
-        for era, era_jobs in by_era.items():
-            sub = self.era_subs()[era]
-            base = ERA_IDS[era] * ERA_BRANCH_STRIDE
-            sub.dashboard = self.dashboard
-            sub._job_manager_setup_kwargs = job_man_kwargs
-            for job_num, branches in era_jobs.items():
-                sub.job_data.jobs[job_num] = self.job_data_cls.job_data(
-                    branches=branches
+        era_round = None
+        try:
+            for era, era_jobs in by_era.items():
+                sub = self.era_subs()[era]
+                base = ERA_IDS[era] * ERA_BRANCH_STRIDE
+                era_round = (sub, era_jobs, base)
+                sub.dashboard = self.dashboard
+                sub._job_manager_setup_kwargs = job_man_kwargs
+                for job_num, branches in era_jobs.items():
+                    sub.job_data.jobs[job_num] = self.job_data_cls.job_data(
+                        branches=branches
+                    )
+                    attempts = self.job_data.attempts.get(base + job_num)
+                    if attempts is None:
+                        sub.job_data.attempts.pop(job_num, None)
+                    else:
+                        sub.job_data.attempts[job_num] = attempts
+                if sub.job_file_factory is None:
+                    sub.job_file_factory = sub.create_job_file_factory()
+                # law dumps intermediate job data while it submits a batch: into the files of
+                # all eras, with the ids known so far
+                sub.dump_job_data = functools.partial(
+                    self._dump_from_era, sub, era_jobs, base
                 )
-                attempts = self.job_data.attempts.get(base + job_num)
-                if attempts is None:
-                    sub.job_data.attempts.pop(job_num, None)
-                else:
-                    sub.job_data.attempts[job_num] = attempts
-            if sub.job_file_factory is None:
-                sub.job_file_factory = sub.create_job_file_factory()
-            # law dumps intermediate job data while it submits a batch: into the files of all
-            # eras, with the ids known so far
-            sub.dump_job_data = functools.partial(
-                self._dump_from_era, sub, era_jobs, base
-            )
-            try:
-                with self._era_proxy_installed(sub):
-                    ids, data = getattr(sub, method)(era_jobs, **kwargs)
-            except BaseException:
-                # law booked every job of this round as submitted. The eras submitted so far run:
-                # their ids are recorded, or the next run would submit them again. The jobs not
-                # submitted go back in front of the backlog, where a run over their era alone
-                # would still have them.
-                backlog = OrderedDict(
-                    (job_num, sorted(branches))
-                    for job_num, branches in submit_jobs.items()
-                    if job_num not in job_ids
-                )
-                for job_num in backlog:
-                    self.job_data.jobs.pop(job_num, None)
-                backlog.update(self.job_data.unsubmitted_jobs)
-                self.job_data.unsubmitted_jobs = backlog
-                self.dump_job_data()
-                raise
-            finally:
-                del sub.dump_job_data
-            for job_num, job_id, value in zip(era_jobs, ids, data.values()):
-                job_ids[base + job_num] = job_id
-                submission_data[base + job_num] = value
-                if not isinstance(job_id, Exception):
-                    self.job_data.jobs[base + job_num]["job_id"] = job_id
+                try:
+                    with self._era_proxy_installed(sub):
+                        ids, data = getattr(sub, method)(era_jobs, **kwargs)
+                finally:
+                    del sub.dump_job_data
+                for job_num, job_id, value in zip(era_jobs, ids, data.values()):
+                    job_ids[base + job_num] = job_id
+                    submission_data[base + job_num] = value
+                    if not isinstance(job_id, Exception):
+                        self.job_data.jobs[base + job_num]["job_id"] = job_id
+        except BaseException:
+            self._keep_submitted_requeue_rest(submit_jobs, era_round)
+            raise
         return [job_ids[job_num] for job_num in submit_jobs], OrderedDict(
             (job_num, submission_data[job_num]) for job_num in submit_jobs
         )
+
+    def _keep_submitted_requeue_rest(self, submit_jobs, era_round):
+        """After a round failed part-way: law booked every job of it as submitted. The jobs that
+        were submitted run and keep their ids -- those of the eras done and those law recorded
+        for the failing era -- or the next run would submit them again; the others go back in
+        front of the backlog, where a run over their era alone would still have them. Dumped,
+        since the run ends here."""
+        unsubmitted = (None, self.job_data.dummy_job_id)
+        if era_round is not None:
+            sub, era_jobs, base = era_round
+            for job_num in era_jobs:
+                job_id = (sub.job_data.jobs.get(job_num) or {}).get("job_id")
+                if job_id not in unsubmitted and not isinstance(job_id, Exception):
+                    self.job_data.jobs[base + job_num]["job_id"] = job_id
+        backlog = OrderedDict(
+            (job_num, sorted(branches))
+            for job_num, branches in submit_jobs.items()
+            if (self.job_data.jobs.get(job_num) or {}).get("job_id") in unsubmitted
+        )
+        for job_num in backlog:
+            self.job_data.jobs.pop(job_num, None)
+        backlog.update(self.job_data.unsubmitted_jobs)
+        self.job_data.unsubmitted_jobs = backlog
+        self.dump_job_data()
 
     def _dump_from_era(self, sub, era_jobs, base):
         for job_num in era_jobs:

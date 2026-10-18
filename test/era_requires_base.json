@@ -1,0 +1,842 @@
+{
+ "met": {
+  "AnaTupleCostProbeTask/bundle": {
+   "bundles": [
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea",
+    "BundleTask___Run3_2022_d44a0ea3fd"
+   ],
+   "inputFile": [
+    "InputFileTask__1___8a6511bffc"
+   ]
+  },
+  "AnaTupleCostProbeTask/crab": {
+   "bundles": [
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea",
+    "BundleTask___Run3_2022_d44a0ea3fd"
+   ],
+   "inputFile": [
+    "InputFileTask__1___8a6511bffc"
+   ]
+  },
+  "AnaTupleCostProbeTask/htcondor": {
+   "inputFile": [
+    "InputFileTask__1___8a6511bffc"
+   ]
+  },
+  "AnaTupleCostProbeTask/local": {
+   "inputFile": [
+    "InputFileTask__1___8a6511bffc"
+   ]
+  },
+  "AnaTupleFileListBuilderTask/bundle": {
+   "AnaTupleFileTask": [
+    "AnaTupleFileTask__1_0_1_2_3_4_False_4032029eca"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea",
+    "BundleTask___Run3_2022_d44a0ea3fd"
+   ]
+  },
+  "AnaTupleFileListBuilderTask/crab": {
+   "AnaTupleFileTask": [
+    "AnaTupleFileTask__1_0_1_2_3_4_False_a5668f5ffe"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea",
+    "BundleTask___Run3_2022_d44a0ea3fd"
+   ]
+  },
+  "AnaTupleFileListBuilderTask/htcondor": {
+   "AnaTupleFileTask": [
+    "AnaTupleFileTask__1_0_1_2_3_4_False_4032029eca"
+   ]
+  },
+  "AnaTupleFileListBuilderTask/local": {
+   "AnaTupleFileTask": [
+    "AnaTupleFileTask__1_0_1_2_3_4_False_f24f0cd4ea"
+   ]
+  },
+  "AnaTupleFileListTask/bundle": {
+   "AnaTupleFileListBuilderTask": [
+    "AnaTupleFileListBuilderTask__1__False_6c6470c68f"
+   ]
+  },
+  "AnaTupleFileListTask/crab": {
+   "AnaTupleFileListBuilderTask": [
+    "AnaTupleFileListBuilderTask__1__False_db0d3dacf0"
+   ]
+  },
+  "AnaTupleFileListTask/htcondor": {
+   "AnaTupleFileListBuilderTask": [
+    "AnaTupleFileListBuilderTask__1__False_6c6470c68f"
+   ]
+  },
+  "AnaTupleFileListTask/local": {
+   "AnaTupleFileListBuilderTask": [
+    "AnaTupleFileListBuilderTask__1__False_d2c15a357e"
+   ]
+  },
+  "AnaTupleFileTask/bundle": {
+   "bundles": [
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea",
+    "BundleTask___Run3_2022_d44a0ea3fd"
+   ],
+   "costProbe": [
+    "AnaTupleCostProbeTask__1__False_5663ccc60a"
+   ],
+   "inputFile": [
+    "InputFileTask__1___8a6511bffc"
+   ]
+  },
+  "AnaTupleFileTask/crab": {
+   "bundles": [
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea",
+    "BundleTask___Run3_2022_d44a0ea3fd"
+   ],
+   "costProbe": [
+    "AnaTupleCostProbeTask__1__False_15f0a3ed56"
+   ],
+   "inputFile": [
+    "InputFileTask__1___8a6511bffc"
+   ]
+  },
+  "AnaTupleFileTask/htcondor": {
+   "costProbe": [
+    "AnaTupleCostProbeTask__1__False_5663ccc60a"
+   ],
+   "inputFile": [
+    "InputFileTask__1___8a6511bffc"
+   ]
+  },
+  "AnaTupleFileTask/local": {
+   "costProbe": [
+    "AnaTupleCostProbeTask__1__False_1d4b875ac0"
+   ],
+   "inputFile": [
+    "InputFileTask__1___8a6511bffc"
+   ]
+  },
+  "AnaTupleMergeTask/bundle": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1_0_1_2_False_76fca6d912"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_20f0b3907f",
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea",
+    "BundleTask___Run3_2022_d44a0ea3fd"
+   ]
+  },
+  "AnaTupleMergeTask/crab": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1_0_1_2_False_76fca6d912"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_20f0b3907f",
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea",
+    "BundleTask___Run3_2022_d44a0ea3fd"
+   ]
+  },
+  "AnaTupleMergeTask/htcondor": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1_0_1_2_False_76fca6d912"
+   ]
+  },
+  "AnaTupleMergeTask/local": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1_0_1_2_False_76fca6d912"
+   ]
+  },
+  "AnalysisCacheAggregationTask/bundle": {
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1_0_1_2_3_False_f8216a89ce"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_20f0b3907f",
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea"
+   ]
+  },
+  "AnalysisCacheAggregationTask/crab": {
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1_0_1_2_3_False_becfd68ac7"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_20f0b3907f",
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea"
+   ]
+  },
+  "AnalysisCacheAggregationTask/htcondor": {
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1_0_1_2_3_False_f8216a89ce"
+   ]
+  },
+  "AnalysisCacheAggregationTask/local": {
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1_0_1_2_3_False_4adb129077"
+   ]
+  },
+  "AnalysisCacheTask/bundle": {
+   "P1": [
+    "AnalysisCacheTask_0__False_091ffb6e8d",
+    "AnalysisCacheTask_1__False_2799794dd5",
+    "AnalysisCacheTask_2__False_d40b1ad0db",
+    "AnalysisCacheTask_3__False_27cde141e3"
+   ],
+   "anaTuple": [
+    "AnaTupleMergeTask_0__False_f7f0ca47fe",
+    "AnaTupleMergeTask_1__False_22f650193c",
+    "AnaTupleMergeTask_1__False_22f650193c",
+    "AnaTupleMergeTask_2__False_64cc7812a3"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_20f0b3907f",
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea"
+   ]
+  },
+  "AnalysisCacheTask/crab": {
+   "P1": [
+    "AnalysisCacheTask_0__False_e5a1d0b9eb",
+    "AnalysisCacheTask_1__False_85ad008163",
+    "AnalysisCacheTask_2__False_1b08499adf",
+    "AnalysisCacheTask_3__False_5aafe57b18"
+   ],
+   "anaTuple": [
+    "AnaTupleMergeTask_0__False_8767c25053",
+    "AnaTupleMergeTask_1__False_d77700dd78",
+    "AnaTupleMergeTask_1__False_d77700dd78",
+    "AnaTupleMergeTask_2__False_2b3480c0bd"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_20f0b3907f",
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea"
+   ]
+  },
+  "AnalysisCacheTask/htcondor": {
+   "P1": [
+    "AnalysisCacheTask_0__False_091ffb6e8d",
+    "AnalysisCacheTask_1__False_2799794dd5",
+    "AnalysisCacheTask_2__False_d40b1ad0db",
+    "AnalysisCacheTask_3__False_27cde141e3"
+   ],
+   "anaTuple": [
+    "AnaTupleMergeTask_0__False_f7f0ca47fe",
+    "AnaTupleMergeTask_1__False_22f650193c",
+    "AnaTupleMergeTask_1__False_22f650193c",
+    "AnaTupleMergeTask_2__False_64cc7812a3"
+   ]
+  },
+  "AnalysisCacheTask/local": {
+   "P1": [
+    "AnalysisCacheTask_0__False_8ab68a73b2",
+    "AnalysisCacheTask_1__False_0a8917cbfe",
+    "AnalysisCacheTask_2__False_6a912ff6d0",
+    "AnalysisCacheTask_3__False_c01854434d"
+   ],
+   "anaTuple": [
+    "AnaTupleMergeTask_0__False_31853cd0d0",
+    "AnaTupleMergeTask_1__False_4c8f9d6538",
+    "AnaTupleMergeTask_1__False_4c8f9d6538",
+    "AnaTupleMergeTask_2__False_269162b615"
+   ]
+  },
+  "HistFromNtupleProducerTask/bundle": {
+   "HistTupleProducerTask": [
+    "HistTupleProducerTask__1_0_1_2_3_False_5da09ff14a"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_20f0b3907f",
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea"
+   ]
+  },
+  "HistFromNtupleProducerTask/crab": {
+   "HistTupleProducerTask": [
+    "HistTupleProducerTask__1_0_1_2_3_False_3ab27ef252"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_20f0b3907f",
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea"
+   ]
+  },
+  "HistFromNtupleProducerTask/htcondor": {
+   "HistTupleProducerTask": [
+    "HistTupleProducerTask__1_0_1_2_3_False_5da09ff14a"
+   ]
+  },
+  "HistFromNtupleProducerTask/local": {
+   "HistTupleProducerTask": [
+    "HistTupleProducerTask__1_0_1_2_3_False_6291e64375"
+   ]
+  },
+  "HistMergerTask/bundle": {
+   "HistFromNtupleProducerTask": [
+    "HistFromNtupleProducerTask__1_0_1_2_False_186e7564a5"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_20f0b3907f",
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea"
+   ]
+  },
+  "HistMergerTask/crab": {
+   "HistFromNtupleProducerTask": [
+    "HistFromNtupleProducerTask__1_0_1_2_False_ba13d8f859"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_20f0b3907f",
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea"
+   ]
+  },
+  "HistMergerTask/htcondor": {
+   "HistFromNtupleProducerTask": [
+    "HistFromNtupleProducerTask__1_0_1_2_False_186e7564a5"
+   ]
+  },
+  "HistMergerTask/local": {
+   "HistFromNtupleProducerTask": [
+    "HistFromNtupleProducerTask__1_0_1_2_False_d2386e37e4"
+   ]
+  },
+  "HistPlotTask/bundle": {
+   "bundles": [
+    "BundleTask___Run3_2022_20f0b3907f",
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea"
+   ],
+   "merge": [
+    "HistMergerTask__1_0_1_False_e4f6e36b61"
+   ]
+  },
+  "HistPlotTask/crab": {
+   "bundles": [
+    "BundleTask___Run3_2022_20f0b3907f",
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea"
+   ],
+   "merge": [
+    "HistMergerTask__1_0_1_False_71d1e51be1"
+   ]
+  },
+  "HistPlotTask/htcondor": {
+   "merge": [
+    "HistMergerTask__1_0_1_False_e4f6e36b61"
+   ]
+  },
+  "HistPlotTask/local": {
+   "merge": [
+    "HistMergerTask__1_0_1_False_5859beb81f"
+   ]
+  },
+  "HistTupleProducerTask/bundle": {
+   "aggregateCache": [
+    "AnalysisCacheAggregationTask__1_0_1_2_False_a30e1a956b"
+   ],
+   "anaTuple": [
+    "AnaTupleMergeTask__1_0_1_2_False_704c731b73"
+   ],
+   "analysisCache": [
+    "AnalysisCacheTask__1_0_1_2_3_False_092b6f0ac4"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_20f0b3907f",
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea"
+   ]
+  },
+  "HistTupleProducerTask/crab": {
+   "aggregateCache": [
+    "AnalysisCacheAggregationTask__1_0_1_2_False_53c2f42155"
+   ],
+   "anaTuple": [
+    "AnaTupleMergeTask__1_0_1_2_False_643dc842f6"
+   ],
+   "analysisCache": [
+    "AnalysisCacheTask__1_0_1_2_3_False_59dceda103"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_20f0b3907f",
+    "BundleTask___Run3_2022_71f74ccd7d",
+    "BundleTask___Run3_2022_ab09c9d5ea"
+   ]
+  },
+  "HistTupleProducerTask/htcondor": {
+   "aggregateCache": [
+    "AnalysisCacheAggregationTask__1_0_1_2_False_a30e1a956b"
+   ],
+   "anaTuple": [
+    "AnaTupleMergeTask__1_0_1_2_False_704c731b73"
+   ],
+   "analysisCache": [
+    "AnalysisCacheTask__1_0_1_2_3_False_092b6f0ac4"
+   ]
+  },
+  "HistTupleProducerTask/local": {
+   "aggregateCache": [
+    "AnalysisCacheAggregationTask__1_0_1_2_False_28257c70c5"
+   ],
+   "anaTuple": [
+    "AnaTupleMergeTask__1_0_1_2_False_927b36cbb9"
+   ],
+   "analysisCache": [
+    "AnalysisCacheTask__1_0_1_2_3_False_adda9cc5f9"
+   ]
+  }
+ },
+ "placeholder": {
+  "AnaTupleCostProbeTask/bundle": {
+   "bundles": [
+    "BundleTask___Run3_2022_9454c4af9d",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ],
+   "inputFile": [
+    "InputFileTask__1___292a04124c"
+   ]
+  },
+  "AnaTupleCostProbeTask/crab": {
+   "bundles": [
+    "BundleTask___Run3_2022_9454c4af9d",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ],
+   "inputFile": [
+    "InputFileTask__1___292a04124c"
+   ]
+  },
+  "AnaTupleCostProbeTask/htcondor": {
+   "inputFile": [
+    "InputFileTask__1___292a04124c"
+   ]
+  },
+  "AnaTupleCostProbeTask/local": {
+   "inputFile": [
+    "InputFileTask__1___292a04124c"
+   ]
+  },
+  "AnaTupleFileListBuilderTask/bundle": {
+   "anaTuple": [
+    "AnaTupleFileTask__1__False_e6901ded3e"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_9454c4af9d",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ],
+   "inputFile": [
+    "InputFileTask__1___292a04124c"
+   ]
+  },
+  "AnaTupleFileListBuilderTask/crab": {
+   "anaTuple": [
+    "AnaTupleFileTask__1__False_fc08064ecd"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_9454c4af9d",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ],
+   "inputFile": [
+    "InputFileTask__1___292a04124c"
+   ]
+  },
+  "AnaTupleFileListBuilderTask/htcondor": {
+   "anaTuple": [
+    "AnaTupleFileTask__1__False_e6901ded3e"
+   ],
+   "inputFile": [
+    "InputFileTask__1___292a04124c"
+   ]
+  },
+  "AnaTupleFileListBuilderTask/local": {
+   "anaTuple": [
+    "AnaTupleFileTask__1__False_881eafadb1"
+   ],
+   "inputFile": [
+    "InputFileTask__1___292a04124c"
+   ]
+  },
+  "AnaTupleFileListTask/bundle": {
+   "AnaTupleFileListBuilderTask": [
+    "AnaTupleFileListBuilderTask__1__False_7e0e4eff18"
+   ]
+  },
+  "AnaTupleFileListTask/crab": {
+   "AnaTupleFileListBuilderTask": [
+    "AnaTupleFileListBuilderTask__1__False_e85cbe6f9e"
+   ]
+  },
+  "AnaTupleFileListTask/htcondor": {
+   "AnaTupleFileListBuilderTask": [
+    "AnaTupleFileListBuilderTask__1__False_7e0e4eff18"
+   ]
+  },
+  "AnaTupleFileListTask/local": {
+   "AnaTupleFileListBuilderTask": [
+    "AnaTupleFileListBuilderTask__1__False_8b176adbdf"
+   ]
+  },
+  "AnaTupleFileTask/bundle": {
+   "bundles": [
+    "BundleTask___Run3_2022_9454c4af9d",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ],
+   "costProbe": [
+    "AnaTupleCostProbeTask__1__False_e6901ded3e"
+   ],
+   "inputFile": [
+    "InputFileTask__1___292a04124c"
+   ]
+  },
+  "AnaTupleFileTask/crab": {
+   "bundles": [
+    "BundleTask___Run3_2022_9454c4af9d",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ],
+   "costProbe": [
+    "AnaTupleCostProbeTask__1__False_fc08064ecd"
+   ],
+   "inputFile": [
+    "InputFileTask__1___292a04124c"
+   ]
+  },
+  "AnaTupleFileTask/htcondor": {
+   "costProbe": [
+    "AnaTupleCostProbeTask__1__False_e6901ded3e"
+   ],
+   "inputFile": [
+    "InputFileTask__1___292a04124c"
+   ]
+  },
+  "AnaTupleFileTask/local": {
+   "costProbe": [
+    "AnaTupleCostProbeTask__1__False_881eafadb1"
+   ],
+   "inputFile": [
+    "InputFileTask__1___292a04124c"
+   ]
+  },
+  "AnaTupleMergeTask/bundle": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_25abada5b6",
+    "BundleTask___Run3_2022_9454c4af9d",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ]
+  },
+  "AnaTupleMergeTask/crab": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_25abada5b6",
+    "BundleTask___Run3_2022_9454c4af9d",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ]
+  },
+  "AnaTupleMergeTask/htcondor": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ]
+  },
+  "AnaTupleMergeTask/local": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ]
+  },
+  "AnalysisCacheAggregationTask/bundle": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1__False_6ffd519c02"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_25abada5b6",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ]
+  },
+  "AnalysisCacheAggregationTask/crab": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1__False_3d69295204"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_25abada5b6",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ]
+  },
+  "AnalysisCacheAggregationTask/htcondor": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1__False_6ffd519c02"
+   ]
+  },
+  "AnalysisCacheAggregationTask/local": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1__False_2a4ff1a777"
+   ]
+  },
+  "AnalysisCacheTask/bundle": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "AnaTupleMergeTask": [
+    "AnaTupleMergeTask__1__False_c28701c955"
+   ],
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1__False_020398b92e"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_25abada5b6",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ]
+  },
+  "AnalysisCacheTask/crab": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "AnaTupleMergeTask": [
+    "AnaTupleMergeTask__1__False_36b913e838"
+   ],
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1__False_f8b7763b6b"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_25abada5b6",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ]
+  },
+  "AnalysisCacheTask/htcondor": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "AnaTupleMergeTask": [
+    "AnaTupleMergeTask__1__False_c28701c955"
+   ],
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1__False_020398b92e"
+   ]
+  },
+  "AnalysisCacheTask/local": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "AnaTupleMergeTask": [
+    "AnaTupleMergeTask__1__False_c57676dd7f"
+   ],
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1__False_b7d3fdc2ae"
+   ]
+  },
+  "HistFromNtupleProducerTask/bundle": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "HistTupleProducerTask": [
+    "HistTupleProducerTask__1__False_e6901ded3e"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_25abada5b6",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ]
+  },
+  "HistFromNtupleProducerTask/crab": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "HistTupleProducerTask": [
+    "HistTupleProducerTask__1__False_fc08064ecd"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_25abada5b6",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ]
+  },
+  "HistFromNtupleProducerTask/htcondor": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "HistTupleProducerTask": [
+    "HistTupleProducerTask__1__False_e6901ded3e"
+   ]
+  },
+  "HistFromNtupleProducerTask/local": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "HistTupleProducerTask": [
+    "HistTupleProducerTask__1__False_881eafadb1"
+   ]
+  },
+  "HistMergerTask/bundle": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "HistFromNtupleProducerTask": [
+    "HistFromNtupleProducerTask__1__False_5ba6a40f3e"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_25abada5b6",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ]
+  },
+  "HistMergerTask/crab": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "HistFromNtupleProducerTask": [
+    "HistFromNtupleProducerTask__1__False_934b5b5a8a"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_25abada5b6",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ]
+  },
+  "HistMergerTask/htcondor": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "HistFromNtupleProducerTask": [
+    "HistFromNtupleProducerTask__1__False_5ba6a40f3e"
+   ]
+  },
+  "HistMergerTask/local": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "HistFromNtupleProducerTask": [
+    "HistFromNtupleProducerTask__1__False_13a48d4fe6"
+   ]
+  },
+  "HistPlotTask/bundle": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "HistMergerTask": [
+    "HistMergerTask__1__False_864b2d5b6d"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_25abada5b6",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ]
+  },
+  "HistPlotTask/crab": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "HistMergerTask": [
+    "HistMergerTask__1__False_a6c20ec631"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_25abada5b6",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ]
+  },
+  "HistPlotTask/htcondor": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "HistMergerTask": [
+    "HistMergerTask__1__False_864b2d5b6d"
+   ]
+  },
+  "HistPlotTask/local": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "HistMergerTask": [
+    "HistMergerTask__1__False_1fca5cc7ec"
+   ]
+  },
+  "HistTupleProducerTask/bundle": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "AnaTupleMergeTask": [
+    "AnaTupleMergeTask__1__False_c28701c955"
+   ],
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1__False_020398b92e"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_25abada5b6",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ]
+  },
+  "HistTupleProducerTask/crab": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "AnaTupleMergeTask": [
+    "AnaTupleMergeTask__1__False_36b913e838"
+   ],
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1__False_f8b7763b6b"
+   ],
+   "bundles": [
+    "BundleTask___Run3_2022_25abada5b6",
+    "BundleTask___Run3_2022_a4c9ed83e9",
+    "BundleTask___Run3_2022_d50f730f2f"
+   ]
+  },
+  "HistTupleProducerTask/htcondor": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "AnaTupleMergeTask": [
+    "AnaTupleMergeTask__1__False_c28701c955"
+   ],
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1__False_020398b92e"
+   ]
+  },
+  "HistTupleProducerTask/local": {
+   "AnaTupleFileListTask": [
+    "AnaTupleFileListTask__1__False_8b176adbdf"
+   ],
+   "AnaTupleMergeTask": [
+    "AnaTupleMergeTask__1__False_c57676dd7f"
+   ],
+   "AnalysisCacheTask": [
+    "AnalysisCacheTask__1__False_b7d3fdc2ae"
+   ]
+  }
+ }
+}

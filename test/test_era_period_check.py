@@ -22,10 +22,10 @@ from FLAF.Common.Setup import ERA_IDS  # noqa: E402
 from FLAF.Common.Utilities import book_era_check, check_era  # noqa: E402
 
 
-def frame(periods, valid=None):
-    """An RDataFrame with one event per entry of `periods` (and of `valid`, when given)."""
-    df = ROOT.RDataFrame(len(periods))
-    values = ",".join(str(p) for p in periods)
+def frame(era_ids, valid=None):
+    """An RDataFrame with one event per entry of `era_ids` (and of `valid`, when given)."""
+    df = ROOT.RDataFrame(len(era_ids))
+    values = ",".join(str(p) for p in era_ids)
     df = df.Define("period", f"std::vector<int> v{{{values}}}; return v[rdfentry_];")
     if valid is not None:
         flags = ",".join("true" if v else "false" for v in valid)

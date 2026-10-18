@@ -160,7 +160,7 @@ class MergeProductsTask(
         return self.remote_target(
             self.version,
             self.__class__.__name__,
-            self.period,
+            self.era[0],
             f"merged_{self.branch}.root",
         )
 

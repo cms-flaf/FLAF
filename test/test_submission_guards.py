@@ -1240,6 +1240,55 @@ class _WhenTheJobSourcesAreUnreadable:
             {1: FINISHED, 2: FINISHED},
         )
 
+    def test_a_skipped_first_round_leaves_the_job_count_right(self):
+        """law's run() puts every job in the backlog, also one that luigi's scheduling already
+        recorded as finished because its outputs exist, and JobData counts that one twice;
+        law's own submit() takes it out of the backlog before poll() fixes the job count. With
+        the first round skipped the poll loop's first submission took it out instead, and the
+        loop waited for one job more than there were (HH_bbWW CI, 2026-10-17: 8 for 7).
+        """
+        proxy = self.proxy(3)
+        proxy.task.produce([0])
+        proxy.process_resources()
+        self.break_tree()
+
+        def on_poll(iteration):
+            if iteration == 0:
+                self.restore_tree()
+
+        proxy.task.on_poll = on_poll
+        proxy.run()
+
+        self.assertEqual(len(self.skip_messages(proxy)), 1, proxy.task.messages)
+        self.assertEqual(proxy.submitted, [[2, 3]])
+        self.assertEqual(proxy.job_data.unsubmitted_jobs, {})
+        self.assertEqual(
+            {num: data["status"] for num, data in proxy.job_data.jobs.items()},
+            {1: FINISHED, 2: FINISHED, 3: FINISHED},
+        )
+
+    def test_a_resumed_backlog_with_a_complete_job_leaves_the_job_count_right(self):
+        """A resumed run polls without calling submit() first, and run() clears law's verdicts
+        before law reloads `jobs`: a control, the count is right with or without the drop.
+        """
+        proxy = self.proxy(3)
+        data = JobData()
+        data.jobs[1] = job(1, FINISHED, job_id="r1")
+        data.unsubmitted_jobs[2] = [1]
+        data.unsubmitted_jobs[3] = [2]
+        proxy.task.jobs_file.dump(data, formatter="json", indent=4)
+        # job 2's branch was produced by another workflow while no driver ran
+        proxy.task.produce([0, 1])
+        proxy.process_resources()
+        proxy.run()
+
+        self.assertEqual(proxy.submitted, [[3]])
+        self.assertEqual(proxy.job_data.unsubmitted_jobs, {})
+        self.assertEqual(
+            {num: data["status"] for num, data in proxy.job_data.jobs.items()},
+            {1: FINISHED, 2: FINISHED, 3: FINISHED},
+        )
+
 
 class HTCondorWhenTheJobSourcesAreUnreadable(
     _WhenTheJobSourcesAreUnreadable, _ProxyCase

@@ -76,6 +76,10 @@ Each of these has caused a production incident. They are ordered by how much dam
   whose branches are complete is marked skippable, not resubmitted.
 - **`poll()` snapshots the job count once.** Changing `job_data` mid-poll hangs or ends the loop
   early, and a resumed run never calls `submit()` — hooks belong at the top of `poll()` too.
+  law's `submit()` drops backlog jobs whose branches exist; inside the loop that leaves the count
+  one too high when the job is also in `jobs` (`process_resources` recorded it finished on a
+  fresh run). When FLAF skips the round before `poll()`, `SubmissionGuards.poll()` drops them
+  first (`_drop_complete_backlog`).
 
 ### Bundles (`run_tools/law_customizations.py`)
 

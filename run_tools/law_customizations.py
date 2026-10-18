@@ -607,6 +607,11 @@ class Task(law.Task):
                 for number in (start, None if stop is None else stop - 1):
                     if number is not None and number >= ERA_BRANCH_STRIDE:
                         era, local = split_era_branch(number)
+                        if era is None:
+                            raise BranchSelectionError(
+                                f"{family}: branch {number} is beyond the "
+                                f"{ERA_BRANCH_STRIDE} numbers of a run over one era"
+                            )
                         raise BranchSelectionError(
                             f"{family}: branch {number} is branch {local} of {era} in a run "
                             "over several eras; a run over one era takes that era's own "

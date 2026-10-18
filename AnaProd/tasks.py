@@ -638,8 +638,9 @@ class AnaTupleCostProbeTask(
     selection, so `AnaTupleFileTask` measures it instead of guessing: a few thousand events
     take minutes and turn a blind packing into an informed one.
 
-    Outputs are keyed by version and nano source but deliberately not by era, so a
-    multi-era production probes each dataset once and the later eras skip this stage.
+    Outputs are keyed by version and nano source but deliberately not by era, so a dataset
+    probed for one era is not probed again for another. Eras run together before any of
+    them has a result probe a shared dataset once each, into the same file.
     A probe that fails still writes a result, marked not ok: calibration is an
     optimisation and must never block production.
     """

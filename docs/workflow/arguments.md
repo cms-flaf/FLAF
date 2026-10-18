@@ -49,10 +49,13 @@ law run FLAF.Analysis.tasks.HistMergerTask --version v1 --era Run3_2022,Run3_202
 ```
 
 - Every era of `--era` needs at least one number in `--branches`; a range has a start and an end
-  and stays inside one era.
+  and stays inside one era. Once an era's branch map exists, at least one of its numbers must be a
+  branch of that map: a run over one era would take a selection naming none of its branches as the
+  whole map, which a run over several eras refuses.
 - `--branch` is refused over several eras: use `--era <era> --branch <its number in that era>`.
-- A run over one era refuses the numbers of a run over several eras (1 000 000 and above) and
-  prints the decoded form. See
+- A run over one era refuses the numbers of a run over several eras (1 000 000 and above): with the
+  decoded form when the number belongs to a configured era, as beyond the numbers of one era
+  otherwise. See
   [Troubleshooting](../troubleshooting.md#branch-selection-errors-branch-n-is-branch-m-of-era).
 - `--parallel-jobs` is one cap for the whole run, all eras together
   ([HTCondor](htcondor.md#several-eras-in-one-submission),

@@ -2096,7 +2096,7 @@ class HTCondorABatchInterruptedPartWay(_Case):
     backend = "htcondor"
 
     @contextlib.contextmanager
-    def batched(self, interrupt_era=None):
+    def batched(self, interrupt_era=None, dump_every=1):
         real = FakeBatchedCondorManager.submit_batch
 
         def submit_batch(manager, job_files, **kwargs):
@@ -2113,7 +2113,7 @@ class HTCondorABatchInterruptedPartWay(_Case):
             "htcondor_create_job_manager",
             lambda task, **kwargs: FakeBatchedCondorManager(**kwargs),
         ), mock.patch.object(
-            EraJobsUp, "htcondor_dump_intermediate_job_data", lambda task: 1
+            EraJobsUp, "htcondor_dump_intermediate_job_data", lambda task: dump_every
         ), mock.patch.object(
             FakeBatchedCondorManager, "submit_batch", submit_batch
         ):
@@ -2127,7 +2127,7 @@ class HTCondorABatchInterruptedPartWay(_Case):
             self.addCleanup(wipe, self.version)
             self.addCleanup(Batch().forget, self.version)
             write_gates(self.version, **{A: 2, B: 2})
-            with in_flight_jobs(finish_after=5), self.batched(interrupt_era=B):
+            with in_flight_jobs(finish_after=5), self.batched(B):
                 with self.assertRaises(KeyboardInterrupt):
                     self.drive(eras, "--no-poll")
             interrupted = load_json(self.jobs_file(B, "htcondor_jobs_0To2.json"))
@@ -2138,6 +2138,21 @@ class HTCondorABatchInterruptedPartWay(_Case):
             counts[variant] = self.submissions()[(B, 0)]
         self.version = base
         self.assertEqual(counts, {"together": 1, "alone": 1})
+
+    def test_an_id_not_dumped_yet_is_kept_too(self):
+        # law dumps every 50 jobs here, so the interrupted era's submitted job is known to its
+        # era's proxy alone when the round ends
+        write_gates(self.version, **{A: 2, B: 2})
+        with in_flight_jobs(finish_after=5), self.batched(B, dump_every=50):
+            with self.assertRaises(KeyboardInterrupt):
+                self.drive((A, B), "--no-poll")
+        interrupted = load_json(self.jobs_file(B, "htcondor_jobs_0To2.json"))
+        self.assertNotIn(
+            interrupted["jobs"]["1"]["job_id"], (None, JobData.dummy_job_id)
+        )
+        self.assertEqual(dict(interrupted["unsubmitted_jobs"]), {"2": [1]})
+        self.drive((A, B), "--no-poll")
+        self.assertEqual(self.submissions()[(B, 0)], 1)
 
     def test_a_later_eras_factory_failure_keeps_the_earlier_eras_ids(self):
         write_gates(self.version, **{A: 2, B: 2})

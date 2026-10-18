@@ -81,6 +81,11 @@ A `--branches` selection (`BranchSelectionError`) does not fit the numbering of 
   one era`: over several eras every range has a start and an end and stays inside one era.
 - `--branches selects no branch of <era>; select a branch of each era or drop it from --era`: every
   era of the run needs a number; an era without one is still part of the run.
+- `--branches selects no branch of the <N> of <era>`: over several eras, every number given for
+  `<era>` lies outside its branch map (`<N>` branches, numbered `era id × 1 000 000` upwards). A run
+  over that era alone would take such a selection as the whole map; select an existing branch.
+- `branch <n> is beyond the 1000000 numbers of a run over one era`: a run over one era was given a
+  number of 1 000 000 or more that belongs to no configured era.
 
 ## `… differs between the eras (…), but one run over several eras uses one value for all of them`
 `EraDependentValueError`: a setting that a run over several eras reads once differs between its

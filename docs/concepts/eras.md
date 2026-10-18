@@ -187,11 +187,16 @@ An era's branch numbers therefore never depend on the other eras of the run: bra
 - **`--branches` takes these numbers over several eras**, for example
   `--era Run3_2022,Run3_2022EE --branches 5000000,5000001,6000000:6000010`. Every era of `--era`
   must have at least one selected branch (otherwise drop it from `--era`), a range has a start
-  and an end and stays inside one era, and every number must belong to an era of the run.
+  and an end and stays inside one era, and every number must belong to an era of the run. Once
+  an era's branch map exists, at least one of its selected numbers must be a branch of it; a run
+  over one era would take a selection naming none of its branches as the whole map, which a run
+  over several eras refuses.
 - **`--branch` is refused** over several eras: use `--era <era> --branch <its number in that era>`.
 - **A run over one era takes that era's own numbers.** A number of a run over several eras
   (1 000 000 or more) stops with the decoded hint, for example
   `branch 6000001 is branch 1 of Run3_2022EE in a run over several eras; a run over one era takes that era's own numbers: --era Run3_2022EE --branches 1`.
+  A number of no configured era stops with `branch <n> is beyond the 1000000 numbers of a run
+  over one era`.
 - **A `--branches` selection given before the stage's inputs exist** is honoured. For a stage
   whose branch map is read from an earlier stage's output (see above), a selection given before
   that output existed used to be widened to all of its branches; it is now kept, in runs over one

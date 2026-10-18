@@ -1,3 +1,4 @@
+import contextlib
 import copy
 import functools
 import hashlib
@@ -29,7 +30,15 @@ from FLAF.run_tools.crab_watchdog import (
     watchdog_config,
 )
 from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget, WLCGDirectoryTarget
-from FLAF.Common.Setup import Setup, UnknownEraError, known_eras
+from FLAF.Common.Setup import (
+    ERA_BRANCH_STRIDE,
+    ERA_BY_ID,
+    ERA_IDS,
+    Setup,
+    UnknownEraError,
+    known_eras,
+    split_era_branch,
+)
 from FLAF.AnaProd.CostModel import pack_units
 
 law.contrib.load("htcondor")
@@ -169,11 +178,10 @@ def _known_eras(ana_path):
 
 class EraParameter(law.CSVParameter):
     """FLAF eras, as a sorted tuple of unique known names: `--era Run3_2022` or a comma-separated
-    list. `max_len` limits how many eras a task takes."""
+    list. Which classes take several is `Task.allow_multi_era`."""
 
-    def __init__(self, max_len=None, **kwargs):
+    def __init__(self, **kwargs):
         super(EraParameter, self).__init__(unique=True, sort=True, min_len=1, **kwargs)
-        self._max_eras = max_len
 
     def parse(self, inp):
         value = super(EraParameter, self).parse(inp)
@@ -183,15 +191,70 @@ class EraParameter(law.CSVParameter):
             raise UnknownEraError(
                 f"unknown era(s) {', '.join(unknown)}; known eras: {', '.join(eras)}"
             )
-        if self._max_eras is not None and len(value) > self._max_eras:
-            raise ValueError(
-                f"--era {','.join(value)}: several eras in one task are not supported yet"
-            )
         return value
 
     def normalize(self, x):
         # luigi normalises values given programmatically without parsing them
         return self.parse(x)
+
+
+def era_csv(eras):
+    """The eras as `--era` takes them."""
+    return ",".join(eras)
+
+
+class EraScopeError(RuntimeError):
+    """A value that differs per era was read on a task over several eras.
+
+    Not an AttributeError: `getattr(task, name, default)` and `hasattr` would swallow it.
+    """
+
+
+class EraDependentValueError(EraScopeError):
+    """A setting that a task over several eras uses once differs between those eras."""
+
+
+class BranchSelectionError(ValueError):
+    """A --branches selection outside the numbering of the workflow it is given to."""
+
+
+def _branch_items(param, branches):
+    """(start, stop) of each element of a --branches value: stop exclusive, None for an open
+    edge."""
+    return [
+        (item[0], item[0] + 1) if len(item) == 1 else tuple(item)
+        for item in param.parse(branches)
+    ]
+
+
+def _items_from_numbers(numbers):
+    """The fewest (start, stop) ranges that select exactly `numbers`."""
+    items = []
+    for number in sorted(numbers):
+        if items and items[-1][1] == number:
+            items[-1] = (items[-1][0], number + 1)
+        else:
+            items.append((number, number + 1))
+    return items
+
+
+def _branches_value(items):
+    """(start, stop) ranges as the value of the `branches` parameter."""
+    return tuple(
+        (start,) if stop == start + 1 else (start, stop) for start, stop in items
+    )
+
+
+def _is_placeholder_map(branch_map):
+    """Whether `branch_map` is law's stand-in for a map whose dynamic condition is not met."""
+    return list(branch_map.items()) == [(0, None)]
+
+
+def _requirement_leaves(reqs):
+    """(top-level key, task) of every task in a workflow_requires() structure."""
+    for key, value in (reqs or {}).items():
+        for task in luigi.task.flatten(value):
+            yield key, task
 
 
 _era_cli_checked = False
@@ -234,6 +297,21 @@ def _reject_removed_era_flags():
         raise ValueError(
             f"{', '.join(per_task)}: the eras are set once per invocation, with --era"
         )
+    # A branch of a workflow over several eras is a branch of one era's own map. Only the root
+    # task's flag is refused: law makes the branch tasks of such a workflow itself.
+    root_cls = luigi.task_register.Register.get_task_cls(parser.known_args.root_task)
+    if (
+        getattr(root_cls, "era_branches", False)
+        and args.get("era") is not None
+        and args.get("branch") not in (None, "-1")
+    ):
+        eras = root_cls.era.parse(args["era"])
+        if len(eras) > 1:
+            raise ValueError(
+                f"--branch {args['branch']} with --era {era_csv(eras)}: a branch belongs to one "
+                "era; use --era <era> --branch <its number in that era>, or --branches with "
+                "the numbers of the run over several eras"
+            )
 
 
 class Task(law.Task):
@@ -324,7 +402,12 @@ class Task(law.Task):
     exclude_params_req = law.Task.exclude_params_req | {"tasks_per_job", "period"}
     exclude_params_repr = law.Task.exclude_params_repr | {"period"}
     exclude_params_index = law.Task.exclude_params_index | {"period"}
-    era = EraParameter(max_len=1)
+    era = EraParameter()
+    #: whether a task of this class may be constructed over several eras
+    allow_multi_era = False
+    #: whether the branches of this workflow carry the era: over several eras its branch map
+    #: is the union of the eras' own maps, numbered by `era_branch` (needs allow_multi_era)
+    era_branches = False
     # The removed period: a parameter only so that the parser accepts it and the run stops
     # with the rename message instead of "unrecognized arguments".
     period = luigi.OptionalParameter(  # noqa: era-rename
@@ -375,9 +458,22 @@ class Task(law.Task):
 
     def __init__(self, *args, **kwargs):
         super(Task, self).__init__(*args, **kwargs)
+        if self.era_branches and not self.allow_multi_era:
+            raise TypeError(
+                f"{self.get_task_family()}: era_branches needs allow_multi_era"
+            )
+        if len(self.era) > 1 and not self.allow_multi_era:
+            raise ValueError(
+                f"{self.get_task_family()} takes one era; got --era {era_csv(self.era)}"
+            )
         self._setups = {}
         for era in self.era:
             self.setup_for(era)
+        if len(self.era) > 1:
+            for what, getter in self.common_settings:
+                self.common(getter, what)
+        if isinstance(self, law.BaseWorkflow) and self.is_workflow():
+            self._check_branch_selection()
         self._dataset_id_name_list = None
         self._dataset_id_name_dict = None
         self._dataset_name_id_dict = None
@@ -411,8 +507,306 @@ class Task(law.Task):
         return setup
 
     @property
+    def only_era(self):
+        """The era of a task over one era. On a task over several eras every per-era value is
+        read for a named era instead, so this raises there."""
+        if len(self.era) != 1:
+            raise EraScopeError(
+                f"{self.get_task_family()}(era={era_csv(self.era)}): a value of one era was "
+                "read on a task over several eras; use setup_for(era), single(era) or common()"
+            )
+        return self.era[0]
+
+    @property
     def setup(self):
-        return self.setup_for(self.era[0])
+        return self.setup_for(self.only_era)
+
+    def era_of(self, branch):
+        """The era of branch number `branch` of this workflow over several eras."""
+        era, _ = split_era_branch(branch)
+        if era is None or era not in self.era:
+            raise ValueError(
+                f"{self.get_task_family()}: {branch} is not a branch number of the eras "
+                f"{era_csv(self.era)}"
+            )
+        return era
+
+    def local_branch(self, branch):
+        """The number in its era's own map of branch `branch` of this workflow over several
+        eras."""
+        return branch - ERA_IDS[self.era_of(branch)] * ERA_BRANCH_STRIDE
+
+    #: (what, getter of a Setup) of the settings a task over several eras uses once, for all of
+    #: them: they must agree between its eras, which construction checks
+    common_settings = (
+        ("fs_default", lambda setup: setup.global_params.get("fs_default")),
+        ("crab", lambda setup: setup.global_params.get("crab")),
+        ("runTokenServer", lambda setup: setup.global_params.get("runTokenServer")),
+        (
+            "WLCGFileSystem.remotePathCacheHost/Port",
+            lambda setup: tuple(
+                (setup.global_params.get("WLCGFileSystem") or {}).get(key)
+                for key in ("remotePathCacheHost", "remotePathCachePort")
+            ),
+        ),
+    )
+
+    def common(self, getter, what):
+        """`getter(setup)` of a setting that holds for every era of this task: its value when
+        all eras agree; raises EraDependentValueError naming `what` and each era's value when
+        they do not."""
+        values = {era: getter(self.setup_for(era)) for era in self.era}
+        value = values[self.era[0]]  # noqa: era-scope
+        if any(other != value for other in values.values()):
+            raise EraDependentValueError(
+                f"{self.get_task_family()}(era={era_csv(self.era)}): {what} differs between "
+                f"the eras ({values}), but one run over several eras uses one value for all "
+                "of them; make it the same in every era, or run the eras separately"
+            )
+        return value
+
+    def with_eras(self, eras, branches=()):
+        """This workflow over `eras`, with `branches` in the numbers of that workflow (an era's
+        own numbers over one era), and every other parameter of this instance: the per-task
+        ones (--tasks-per-job, --max-runtime, --n-cpus, --crab-memory) are handed on as law
+        hands them between a workflow and its branches. The one place that names eras in a
+        requirement."""
+        if not self.is_workflow():
+            raise RuntimeError(f"{self!r}: with_eras() is for workflows")
+        eras = tuple(sorted(set(eras)))
+        key = (eras, tuple(branches))
+        cache = self.__dict__.setdefault("_with_eras_instances", {})
+        if key not in cache:
+            cache[key] = type(self).req(
+                self,
+                era=eras,
+                branch=-1,
+                branches=tuple(branches),
+                _skip_task_excludes=True,
+            )
+        return cache[key]
+
+    def single(self, era, branches=()):
+        """This workflow over `era` alone, `branches` in that era's own numbers."""
+        return self.with_eras((era,), branches)
+
+    def _check_branch_selection(self):
+        """Refuse a --branches selection outside this workflow's numbering.
+
+        Over one era a selection takes the era's own numbers; a number of a run over several
+        eras would otherwise be widened by law to the whole map. Over several eras every number
+        names an era of the run, a range stays inside one era (an open one would span millions
+        of numbers), and every era is selected.
+        """
+        items = _branch_items(type(self).branches, self._initial_branches)
+        if not items:
+            return
+        family = self.get_task_family()
+        if not (self.era_branches and len(self.era) > 1):
+            for start, stop in items:
+                for number in (start, None if stop is None else stop - 1):
+                    if number is not None and number >= ERA_BRANCH_STRIDE:
+                        era, local = split_era_branch(number)
+                        raise BranchSelectionError(
+                            f"{family}: branch {number} is branch {local} of {era} in a run "
+                            "over several eras; a run over one era takes that era's own "
+                            f"numbers: --era {era} --branches {local}"
+                        )
+            return
+        selected = set()
+        for start, stop in items:
+            if start is None or stop is None:
+                raise BranchSelectionError(
+                    f"{family}(era={era_csv(self.era)}): an open range in --branches; over "
+                    "several eras every range has a start and an end"
+                )
+            first, local_first = split_era_branch(start)
+            last, local_last = split_era_branch(stop - 1)
+            for era, number, local in (
+                (first, start, local_first),
+                (last, stop - 1, local_last),
+            ):
+                if era not in self.era:
+                    raise BranchSelectionError(
+                        f"{family}(era={era_csv(self.era)}): branch {number} is branch "
+                        f"{local} of {era or 'no era'}, not of an era of this run"
+                    )
+            if first != last:
+                raise BranchSelectionError(
+                    f"{family}(era={era_csv(self.era)}): the range {start}:{stop} spans "
+                    f"{first} and {last}; a range stays inside one era"
+                )
+            selected.add(first)
+        missing = [era for era in self.era if era not in selected]
+        if missing:
+            raise BranchSelectionError(
+                f"{family}(era={era_csv(self.era)}): --branches selects no branch of "
+                f"{era_csv(missing)}; select a branch of each era or drop it from --era"
+            )
+
+    def local_selection(self, era):
+        """This workflow's --branches selection of `era`, in that era's own numbers."""
+        base = ERA_IDS[era] * ERA_BRANCH_STRIDE
+        return _branches_value(
+            (start - base, stop - base)
+            for start, stop in _branch_items(
+                type(self).branches, self._initial_branches
+            )
+            if split_era_branch(start)[0] == era
+        )
+
+    def req_branch(self, branch, **kwargs):
+        # The branch of a workflow over several eras is the branch of its era's own workflow,
+        # so branch-level code runs on one era with today's numbers; law makes every branch
+        # task through here. The placeholder branch 0 of a map that cannot be built yet stays
+        # this workflow's own.
+        if (
+            self.era_branches
+            and len(self.era) > 1
+            and self.is_workflow()
+            and branch >= ERA_BRANCH_STRIDE
+        ):
+            return self.single(self.era_of(branch)).req_branch(
+                self.local_branch(branch), **kwargs
+            )
+        return super(Task, self).req_branch(branch, **kwargs)
+
+    def process_resources(self):
+        # A remote workflow drives each era's job file; two instances of a stage that share an
+        # era (one over A, one over A and B) never run at once in one graph: a luigi resource
+        # per job-file directory, of capacity 1 unless configured, holds each of its eras.
+        resources = dict(super(Task, self).process_resources() or {})
+        if (
+            isinstance(self, law.BaseWorkflow)
+            and self.is_workflow()
+            and self.effective_workflow in ("htcondor", "crab")
+        ):
+            for era in self.era:
+                inst = self if len(self.era) == 1 else self.single(era)
+                directory = getattr(
+                    inst, f"{self.effective_workflow}_output_directory"
+                )()
+                resources[f"flaf_jobs:{directory.abspath}"] = 1
+        return resources
+
+    def stage_workflow_requires(self):
+        """This stage's workflow requirements over one era: the code bundles by default."""
+        return super(Task, self).workflow_requires()
+
+    def workflow_requires(self):
+        """`stage_workflow_requires()`, and over several eras the union of what each era that
+        still needs work requires: luigi prunes a complete task, so an era whose part of this
+        stage is complete requires nothing -- not even intermediates its outputs were made
+        from and that may since have been removed."""
+        if not self.is_workflow():
+            return self.as_workflow().workflow_requires()
+        if len(self.era) == 1 or not self.era_branches:
+            return self.stage_workflow_requires()
+        per_era = OrderedDict()
+        for era in self.era:
+            inst = self.single(era, self.local_selection(era))
+            if not inst.complete():
+                per_era[era] = inst.stage_workflow_requires()
+        return self._lift(per_era)
+
+    def _lift_key(self):
+        """What two requirements of one stage over different eras share to be required as one
+        instance over those eras: every parameter but the eras and the selection."""
+        return tuple(
+            (name, repr(value))
+            for name, value in self.param_kwargs.items()
+            if name not in ("era", "branches")
+        )
+
+    def _selection_items_in_map(self):
+        """The --branches selection of this single-era workflow as ranges of its map's numbers,
+        or None when it stands for the whole map: no selection, all of the map, or -- as law
+        reads it -- none of it. Against a map that cannot be built yet it is kept as given.
+        """
+        items = _branch_items(type(self).branches, self._initial_branches)
+        if not items:
+            return None
+        whole = self.with_eras(self.era).get_branch_map()
+        if _is_placeholder_map(whole):
+            return items
+        keys = set(whole)
+        low, high = min(keys), max(keys) + 1
+        selected = set()
+        for start, stop in items:
+            start = low if start is None else max(start, low)
+            stop = high if stop is None else min(stop, high)
+            selected.update(k for k in range(start, stop) if k in keys)
+        if not selected or selected == keys:
+            return None
+        return _items_from_numbers(selected)
+
+    def _lift(self, per_era):
+        """One requirement structure for this workflow over several eras from what its eras'
+        single-era instances require (`per_era`: {era: stage_workflow_requires()}).
+
+        The workflows of a stage with era branches that the eras require with the same other
+        parameters become instances over those eras, each derived from one of those
+        requirements so that it keeps their per-task values: one over the eras that need the
+        whole stage, one over those that need some of its branches. Everything else (bundles,
+        branch tasks, workflows without era branches) is kept as each era requires it, and
+        luigi runs identical instances once.
+        """
+        groups = OrderedDict()
+        out = law.util.DotDict()
+        for era, reqs in per_era.items():
+            for key, req in _requirement_leaves(reqs):
+                if (
+                    isinstance(req, Task)
+                    and req.era_branches
+                    and isinstance(req, law.BaseWorkflow)
+                    and req.is_workflow()
+                    and req.era == (era,)
+                ):
+                    group = groups.setdefault(
+                        (key, req.task_family, req._lift_key()), OrderedDict()
+                    )
+                    group.setdefault(era, []).append(req)
+                else:
+                    out.setdefault(key, []).append(req)
+        for (key, _, _), by_era in groups.items():
+            out.setdefault(key, []).extend(Task._lift_group(by_era))
+        return out
+
+    @staticmethod
+    def _lift_group(by_era):
+        whole, strict, alone = [], OrderedDict(), []
+        for era, reqs in by_era.items():
+            items = []
+            for req in reqs:
+                req_items = req._selection_items_in_map()
+                if req_items is None:
+                    items = None
+                    break
+                items.extend(req_items)
+            if items is None:
+                whole.append(era)
+            elif any(edge is None for item in items for edge in item):
+                alone.append((era, items))
+            else:
+                strict[era] = items
+        lifted = []
+        if whole:
+            lifted.append(by_era[whole[0]][0].with_eras(whole))
+        if len(strict) == 1:
+            era, items = next(iter(strict.items()))
+            lifted.append(by_era[era][0].with_eras((era,), _branches_value(items)))
+        elif strict:
+            numbers = []
+            for era, items in strict.items():
+                base = ERA_IDS[era] * ERA_BRANCH_STRIDE
+                numbers += [(start + base, stop + base) for start, stop in items]
+            first = next(iter(strict))
+            lifted.append(
+                by_era[first][0].with_eras(tuple(strict), _branches_value(numbers))
+            )
+        for era, items in alone:
+            lifted.append(by_era[era][0].with_eras((era,), _branches_value(items)))
+        return lifted
 
     @staticmethod
     def _resolve_user_custom_path(user_custom):
@@ -528,6 +922,30 @@ class Task(law.Task):
         ready yet (e.g. the merge plan does not exist), which must stay dynamic so the
         map is rebuilt once the upstream completes.
         """
+        if self.is_workflow() and not self.branches and self._initial_branches:
+            # law resets a selection given while the map was its placeholder (a dynamic
+            # condition not met yet) to the whole map; this runs once the condition holds and
+            # before law applies the selection
+            self.branches = self._initial_branches
+        if len(self.era) > 1:
+            if not self.era_branches:
+                raise EraScopeError(
+                    f"{self.get_task_family()}(era={era_csv(self.era)}): a branch map over "
+                    "several eras needs era_branches"
+                )
+            branch_map = {}
+            for era in self.era:
+                era_map = self.single(era).get_branch_map()
+                if _is_placeholder_map(era_map):
+                    raise RuntimeError(
+                        f"{self.get_task_family()}: the branch map of {era} cannot be built "
+                        "yet while the one over all eras is being built"
+                    )
+                base = ERA_IDS[era] * ERA_BRANCH_STRIDE
+                branch_map.update(
+                    (base + local, data) for local, data in era_map.items()
+                )
+            return branch_map
         key = self._branch_map_cache_key()
         cached = Task._branch_map_cache.get(key)
         if cached is None:
@@ -541,11 +959,12 @@ class Task(law.Task):
         return dict(cached)
 
     def store_parts(self):
-        return (self.version, self.__class__.__name__, self.era[0])
+        return (self.version, self.__class__.__name__, self.only_era)
 
     @property
     def cmssw_env(self):
-        return self.setup.cmssw_env
+        # the same for every era: it depends on FLAF_CMSSW_BASE and the environment alone
+        return self.setup_for(self.era[0]).cmssw_env  # noqa: era-scope
 
     @property
     def datasets(self):
@@ -557,7 +976,8 @@ class Task(law.Task):
 
     @property
     def fs_default(self):
-        return self.setup.get_fs("default")
+        # one for all eras of a task (construction checks that they agree)
+        return self.setup_for(self.era[0]).get_fs("default")  # noqa: era-scope
 
     @property
     def fs_nanoAOD(self):
@@ -626,7 +1046,7 @@ class Task(law.Task):
         # Remote directory where job logs are staged. Include the producer name when the
         # task has one (AnalysisCacheTask: producer_to_run; AnalysisCacheAggregationTask:
         # producer_to_aggregate) so per-producer logs of the same task do not collide.
-        parts = [self.version, "logs", self.__class__.__name__, self.era[0]]
+        parts = [self.version, "logs", self.__class__.__name__, self.only_era]
         producer = getattr(self, "producer_to_run", None) or getattr(
             self, "producer_to_aggregate", None
         )
@@ -753,7 +1173,7 @@ class BundleTask(Task):
         would be bundled while its jobs are still running."""
         for pattern in self.bundle_patterns():
             parts = pattern.strip("/").split("/")
-            if len(parts) < 3 or parts[0] != "data" or parts[-1] != self.era[0]:
+            if len(parts) < 3 or parts[0] != "data" or parts[-1] != self.only_era:
                 continue
             producer = parts[-2]
             if producer in reqs:
@@ -783,7 +1203,7 @@ class BundleTask(Task):
             raise ValueError(
                 f"bundle '{self.flavour}': {renamed} use {{period}}, which was renamed to {{era}}"  # noqa: era-rename
             )
-        return [p.format(version=self.version, era=self.era[0]) for p in patterns]
+        return [p.format(version=self.version, era=self.only_era) for p in patterns]
 
     def bundle_source(self, pattern):
         """Where a pattern is read from.
@@ -823,7 +1243,7 @@ class BundleTask(Task):
         carrying a large immutable payload (an installed environment, a CMSSW release) opt
         out with `hashed: false`, the default.
         """
-        key = (self.flavour, self.version, self.era[0])
+        key = (self.flavour, self.version, self.only_era)
         if key not in BundleTask._source_hash_cache:
             digest = hashlib.sha256()
             for pattern in self.bundle_patterns():
@@ -889,7 +1309,7 @@ class BundleTask(Task):
                 )
             name = f"{self.flavour}_{environment_id}"
         return self.remote_target(
-            self.version, "bundles", self.era[0], f"{name}.tar.bz2"
+            self.version, "bundles", self.only_era, f"{name}.tar.bz2"
         )
 
     def run(self):
@@ -1362,7 +1782,9 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
             os.environ.get("RUCIO_ACCOUNT") or os.environ.get("USER") or ""
         )
 
-        runTokenServer = self.global_params.get("runTokenServer", None)
+        runTokenServer = self.common(
+            lambda setup: setup.global_params.get("runTokenServer"), "runTokenServer"
+        )
         if runTokenServer and not self._uses_bundles():
             config.render_variables["run_token_server_host"] = runTokenServer["host"]
             config.render_variables["run_token_server_port"] = str(
@@ -1463,7 +1885,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         self._apply_bundle_render_variables(config)
         if self._uses_bundles() and not self.htcondor_spool:
             config._worker_files_remote_dir = self.remote_dir_target(
-                self.version, "worker_files", self.era[0]
+                self.version, "worker_files", self.only_era
             )
 
         return config
@@ -1643,10 +2065,12 @@ class SubmissionGuards(LawProxyState):
         finally:
             self._put_back(replaced)
 
-    def _too_many_lost(self, n_lost):
-        return n_lost >= self.min_lost_jobs and n_lost > self.max_lost_fraction * len(
-            self.job_data
-        )
+    def _too_many_lost(self, lost):
+        """What is lost, in words, when the jobs `lost` are too many to resubmit; else None."""
+        n_lost, n_jobs = len(lost), len(self.job_data)
+        if n_lost >= self.min_lost_jobs and n_lost > self.max_lost_fraction * n_jobs:
+            return f"{n_lost} of the {n_jobs} jobs of this resumed workflow"
+        return None
 
     def _stop_on_mass_lost_outputs(self, retry_jobs):
         """Book the jobs of a resumed run that came back for missing outputs done when their
@@ -1678,14 +2102,15 @@ class SubmissionGuards(LawProxyState):
                 skip_jobs[job_num] = True
             else:
                 lost.append(job_num)
-        if not self._too_many_lost(len(lost)):
+        too_many = self._too_many_lost(lost)
+        if not too_many:
             return
         # law has already rewritten these jobs as retries and counted the attempt; write them
         # as they were, so that the next run finds and judges them again
         self._restore_resumed(candidates)
         self.dump_job_data()
         raise RuntimeError(
-            f"{len(lost)} of the {len(self.job_data)} jobs of this resumed workflow came back "
+            f"{too_many} came back "
             f"for missing outputs (more than {self.max_lost_fraction:.0%}), and their outputs "
             "are still missing on a fresh look, so this run would redo a large part of the "
             "workflow. Nothing was submitted, and the submission file was left as it was.\n"
@@ -1805,6 +2230,9 @@ class _BundleAwareHTCondorWorkflowProxy(
     refine the estimates of the next run.
     """
 
+    def __new__(cls, *args, **kwargs):
+        return _era_proxy_new(cls, _BundleAwareHTCondorWorkflowProxy, kwargs)
+
     def __init__(self, *args, **kwargs):
         super(_BundleAwareHTCondorWorkflowProxy, self).__init__(*args, **kwargs)
         self._cost_repack_pending = True
@@ -1883,6 +2311,8 @@ class _BundleAwareHTCondorWorkflowProxy(
             costs = task.branch_cost_map()
             params = task.cost_params()
             capacity = task.cost_capacity_seconds()
+        except EraScopeError:
+            raise
         except Exception as e:
             print(f"cost-aware packing unavailable, keeping the current grouping: {e}")
             return
@@ -2004,6 +2434,8 @@ class _BundleAwareHTCondorWorkflowProxy(
             return
         try:
             self.task.record_job_durations(samples)
+        except EraScopeError:
+            raise
         except Exception as e:
             print(f"cost model: unable to record job durations: {e}")
 
@@ -2025,6 +2457,8 @@ class _BundleAwareHTCondorWorkflowProxy(
                 getattr(task, "fs_default", None), WLCGFileSystem
             ):
                 base = task.remote_log_dir_target().uri()
+        except EraScopeError:
+            raise
         except Exception:
             base = ""
 
@@ -2069,6 +2503,352 @@ HTCondorWorkflow.workflow_proxy_cls = _BundleAwareHTCondorWorkflowProxy
 # our `_submit_group` override (remote log path rewrite) would never run.  Flip the
 # flag so this class is recognised as the "htcondor" workflow provider.
 HTCondorWorkflow._defined_workflow_proxy = True
+
+
+def _era_proxy_new(cls, base_cls, kwargs):
+    """A new proxy: of `base_cls`'s merged class (`_era_merged_cls`) for a workflow over
+    several eras with era branches."""
+    task = kwargs.get("task")
+    if (
+        cls is base_cls
+        and getattr(task, "era_branches", False)
+        and len(getattr(task, "era", ())) > 1
+    ):
+        cls = base_cls._era_merged_cls
+    return super(base_cls, cls).__new__(cls)
+
+
+class EraJobFiles(law.target.base.Target):
+    """The job file of a remote workflow over several eras: for each era, the file a run over
+    that era alone reads and writes, with that era's jobs in the era's own numbers.
+
+    law reads and writes it as one file (`exists`, `load`, `dump`, `parent.touch()`), with job
+    and branch numbers `era id * ERA_BRANCH_STRIDE` + the era's own. Optional, like law's.
+    """
+
+    def __init__(self, proxy):
+        super(EraJobFiles, self).__init__(optional=True)
+        self.proxy = proxy
+        #: eras whose file was loaded, and the tasks_per_job each era's file is written with
+        self.loaded_eras = set()
+        self.tasks_per_job = {}
+
+    def targets(self):
+        return OrderedDict(
+            (era, sub.get_cached_output()["jobs"])
+            for era, sub in self.proxy.era_subs().items()
+        )
+
+    def _repr_pairs(self):
+        return [("files", self.uri())]
+
+    def exists(self):
+        return any(target.exists() for target in self.targets().values())
+
+    def uri(self, return_all=False):
+        uris = [target.uri() for target in self.targets().values()]
+        return uris if return_all else ",".join(uris)
+
+    def remove(self, silent=True):
+        for target in self.targets().values():
+            target.remove(silent=silent)
+
+    @property
+    def parent(self):
+        parents = [target.parent for target in self.targets().values()]
+
+        class _Parents:
+            @staticmethod
+            def touch(*args, **kwargs):
+                for parent in parents:
+                    parent.touch(*args, **kwargs)
+
+        return _Parents()
+
+    @staticmethod
+    def _shift(key, value, base):
+        """A job-data value with its branch numbers moved by `base`."""
+        if key == "jobs":
+            value = dict(value)
+            value["branches"] = [b + base for b in value.get("branches") or []]
+            return value
+        if key == "unsubmitted_jobs":
+            return [b + base for b in value]
+        return value
+
+    def load(self, formatter=None, **kwargs):
+        merged = {"jobs": OrderedDict(), "unsubmitted_jobs": OrderedDict()}
+        merged["attempts"] = OrderedDict()
+        for era, target in self.targets().items():
+            if not target.exists():
+                continue
+            data = target.load(formatter=formatter, **kwargs)
+            self.loaded_eras.add(era)
+            self.tasks_per_job[era] = data.get("tasks_per_job", 1)
+            base = ERA_IDS[era] * ERA_BRANCH_STRIDE
+            for key in ("jobs", "unsubmitted_jobs", "attempts"):
+                for job_num, value in (data.get(key) or {}).items():
+                    job_num = int(job_num)
+                    if not 0 <= job_num < ERA_BRANCH_STRIDE:
+                        raise RuntimeError(
+                            f"{target.uri()}: job {job_num} is outside 0..{ERA_BRANCH_STRIDE - 1},"
+                            " the numbers one era can take in a run over several eras"
+                        )
+                    merged[key][base + job_num] = self._shift(key, value, base)
+            if data.get("dashboard_config") and "dashboard_config" not in merged:
+                merged["dashboard_config"] = data["dashboard_config"]
+        merged["tasks_per_job"] = self.proxy.task.tasks_per_job
+        return merged
+
+    def dump(self, data, formatter=None, **kwargs):
+        per_era = OrderedDict()
+        for key in ("jobs", "unsubmitted_jobs", "attempts"):
+            for job_num, value in data[key].items():
+                era = ERA_BY_ID.get(job_num // ERA_BRANCH_STRIDE)
+                base = ERA_IDS[era] * ERA_BRANCH_STRIDE
+                parts = per_era.setdefault(era, {})
+                parts.setdefault(key, OrderedDict())[job_num - base] = self._shift(
+                    key, value, -base
+                )
+        targets = self.targets()
+        for era, parts in per_era.items():
+            era_data = self.proxy.job_data_cls()
+            for key in ("jobs", "unsubmitted_jobs", "attempts"):
+                era_data[key] = parts.get(key, OrderedDict())
+            era_data["tasks_per_job"] = self.tasks_per_job[era]
+            era_data["dashboard_config"] = data.get("dashboard_config", {})
+            targets[era].dump(era_data, formatter=formatter, **kwargs)
+
+
+class EraMergedProxy:
+    """Remote-workflow-proxy mixin for a workflow over several eras: per-era submission state.
+
+    Each era's jobs live in the job file of a run over that era alone (its path and name, the
+    era's own job and branch numbers), and a proxy of the era's own workflow lays them out and
+    builds and submits them, so a run over several eras and a run over one of them pick up
+    each other's jobs in either order. One poll loop runs over all of them.
+    """
+
+    #: the proxy class of a workflow over one era
+    _era_proxy_cls = None
+    _era_subs = None
+    _era_laid_out = False
+
+    def era_subs(self):
+        """{era: a fresh proxy of that era's own workflow} for the eras with selected branches.
+
+        Fresh, not the era workflow's own proxy: that instance may be required elsewhere in
+        the graph, and this one's job data must not reach it.
+        """
+        if self._era_subs is None:
+            task = self.task
+            branch_map = task.get_branch_map()
+            subs = OrderedDict()
+            if not _is_placeholder_map(branch_map):
+                eras = {task.era_of(b) for b in branch_map}
+                for era in task.era:
+                    if era not in eras:
+                        continue
+                    era_task = task.single(era, task.local_selection(era))
+                    sub = self._era_proxy_cls(task=era_task)
+                    sub.job_manager = self.job_manager
+                    subs[era] = sub
+            self._era_subs = subs
+        return self._era_subs
+
+    def output(self):
+        outputs = law.util.DotDict()
+        outputs["jobs"] = EraJobFiles(self)
+        if not self.task.is_controlling_remote_jobs():
+            # law's remote output() would first resolve the output directory, which is per era
+            outputs.update(law.workflow.base.BaseWorkflowProxy.output(self))
+        return outputs
+
+    def process_resources(self, force=False):
+        # law walks a grouping over all eras here and books complete jobs under its numbers
+        return {}
+
+    def _cost_repack_once(self):
+        # the era proxies pack each era's jobs
+        return
+
+    def run(self):
+        self._era_subs = None
+        self._era_laid_out = False
+        try:
+            return super(EraMergedProxy, self).run()
+        finally:
+            for sub in (self._era_subs or {}).values():
+                if sub.job_file_factory:
+                    sub.job_file_factory.cleanup_dir(force=False)
+
+    def submit(self, retry_jobs=None):
+        self._lay_out_eras()
+        return super(EraMergedProxy, self).submit(retry_jobs=retry_jobs)
+
+    def poll(self):
+        self._lay_out_eras()
+        return super(EraMergedProxy, self).poll()
+
+    def _lay_out_eras(self):
+        """The jobs of every era, as a run over that era alone would have them, before the
+        first submission and before law's poll fixes the job count.
+
+        An era whose outputs exist is left out, its file untouched; an era with a job file
+        resumes it; any other era is laid out afresh with the run's --tasks-per-job and, where
+        the task packs by cost, its own cost-aware packing.
+        """
+        if self._era_laid_out:
+            return
+        self._era_laid_out = True
+        files = self.get_cached_output()["jobs"]
+        merged = OrderedDict(
+            (key, OrderedDict()) for key in ("jobs", "unsubmitted_jobs", "attempts")
+        )
+        for era, sub in self.era_subs().items():
+            era_id = ERA_IDS[era]
+            base = era_id * ERA_BRANCH_STRIDE
+            collection = sub.get_cached_output()["collection"]
+            existing = sub._get_existing_branches(sync=True, collection=collection)
+            if len(existing) >= collection._abs_threshold():
+                continue
+            if self._submitted and era in files.loaded_eras:
+                for key in merged:
+                    sub.job_data[key] = OrderedDict(
+                        (job_num - base, EraJobFiles._shift(key, value, -base))
+                        for job_num, value in self.job_data[key].items()
+                        if job_num // ERA_BRANCH_STRIDE == era_id
+                    )
+                sub._submitted = True
+                sub.task.tasks_per_job = files.tasks_per_job[era]
+            else:
+                branches = sorted(sub.task.branch_map.keys())
+                sub.job_data.unsubmitted_jobs = OrderedDict(
+                    (i + 1, chunk)
+                    for i, chunk in enumerate(
+                        law.util.iter_chunks(branches, sub.task.tasks_per_job)
+                    )
+                )
+                files.tasks_per_job[era] = sub.task.tasks_per_job
+            repack = getattr(sub, "_cost_repack_once", None)
+            if repack is not None:
+                repack()
+            for key in merged:
+                for job_num, value in sub.job_data[key].items():
+                    if not 0 <= job_num < ERA_BRANCH_STRIDE:
+                        raise RuntimeError(
+                            f"{sub.task.task_family} {era}: job {job_num} is outside "
+                            f"0..{ERA_BRANCH_STRIDE - 1}"
+                        )
+                    merged[key][base + job_num] = EraJobFiles._shift(key, value, base)
+        for key, values in merged.items():
+            self.job_data[key] = values
+
+    @contextlib.contextmanager
+    def _era_proxy_installed(self, sub):
+        """`sub` as its workflow's proxy while it builds jobs: the job-config hooks read the
+        retry attempts and the job file factory through `task.workflow_proxy`."""
+        task = sub.task
+        saved = (task._workflow_initialized, task._workflow_cls, task._workflow_proxy)
+        task._workflow_cls = task.find_workflow_cls(task.effective_workflow)
+        task._workflow_proxy = sub
+        task._workflow_initialized = True
+        try:
+            yield
+        finally:
+            (
+                task._workflow_initialized,
+                task._workflow_cls,
+                task._workflow_proxy,
+            ) = saved
+
+    def _submit_per_era(self, method, submit_jobs, **kwargs):
+        """law's `_submit_group`/`_submit_batch`, each era's jobs built and submitted by its
+        era's proxy in the era's own numbers; ids and submission data come back in the order
+        of `submit_jobs`, under its numbers."""
+        by_era = OrderedDict()
+        for job_num, branches in submit_jobs.items():
+            era = ERA_BY_ID[job_num // ERA_BRANCH_STRIDE]
+            by_era.setdefault(era, OrderedDict())[job_num % ERA_BRANCH_STRIDE] = [
+                b % ERA_BRANCH_STRIDE for b in branches
+            ]
+        job_man_kwargs = self._setup_job_manager()
+        job_ids, submission_data = {}, {}
+        for era, era_jobs in by_era.items():
+            sub = self.era_subs()[era]
+            base = ERA_IDS[era] * ERA_BRANCH_STRIDE
+            sub.dashboard = self.dashboard
+            sub._job_manager_setup_kwargs = job_man_kwargs
+            for job_num, branches in era_jobs.items():
+                sub.job_data.jobs[job_num] = self.job_data_cls.job_data(
+                    branches=branches
+                )
+                attempts = self.job_data.attempts.get(base + job_num)
+                if attempts is None:
+                    sub.job_data.attempts.pop(job_num, None)
+                else:
+                    sub.job_data.attempts[job_num] = attempts
+            if sub.job_file_factory is None:
+                sub.job_file_factory = sub.create_job_file_factory()
+            # law dumps intermediate job data while it submits a batch: into the files of all
+            # eras, with the ids known so far
+            sub.dump_job_data = functools.partial(
+                self._dump_from_era, sub, era_jobs, base
+            )
+            try:
+                with self._era_proxy_installed(sub):
+                    ids, data = getattr(sub, method)(era_jobs, **kwargs)
+            finally:
+                del sub.dump_job_data
+            for job_num, job_id, value in zip(era_jobs, ids, data.values()):
+                job_ids[base + job_num] = job_id
+                submission_data[base + job_num] = value
+        return [job_ids[job_num] for job_num in submit_jobs], OrderedDict(
+            (job_num, submission_data[job_num]) for job_num in submit_jobs
+        )
+
+    def _dump_from_era(self, sub, era_jobs, base):
+        for job_num in era_jobs:
+            self.job_data.jobs[base + job_num]["job_id"] = sub.job_data.jobs[job_num][
+                "job_id"
+            ]
+        self.dump_job_data()
+
+    def _submit_group(self, submit_jobs, **kwargs):
+        return self._submit_per_era("_submit_group", submit_jobs, **kwargs)
+
+    def _submit_batch(self, submit_jobs, **kwargs):
+        return self._submit_per_era("_submit_batch", submit_jobs, **kwargs)
+
+    def _too_many_lost(self, lost):
+        # judged per era: a fresh era's many unsubmitted jobs must not dilute another era's loss
+        totals = Counter(
+            job_num // ERA_BRANCH_STRIDE
+            for job_num in list(self.job_data.jobs)
+            + list(self.job_data.unsubmitted_jobs)
+        )
+        for era_id, n_lost in sorted(
+            Counter(job_num // ERA_BRANCH_STRIDE for job_num in lost).items()
+        ):
+            n_jobs = totals[era_id]
+            if (
+                n_lost >= self.min_lost_jobs
+                and n_lost > self.max_lost_fraction * n_jobs
+            ):
+                return (
+                    f"{n_lost} of the {n_jobs} jobs of {ERA_BY_ID[era_id]} in this resumed "
+                    "workflow"
+                )
+        return None
+
+
+class _EraMergedHTCondorWorkflowProxy(
+    EraMergedProxy, _BundleAwareHTCondorWorkflowProxy
+):
+    _era_proxy_cls = _BundleAwareHTCondorWorkflowProxy
+
+
+_BundleAwareHTCondorWorkflowProxy._era_merged_cls = _EraMergedHTCondorWorkflowProxy
 
 
 class FLAFCrabJobFileFactory(law.cms.CrabJobFileFactory):
@@ -2964,6 +3744,9 @@ def _cli_has_tasks_per_job(task_family):
 
 
 class _FLAFCrabWorkflowProxy(SubmissionGuards, _FLAFCrabWorkflowProxyBase):
+    def __new__(cls, *args, **kwargs):
+        return _era_proxy_new(cls, _FLAFCrabWorkflowProxy, kwargs)
+
     def __init__(self, *args, **kwargs):
         super(_FLAFCrabWorkflowProxy, self).__init__(*args, **kwargs)
         #: start of the release window of the retries the wave gate is holding back, or
@@ -3208,6 +3991,13 @@ class _FLAFCrabWorkflowProxy(SubmissionGuards, _FLAFCrabWorkflowProxyBase):
         )
 
 
+class _EraMergedCrabWorkflowProxy(EraMergedProxy, _FLAFCrabWorkflowProxy):
+    _era_proxy_cls = _FLAFCrabWorkflowProxy
+
+
+_FLAFCrabWorkflowProxy._era_merged_cls = _EraMergedCrabWorkflowProxy
+
+
 #: CRAB's ``(Site.storageSite, Data.outLFNDirBase)`` for every FLAF task. CRAB transfers nothing
 #: for FLAF, so nothing is ever written there, but every component the pair passes through
 #: checks it (CRAB client crab-prod v3.260630.00 on cvmfs; dmwm/CRABServer at 30286f7):
@@ -3358,9 +4148,6 @@ class CrabWorkflow(law.cms.CrabWorkflow):
     #: lazily-built, throttled `kinit -R` used while polling (see crab_poll_callback)
     _crab_kinit_update = None
 
-    #: the job manager of this workflow, so the poll callback can see what it found
-    _flaf_crab_job_manager = None
-
     #: stall watchdog, shared between the poll callback and the job manager
     _watchdog_obj = None
 
@@ -3368,7 +4155,7 @@ class CrabWorkflow(law.cms.CrabWorkflow):
     _watchdog_refresh = None
 
     def _crab_cfg(self):
-        cfg = self.global_params.get("crab") or {}
+        cfg = self.common(lambda setup: setup.global_params.get("crab"), "crab") or {}
         if "memory_mb_per_cpu" in cfg:
             raise RuntimeError(
                 "`crab.memory_mb_per_cpu` is no longer used: CRAB memory is now the most CRAB "
@@ -3402,7 +4189,7 @@ class CrabWorkflow(law.cms.CrabWorkflow):
         return os.path.join(self.ana_data_path(), "cms_psn_sites.json")
 
     def _heartbeat_dir_parts(self):
-        parts = [self.version, HEARTBEAT_DIR, self.__class__.__name__, self.era[0]]
+        parts = [self.version, HEARTBEAT_DIR, self.__class__.__name__, self.only_era]
         producer = getattr(self, "producer_to_run", None) or getattr(
             self, "producer_to_aggregate", None
         )
@@ -3424,6 +4211,8 @@ class CrabWorkflow(law.cms.CrabWorkflow):
 
     def job_watchdog(self):
         """The stall watchdog, built once per workflow and shared with the job manager."""
+        if self._watchdog_obj is None and self.era_branches and len(self.era) > 1:
+            self._watchdog_obj = EraWatchdogs(self)
         if self._watchdog_obj is None:
             self._watchdog_obj = StallWatchdog(
                 lambda: self.heartbeat_dir_target().uri(),
@@ -3501,7 +4290,7 @@ process.out = cms.EndPath(process.output)
         parts = [
             self.task_family.replace(".", "_"),
             str(self.version).replace(".", "_"),
-            self.era[0].replace(".", "_"),
+            self.only_era.replace(".", "_"),
         ]
         # the unique suffix is what tells the CRAB tasks of one workflow apart (and names
         # their staged logs), so only the prefix is truncated
@@ -3535,6 +4324,10 @@ process.out = cms.EndPath(process.output)
                 f"{self.__class__.__name__}: --workflow crab requires bundle_flavours "
                 "on the task (code/environment shipped via BundleTask)"
             )
+        if self.era_branches and len(self.era) > 1:
+            # bundles are per era, and workflow_requires() already holds those of every era
+            # that still has work here
+            return {}
         return self._bundle_requirements()
 
     def crab_check_job_completeness(self):
@@ -3562,8 +4355,8 @@ process.out = cms.EndPath(process.output)
     def crab_poll_callback(self, poll_data):
         # The one hook the poll loop calls outside its own error handling, so the one place
         # a condition found while querying can end the run (see FLAFCrabJobManager).
-        manager = self._flaf_crab_job_manager
-        if manager is not None and manager.stop_reason:
+        manager = getattr(self.workflow_proxy, "job_manager", None)
+        if getattr(manager, "stop_reason", None):
             raise RuntimeError(manager.stop_reason)
         # A large CRAB production polls for days while law keeps writing its job-status
         # files to the AFS work area — renew the Kerberos ticket, hourly and verbosely: a
@@ -3601,7 +4394,6 @@ process.out = cms.EndPath(process.output)
         manager.site_stats = self.site_stats()
         manager.site_cache_path = self.site_cache_path()
         manager.watchdog = self.job_watchdog()
-        self._flaf_crab_job_manager = manager
         return manager
 
     def crab_job_file_factory_cls(self):
@@ -3712,6 +4504,47 @@ process.out = cms.EndPath(process.output)
             config.crab.Site.ignoreGlobalBlacklist = True
 
         return config
+
+
+class EraWatchdogs:
+    """The stall watchdog of a CRAB workflow over several eras: each era's own (its flag
+    directory, its jobs in the era's own numbers), fed and asked together."""
+
+    def __init__(self, task):
+        self.task = task
+        self.parts = OrderedDict(
+            (ERA_IDS[era], task.single(era).job_watchdog()) for era in task.era
+        )
+        cfg = watchdog_config(task._crab_cfg())
+        self.enabled = bool(cfg.get("enabled"))
+        self.interval_seconds = int(cfg["interval_minutes"]) * 60
+
+    def refresh(self, now=None):
+        return all([part.refresh(now=now) for part in self.parts.values()])
+
+    def set_jobs(self, jobs):
+        per_era = {era_id: {} for era_id in self.parts}
+        for job_num, entry in (jobs or {}).items():
+            era_id = job_num // ERA_BRANCH_STRIDE
+            if era_id not in per_era:
+                continue
+            entry = dict(entry or {})
+            entry["branches"] = [
+                b % ERA_BRANCH_STRIDE for b in entry.get("branches") or []
+            ]
+            per_era[era_id][job_num % ERA_BRANCH_STRIDE] = entry
+        for era_id, part in self.parts.items():
+            part.set_jobs(per_era[era_id])
+
+    def verdicts(self, result, now=None):
+        out = {}
+        for part in self.parts.values():
+            out.update(part.verdicts(result, now=now))
+        return out
+
+    def forget(self, job_id):
+        for part in self.parts.values():
+            part.forget(job_id)
 
 
 _crab_heartbeats = {}

@@ -334,6 +334,33 @@ class UnknownEraError(ValueError):
     pass
 
 
+#: A branch of a workflow over several eras is numbered `era id * ERA_BRANCH_STRIDE + its number
+#: in the era's own branch map`, so an era's branches have the same numbers in every era set.
+#: The largest single-era map is far below the stride (~37k branches, Run3_2022EE AnaTuples).
+ERA_BRANCH_STRIDE = 1_000_000
+ERA_BY_ID = {era_id: era for era, era_id in ERA_IDS.items()}
+
+
+def era_branch(era, local):
+    """The number of branch `local` of `era`'s own map in a workflow over several eras."""
+    if era not in ERA_IDS:
+        raise UnknownEraError(f"unknown era {era}")
+    if not 0 <= local < ERA_BRANCH_STRIDE:
+        raise ValueError(
+            f"branch {local} of {era} is outside 0..{ERA_BRANCH_STRIDE - 1}, the numbers "
+            "one era can take in a workflow over several eras"
+        )
+    return ERA_IDS[era] * ERA_BRANCH_STRIDE + local
+
+
+def split_era_branch(branch):
+    """(era, local branch) of a branch number of a workflow over several eras; the era is None
+    when the number belongs to no era."""
+    if branch < 0:
+        return None, branch
+    return ERA_BY_ID.get(branch // ERA_BRANCH_STRIDE), branch % ERA_BRANCH_STRIDE
+
+
 _ERA_LINE = re.compile(r"^era:\s*(\S+)\s*$", re.MULTILINE)
 
 
@@ -944,3 +971,18 @@ class Setup:
                     dataset_dict = json_dict
                     self.anaTupleFiles[dataset_name] = dataset_dict
             return self.anaTupleFiles[dataset_name]
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(description="FLAF era numbering")
+    parser.add_argument(
+        "--era-branch",
+        nargs=2,
+        metavar=("ERA", "LOCAL"),
+        required=True,
+        help="print the number of branch LOCAL of ERA in a workflow over several eras",
+    )
+    args = parser.parse_args()
+    print(era_branch(args.era_branch[0], int(args.era_branch[1])))

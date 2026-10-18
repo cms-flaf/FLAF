@@ -6,6 +6,7 @@ import os
 import shutil
 import re
 import yaml
+from collections import OrderedDict
 from pathlib import Path
 
 from FLAF.RunKit.run_tools import (
@@ -28,11 +29,17 @@ from .MergeAnaTuples import mergeAnaTuples
 
 
 class InputFileTask(Task, law.LocalWorkflow):
+    allow_multi_era = True
+    era_branches = True
+
     def __init__(self, *args, **kwargs):
         kwargs["workflow"] = "local"
         super(InputFileTask, self).__init__(*args, **kwargs)
 
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         branches = {}
         for dataset_id, dataset_name in self.iter_datasets():
             branches[dataset_id] = dataset_name
@@ -181,9 +188,17 @@ class AnaTupleProducerMixin:
     @property
     def bundle_flavours(self):
         flavours = ["core", "soft", "inputFileList"]
-        if self.global_params.get("use_cmssw_env_AnaTupleProduction", False):
+        if self.use_cmssw_env():
             flavours.append("cmssw")
         return flavours
+
+    def use_cmssw_env(self):
+        return self.common(
+            lambda setup: setup.global_params.get(
+                "use_cmssw_env_AnaTupleProduction", False
+            ),
+            "use_cmssw_env_AnaTupleProduction",
+        )
 
     def producer_settings(self):
         customisation_dict = getCustomisationSplit(self.customisations)
@@ -208,10 +223,15 @@ class AnaTupleProducerMixin:
 
     def cost_params(self):
         """Scheduling parameters from `anaTuple_scheduling` in the global config."""
-        return merged_params(self.global_params.get("anaTuple_scheduling"))
+        return merged_params(
+            self.common(
+                lambda setup: setup.global_params.get("anaTuple_scheduling"),
+                "anaTuple_scheduling",
+            )
+        )
 
     def producer_env(self):
-        if self.global_params.get("use_cmssw_env_AnaTupleProduction", False):
+        if self.use_cmssw_env():
             return self.cmssw_env
         return None
 
@@ -231,7 +251,7 @@ class AnaTupleProducerMixin:
             "-u",
             os.path.join(self._flaf_root(), "AnaProd", "anaTupleProducer.py"),
             "--era",
-            self.era[0],
+            self.only_era,
             "--inFile",
             local_input,
             "--outDir",
@@ -266,12 +286,14 @@ class AnaTupleProducerMixin:
 class AnaTupleFileTask(
     AnaTupleProducerMixin, Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow
 ):
+    allow_multi_era = True
+    era_branches = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 40.0)
     # tautau CMSSW AnaTuple used ~7.5 GB RSS on CRAB; 2 cores cap at 5000 MB.
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
 
-    def workflow_requires(self):
-        reqs = super().workflow_requires()
+    def stage_workflow_requires(self):
+        reqs = super().stage_workflow_requires()
         reqs["inputFile"] = InputFileTask.req(self, branches=())
         if self.cost_params()["probe_enabled"]:
             reqs["costProbe"] = AnaTupleCostProbeTask.req(
@@ -326,16 +348,22 @@ class AnaTupleFileTask(
         )
         return InputFileTask.load_file_info(input_file_list)
 
-    _cost_model = None
+    #: cost_model_path() -> CostModel: everything in this process shares one writer per
+    #: store, the instances of every era included
+    _cost_models = {}
+    _cost_model_probed = False
 
     def load_cost_model(self):
-        """Calibration store, refreshed once per process with any probe results it has
-        not seen yet.  Kept on the instance because the probe lookup goes to remote
-        storage and because everything in this process must share one writer."""
-        if self._cost_model is not None:
-            return self._cost_model
-        model = CostModel.load(self.cost_model_path(), self.cost_params())
-        self._cost_model = model
+        """Calibration store, refreshed once per instance with any probe results of its
+        datasets it has not seen yet (the probe lookup goes to remote storage)."""
+        path = self.cost_model_path()
+        model = AnaTupleFileTask._cost_models.get(path)
+        if model is None:
+            model = CostModel.load(path, self.cost_params())
+            AnaTupleFileTask._cost_models[path] = model
+        if self._cost_model_probed:
+            return model
+        self._cost_model_probed = True
         failed = []
         for _, dataset_name in self.iter_datasets():
             nano_version = self.get_nano_version(dataset_name)
@@ -410,6 +438,19 @@ class AnaTupleFileTask(
         """
         if self.test > 0:
             return False
+        if len(self.era) > 1:
+            # a job never mixes eras: each era's samples go to its own workflow, in its numbers
+            per_era = OrderedDict()
+            for branches, seconds in samples:
+                eras = {self.era_of(b) for b in branches}
+                if len(eras) == 1:
+                    per_era.setdefault(eras.pop(), []).append(
+                        ([self.local_branch(b) for b in branches], seconds)
+                    )
+            changed = False
+            for era, era_samples in per_era.items():
+                changed |= bool(self.single(era).record_job_durations(era_samples))
+            return changed
         model = self.load_cost_model()
         branch_map = self.branch_map
         file_info = {}
@@ -477,7 +518,7 @@ class AnaTupleFileTask(
     def output(self):
         dataset_name, _, output_name = self.branch_data
         output_path = os.path.join(
-            self.version, "AnaTuples_split", self.era[0], dataset_name
+            self.version, "AnaTuples_split", self.only_era, dataset_name
         )
         root_output = os.path.join(output_path, f"{output_name}.root")
         report_output = os.path.join(output_path, f"{output_name}.json")
@@ -603,6 +644,8 @@ class AnaTupleCostProbeTask(
     optimisation and must never block production.
     """
 
+    allow_multi_era = True
+    era_branches = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 3.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
 
@@ -616,8 +659,8 @@ class AnaTupleCostProbeTask(
             fs=task.fs_anaTuple,
         )
 
-    def workflow_requires(self):
-        reqs = super().workflow_requires()
+    def stage_workflow_requires(self):
+        reqs = super().stage_workflow_requires()
         reqs["inputFile"] = InputFileTask.req(self, branches=())
         return reqs
 
@@ -625,6 +668,9 @@ class AnaTupleCostProbeTask(
         return []
 
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         return {
             idx: dataset_name
             for idx, (_, dataset_name) in enumerate(self.iter_datasets())
@@ -665,7 +711,7 @@ class AnaTupleCostProbeTask(
         result = {
             "ok": False,
             "dataset_name": dataset_name,
-            "era": self.era[0],
+            "era": self.only_era,
             "probe_events": probe_events,
         }
         job_home, remove_job_home = self.law_job_home()
@@ -730,6 +776,8 @@ class AnaTupleCostProbeTask(
 class AnaTupleFileListBuilderTask(
     Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow
 ):
+    allow_multi_era = True
+    era_branches = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 24.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     bundle_flavours = ["core", "soft", "inputFileList"]
@@ -743,7 +791,7 @@ class AnaTupleFileListBuilderTask(
     def _get_anaTuple_map(self):
         return AnaTupleFileTask.req(self, branch=-1, branches=()).create_branch_map()
 
-    def workflow_requires(self):
+    def stage_workflow_requires(self):
         # When the Builder's own outputs (plan + reports on fs_anaTuple at this version) already
         # exist (central production case), we do not need to run this task at all.
         # Return empty early (before super, which would pull bundles when --bundle is used,
@@ -752,7 +800,7 @@ class AnaTupleFileListBuilderTask(
         if self.complete():
             return {}
 
-        reqs = super().workflow_requires()
+        reqs = super().stage_workflow_requires()
 
         input_file_task_complete = InputFileTask.WF_complete(self)
         if not input_file_task_complete:
@@ -838,7 +886,7 @@ class AnaTupleFileListBuilderTask(
         base_name = "AnaTupleFileList"
         if output_name != "plan":
             base_name += f"_{output_name}"
-        return os.path.join(self.version, base_name, self.era[0], output_file)
+        return os.path.join(self.version, base_name, self.only_era, output_file)
 
     def output(self):
         dataset_name, process_group = self.branch_data
@@ -917,7 +965,7 @@ class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
         kwargs["workflow"] = "local"
         super(AnaTupleFileListTask, self).__init__(*args, **kwargs)
 
-    def workflow_requires(self):
+    def stage_workflow_requires(self):
         return {
             "AnaTupleFileListBuilderTask": AnaTupleFileListBuilderTask.req(
                 self, workflow=self.upstream_workflow
@@ -938,6 +986,8 @@ class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
 
 
 class AnaTupleMergeTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
+    allow_multi_era = True
+    era_branches = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 48.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     delete_inputs_after_merge = luigi.BoolParameter(default=False)
@@ -949,13 +999,13 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
             kwargs["version"] = ana_v
         super(AnaTupleMergeTask, self).__init__(*args, **kwargs)
 
-    def workflow_requires(self):
+    def stage_workflow_requires(self):
         # If this merge's output already exists on the target (central for dev-on-existing),
         # we don't need to run it or its bundles/production organization.
         if self.complete():
             return {}
 
-        reqs = super().workflow_requires()
+        reqs = super().stage_workflow_requires()
         merge_organization_complete = AnaTupleFileListTask.req(
             self, branches=()
         ).complete()
@@ -1143,7 +1193,9 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
     def _branch_output_targets(self, branch_data):
         dataset_name = branch_data[0]
         output_file_list = branch_data[5]
-        output_dir = os.path.join(self.version, "AnaTuples", self.era[0], dataset_name)
+        output_dir = os.path.join(
+            self.version, "AnaTuples", self.only_era, dataset_name
+        )
         return [
             self.remote_target(os.path.join(output_dir, out_file), fs=self.fs_anaTuple)
             for out_file in output_file_list

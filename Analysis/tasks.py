@@ -94,6 +94,8 @@ def _anaTuple_outputs(task):
 
 
 class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
+    allow_multi_era = True
+    era_branches = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
     # many short per-file branches: group several per HTCondor job to bound nJobs.
@@ -104,8 +106,8 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
         fl = AnaTupleFileListTask.req(self, branches=())
         return ["core", "soft", ("AnaTupleFileList", fl.version)]
 
-    def workflow_requires(self):
-        reqs = super().workflow_requires()
+    def stage_workflow_requires(self):
+        reqs = super().stage_workflow_requires()
         merge_organization_complete = AnaTupleFileListTask.req(
             self,
             branches=(),
@@ -436,7 +438,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
             else input_name
         )
         output_path = os.path.join(
-            self.version, "HistTuples", self.era[0], dataset_name, outFileName
+            self.version, "HistTuples", self.only_era, dataset_name, outFileName
         )
         return self.remote_target(output_path, fs=self.fs_HistTuple)
 
@@ -484,7 +486,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
                 "--histTupleDef",
                 histTupleDef,
                 "--era",
-                self.era[0],
+                self.only_era,
                 "--channels",
                 channels,
                 "--LAWrunVersion",
@@ -552,6 +554,8 @@ def _split_merged_marker(split_target):
 class HistFromNtupleProducerTask(
     Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow
 ):
+    allow_multi_era = True
+    era_branches = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 10.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     variables = luigi.Parameter(default="")
@@ -581,8 +585,8 @@ class HistFromNtupleProducerTask(
             print(f"Warning: variables not found in config: {sorted(missing)}")
         return result
 
-    def workflow_requires(self):
-        reqs = super().workflow_requires()
+    def stage_workflow_requires(self):
+        reqs = super().stage_workflow_requires()
         merge_organization_complete = AnaTupleFileListTask.req(
             self,
             branches=(),
@@ -687,7 +691,7 @@ class HistFromNtupleProducerTask(
             output_path = os.path.join(
                 self.version,
                 "Hists_split",
-                self.era[0],
+                self.only_era,
                 var_name,
                 dataset_name,
                 f"chunk_{chunk_id}.root",
@@ -768,7 +772,7 @@ class HistFromNtupleProducerTask(
                 "python3",
                 HistFromNtupleProducer,
                 "--era",
-                self.era[0],
+                self.only_era,
                 "--outDir",
                 out_dir,
                 "--channels",
@@ -811,6 +815,8 @@ class HistFromNtupleProducerTask(
 
 
 class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
+    allow_multi_era = True
+    era_branches = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     variables = luigi.Parameter(default="")
@@ -835,8 +841,8 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
             print(f"Warning: variables not found in config: {sorted(missing)}")
         return result
 
-    def workflow_requires(self):
-        reqs = super().workflow_requires()
+    def stage_workflow_requires(self):
+        reqs = super().stage_workflow_requires()
         branch_map = self.create_branch_map()
         merge_organization_complete = AnaTupleFileListTask.req(
             self,
@@ -918,7 +924,9 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     @workflow_condition.output
     def output(self):
         var_name, br_indices, datasets = self.branch_data
-        output_path = os.path.join(self.version, "Hists_merged", self.era[0], var_name)
+        output_path = os.path.join(
+            self.version, "Hists_merged", self.only_era, var_name
+        )
         output_file_name = os.path.join(output_path, f"{var_name}.root")
         return self.remote_target(output_file_name, fs=self.fs_HistTuple)
 
@@ -939,7 +947,7 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         uncNames = ["Central"]
         unc_cfg_dict = self.setup.weights_config
         uncs_to_exclude = (self.global_params.get("uncs_to_exclude") or {}).get(
-            self.era[0], []
+            self.only_era, []
         )
         compute_unc_histograms = (
             customisation_dict["compute_unc_histograms"] == "True"
@@ -1005,7 +1013,7 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     "--channels",
                     channels,
                     "--era",
-                    self.era[0],
+                    self.only_era,
                     "--LAWrunVersion",
                     self.version,
                 ]
@@ -1035,6 +1043,8 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 
 
 class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
+    allow_multi_era = True
+    era_branches = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     producer_to_run = luigi.Parameter()
@@ -1043,13 +1053,18 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
     def bundle_flavours(self):
         fl = AnaTupleFileListTask.req(self, branches=())
         flavours = ["core", "soft", ("AnaTupleFileList", fl.version)]
-        if (
-            self.global_params.get("payload_producers", {})
-            .get(self.producer_to_run, {})
-            .get("cmssw_env", False)
-        ):
+        if self.producer_setting("cmssw_env", False):
             flavours.append("cmssw")
         return flavours
+
+    def producer_setting(self, key, default):
+        """A setting of this producer in `payload_producers`, the same in every era."""
+        return self.common(
+            lambda setup: setup.global_params["payload_producers"][
+                self.producer_to_run
+            ].get(key, default),
+            f"payload_producers.{self.producer_to_run}.{key}",
+        )
 
     # Need to override this from HTCondorWorkflow/CrabWorkflow to have separate data
     # pathways for different cache tasks
@@ -1065,21 +1080,13 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
             kwargs["version"] = ana_v
         # Needed to get the config and ht_condor_pathways figured out
         super(AnalysisCacheTask, self).__init__(*args, **kwargs)
-        self.n_cpus = self.global_params["payload_producers"][self.producer_to_run].get(
-            "n_cpus", 1
-        )
-        self.max_runtime = self.global_params["payload_producers"][
-            self.producer_to_run
-        ].get("max_runtime", 2.0)
-        self.crab_memory = self.global_params["payload_producers"][
-            self.producer_to_run
-        ].get("crab_memory", self.crab_memory)
-        self.output_file_extension = self.global_params["payload_producers"][
-            self.producer_to_run
-        ].get("save_as", "root")
+        self.n_cpus = self.producer_setting("n_cpus", 1)
+        self.max_runtime = self.producer_setting("max_runtime", 2.0)
+        self.crab_memory = self.producer_setting("crab_memory", self.crab_memory)
+        self.output_file_extension = self.producer_setting("save_as", "root")
 
-    def workflow_requires(self):
-        reqs = super().workflow_requires()
+    def stage_workflow_requires(self):
+        reqs = super().stage_workflow_requires()
         merge_organization_complete = AnaTupleFileListTask.req(
             self,
             branches=(),
@@ -1213,7 +1220,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
             self.version,
             "AnalysisCache",
             self.producer_to_run,
-            self.era[0],
+            self.only_era,
             dataset_name,
             outFileName,
         )
@@ -1269,7 +1276,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                         "python3",
                         analysis_cache_producer,
                         "--era",
-                        self.era[0],
+                        self.only_era,
                         "--inFile",
                         local_input.abspath,
                         "--outFile",
@@ -1330,6 +1337,8 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
 
 
 class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
+    allow_multi_era = True
+    era_branches = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     variables = luigi.Parameter(default="")
@@ -1354,8 +1363,8 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
             print(f"Warning: variables not found in config: {sorted(missing)}")
         return result
 
-    def workflow_requires(self):
-        reqs = super().workflow_requires()
+    def stage_workflow_requires(self):
+        reqs = super().stage_workflow_requires()
         merge_organization_complete = AnaTupleFileListTask.req(
             self,
             branches=(),
@@ -1422,6 +1431,9 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
+        return self.cached_branch_map(self._build_branch_map)
+
+    def _build_branch_map(self):
         branches = {}
         merge_map = HistMergerTask.req(
             self,
@@ -1472,7 +1484,7 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     rel_path = os.path.join(
                         self.version,
                         "Plots",
-                        self.era[0],
+                        self.only_era,
                         var,
                         custom_region,
                         cat,
@@ -1485,7 +1497,7 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 
     def run(self):
         var = self.branch_data
-        era = self.era[0]
+        era = self.only_era
         ver = self.version
         customisation_dict = getCustomisationSplit(self.customisations)
 
@@ -1559,7 +1571,7 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     "--ana_path",
                     self.ana_path(),
                     "--era",
-                    self.era[0],
+                    self.only_era,
                     "--LAWrunVersion",
                     self.version,
                 ]
@@ -1581,6 +1593,8 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 class AnalysisCacheAggregationTask(
     Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow
 ):
+    allow_multi_era = True
+    era_branches = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     producer_to_aggregate = luigi.Parameter()
@@ -1604,8 +1618,8 @@ class AnalysisCacheAggregationTask(
             branches=(),
         ).complete()
 
-    def workflow_requires(self):
-        reqs = super().workflow_requires()
+    def stage_workflow_requires(self):
+        reqs = super().stage_workflow_requires()
         merge_organization_complete = AnaTupleFileListTask.req(
             self,
             branches=(),
@@ -1727,7 +1741,7 @@ class AnalysisCacheAggregationTask(
             self.version,
             "AnalysisCacheAggregation",
             self.producer_to_aggregate,
-            self.era[0],
+            self.only_era,
             sample_name,
             output_name,
         )
@@ -1756,7 +1770,7 @@ class AnalysisCacheAggregationTask(
                 "--outFile",
                 tmpFile,
                 "--era",
-                self.era[0],
+                self.only_era,
                 "--producer",
                 self.producer_to_aggregate,
                 "--LAWrunVersion",
@@ -1804,7 +1818,7 @@ class PreHistTupleProductionTask(HistTupleProducerTask):
         output_path = os.path.join(
             self.version,
             "PreHistTupleProduction",
-            self.era[0],
+            self.only_era,
             dataset_name,
             os.path.basename(input.abspath) + ".done",
         )

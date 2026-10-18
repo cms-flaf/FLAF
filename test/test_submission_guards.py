@@ -1284,10 +1284,10 @@ class _WhenTheJobSourcesAreUnreadable:
 
         self.assertEqual(proxy.submitted, [[3]])
         self.assertEqual(proxy.job_data.unsubmitted_jobs, {})
-        # job 2 leaves the job data as law's own submit() lets it go: never polled
-        statuses = {num: data["status"] for num, data in proxy.job_data.jobs.items()}
-        self.assertEqual({1, 3} - set(statuses), set())
-        self.assertEqual(set(statuses.values()), {FINISHED})
+        self.assertEqual(
+            {num: data["status"] for num, data in proxy.job_data.jobs.items()},
+            {1: FINISHED, 2: FINISHED, 3: FINISHED},
+        )
 
 
 class HTCondorWhenTheJobSourcesAreUnreadable(

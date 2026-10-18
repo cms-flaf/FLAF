@@ -1569,7 +1569,8 @@ class SubmissionGuards(LawProxyState):
         waits for a job that does not exist. A fresh run calls submit() right before poll(), but
         FLAF skips that round when the job sources cannot be read. A resumed run is not affected
         (run() clears the verdicts before law reloads `jobs`, so law records such a job again
-        before dropping it); there the drop only comes earlier.
+        before dropping it); there the drop only comes earlier, and it repairs a submission file
+        that an earlier driver dumped with such a job counted twice.
         """
         for job_num, branches in list(self.job_data.unsubmitted_jobs.items()):
             if self._can_skip_job(job_num, branches):

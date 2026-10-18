@@ -71,8 +71,9 @@ def get_status_many(paths, host, port, timeout, verbose=0, batch_size=1000):
             with socket.create_connection((host, port), timeout=timeout) as sock:
                 file = sock.makefile(mode="rwb", buffering=0)
                 request = "".join(f"GET {p}\n" for p in batch).encode("utf-8")
-                file.write(request)
-                file.flush()
+                # A write to the unbuffered socket file may send only part of a large batch
+                # and the server would never see the rest.
+                sock.sendall(request)
                 for p in batch:
                     results[p] = _decode_status(file.readline())
         except TimeoutError as e:

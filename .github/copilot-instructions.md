@@ -122,6 +122,13 @@ Each of these has caused a production incident. They are ordered by how much dam
   take fresh listings
   first (`require_fresh_negatives`, and the existing-branch memos law filled while scheduling are
   dropped).
+- The submit-time snapshot is a CRAB worker's only path cache, and luigi checks every requirement
+  of a job's branches before running them: `_stage_path_cache_input` must ship each existing
+  output of those requirements whatever the age of the driver's own entries (only "exists",
+  never an absent for them). A job that has to list them itself pays one `gfal-ls` per directory
+  (a HistMergerTask branch: every HistFromNtupleProducerTask branch, one directory per variable).
+  The snapshot differs per submission, so its job input is not `share=True`: law builds every CRAB
+  task of a run in one directory and reuses an existing shared input there (`skip_existing`).
 
 ### CRAB backend (`run_tools/law_customizations.py`, `run_tools/crab_sites.py`, `run_tools/crab_watchdog.py`)
 

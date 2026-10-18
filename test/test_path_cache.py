@@ -1,5 +1,8 @@
 import os
+import socket
 import sys
+import threading
+import types
 import unittest
 from collections import namedtuple
 from unittest import mock
@@ -336,6 +339,71 @@ class TestSharedListing(unittest.TestCase):
                 self.assertTrue(second.exists("data/file_0.root"))
                 self.assertTrue(second.exists("data/file_1.root"))
                 self.assertFalse(second.exists("data/file_2.root"))
+
+
+class TestExistingTargetEntries(unittest.TestCase):
+    def test_a_file_is_recorded_under_every_base_and_other_targets_are_skipped(self):
+        # A reader picks one base at random, so a file found under one is shipped under all.
+        from law import LocalFileTarget
+        from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget
+
+        mirror = BASE.replace("server", "mirror")
+        with mock.patch.object(law_gfal, "get_voms_proxy_info", lambda: {"path": None}):
+            fs = WLCGFileSystem([BASE, mirror])
+        fs.file_interface.path_cache = RemotePathCache("host", 0, 600)
+        server = FakeCacheServer()
+        server.entries[os.path.join(BASE, "data/file_0.root")] = True
+        server.entries[os.path.join(mirror, "data/file_0.root")] = True
+        targets = [
+            WLCGFileTarget("data/file_0.root", fs),
+            WLCGFileTarget("data/file_1.root", fs),
+            LocalFileTarget("/tmp/not_on_grid_storage.root"),
+        ]
+        lister = make_interface({"data": ["file_0.root"]})
+        with server.patch(), lister.patch_ls():
+            shipped, n_found = law_gfal.collect_existing_target_entries(targets)
+        self.assertEqual(
+            sorted(e["path"] for e in shipped),
+            sorted(os.path.join(b, "data/file_0.root") for b in (BASE, mirror)),
+        )
+        self.assertTrue(all(e["exists"] is True for e in shipped))
+        self.assertEqual(n_found, 1)
+
+
+class TestCacheServerProtocol(unittest.TestCase):
+    def test_a_batch_larger_than_the_send_buffer_is_answered_in_full(self):
+        # get_status_many pipelines a whole batch. Written with one unchecked write() to the
+        # unbuffered socket file, only what fitted in the socket buffer was sent (110 of 163 kB
+        # to cms-flaf.cern.ch); the client then waited out its timeout for the other answers.
+        from FLAF.RunKit import pathCacheClient, pathCacheServer
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
+            listener.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+            listener.bind(("127.0.0.1", 0))
+            listener.listen(1)
+            client_end = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            client_end.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+            client_end.connect(listener.getsockname())
+            server_end, _ = listener.accept()
+        # as socket.create_connection(..., timeout) leaves it
+        client_end.settimeout(10)
+        cache = types.SimpleNamespace(
+            get=lambda path: (path, path.endswith("1.root"), 0)
+        )
+        logger = types.SimpleNamespace(log=lambda *args, **kwargs: None)
+        threading.Thread(
+            target=pathCacheServer.handle_client,
+            args=(server_end, ("loopback", 0), cache, logger),
+            daemon=True,
+        ).start()
+        paths = [os.path.join(BASE, "d" * 150, f"file_{i}.root") for i in range(1000)]
+        with mock.patch.object(
+            pathCacheClient.socket,
+            "create_connection",
+            lambda *args, **kwargs: client_end,
+        ):
+            result = pathCacheClient.get_status_many(paths, "host", 0, timeout=10)
+        self.assertEqual(result, {p: p.endswith("1.root") for p in paths})
 
 
 if __name__ == "__main__":

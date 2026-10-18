@@ -20,16 +20,25 @@ over a scratch analysis with Run3_2022 and Run3_2023:
 * The lift drops nothing a single era requires (branch-task dicts keyed by local branch, the
   per-era bundles); workflows of one stage with the same other parameters become one
   instance over the eras that keeps the requirement's own per-task values; a one-era lift is
-  the requirement itself.
+  the requirement itself: a run over two eras requires the very luigi task (task_id) that a
+  pending era's single-era body requires wherever that era's group is the era alone
+  (HistMergerTask strict, whole by numbers, whole before the gate; AnalysisCacheTask, whose
+  n_cpus __init__ overwrites), and a two-era group runs the single-era branch tasks.
 * Selections are classified from the constructor's record, never from the selection law
   rewrites in place: a strict one against law's placeholder map is kept, one covering the
   whole map or none of it is whole, strict ones of two eras are one instance in the
   numbering over both (era id * 1 000 000 + the era's own number).
+* A selection given before the gate is applied to the first real map, over one era and over
+  two; one naming every branch stays the whole map when the stage body builds the map again
+  (job file htcondor_jobs_0To<N>.json and live_task_id as on the base code).
 * An era whose part of a stage is complete requires nothing, not even the intermediates its
   outputs were made from, in both condition phases, also with a selection given before the
   gate; bundles come only for the pending eras.
-* Over two eras a stage body reads per-era state and raises EraScopeError; the CRAB hook of a
-  two-era root asks for nothing, over one era for that era's bundles.
+* Only the dispatcher calls the stage bodies (a scan of the FLAF sources), and over several
+  eras only on single-era instances; called over two eras directly, the bundle path of every
+  bundled body raises EraScopeError (without bundles some bodies return, which is why
+  nothing else may call them); the CRAB hook of a two-era root asks for nothing, over one
+  era for that era's bundles.
 * I3: what luigi schedules (`Worker.add` against a local scheduler, nothing run) for
   `--era A,B` is the union of what it schedules for `--era A` and for `--era B`, on a probe
   chain shaped like FLAF's (a gate, a dynamically conditioned upstream, a consumer of all of
@@ -40,6 +49,7 @@ over a scratch analysis with Run3_2022 and Run3_2023:
 """
 
 import argparse
+import ast
 import importlib.util
 import json
 import os
@@ -737,6 +747,14 @@ class _TwoEras(_Scratch):
         kwargs.setdefault("workflow", "local")
         return cls(version=self.version, era=eras, **kwargs)
 
+    def done(self, cls, era, **kwargs):
+        """Every branch output of `cls` over `era` written: that era's part is finished."""
+        workflow = cls(version=self.version, era=era, workflow="local", **kwargs)
+        for branch_task in workflow.get_branch_tasks().values():
+            for target in law.util.flatten(branch_task.output()):
+                write(target.abspath, "done")
+        clear_process_caches()
+
 
 class LiftKeepsEveryRequirement(_TwoEras):
     """`_lift` over two eras: nothing a single era requires is dropped, workflows of a stage
@@ -909,6 +927,113 @@ class LiftKeepsEveryRequirement(_TwoEras):
         self.assertEqual(lifted.task_id, expected.task_id)
 
 
+class OneEraGroupsAreTheVeryRequirements(_TwoEras):
+    """I3 compares sets of work, which cannot tell two luigi tasks with the same branches
+    apart. Here identity: wherever a lifted group is one era alone (one pending era, or two
+    pending eras whose requirements of a stage differ in kind), a run over two eras requires
+    the very luigi task (task_id) that era's single-era body requires, so it shares that
+    task's job file, its live selection and luigi's run-once with a run over the era alone.
+
+    Cases: HistMergerTask required strictly (HistPlotTask, plot_task: false), whole by
+    explicit numbers (every variable plotted), whole as () before the gate, and one era whole
+    beside one strict; AnalysisCacheTask, whose __init__ overwrites n_cpus from
+    payload_producers after luigi computed the task_id, so a requirement re-derived from it
+    carries the producer's n_cpus and is another luigi task."""
+
+    def assert_single_era_tasks(self, cls, pending, **kwargs):
+        """The two-era root of `cls` requires exactly the task_ids the single-era roots of the
+        `pending` eras require, key by key."""
+        for flavour in ("local", "bundle"):
+            with self.subTest(flavour=flavour):
+                clear_process_caches()
+                params = dict(FLAVOURS[flavour], **kwargs)
+                lifted = self.root(cls, **params).workflow_requires()
+                expected = {}
+                for era in pending:
+                    alone = cls(version=self.version, era=era, **params)
+                    for key, ids in requirement_ids(alone.workflow_requires()).items():
+                        expected[key] = sorted(expected.get(key, []) + ids)
+                self.assertEqual(requirement_ids(lifted), expected)
+                workflows = [t for t in flat(lifted) if isinstance(t, law.BaseWorkflow)]
+                self.assertTrue(workflows)
+                self.assertTrue(all(len(t.era) == 1 for t in workflows))
+
+    def test_a_strict_hist_merger_requirement(self):
+        self.met(ERA_A, ERA_B)
+        self.done(analysis.HistPlotTask, ERA_A)
+        self.assert_single_era_tasks(analysis.HistPlotTask, [ERA_B])
+
+    def test_a_hist_merger_requirement_of_every_branch_number(self):
+        # every variable plotted: HistPlotTask names each HistMergerTask branch
+        self.met(ERA_A, ERA_B)
+        variables = "v1,P1_c1"
+        self.done(analysis.HistPlotTask, ERA_A, variables=variables)
+        alone = analysis.HistPlotTask(
+            version=self.version, era=ERA_B, workflow="local", variables=variables
+        )
+        merge = alone.workflow_requires()["merge"]
+        self.assertEqual(numbers(merge._initial_branches), set(merge.get_branch_map()))
+        self.assert_single_era_tasks(
+            analysis.HistPlotTask, [ERA_B], variables=variables
+        )
+
+    def test_a_whole_hist_merger_requirement_before_the_gate(self):
+        self.met(ERA_A)
+        self.done(analysis.HistPlotTask, ERA_A)
+        self.assert_single_era_tasks(analysis.HistPlotTask, [ERA_B])
+
+    def test_a_whole_era_beside_a_strict_one(self):
+        # Run3_2022 before its gate (HistMergerTask whole), Run3_2023 met (a strict subset)
+        self.met(ERA_B)
+        self.assert_single_era_tasks(analysis.HistPlotTask, [ERA_A, ERA_B])
+
+    def test_analysis_cache_requirements(self):
+        with self.subTest(root="HistTupleProducerTask", phase="met"):
+            # AnalysisCacheTask (P1) over a selection, AnaTupleMergeTask strict
+            self.met(ERA_A, ERA_B)
+            self.done(analysis.HistTupleProducerTask, ERA_A)
+            self.assert_single_era_tasks(analysis.HistTupleProducerTask, [ERA_B])
+        with self.subTest(root="AnalysisCacheTask", phase="placeholder"):
+            # AnalysisCacheTask (P1) whole, () before the gate
+            self.version += "_placeholder"
+            self.met(ERA_A)
+            self.done(analysis.AnalysisCacheTask, ERA_A, producer_to_run="P2")
+            self.assert_single_era_tasks(
+                analysis.AnalysisCacheTask, [ERA_B], producer_to_run="P2"
+            )
+
+    def test_a_two_era_analysis_cache_group_runs_the_single_era_branches(self):
+        # Both eras pending: one AnalysisCacheTask over both. That workflow need not be the
+        # single-era requirements' luigi tasks (with_eras copies n_cpus as __init__ left it,
+        # the producer's value, while each requirement was constructed with the parameter's
+        # default), but it drives each era's job file and runs the very branch tasks.
+        self.met(ERA_A, ERA_B)
+        params = {"workflow": "htcondor"}
+        (lifted,) = self.root(
+            analysis.HistTupleProducerTask, **params
+        ).workflow_requires()["analysisCache"]
+        self.assertEqual(lifted.era, (ERA_A, ERA_B))
+        files = lifted.workflow_proxy.output()["jobs"].targets()
+        for era in lifted.era:
+            with self.subTest(era=era):
+                alone = analysis.HistTupleProducerTask(
+                    version=self.version, era=era, **params
+                )
+                (single,) = alone.workflow_requires()["analysisCache"]
+                self.assertEqual(
+                    {
+                        t.task_id
+                        for t in lifted.get_branch_tasks().values()
+                        if t.era == (era,)
+                    },
+                    {t.task_id for t in single.get_branch_tasks().values()},
+                )
+                self.assertTrue(single.get_branch_tasks())
+                self.assertEqual(
+                    files[era].path, single.workflow_proxy.output()["jobs"].path
+                )
+
+
 class LiftClassifiesSelections(_TwoEras):
     """Whole or strict, from the selection the requirement was constructed with: a strict
     selection against a map that cannot be built yet is kept as given; one that covers the
@@ -1036,18 +1161,292 @@ class CompleteErasArePruned(_TwoEras):
         self.assert_only(root.workflow_requires(), ERA_B)
 
 
+class ASelectionBeforeTheGateIsApplied(_TwoEras):
+    """A --branches selection given while the map is law's placeholder: law rewrites the live
+    selection to () against {0: None}; once the condition holds, the first real map is the
+    selection given, over one era and over two, and the job files are those of a run given
+    the same selection after the gate."""
+
+    def jobs_path(self, era, branches):
+        task = analysis.HistMergerTask(
+            version=self.version, era=era, workflow="htcondor", branches=branches
+        )
+        return task.workflow_proxy.output()["jobs"].path
+
+    def before_the_gate(self, era, branches):
+        task = analysis.HistMergerTask(
+            version=self.version, era=era, workflow="htcondor", branches=branches
+        )
+        # what luigi asks first; law then rewrites the live selection
+        self.assertFalse(task.complete())
+        self.assertEqual(task.get_branch_map(), {0: None})
+        self.assertEqual(task.branches, ())
+        return task
+
+    def test_one_era(self):
+        task = self.before_the_gate(ERA_B, (1, 2))
+        self.met(ERA_B)
+        self.assertEqual(set(task.get_branch_map()), {1, 2})
+        whole = analysis.HistMergerTask(
+            version=self.version, era=ERA_B, workflow="htcondor"
+        )
+        self.assertEqual(set(whole.get_branch_map()), {0, 1, 2})
+        self.assertEqual(
+            task.workflow_proxy.output()["jobs"].path, self.jobs_path(ERA_B, (1, 2))
+        )
+
+    def test_two_eras(self):
+        selection = (
+            global_number(ERA_A, 0),
+            global_number(ERA_B, 1),
+            global_number(ERA_B, 2),
+        )
+        task = self.before_the_gate((ERA_A, ERA_B), selection)
+        self.met(ERA_A, ERA_B)
+        self.assertEqual(set(task.get_branch_map()), set(selection))
+        self.assertEqual(
+            sorted((t.era, t.branch) for t in task.get_branch_tasks().values()),
+            [((ERA_A,), 0), ((ERA_B,), 1), ((ERA_B,), 2)],
+        )
+        files = task.workflow_proxy.output()["jobs"].targets()
+        self.assertEqual(
+            {era: target.path for era, target in files.items()},
+            {ERA_A: self.jobs_path(ERA_A, (0,)), ERA_B: self.jobs_path(ERA_B, (1, 2))},
+        )
+
+
+class AWholeSelectionKeepsItsJobFile(_TwoEras):
+    """A requirement naming every branch of its map (HistPlotTask over every plotted variable
+    requires HistMergerTask with each branch number) is the whole map once law has built it:
+    law rewrites its live selection to () in place, and the stage body, which builds the map
+    again with create_branch_map() whenever luigi asks for the requirements, must not put
+    the numbers back. Its job file stays htcondor_jobs_0To<N>.json, as on the base code
+    (e8e42ed), and law's live_task_id stays the whole map's. Driven as luigi drives it:
+    Worker.add, which asks complete() and then the requirements."""
+
+    VARIABLES = "v1,P1_c1"
+
+    def scheduled_merger(self, root):
+        scheduler = luigi.scheduler.Scheduler()
+        worker = luigi.worker.Worker(scheduler=scheduler, worker_processes=1)
+        self.assertTrue(worker.add(root))
+        (merger,) = [
+            task
+            for task in worker._scheduled_tasks.values()
+            if task.get_task_family() == "HistMergerTask" and task.is_workflow()
+        ]
+        self.assertEqual(merger.era, (ERA_B,))
+        return merger
+
+    def assert_whole(self, merger):
+        n_branches = len(merger.get_branch_map())
+        self.assertEqual(n_branches, 2)
+        # what makes the case: the requirement was built with every branch number
+        self.assertEqual(numbers(merger._initial_branches), set(range(n_branches)))
+        whole = type(merger).req(merger, branches=(), _skip_task_excludes=True)
+        for asked in range(3):
+            with self.subTest(requirements_asked_again=asked):
+                self.assertEqual(merger.branches, ())
+                self.assertEqual(
+                    os.path.basename(merger.workflow_proxy.output()["jobs"].path),
+                    f"htcondor_jobs_0To{n_branches}.json",
+                )
+                self.assertEqual(merger.live_task_id, whole.task_id)
+                merger.workflow_requires()
+
+    def test_one_era(self):
+        self.met(ERA_A, ERA_B)
+        root = analysis.HistPlotTask(
+            version=self.version,
+            era=ERA_B,
+            workflow="htcondor",
+            variables=self.VARIABLES,
+        )
+        self.assert_whole(self.scheduled_merger(root))
+
+    def test_the_one_pending_era_of_two(self):
+        self.met(ERA_A, ERA_B)
+        self.done(analysis.HistPlotTask, ERA_A, variables=self.VARIABLES)
+        root = self.root(
+            analysis.HistPlotTask, workflow="htcondor", variables=self.VARIABLES
+        )
+        self.assert_whole(self.scheduled_merger(root))
+
+
 STAGE_CLASSES = [getattr(module, stage) for stage, module, _ in STAGES]
 BUNDLED_STAGES = [cls for cls in STAGE_CLASSES if cls.bundle_flavours != []]
 
 
+#: the FLAF sources that may call a stage body: every module with task code, and HelloWorld
+SCANNED_SOURCES = [
+    "AnaProd",
+    "Analysis",
+    "run_tools",
+    os.path.join("test", "hello_world_task.py"),
+]
+BODY = "stage_workflow_requires"
+
+
+def scanned_files():
+    for entry in SCANNED_SOURCES:
+        path = os.path.join(flaf_repo, entry)
+        if os.path.isfile(path):
+            yield path
+            continue
+        for root, dirs, files in os.walk(path):
+            dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+            for name in sorted(files):
+                if name.endswith(".py"):
+                    yield os.path.join(root, name)
+
+
+def body_mentions(path):
+    """(node kind, line, enclosing class, enclosing function, receiver) of every mention of
+    the stage-body name in the code of `path` (comments and docstrings aside): definitions,
+    attributes (receiver: the expression before the dot), bare names, arguments and strings
+    naming it."""
+    with open(path) as f:
+        tree = ast.parse(f.read(), filename=path)
+    found = []
+
+    def visit(node, cls, func):
+        receiver = None
+        if isinstance(node, ast.Attribute):
+            receiver = ast.unparse(node.value)
+        if isinstance(node, ast.Constant) and node.value == BODY:
+            found.append(("string", node.lineno, cls, func, None))
+        for field in ("name", "id", "attr", "arg", "asname"):
+            if getattr(node, field, None) == BODY:
+                line = getattr(node, "lineno", None)
+                found.append((type(node).__name__, line, cls, func, receiver))
+        if isinstance(node, ast.ClassDef):
+            cls, func = node.name, None
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            func = node.name
+        for child in ast.iter_child_nodes(node):
+            visit(child, cls, func)
+
+    visit(tree, None, None)
+    return found
+
+
 class TheRequirementPathOverTwoEras(_TwoEras):
-    """Over two eras, the stage bodies read per-era state and so raise; the CRAB hook of the
-    root asks for nothing (the lifted requirements carry each pending era's bundles)."""
+    """Over two eras the stage bodies run only through the dispatcher,
+    `Task.workflow_requires()`, and only on single-era instances: no FLAF source calls them
+    anywhere else, and every FLAF class that allows several eras has era branches, so the
+    dispatcher never hands a body an instance over two eras. Called directly over two eras,
+    the bundle path of every bundled body raises EraScopeError; the rest of a body need not
+    (without bundles several return requirements over both eras, others raise other errors),
+    which is why nothing else may call them. The CRAB hook of a two-era root asks for nothing
+    (the lifted requirements carry each pending era's bundles)."""
 
     def extra(self, cls):
         return dict(next(e for s, m, e in STAGES if getattr(m, s) is cls))
 
-    def test_a_stage_body_over_two_eras_raises(self):
+    def test_only_the_dispatcher_calls_the_stage_bodies(self):
+        definitions, chained, dispatcher, others = set(), set(), [], []
+        files = list(scanned_files())
+        self.assertIn(os.path.join(flaf_repo, "AnaProd", "tasks.py"), files)
+        for path in files:
+            name = os.path.relpath(path, flaf_repo)
+            for kind, line, cls, func, receiver in body_mentions(path):
+                if kind == "FunctionDef" and cls is not None:
+                    definitions.add(cls)
+                elif kind == "Attribute" and receiver == "super()" and func == BODY:
+                    # a body extends its base class's body (the bundles), nothing else
+                    chained.add(cls)
+                elif (
+                    kind == "Attribute"
+                    and name == os.path.join("run_tools", "law_customizations.py")
+                    and (cls, func) == ("Task", "workflow_requires")
+                ):
+                    dispatcher.append(receiver)
+                else:
+                    others.append((f"{name}:{line}", kind, cls, func, receiver))
+        self.assertEqual(others, [])
+        # the dispatcher: the body of a one-era instance, of each era's single-era instance
+        self.assertEqual(sorted(dispatcher), ["inst", "self"])
+        # what makes the scan see the code at all: every body of the stages under test
+        bodies = {cls.__name__ for cls in STAGE_CLASSES if BODY in vars(cls)}
+        self.assertEqual(len(bodies), len(STAGE_CLASSES))
+        self.assertLessEqual(bodies | {"Task"}, definitions)
+        self.assertLessEqual(chained, definitions)
+        self.assertGreaterEqual(len(chained), len(BUNDLED_STAGES))
+
+    def test_every_class_over_several_eras_has_era_branches(self):
+        # the dispatcher hands a body the instance itself over several eras when the class
+        # has no era branches
+        checked = []
+        for module in (ana_prod, analysis, lc, sys.modules[HelloWorldTask.__module__]):
+            for value in vars(module).values():
+                if (
+                    isinstance(value, type)
+                    and issubclass(value, lc.Task)
+                    and value.__module__ == module.__name__
+                    and value.allow_multi_era
+                ):
+                    checked.append(value)
+                    with self.subTest(cls=value.__name__):
+                        self.assertTrue(value.era_branches)
+        self.assertLessEqual(set(STAGE_CLASSES) | {HelloWorldTask}, set(checked))
+
+    def test_over_two_eras_the_bodies_run_over_one_era(self):
+        ran = []
+
+        def recording(body):
+            def recorded(task):
+                ran.append((type(task).__name__, task.era))
+                return body(task)
+
+            return recorded
+
+        owners = {
+            owner
+            for cls in STAGE_CLASSES
+            for owner in cls.__mro__
+            if BODY in vars(owner)
+        }
+        self.assertIn(lc.Task, owners)
+        for owner in owners:
+            patch = mock.patch.object(owner, BODY, recording(vars(owner)[BODY]))
+            patch.start()
+            self.addCleanup(patch.stop)
+        bodies_run = 0
+        for phase in ("placeholder", "met"):
+            if phase == "met":
+                self.met(ERA_A, ERA_B)
+            for cls in STAGE_CLASSES:
+                with self.subTest(phase=phase, stage=cls.__name__):
+                    del ran[:]
+                    pending = [
+                        era
+                        for era in (ERA_A, ERA_B)
+                        if not cls(
+                            version=self.version,
+                            era=era,
+                            workflow="local",
+                            **self.extra(cls),
+                        ).complete()
+                    ]
+                    self.root(cls, **self.extra(cls)).workflow_requires()
+                    self.assertEqual(
+                        {
+                            (family, era)
+                            for family, era in ran
+                            if family == cls.__name__
+                        },
+                        {(cls.__name__, (era,)) for era in pending},
+                    )
+                    self.assertEqual({len(era) for _, era in ran} - {1}, set())
+                    bodies_run += len(pending)
+        self.assertGreater(bodies_run, 2 * len(STAGE_CLASSES))
+
+    def test_the_bundle_path_of_a_stage_body_over_two_eras_raises(self):
+        """With bundles, every bundled body called over two eras raises EraScopeError, in both
+        condition phases: the bundles are per-era state. That is all a direct call shows;
+        without bundles only some bodies read per-era state (HistTupleProducerTask before the
+        gate, checked last), and the guarantee that no body runs over two eras is the
+        dispatcher being its only caller (the tests above)."""
         for phase in ("placeholder", "met"):
             if phase == "met":
                 self.met(ERA_A, ERA_B)

@@ -15,19 +15,25 @@ dataset TTto2L2Nu):
 - settings that a run over several eras uses once must agree between its eras: construction,
   the cost parameters, the HTCondor proxy and the producer resources refuse them otherwise,
   naming the key and each era's value, while output file systems may differ per era;
+- the dataset helpers raise on every call over two eras, in any order;
 - `EraScopeError` passes through the excepts of the HTCondor proxy that swallow other errors;
-- `--branches` encoding (one era: local numbers; several: global numbers, closed ranges inside
-  one era, every era selected), with the decoded number in the message, and the refusal of
-  `--branch` with several eras on the command line;
+- `--branches` encoding (one era: local numbers, and a number of no known era is beyond them;
+  several: global numbers, closed ranges inside one era, every era selected, and at least one
+  number in each era's map), with the decoded number in the message, and the refusal of
+  `--branch` and `--<Task>-branch` with several eras on the command line;
 - branch maps: the union of the single-era maps shifted by era id, unchanged for one era, AND
-  over the eras' dynamic conditions with law's placeholder before, and a selection given before
-  the condition holds kept, for one era and for several;
+  over the eras' dynamic conditions with law's placeholder before (told by the condition, not by
+  the map's content), and a selection given before the condition holds kept, for one era and
+  for several;
 - canonical branch tasks: the branch task of a multi-era workflow is the single-era branch
-  task, the same luigi instance in every era set;
+  task, the same luigi instance in every era set, and a local workflow yields each once; a
+  workflow without era branches keeps law's branches, however large its own numbers;
+- `with_eras`/`single` derive each instance once per root;
 - per-task flags (`--tasks-per-job`, `--max-runtime`, `--n-cpus`, `--crab-memory`) reach each
   era's own workflow, its job chunking and its branches as in a run over that era alone;
 - the AnaTuple cost store: one model per store and process, so two eras' workflows never drop
-  each other's measurements, and a multi-era workflow records each era's samples in its numbers;
+  each other's measurements, a second era with other scheduling settings is refused, and a
+  multi-era workflow records each era's samples in its numbers;
 - cost probes: each era's probe map is its block of the map over any era set.
 """
 
@@ -203,6 +209,66 @@ class EraBrMapOwner(lc.Task, law.LocalWorkflow):
         return law.LocalFileTarget(
             os.path.join(os.environ["ANALYSIS_DATA_PATH"], "owner", str(self.branch))
         )
+
+    def run(self):
+        pass
+
+
+class EraBrBigMapOwner(lc.Task, law.LocalWorkflow):
+    """Several eras, one map of its own whose numbers reach past ERA_BRANCH_STRIDE: they are
+    the map's own numbers, not era branch numbers."""
+
+    allow_multi_era = True
+
+    def create_branch_map(self):
+        return {0: "small", BASE_A: "big", BASE_B + 3: "bigger"}
+
+    def output(self):
+        return law.LocalFileTarget(
+            os.path.join(os.environ["ANALYSIS_DATA_PATH"], "big", str(self.branch))
+        )
+
+    def run(self):
+        pass
+
+
+class EraBrNoneData(lc.Task, law.LocalWorkflow):
+    """A real one-branch map whose branch data is None, without a dynamic condition: what law
+    returns as its placeholder, built by the class itself."""
+
+    allow_multi_era = True
+    era_branches = True
+
+    def create_branch_map(self):
+        return self.cached_branch_map(lambda: {0: None})
+
+    def output(self):
+        return self.local_target("done.txt")
+
+    def run(self):
+        pass
+
+
+class EraBrGated(lc.Task, law.LocalWorkflow):
+    """The same map behind a dynamic condition: a gate file per era, all of them required."""
+
+    allow_multi_era = True
+    era_branches = True
+
+    def gate(self, era):
+        return os.path.join(os.environ["ANALYSIS_DATA_PATH"], self.version, "gate", era)
+
+    @law.dynamic_workflow_condition
+    def workflow_condition(self):
+        return all(os.path.exists(self.gate(era)) for era in self.era)
+
+    @workflow_condition.create_branch_map
+    def create_branch_map(self):
+        return self.cached_branch_map(lambda: {0: None})
+
+    @workflow_condition.output
+    def output(self):
+        return self.local_target("done.txt")
 
     def run(self):
         pass
@@ -541,6 +607,32 @@ class EraScope(_ScratchAnalysis):
                     with self.assertRaises(lc.EraScopeError, msg=f"read {attempt}"):
                         PER_ERA_READS[name](task)
 
+    def test_every_dataset_helper_call_raises(self):
+        """The three helpers share one table: a failed read by one of them must leave nothing
+        that another one answers from, in any order and however often they are called.
+        """
+        names = ("iter_datasets", "get_dataset_id", "get_dataset_name")
+        for first in names:
+            with self.subTest(first=first):
+                task = HelloWorldTask(
+                    version=f"{self.version}_{first}", era=(ERA_A, ERA_B)
+                )
+                order = (first,) + tuple(n for n in names if n != first)
+                for attempt in range(3):
+                    for name in order:
+                        with self.assertRaises(
+                            lc.EraScopeError, msg=f"{name}, round {attempt}"
+                        ):
+                            PER_ERA_READS[name](task)
+                self.assertIsNone(task._dataset_id_name_list)
+                self.assertIsNone(task._dataset_id_name_dict)
+                self.assertIsNone(task._dataset_name_id_dict)
+                # each era's own workflow reads its own datasets
+                self.assertEqual(
+                    list(task.single(ERA_B).iter_datasets()),
+                    [(0, "Data_B"), (1, "TTto2L2Nu")],
+                )
+
     def test_getattr_with_a_default_does_not_hide_it(self):
         task = self.two_eras()
         for name in PER_ERA_PROPERTIES:
@@ -705,6 +797,21 @@ class SettingsAgreement(_ScratchAnalysis):
                 self.assert_names(caught, names[key], *values[key])
                 HelloWorldTask(version=version, era=ERA_A)
                 HelloWorldTask(version=version, era=ERA_B)
+
+    def test_a_differing_path_cache_port_alone_is_refused(self):
+        for era, port in ((ERA_A, 9100), (ERA_B, 9200)):
+            self.era_config(
+                era,
+                "WLCGFileSystem: "
+                f"{{remotePathCacheHost: a.cern.ch, remotePathCachePort: {port}}}\n",
+            )
+        with self.assertRaises(lc.EraDependentValueError) as caught:
+            HelloWorldTask(version=self.version, era=(ERA_A, ERA_B))
+        self.assert_names(
+            caught, "WLCGFileSystem.remotePathCacheHost/Port", "9100", "9200"
+        )
+        HelloWorldTask(version=self.version, era=ERA_A)
+        HelloWorldTask(version=self.version, era=ERA_B)
 
     def test_equal_settings_are_read_once(self):
         for era in (ERA_A, ERA_B):
@@ -926,6 +1033,23 @@ class BranchSelection(_ScratchAnalysis):
         self.assert_refused(ERA_A, ((BASE_A, None),), f"branch {BASE_A}")
         self.assertEqual(self.stage(ERA_A, (1, 3)).get_branch_map().keys(), {1, 3})
 
+    def test_a_number_of_no_known_era_is_beyond_a_run_over_one_era(self):
+        # 12 is no era id; 1 is Run2_2016_HIPM, which FLAF does not configure
+        for number in (12 * STRIDE + 1, ERA_IDS["Run2_2016_HIPM"] * STRIDE + 1):
+            with self.subTest(number=number):
+                self.assert_refused(
+                    ERA_A,
+                    (number,),
+                    f"branch {number} is beyond the {STRIDE} numbers of a run over "
+                    "one era",
+                )
+        self.assert_refused(
+            ERA_A,
+            (BASE_C + 1,),
+            f"branch {BASE_C + 1} is branch 1 of {ERA_C}",
+            f"--era {ERA_C} --branches 1",
+        )
+
     def test_several_eras_take_global_numbers(self):
         two = (ERA_A, ERA_B)
         self.assert_refused(two, (1,), "branch 1 is branch 1 of no era")
@@ -942,6 +1066,39 @@ class BranchSelection(_ScratchAnalysis):
         self.assertEqual(task.get_branch_map().keys(), {BASE_A, BASE_A + 1, BASE_B + 3})
         self.assertEqual(task.local_selection(ERA_A), ((0, 2),))
         self.assertEqual(task.local_selection(ERA_B), ((3,),))
+
+    def test_a_selection_naming_no_branch_of_an_eras_map_is_refused(self):
+        """Every number decodes to an era of the run, so construction takes it; the map, four
+        branches per era, holds none of one era's numbers, which law would widen to that
+        era's whole map."""
+        two = (ERA_A, ERA_B)
+        for branches, era in (
+            ((BASE_A + 100, BASE_B), ERA_A),
+            ((BASE_A, BASE_B + 100), ERA_B),
+            (((BASE_A + 10, BASE_A + 20), BASE_B + 1), ERA_A),
+        ):
+            with self.subTest(branches=branches):
+                task = self.stage(two, branches)
+                with self.assertRaises(lc.BranchSelectionError) as caught:
+                    task.get_branch_map()
+                self.assertIn(
+                    f"--branches selects no branch of the 4 of {era}",
+                    str(caught.exception),
+                )
+
+    def test_a_selection_with_numbers_beyond_an_eras_map_keeps_the_others(self):
+        two = (ERA_A, ERA_B)
+        for branches, expected in (
+            ((BASE_A + 1, BASE_A + 100, BASE_B), {BASE_A + 1, BASE_B}),
+            (
+                ((BASE_A + 2, BASE_A + 10), BASE_B + 3),
+                {BASE_A + 2, BASE_A + 3, BASE_B + 3},
+            ),
+        ):
+            with self.subTest(branches=branches):
+                task = self.stage(two, branches)
+                self.assertEqual(task.get_branch_map().keys(), expected)
+                self.assertEqual(task.get_branch_tasks().keys(), expected)
 
     def test_a_single_era_open_range_behaves_as_today(self):
         task = EraBrStage(version=self.version, era=ERA_A, branches="2:")
@@ -978,6 +1135,35 @@ class BranchOnTheCommandLine(_ScratchAnalysis):
             )
         self.assertIn("a branch belongs to one era", str(caught.exception))
         self.assertIn(f"--era {ERA_A},{ERA_B}", str(caught.exception))
+
+    def test_the_root_tasks_own_branch_flag_with_several_eras_is_refused(self):
+        with self.assertRaises(ValueError) as caught:
+            self.from_command_line(
+                "EraBrStage",
+                "--version",
+                self.version,
+                "--era",
+                f"{ERA_A},{ERA_B}",
+                "--EraBrStage-branch",
+                "3",
+            )
+        self.assertIn(
+            f"--branch 3 with --era {ERA_A},{ERA_B}: a branch belongs to one era",
+            str(caught.exception),
+        )
+
+    def test_the_root_tasks_own_branch_flag_of_one_era_is_taken(self):
+        task = self.from_command_line(
+            "EraBrStage",
+            "--version",
+            self.version,
+            "--era",
+            ERA_A,
+            "--EraBrStage-branch",
+            "3",
+        )
+        self.assertEqual((task.era, task.branch), ((ERA_A,), 3))
+        self.assertEqual(task.branch_data, f"{ERA_A}:3")
 
     def test_a_branch_of_one_era_is_taken(self):
         task = self.from_command_line(
@@ -1132,6 +1318,40 @@ class DynamicConditions(_ScratchAnalysis):
         self.assertEqual(task.get_branch_map().keys(), {1})
 
 
+class PlaceholderByCondition(_ScratchAnalysis):
+    """law's placeholder is told by the class' dynamic condition, never by the map's content."""
+
+    def test_a_real_none_map_without_a_condition_builds_the_union(self):
+        self.assertEqual(
+            EraBrNoneData(version=self.version, era=ERA_A).get_branch_map(), {0: None}
+        )
+        task = EraBrNoneData(version=self.version, era=(ERA_A, ERA_B))
+        self.assertEqual(task.get_branch_map(), {BASE_A: None, BASE_B: None})
+        for era in (ERA_A, ERA_B):
+            base = ERA_IDS[era] * STRIDE
+            self.assertIs(
+                task.get_branch_tasks()[base],
+                EraBrNoneData(version=self.version, era=era, branch=0),
+            )
+
+    def test_a_conditioned_none_map_is_laws_placeholder_until_every_gate_exists(self):
+        task = EraBrGated(version=self.version, era=(ERA_A, ERA_B))
+        self.write(task.gate(ERA_A), "")
+        single_a = EraBrGated(version=self.version, era=ERA_A)
+        self.assertEqual(single_a.get_branch_map(), {0: None})
+        self.assertTrue(lc._branch_map_ready(single_a))
+        self.assertEqual(task.get_branch_map(), {0: None})
+        self.assertFalse(lc._branch_map_ready(task))
+        placeholder = task.as_branch(0)
+        self.assertEqual((placeholder.era, placeholder.branch), ((ERA_A, ERA_B), 0))
+        self.assertTrue(
+            placeholder.output().path.endswith(".DYNAMIC_WORKFLOW_PLACEHOLDER")
+        )
+        self.write(task.gate(ERA_B), "")
+        self.assertTrue(lc._branch_map_ready(task))
+        self.assertEqual(task.get_branch_map(), {BASE_A: None, BASE_B: None})
+
+
 # --------------------------------------------------------------------------------------
 # S10: canonical branch tasks
 # --------------------------------------------------------------------------------------
@@ -1164,6 +1384,81 @@ class CanonicalBranches(_ScratchAnalysis):
                 branch, EraBrStage(version=self.version, era=era, branch=local)
             )
             self.assertEqual(branch.branch_data, f"{era}:{local}")
+
+    def test_canonical_branches_carry_one_era_and_no_renamed_flag(self):
+        for task in (
+            HelloWorldTask(version=self.version, era=(ERA_A, ERA_B)),
+            EraBrStage(version=self.version, era=(ERA_A, ERA_C)),
+        ):
+            for number, branch in task.get_branch_tasks().items():
+                with self.subTest(task=task.task_family, number=number):
+                    era, local = split_era_branch(number)
+                    self.assertEqual((branch.era, branch.branch), ((era,), local))
+                    # the removed parameter, read where luigi keeps its value
+                    self.assertIsNone(branch.param_kwargs["period"])
+                    args = branch.cli_args()
+                    self.assertEqual(args["--era"], era)
+                    self.assertEqual(args["--branch"], str(local))
+                    self.assertFalse(
+                        [name for name in args if "period" in name], msg=args
+                    )
+
+    def yielded_branches(self, task):
+        """What law's local workflow yields when it runs (law/workflow/local.py): its branch
+        tasks, as luigi's dynamic requirements."""
+        proxy = task.workflow_proxy
+        self.assertIs(type(proxy), law.workflow.local.LocalWorkflowProxy)
+        # law records per process which workflows have yielded
+        self.addCleanup(setattr, proxy, "_local_workflow_has_yielded", False)
+        yielded = []
+        for item in proxy.run():
+            self.assertIsInstance(item, luigi.DynamicRequirements)
+            yielded.extend(item.requirements)
+        return yielded
+
+    def test_a_local_workflow_yields_each_canonical_branch_once(self):
+        ab = EraBrStage(version=self.version, era=(ERA_A, ERA_B), workflow="local")
+        # the branches a run over each era alone yields
+        expected = [
+            EraBrStage(version=self.version, era=era, branch=local, workflow="local")
+            for era in (ERA_A, ERA_B)
+            for local in range(4)
+        ]
+        yielded = self.yielded_branches(ab)
+        self.assertEqual(len(yielded), len(expected))
+        self.assertEqual(
+            sorted(t.task_id for t in yielded), sorted(t.task_id for t in expected)
+        )
+        for task in expected:
+            self.assertEqual(sum(t is task for t in yielded), 1, msg=task.task_id)
+        for task in yielded:
+            self.assertIsNone(task.param_kwargs["period"])
+            self.assertEqual(len(task.era), 1)
+        # a second run of the same workflow yields nothing more
+        self.assertEqual(self.yielded_branches(ab), [])
+        # another era set yields the very same branches of the era it shares
+        ac = EraBrStage(version=self.version, era=(ERA_A, ERA_C), workflow="local")
+        yielded_ac = self.yielded_branches(ac)
+        self.assertEqual(len(yielded_ac), 8)
+        shared = [t for t in yielded_ac if t.era == (ERA_A,)]
+        self.assertEqual(len(shared), 4)
+        for task in shared:
+            self.assertEqual(sum(t is task for t in expected), 1, msg=task.task_id)
+
+    def test_a_local_workflow_yields_the_selected_canonical_branches(self):
+        task = EraBrStage(
+            version=self.version,
+            era=(ERA_A, ERA_B),
+            branches=(BASE_A + 1, BASE_B + 2),
+            workflow="local",
+        )
+        yielded = self.yielded_branches(task)
+        self.assertEqual(len(yielded), 2)
+        for era, local in ((ERA_A, 1), (ERA_B, 2)):
+            branch = EraBrStage(
+                version=self.version, era=era, branch=local, workflow="local"
+            )
+            self.assertEqual(sum(t is branch for t in yielded), 1, msg=era)
 
     def test_a_number_below_the_stride_goes_to_law(self):
         ab = HelloWorldTask(version=self.version, era=(ERA_A, ERA_B))
@@ -1247,7 +1542,25 @@ class PerTaskFlags(_ScratchAnalysis):
 class SameFamilyInstances(_ScratchAnalysis):
     def test_single_and_with_eras_are_memoised_and_for_workflows_only(self):
         root = EraBrStage(version=self.version, era=(ERA_A, ERA_B))
-        self.assertIs(root.single(ERA_A), root.single(ERA_A))
+        # luigi's instance cache alone gives equal arguments the same instance, so what
+        # tells the memo is how often the instance is derived (law's full req each time)
+        derive = lc.Task.req.__func__
+        derived = []
+
+        def counting_req(cls, inst, **kwargs):
+            derived.append((kwargs.get("era"), kwargs.get("branches")))
+            return derive(cls, inst, **kwargs)
+
+        with mock.patch.object(EraBrStage, "req", classmethod(counting_req)):
+            first = root.single(ERA_A)
+            self.assertIs(root.single(ERA_A), first)
+            self.assertIs(root.with_eras((ERA_A,)), first)
+            selected = root.single(ERA_B, ((1, 3),))
+            self.assertIs(root.with_eras((ERA_B,), ((1, 3),)), selected)
+            self.assertIsNot(root.single(ERA_B), selected)
+        self.assertEqual(
+            derived, [((ERA_A,), ()), ((ERA_B,), ((1, 3),)), ((ERA_B,), ())]
+        )
         self.assertIs(root.with_eras((ERA_B, ERA_A)), root)
         self.assertIs(
             root.single(ERA_B, ((1, 3),)),
@@ -1255,6 +1568,10 @@ class SameFamilyInstances(_ScratchAnalysis):
         )
         with self.assertRaises(RuntimeError):
             root.get_branch_tasks()[BASE_A].single(ERA_A)
+        # the memo is the root's own: it outlives luigi's instance cache
+        luigi.task_register.Register.clear_instance_cache()
+        self.assertIs(root.single(ERA_A), first)
+        self.assertIsNot(EraBrStage(version=self.version, era=ERA_A), first)
 
 
 class FlagGating(_ScratchAnalysis):
@@ -1268,6 +1585,20 @@ class FlagGating(_ScratchAnalysis):
             version=self.version, era=(ERA_A, ERA_B), branches=(1,)
         )
         self.assertEqual(selected.get_branch_map(), {1: "B"})
+
+    def test_a_number_past_the_stride_in_a_map_of_its_own_stays_laws(self):
+        """Without era_branches a number is the map's own, however large: it names no era."""
+        task = EraBrBigMapOwner(version=self.version, era=(ERA_A, ERA_B))
+        branch_map = task.get_branch_map()
+        self.assertEqual(branch_map, {0: "small", BASE_A: "big", BASE_B + 3: "bigger"})
+        branches = task.get_branch_tasks()
+        for number, data in branch_map.items():
+            with self.subTest(number=number):
+                branch = task.req_branch(number)
+                self.assertEqual((branch.era, branch.branch), ((ERA_A, ERA_B), number))
+                self.assertEqual(branch.branch_data, data)
+                self.assertIs(branches[number], branch)
+                self.assertIs(task.as_branch(number), branch)
 
 
 # --------------------------------------------------------------------------------------
@@ -1300,6 +1631,46 @@ class CostStorePerProcess(_ScratchAnalysis):
                 for task in tasks:
                     self.assertTrue(task.record_job_durations([([0], 1000.0)]))
                 self.assertEqual(self.cost_entries(version), {"Data_A", "Data_B"})
+
+    def test_equal_settings_given_in_each_era_share_the_model(self):
+        for era in (ERA_A, ERA_B):
+            self.era_config(era, "anaTuple_scheduling: {default_sec_per_event: 0.5}\n")
+            self.write_input_lists(era, file_info=FILE_INFO)
+        tasks = [
+            ana_prod.AnaTupleFileTask(version=self.version, era=era)
+            for era in (ERA_A, ERA_B)
+        ]
+        models = [task.load_cost_model() for task in tasks]
+        self.assertIs(models[0], models[1])
+        self.assertEqual(models[0].params["default_sec_per_event"], 0.5)
+        for task in tasks:
+            self.assertTrue(task.record_job_durations([([0], 1000.0)]))
+        self.assertEqual(self.cost_entries(self.version), {"Data_A", "Data_B"})
+
+    def test_two_eras_with_other_scheduling_settings_are_refused(self):
+        """One model per store is loaded with one era's settings: another era that asks for
+        other ones would pack its jobs with the first era's."""
+        self.era_config(ERA_B, "anaTuple_scheduling: {default_sec_per_event: 0.5}\n")
+        default = merged_params()["default_sec_per_event"]
+        self.assertNotEqual(default, 0.5)
+        for order in ((ERA_A, ERA_B), (ERA_B, ERA_A)):
+            with self.subTest(order=order):
+                version = f"{self.version}_{order[0]}"
+                for era in order:
+                    self.write_input_lists(era, version=version, file_info=FILE_INFO)
+                first, second = (
+                    ana_prod.AnaTupleFileTask(version=version, era=era) for era in order
+                )
+                model = first.load_cost_model()
+                # an era-scope error, which the proxies' cost-packing fallbacks re-raise
+                with self.assertRaises(lc.EraScopeError) as caught:
+                    second.load_cost_model()
+                message = str(caught.exception)
+                self.assertIn(first.cost_model_path(), message)
+                self.assertIn("two anaTuple_scheduling settings", message)
+                self.assertIn(f"'default_sec_per_event': {default!r}", message)
+                self.assertIn("'default_sec_per_event': 0.5", message)
+                self.assertIs(first.load_cost_model(), model)
 
     def test_several_eras_record_each_eras_samples_in_its_numbers(self):
         for era in (ERA_A, ERA_B):

@@ -8,16 +8,25 @@ built and submitted by a proxy of that era's own workflow. What is proven here:
 - EraJobFiles: each era's file is the single-era file (path, name, local job and branch
   numbers, its own tasks_per_job, byte-identical JSON); load() merges with the era-id shift;
   dump() writes each era back in its own numbers; parent.touch(), remove() and exists() cover
-  every era; growing one era renames that era's file only (I4).
+  every era; growing one era renames that era's file only (I4); from the same fresh state each
+  era's file holds what the run over that era alone writes, in flight and finished.
 - The layout of the merged job data through the real proxies: fresh eras chunked with the
-  root's --tasks-per-job, a resumed era keeps its file, a complete era is left out with its file
-  untouched, and the job count law's poll() snapshots is the final one.
+  root's --tasks-per-job or packed by each era's own costs as the run over that era alone packs
+  them, a resumed era keeps its file and has its unsubmitted jobs packed again as the resumed
+  run over that era alone does, a complete era is left out with its file untouched, the job
+  count law's poll() snapshots is the final one, and nothing is laid out while law's dynamic
+  workflow condition leaves the root with its placeholder map.
+- --cancel-jobs and --cleanup-jobs hand the job manager every era's jobs and lay out nothing; a
+  round in which one era's jobs fail to build records the ids of the eras submitted before it,
+  and the next run (also with --retries 0) submits every era as the runs over each era alone
+  with the same failure do.
 - Every job equals the job a run over that era alone builds with the same flags: command line,
   local branches, chunks, HTCondor and CRAB resources, worker-file, log and heartbeat paths,
   bundles, the CRAB request-name prefix and the staged path cache, also as the job itself sees
   it with LAW_CRAB_JOB_NUMBER set (I8); retry escalation, no leak into the era's own workflow,
-  submission order, routed intermediate dumps, the per-era lost-outputs guard, no job
-  resources booked at scheduling, the CRAB watchdog composite and the shared job manager.
+  submission order, routed intermediate dumps that carry each job's id from the dump after
+  its submission, the per-era lost-outputs guard, no job resources booked at scheduling, the
+  CRAB watchdog composite and the shared job manager.
 - The per-era luigi resource token: two instances of a stage that share an era never run at
   once, instances over other eras or of other producers do (C7, I17(13)).
 - Cross-run compatibility (I22): drivers killed with os._exit and restarted over other era
@@ -321,6 +330,14 @@ class Batch:
             if job["polls"] >= job["finish_after"]:
                 return "finished"
             return "running" if job["polls"] > 1 else "pending"
+
+    def forget(self, version):
+        """Drop the jobs of `version`, which a test left in flight: a later test reads every
+        job of the batch as one of its own."""
+        with self.state() as st:
+            st["jobs"] = {
+                key: job for key, job in st["jobs"].items() if job["version"] != version
+            }
 
     def submissions(self, version):
         """(era, local branch) -> how often it was submitted, over every driver of `version`."""
@@ -671,6 +688,26 @@ class EraJobsCostUp(EraJobsUp):
         return 3600.0
 
 
+#: the estimated seconds of each branch of EraJobsCostPackUp, by era
+PACK_COSTS = {
+    A: (3000.0, 400.0, 400.0, 3000.0, 300.0, 200.0),
+    B: (100.0, 3500.0, 100.0),
+}
+
+
+class EraJobsCostPackUp(EraJobsCostUp):
+    """EraJobsCostUp whose branches cost what an era's inputs would: unequal within an era and
+    different between eras, so that packing by cost groups them otherwise than chunking.
+    """
+
+    def branch_cost_map(self):
+        costs = PACK_COSTS[self.only_era]
+        return {b: (costs[b], "job") for b in self.branch_map}
+
+    def cost_params(self):
+        return dict(super().cost_params(), max_units_per_job=4)
+
+
 class EraJobsTokenUp(_JobFileDirs, lc.Task, lc.HTCondorWorkflow, law.LocalWorkflow):
     """A remote stage without requirements, to watch luigi schedule its instances."""
 
@@ -782,6 +819,38 @@ def wipe(version):
 
 
 LOG_ID_RE = re.compile(r"_\d+\.\d+\.txt$")
+
+
+def stored_batch_key(job_id):
+    """The fake batch system's key of a job id as a job file stores it: an HTCondor id is the
+    key, a CRAB JobId is written as [crab_num, task_name, proj_dir]."""
+    if isinstance(job_id, list):
+        crab_num, _, proj_dir = job_id
+        return f"{proj_dir}#{crab_num}"
+    return job_id
+
+
+def normalised_job_file(path, version):
+    """An era's job file with what differs between two runs of the same work replaced: each
+    job id, and the id in the name of a job's log, by the era and branches the batch system
+    runs under that id; the version by a placeholder."""
+    batch = Batch().jobs()
+
+    def submitted(key):
+        job = batch[key]
+        return f"<{job['era']}:{job['branches']}>"
+
+    data = load_json(path)
+    for job in data["jobs"].values():
+        if job["job_id"] != JobData.dummy_job_id:
+            job["job_id"] = submitted(stored_batch_key(job["job_id"]))
+        log = (job.get("extra") or {}).get("log")
+        if log:
+            match = re.search(r"_(\d+\.\d+)\.txt$", log)
+            if match:
+                log = f"{log[: match.start()]}_{submitted(match.group(1))}.txt"
+            job["extra"]["log"] = log
+    return json.loads(json.dumps(data).replace(version, "<version>"))
 
 
 class Render:
@@ -938,6 +1007,14 @@ class _Case(unittest.TestCase):
     def submissions(self):
         return Batch().submissions(self.version)
 
+    def batch_keys(self):
+        """(era, local branches) -> the key of the batch job submitted for them."""
+        return {
+            (job["era"], tuple(job["branches"])): key
+            for key, job in Batch().jobs().items()
+            if job["version"] == self.version
+        }
+
 
 # --------------------------------------------------------------------------------------------
 # I4: each era's job file is the single-era file
@@ -997,6 +1074,50 @@ class _EachErasFileIsTheSingleEraFile:
                     os.remove(path)
                     proxy.dump_job_data()
                 self.assertEqual(read_bytes(path), raw)
+
+    def test_a_fresh_run_writes_each_era_as_the_run_over_that_era_alone(self):
+        """From the same fresh state, each era's file of a run over several eras holds what
+        the run over that era alone writes -- jobs, ids, statuses, logs and every other field
+        -- with its jobs in flight and once they finished."""
+        base = self.version
+        try:
+            for state, flags in (("in_flight", ("--no-poll",)), ("finished", ())):
+                written = {}
+                for variant, runs in (("together", [(A, B)]), ("alone", [(A,), (B,)])):
+                    self.version = f"{base}_{state}_{variant}"
+                    self.addCleanup(wipe, self.version)
+                    self.addCleanup(Batch().forget, self.version)
+                    write_gates(self.version, **{A: 3, B: 2})
+                    with in_flight_jobs():
+                        for eras in runs:
+                            self.drive(eras, "--tasks-per-job", 2, *flags)
+                    written[variant] = {
+                        era: [
+                            (
+                                name,
+                                normalised_job_file(
+                                    self.jobs_file(era, name), self.version
+                                ),
+                            )
+                            for name in names
+                        ]
+                        for era, names in job_file_names(self.version).items()
+                    }
+                with self.subTest(state=state):
+                    self.assertEqual(sorted(written["together"]), [A, B])
+                    self.assertEqual(written["together"], written["alone"])
+                    # the ids were compared: in flight every job carries one
+                    ids = [
+                        job["job_id"]
+                        for files in written["together"].values()
+                        for _, data in files
+                        for job in data["jobs"].values()
+                    ]
+                    self.assertEqual(len(ids), 3)
+                    if state == "in_flight":
+                        self.assertNotIn(JobData.dummy_job_id, ids)
+        finally:
+            self.version = base
 
     def test_load_merges_the_era_files_with_the_era_id_shift(self):
         write_gates(self.version, **{A: 3, B: 2})
@@ -1193,6 +1314,38 @@ class _TheLayout:
             sorted(j["status"] for j in b["jobs"].values()), ["finished", "finished"]
         )
 
+    def test_nothing_is_laid_out_before_the_branch_map_exists(self):
+        """While law's dynamic workflow condition is unmet -- no era's gate, or one era's
+        alone -- the root's map is law's placeholder, which holds no branch of any era: a
+        layout from it would hold no job, and the run would end with nothing submitted.
+        """
+        set_n(self.version, **{A: 2, B: 2})
+        for gates in ((), (A,)):
+            for era in gates:
+                write_gates(self.version, **{era: 2})
+            with self.subTest(gates=gates):
+                fresh_process()
+                with self.cli((A, B)) as root:
+                    self.assertFalse(root.workflow_condition())
+                    # law's run: a fresh run lays out in submit()
+                    with self.assertRaises(RuntimeError) as caught:
+                        self.run_root(root)
+                    self.assertIn(
+                        "jobs cannot be laid out before the branch map exists",
+                        str(caught.exception),
+                    )
+                fresh_process()
+                with self.cli((A, B)) as root:
+                    # a resumed run lays out in poll()
+                    with self.assertRaises(RuntimeError) as caught:
+                        root.workflow_proxy.poll()
+                    self.assertIn(
+                        "jobs cannot be laid out before the branch map exists",
+                        str(caught.exception),
+                    )
+                self.assertEqual(job_file_names(self.version), {})
+                self.assertEqual(sum(self.submissions().values()), 0)
+
 
 class HTCondorTheLayout(_TheLayout, _Case):
     backend = "htcondor"
@@ -1222,6 +1375,122 @@ class HTCondorTheLayout(_TheLayout, _Case):
 
 class CrabTheLayout(_TheLayout, _Case):
     backend = "crab"
+
+
+class EachEraIsPackedByItsOwnCosts(_Case):
+    """Cost-aware packing (HTCondor) runs per era, with that era's costs: the jobs of each era
+    of a run over several eras are the jobs the run over that era alone packs."""
+
+    family = "EraJobsCostPackUp"
+
+    def test_each_eras_jobs_are_packed_as_in_a_run_over_that_era_alone(self):
+        base = self.version
+        layouts, submitted = {}, {}
+        try:
+            for variant, runs in (("together", [(A, B)]), ("alone", [(A,), (B,)])):
+                self.version = f"{base}_{variant}"
+                self.addCleanup(wipe, self.version)
+                write_gates(
+                    self.version, **{A: len(PACK_COSTS[A]), B: len(PACK_COSTS[B])}
+                )
+                for eras in runs:
+                    self.drive(eras, family=self.family)
+                layouts[variant] = {
+                    era: {
+                        name: {
+                            n: j["branches"]
+                            for n, j in load_json(
+                                self.jobs_file(era, name, family=self.family)
+                            )["jobs"].items()
+                        }
+                        for name in names
+                    }
+                    for era, names in job_file_names(
+                        self.version, family=self.family
+                    ).items()
+                }
+                submitted[variant] = sorted(
+                    (job["era"], job["branches"])
+                    for job in Batch().jobs().values()
+                    if job["version"] == self.version
+                )
+        finally:
+            self.version = base
+        self.assertEqual(layouts["together"], layouts["alone"])
+        self.assertEqual(submitted["together"], submitted["alone"])
+        # packed by cost, not chunked by --tasks-per-job: fewer jobs than branches in each era
+        for era in (A, B):
+            with self.subTest(era=era):
+                (jobs,) = layouts["together"][era].values()
+                self.assertLess(len(jobs), len(PACK_COSTS[era]))
+                self.assertEqual(
+                    sorted(b for branches in jobs.values() for b in branches),
+                    list(range(len(PACK_COSTS[era]))),
+                )
+
+    def test_a_resumed_eras_jobs_are_packed_again_as_in_a_run_over_that_era_alone(self):
+        """A resumed era's jobs that were never submitted are packed again with the costs and
+        settings of this run (an earlier run packed them with others, as when the cost model
+        learned in between), as the resumed run over that era alone packs them."""
+        base = self.version
+        name = f"{self.kind()}_0To{len(PACK_COSTS[A])}.json"
+        layouts, submitted, earlier = {}, {}, {}
+        try:
+            for variant, runs in (("together", [(A, B)]), ("alone", [(A,), (B,)])):
+                self.version = f"{base}_resumed_{variant}"
+                self.addCleanup(wipe, self.version)
+                write_gates(
+                    self.version, **{A: len(PACK_COSTS[A]), B: len(PACK_COSTS[B])}
+                )
+                # the same earlier run over A, packed one branch per job: one job in
+                # flight, the others unsubmitted
+                with in_flight_jobs(), mock.patch.object(
+                    EraJobsCostPackUp, "cost_params", EraJobsCostUp.cost_params
+                ):
+                    self.drive(
+                        (A,), "--no-poll", "--parallel-jobs", 1, family=self.family
+                    )
+                data = load_json(self.jobs_file(A, name, family=self.family))
+                earlier[variant] = {
+                    "jobs": {n: j["branches"] for n, j in data["jobs"].items()},
+                    "unsubmitted_jobs": data["unsubmitted_jobs"],
+                }
+                for eras in runs:
+                    self.drive(eras, family=self.family)
+                layouts[variant] = {
+                    era: {
+                        file_name: {
+                            n: j["branches"]
+                            for n, j in load_json(
+                                self.jobs_file(era, file_name, family=self.family)
+                            )["jobs"].items()
+                        }
+                        for file_name in names
+                    }
+                    for era, names in job_file_names(
+                        self.version, family=self.family
+                    ).items()
+                }
+                submitted[variant] = sorted(
+                    (job["era"], job["branches"])
+                    for job in Batch().jobs().values()
+                    if job["version"] == self.version
+                )
+        finally:
+            self.version = base
+        self.assertEqual(earlier["together"], earlier["alone"])
+        self.assertEqual(layouts["together"], layouts["alone"])
+        self.assertEqual(submitted["together"], submitted["alone"])
+        # discriminating: A's unsubmitted jobs were packed again, into fewer jobs
+        before = earlier["together"]
+        self.assertEqual(len(before["jobs"]), 1)
+        self.assertEqual(len(before["unsubmitted_jobs"]), len(PACK_COSTS[A]) - 1)
+        after = layouts["together"][A][name]
+        self.assertLess(len(after), len(PACK_COSTS[A]))
+        self.assertEqual(
+            sorted(b for branches in after.values() for b in branches),
+            list(range(len(PACK_COSTS[A]))),
+        )
 
 
 # --------------------------------------------------------------------------------------------
@@ -1518,20 +1787,17 @@ class IntermediateDumpsKeepEveryJobOfTheEra(_Case):
     """law dumps the job data while it submits a batch, from the proxy that submits: an era
     proxy's own dump would write that era's file with the jobs of this round alone."""
 
-    def test_no_dump_drops_the_jobs_an_earlier_run_left_in_the_eras_file(self):
-        write_gates(self.version, **{A: 4, B: 1})
-        self.drive((A,), "--no-poll", "--parallel-jobs", 2)
-        a_file = self.jobs_file(A, f"{self.kind()}_0To4.json")
-        earlier = load_json(a_file)
-        self.assertEqual(sorted(earlier["jobs"]), ["1", "2"])
-        self.assertEqual(sorted(earlier["unsubmitted_jobs"]), ["3", "4"])
-        writes = []
+    @contextlib.contextmanager
+    def one_file_per_job(self, paths):
+        """law submits one job file per job and dumps the job data after each job; yields
+        path -> the content of every write of that file, for the files in `paths`."""
+        writes = {path: [] for path in paths}
         original = law.LocalFileTarget.dump
 
         def dump(target, *args, **kwargs):
             result = original(target, *args, **kwargs)
-            if target.path == a_file:
-                writes.append(load_json(a_file))
+            if target.path in writes:
+                writes[target.path].append(load_json(target.path))
             return result
 
         with mock.patch.object(
@@ -1543,7 +1809,37 @@ class IntermediateDumpsKeepEveryJobOfTheEra(_Case):
         ), mock.patch.object(
             law.LocalFileTarget, "dump", autospec=True, side_effect=dump
         ):
+            yield writes
+
+    def assertIdsWrittenOneByOne(self, writes, expected):
+        """Every write of an era's file carries each job of `expected` (job number -> the
+        batch key it was submitted under) with that id or with none, and the jobs of one
+        batch get their ids one write at a time: law dumps after each job it submits."""
+        seen, firsts = set(), []
+        for data in writes:
+            real = set()
+            for num, key in expected.items():
+                job = data["jobs"].get(num)
+                if job is None or job["job_id"] == JobData.dummy_job_id:
+                    continue
+                self.assertEqual(stored_batch_key(job["job_id"]), key, data)
+                real.add(num)
+            if real - seen:
+                firsts.append(sorted(real - seen))
+            seen |= real
+        self.assertEqual([len(new) for new in firsts], [1] * len(expected), firsts)
+        self.assertEqual(seen, set(expected))
+
+    def test_no_dump_drops_the_jobs_an_earlier_run_left_in_the_eras_file(self):
+        write_gates(self.version, **{A: 4, B: 1})
+        self.drive((A,), "--no-poll", "--parallel-jobs", 2)
+        a_file = self.jobs_file(A, f"{self.kind()}_0To4.json")
+        earlier = load_json(a_file)
+        self.assertEqual(sorted(earlier["jobs"]), ["1", "2"])
+        self.assertEqual(sorted(earlier["unsubmitted_jobs"]), ["3", "4"])
+        with self.one_file_per_job([a_file]) as written:
             self.drive((A, B))
+        writes = written[a_file]
         self.assertGreater(len(writes), 2)
         for data in writes:
             jobs, waiting = set(data["jobs"]), set(data["unsubmitted_jobs"])
@@ -1556,6 +1852,239 @@ class IntermediateDumpsKeepEveryJobOfTheEra(_Case):
             self.submissions(),
             Counter({(A, 0): 1, (A, 1): 1, (A, 2): 1, (A, 3): 1, (B, 0): 1}),
         )
+        # the ids: the earlier run's jobs keep theirs (law may drop one it records finished),
+        # and each job submitted now is written with its id by the dump right after it
+        for data in writes:
+            for num in ("1", "2"):
+                job = data["jobs"][num]
+                if job["job_id"] == JobData.dummy_job_id:
+                    self.assertEqual(job["status"], "finished", data)
+                else:
+                    self.assertEqual(job["job_id"], earlier["jobs"][num]["job_id"])
+        keys = self.batch_keys()
+        self.assertIdsWrittenOneByOne(
+            writes, {"3": keys[(A, (2,))], "4": keys[(A, (3,))]}
+        )
+
+    def test_each_dump_of_a_round_writes_the_ids_known_so_far_in_every_era(self):
+        """Both eras submitted in one round, one job file per job: each era's file gets the id
+        of each of its jobs from the dump that follows that job, not at the end of the round.
+        """
+        write_gates(self.version, **{A: 2, B: 2})
+        self.addCleanup(Batch().forget, self.version)
+        files = {era: self.jobs_file(era, f"{self.kind()}_0To2.json") for era in (A, B)}
+        with self.one_file_per_job(files.values()) as written:
+            self.drive((A, B), "--no-poll")
+        self.assertEqual(
+            self.submissions(), Counter({(A, 0): 1, (A, 1): 1, (B, 0): 1, (B, 1): 1})
+        )
+        keys = self.batch_keys()
+        for era, path in files.items():
+            with self.subTest(era=era):
+                self.assertIdsWrittenOneByOne(
+                    written[path], {"1": keys[(era, (0,))], "2": keys[(era, (1,))]}
+                )
+
+
+# --------------------------------------------------------------------------------------------
+# --cancel-jobs / --cleanup-jobs, and a round whose submission fails part-way
+# --------------------------------------------------------------------------------------------
+
+
+class _CancelAndCleanupReachEveryEra:
+    """--cancel-jobs and --cleanup-jobs over several eras hand the job manager the jobs of
+    every era's file -- also of an era whose outputs all exist, as the run over that era
+    alone does -- and lay out, submit and write nothing."""
+
+    @contextlib.contextmanager
+    def manager_calls(self, action, calls):
+        """The job ids the job manager is asked to cancel or clean up, as batch keys."""
+        manager = (
+            FakeCondorManager if self.backend == "htcondor" else lc.FLAFCrabJobManager
+        )
+
+        def record(_manager, job_ids, *args, **kwargs):
+            calls.extend(batch_key(job_id) for job_id in job_ids)
+            return []
+
+        with mock.patch.object(manager, f"{action}_batch", record), mock.patch.object(
+            manager, f"{action}_group", record
+        ):
+            yield
+
+    def test_every_eras_jobs_are_handed_to_the_manager_and_nothing_is_laid_out(self):
+        write_gates(self.version, **{A: 2, B: 2})
+        self.addCleanup(Batch().forget, self.version)
+        with in_flight_jobs(finish_after=5):
+            self.drive((A, B), "--no-poll")
+        # A's outputs all exist while its jobs still run
+        for branch in (0, 1):
+            path = out_path(self.version, "EraJobsUp", A, branch)
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            open(path, "w").close()
+        files = {era: self.jobs_file(era, f"{self.kind()}_0To2.json") for era in (A, B)}
+        before = {era: read_bytes(path) for era, path in files.items()}
+        in_files = sorted(
+            stored_batch_key(job["job_id"])
+            for path in files.values()
+            for job in load_json(path)["jobs"].values()
+        )
+        self.assertEqual(in_files, sorted(self.batch_keys().values()))
+        self.assertEqual(len(in_files), 4)
+        for flag, action in (
+            ("--cancel-jobs", "cancel"),
+            ("--cleanup-jobs", "cleanup"),
+        ):
+            with self.subTest(flag=flag):
+                calls = {}
+                for eras in ((A, B), (A,), (B,)):
+                    calls[eras] = []
+                    with self.manager_calls(action, calls[eras]), mock.patch.object(
+                        lc.EraMergedProxy,
+                        "_lay_out_eras",
+                        autospec=True,
+                        side_effect=lc.EraMergedProxy._lay_out_eras,
+                    ) as lay_out:
+                        self.drive(eras, flag)
+                    self.assertEqual(lay_out.call_count, 0)
+                self.assertEqual(sorted(calls[(A, B)]), in_files)
+                self.assertEqual(
+                    sorted(calls[(A, B)]), sorted(calls[(A,)] + calls[(B,)])
+                )
+                self.assertEqual(
+                    {era: read_bytes(path) for era, path in files.items()}, before
+                )
+                self.assertEqual(sum(self.submissions().values()), 4)
+
+
+class HTCondorCancelAndCleanupReachEveryEra(_CancelAndCleanupReachEveryEra, _Case):
+    backend = "htcondor"
+
+
+class CrabCancelAndCleanupReachEveryEra(_CancelAndCleanupReachEveryEra, _Case):
+    backend = "crab"
+
+
+class _ARoundThatFailsPartWay:
+    """An era's jobs fail to build after another era's jobs were submitted in the same
+    round: those jobs run, so their ids are recorded before the error ends the run, and the
+    next run polls them and submits every branch once."""
+
+    @contextlib.contextmanager
+    def failing_build(self, era):
+        """The job-config hook raises for the jobs of `era`; jobs submitted meanwhile stay in
+        flight."""
+        hook = f"{self.backend}_job_config"
+        build = getattr(EraJobsUp, hook)
+
+        def failing(task, config, *args, **kwargs):
+            if task.only_era == era:
+                raise RuntimeError(f"cannot build the job file of {era}")
+            return build(task, config, *args, **kwargs)
+
+        with in_flight_jobs(), mock.patch.object(EraJobsUp, hook, failing):
+            yield
+
+    def test_the_jobs_submitted_before_the_failure_are_recorded(self):
+        write_gates(self.version, **{A: 2, B: 2})
+        with self.failing_build(B):
+            with self.assertRaises(RuntimeError) as caught:
+                self.drive((A, B), "--no-poll")
+        self.assertIn(f"cannot build the job file of {B}", str(caught.exception))
+        self.assertEqual(self.submissions(), Counter({(A, 0): 1, (A, 1): 1}))
+        a_file = self.jobs_file(A, f"{self.kind()}_0To2.json")
+        self.assertTrue(os.path.exists(a_file))
+        batch = Batch().jobs()
+        recorded = {}
+        for num, job in load_json(a_file)["jobs"].items():
+            self.assertNotEqual(job["job_id"], JobData.dummy_job_id, num)
+            submitted = batch[stored_batch_key(job["job_id"])]
+            recorded[num] = (submitted["era"], submitted["branches"])
+        self.assertEqual(recorded, {"1": (A, [0]), "2": (A, [1])})
+        # no job of B was submitted: none is recorded with an id
+        for name in job_file_names(self.version).get(B, []):
+            b = load_json(self.jobs_file(B, name))
+            self.assertEqual(
+                {job["job_id"] for job in b["jobs"].values()} - {JobData.dummy_job_id},
+                set(),
+            )
+        self.drive((A, B))
+        self.assertEqual(
+            self.submissions(), Counter({(A, 0): 1, (A, 1): 1, (B, 0): 1, (B, 1): 1})
+        )
+        self.assertEqual(
+            outputs_of(self.version),
+            [f"{A}/0.txt", f"{A}/1.txt", f"{B}/0.txt", f"{B}/1.txt"],
+        )
+
+    def test_the_jobs_never_submitted_are_first_attempts_in_the_next_run(self):
+        """The next run submits the jobs of the era whose build failed as the run over that
+        era alone with the same failure does: as first attempts. Counted as retries of jobs
+        that never ran, they would use up --retries (with --retries 0, fail unsubmitted) and,
+        for a task packed by cost, ask for escalated resources."""
+        base = self.version
+        attempts = {}
+        try:
+            for variant, eras in (("together", (A, B)), ("alone", (B,))):
+                self.version = f"{base}_{variant}"
+                self.addCleanup(wipe, self.version)
+                write_gates(self.version, **{A: 2, B: 2})
+                with self.failing_build(B):
+                    with self.assertRaises(RuntimeError):
+                        self.drive(eras, "--no-poll")
+                self.drive(eras)
+                self.assertEqual(self.submissions()[(B, 0)], 1)
+                b_file = self.jobs_file(B, f"{self.kind()}_0To2.json")
+                attempts[variant] = load_json(b_file)["attempts"]
+        finally:
+            self.version = base
+        self.assertEqual(attempts["alone"], {})
+        self.assertEqual(attempts["together"], attempts["alone"])
+
+    def test_without_retries_every_era_reruns_as_the_run_over_it_alone(self):
+        """Whichever era's build fails -- the first of the round, before anything was
+        submitted, or a later one -- a rerun with --retries 0 (the HelloWorld CI's value)
+        submits every era as the runs over each era alone, with the same failure, do: no job
+        that never ran may count as a failed attempt."""
+        base = self.version
+        for failing in (A, B):
+            outcome = {}
+            for variant, runs in (("together", [(A, B)]), ("alone", [(A,), (B,)])):
+                self.version = f"{base}_{failing}_{variant}"
+                self.addCleanup(wipe, self.version)
+                self.addCleanup(Batch().forget, self.version)
+                write_gates(self.version, **{A: 2, B: 2})
+                with self.failing_build(failing):
+                    for eras in runs:
+                        try:
+                            self.drive(eras, "--no-poll")
+                        except RuntimeError as e:
+                            self.assertIn(
+                                f"cannot build the job file of {failing}", str(e)
+                            )
+                raised = []
+                for eras in runs:
+                    try:
+                        self.drive(eras, "--retries", 0)
+                    except Exception as e:
+                        raised.append(f"{','.join(eras)}: {e}")
+                outcome[variant] = (raised, self.submissions())
+            self.version = base
+            with self.subTest(failing=failing):
+                self.assertEqual(outcome["alone"][0], [])
+                self.assertEqual(
+                    sorted(outcome["alone"][1].items()),
+                    [((era, b), 1) for era in (A, B) for b in (0, 1)],
+                )
+                self.assertEqual(outcome["together"], outcome["alone"])
+
+
+class HTCondorARoundThatFailsPartWay(_ARoundThatFailsPartWay, _Case):
+    backend = "htcondor"
+
+
+class CrabARoundThatFailsPartWay(_ARoundThatFailsPartWay, _Case):
+    backend = "crab"
 
 
 # --------------------------------------------------------------------------------------------

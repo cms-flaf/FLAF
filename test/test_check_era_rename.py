@@ -16,10 +16,23 @@ CLEAN = {
     "task.py": """
         class MyTask(Task):
             def store_parts(self):
-                return (self.version, "MyTask", self.era[0])
+                return (self.version, "MyTask", self.only_era)
 
             def message(self):
-                return f"{self.era[0]}: done"
+                return f"{self.only_era}: done"
+
+            @property
+            def only_era(self):
+                return self.era[0]
+
+            def with_eras(self, eras):
+                return type(self).req(self, era=eras)
+
+            def upstream(self):
+                return Other.req(self, branches=(), _skip_task_excludes=True)
+
+            def first(self):
+                return self.era[0]  # noqa: era-scope
 
         def columns():
             return ["period", "isData"]
@@ -46,6 +59,16 @@ DIRTY = {
 
         def run(period):
             return getattr(task, "period", None), cfg.get("period")
+
+        class Other(HTCondorWorkflow):
+            def requires(self):
+                return Up.req(
+                    self,
+                    era=("Run3_2022",),
+                ), Up.req_params(self, **{"era": self.era})
+
+            def label(self):
+                return self.era[0]
     """,
     "config.yaml": "patterns:\n  - data/{version}/InputFileTask/{period}\n",
     "run.sh": "law run Task --period Run3_2022\n",
@@ -89,11 +112,31 @@ class CheckEraRename(unittest.TestCase):
             "task.py:9: identifier 'period'",
             "task.py:10: getattr(..., 'period')",
             "task.py:10: get(..., 'period')",
+            "task.py:14: req(..., era=...) outside with_eras",
+            "task.py:17: req_params(..., era=...) outside with_eras",
+            "task.py:20: self.era[...] outside only_era",
             "config.yaml:2: '{period}'",
             "run.sh:1: '--period'",
         ]
         for line in expected:
             self.assertIn(line, result.stdout)
+
+    def test_the_era_scope_rules_report_exactly_the_leaks(self):
+        make_repo(self.tmp.name, DIRTY)
+        found = [
+            line
+            for line in check(self.tmp.name).stdout.splitlines()
+            if "with_eras" in line or "only_era" in line
+        ]
+        self.assertEqual(len(found), 3, found)
+
+    def test_a_marker_silences_only_its_own_rule(self):
+        files = dict(DIRTY)
+        files["task.py"] = files["task.py"].replace(
+            "return self.era[0]", "return self.era[0]  # noqa: era-rename"
+        )
+        make_repo(self.tmp.name, files)
+        self.assertIn("self.era[...] outside only_era", check(self.tmp.name).stdout)
 
     def test_a_marked_line_and_an_excluded_file_are_skipped(self):
         files = dict(DIRTY)

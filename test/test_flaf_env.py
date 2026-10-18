@@ -1039,7 +1039,7 @@ def bundle_name(flavour):
     task = object.__new__(FakeBundleTask)
     task.flavour = flavour
     task.version = "v1"
-    task.period = "Era"
+    task.era = ("Era",)
     return task.output().rsplit("/", 1)[-1]
 
 

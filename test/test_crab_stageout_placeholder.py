@@ -93,10 +93,14 @@ def stageout_location(fs_default):
     )
     with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
         lc.Setup, "getGlobal", return_value=setup
-    ), mock.patch.dict(os.environ, {"ANALYSIS_DATA_PATH": tmp, "ANALYSIS_PATH": tmp}):
+    ), mock.patch.object(
+        lc, "_known_eras", return_value=("Run3_2022",)
+    ), mock.patch.dict(
+        os.environ, {"ANALYSIS_DATA_PATH": tmp, "ANALYSIS_PATH": tmp}
+    ):
         # a fresh version per call: luigi caches task instances by parameter values
         task = StageoutTask(
-            version=f"vstageout{next(_versions)}", period="Run3_2022", workflow="local"
+            version=f"vstageout{next(_versions)}", era="Run3_2022", workflow="local"
         )
         return task.crab_stageout_location()
 

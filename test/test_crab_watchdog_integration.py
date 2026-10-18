@@ -208,6 +208,10 @@ class FlafTaskTestCase(unittest.TestCase):
         )
         patcher.start()
         self.addCleanup(patcher.stop)
+        # the analysis configuration is faked, so are the eras it knows
+        eras = mock.patch.object(lc, "_known_eras", return_value=("Run3_2022",))
+        eras.start()
+        self.addCleanup(eras.stop)
         reset_cli_state()
         self.addCleanup(reset_cli_state)
         self.addCleanup(self._forget_site_records)
@@ -222,7 +226,7 @@ class FlafTaskTestCase(unittest.TestCase):
 
     def workflow(self, **kwargs):
         kwargs.setdefault("version", "v1")
-        kwargs.setdefault("period", "P")
+        kwargs.setdefault("era", "Run3_2022")
         kwargs.setdefault("workflow", "crab")
         return WatchdogUp(**kwargs)
 
@@ -638,7 +642,7 @@ class AStaleFlagLeftByAnEarlierAttempt(unittest.TestCase):
 class WhereTheFlagsLive(FlafTaskTestCase):
     def test_one_flat_directory_per_task_and_era_under_the_version(self):
         task = self.workflow()
-        parts = ["v1", HEARTBEAT_DIR, "WatchdogUp", "P"]
+        parts = ["v1", HEARTBEAT_DIR, "WatchdogUp", "Run3_2022"]
         self.assertEqual(HEARTBEAT_DIR, "heartbeat")
         self.assertEqual(task._heartbeat_dir_parts(), parts)
         self.assertEqual(
@@ -654,7 +658,7 @@ class WhereTheFlagsLive(FlafTaskTestCase):
             setattr(task, attr, "btagShape")
             self.assertEqual(
                 task._heartbeat_dir_parts(),
-                ["v1", HEARTBEAT_DIR, "WatchdogUp", "P", "btagShape"],
+                ["v1", HEARTBEAT_DIR, "WatchdogUp", "Run3_2022", "btagShape"],
                 attr,
             )
             delattr(task, attr)
@@ -672,7 +676,9 @@ class WhereTheFlagsLive(FlafTaskTestCase):
         self.assertIs(proxy.job_manager.watchdog, w)
         self.setup.get_fs.assert_not_called()
         self.assertEqual(w.flag_dir, task.heartbeat_dir_target().uri())
-        self.assertTrue(w.flag_dir.endswith("/v1/heartbeat/WatchdogUp/P"), w.flag_dir)
+        self.assertTrue(
+            w.flag_dir.endswith("/v1/heartbeat/WatchdogUp/Run3_2022"), w.flag_dir
+        )
 
     def test_the_watchdog_is_built_once_per_workflow_from_the_crab_settings(self):
         self.crab_cfg({"watchdog": {"interval_minutes": 12, "missed_checks": 3}})
@@ -792,7 +798,7 @@ class TheJobSideHeartbeat(FlafTaskTestCase):
             hb = self.heartbeat(task)
         self.assertIsInstance(hb, Heartbeat)
         self.assertEqual(hb.uri, task.heartbeat_target(1).uri())
-        self.assertTrue(hb.uri.endswith("/v1/heartbeat/WatchdogUp/P/1"), hb.uri)
+        self.assertTrue(hb.uri.endswith("/v1/heartbeat/WatchdogUp/Run3_2022/1"), hb.uri)
         self.assertEqual(hb.interval, 30 * 60)
         self.assertEqual(hb.voms_token, "/tmp/x509up_test")
         self.assertEqual(hb.label, {"task": "WatchdogUp", "branch": 1})
@@ -804,7 +810,7 @@ class TheJobSideHeartbeat(FlafTaskTestCase):
     def test_a_job_of_the_submitted_family_beats(self):
         task = self.branch()
         with CmdlineParser.global_instance(
-            ["WatchdogUp", "--version", "v1", "--period", "P", "--branch", "0"]
+            ["WatchdogUp", "--version", "v1", "--era", "Run3_2022", "--branch", "0"]
         ):
             self.assertIsInstance(self.heartbeat(task), Heartbeat)
 
@@ -819,7 +825,7 @@ class TheJobSideHeartbeat(FlafTaskTestCase):
         # of a workflow the driver is not watching
         task = self.branch()
         with CmdlineParser.global_instance(
-            ["WatchdogRoot", "--version", "v1", "--period", "P", "--branch", "0"]
+            ["WatchdogRoot", "--version", "v1", "--era", "Run3_2022", "--branch", "0"]
         ):
             self.assertIsNone(self.heartbeat(task))
 
@@ -957,8 +963,8 @@ class TheCommandLineReachesTheRequiredTask(FlafTaskTestCase):
             "WatchdogRoot",
             "--version",
             "v1",
-            "--period",
-            "P",
+            "--era",
+            "Run3_2022",
             "--workflow",
             "crab",
         ]

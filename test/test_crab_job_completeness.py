@@ -67,7 +67,7 @@ from FLAF.RunKit.law_wlcg import WLCGFileSystem  # noqa: E402
 BASE = "davs://storage.example:1094/store/user/flaf"
 CACHE_HOST = "path-cache.example"
 CACHE_PORT = 12345
-PERIOD = "Run3_2022"
+ERA = "Run3_2022"
 
 _data_dir = None
 _data_before = None
@@ -102,7 +102,7 @@ class ProductTask(lc.Task, lc.HTCondorWorkflow, lc.CrabWorkflow, law.LocalWorkfl
         return self.remote_target(
             self.version,
             self.__class__.__name__,
-            self.period,
+            self.era[0],
             f"product_{self.branch}.root",
         )
 
@@ -120,7 +120,7 @@ class ResumedProductTask(ProductTask):
         return self.remote_target(
             self.version,
             self.__class__.__name__,
-            self.period,
+            self.era[0],
             self.branch_data,
             f"product_{self.branch}.root",
         )
@@ -160,7 +160,7 @@ class MergeProductsTask(
         return self.remote_target(
             self.version,
             self.__class__.__name__,
-            self.period,
+            self.era[0],
             f"merged_{self.branch}.root",
         )
 
@@ -264,6 +264,7 @@ class Harness:
             # has none; every task built while the harness lives (branches included) sees
             # this one
             mock.patch.object(lc.Setup, "getGlobal", side_effect=self._setup),
+            mock.patch.object(lc, "_known_eras", return_value=(ERA,)),
             # law runs `crab` in a CMSSW sandbox whose environment is built from cvmfs; the
             # `crab` call itself is faked wherever a test reaches it
             mock.patch.object(
@@ -291,7 +292,7 @@ class Harness:
         self.task_cls = task_cls
         self.task_params = dict(
             version=f"v_{uuid.uuid4().hex[:8]}",
-            period=PERIOD,
+            era=ERA,
             workflow=workflow,
             poll_interval=0.0,
             **task_params,

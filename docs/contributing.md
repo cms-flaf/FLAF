@@ -78,7 +78,7 @@ from the analysis checkout with `env.sh` sourced:
 - **Smoke test** — `python3 FLAF/test/test_hello_world.py --version <v> --workflow local`
   (or `htcondor`; add `--bundle` to go through a bundle, `--force-fail` to check the log transfer
   of a failing job) runs `FLAF.test.hello_world_task.HelloWorldTask` for one branch and prints
-  `PASS` or `FAIL`. `--period` defaults to `Run3_2022EE`. It first deletes `data/<v>/` and the
+  `PASS` or `FAIL`. `--era` defaults to `Run3_2022EE`. It first deletes `data/<v>/` and the
   task's remote log, so use a throwaway version name.
 - **Unit suites** — the other `FLAF/test/test_*.py` files (path cache, bundle hashing, stitching
   variables, cost model, …) are standalone scripts, mostly `unittest` modules; run one directly,

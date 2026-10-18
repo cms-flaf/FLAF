@@ -140,7 +140,7 @@ class _ScratchAnalysis(unittest.TestCase):
             f.write(text)
 
     def write_input_lists(self, era):
-        ref = ana_prod.InputFileTask(version=self.version, period=era)
+        ref = ana_prod.InputFileTask(version=self.version, era=era)
         for dataset_id, dataset_name in ref.iter_datasets():
             path = (
                 ana_prod.InputFileTask.req(ref, branch=dataset_id, branches=())
@@ -155,8 +155,8 @@ class _ScratchAnalysis(unittest.TestCase):
 class InputFileListsPerEra(_ScratchAnalysis):
     def test_each_era_has_its_own_verdict(self):
         self.write_input_lists(ERA_A)
-        task_a = ana_prod.AnaTupleFileTask(version=self.version, period=ERA_A)
-        task_b = ana_prod.AnaTupleFileTask(version=self.version, period=ERA_B)
+        task_a = ana_prod.AnaTupleFileTask(version=self.version, era=ERA_A)
+        task_b = ana_prod.AnaTupleFileTask(version=self.version, era=ERA_B)
         self.assertTrue(ana_prod.InputFileTask.WF_complete(task_a))
         self.assertFalse(ana_prod.InputFileTask.WF_complete(task_b))
         self.write_input_lists(ERA_B)
@@ -164,15 +164,15 @@ class InputFileListsPerEra(_ScratchAnalysis):
 
     def test_each_version_has_its_own_verdict(self):
         self.write_input_lists(ERA_A)
-        task = ana_prod.AnaTupleFileTask(version=self.version, period=ERA_A)
-        other = ana_prod.AnaTupleFileTask(version=self.version + "_other", period=ERA_A)
+        task = ana_prod.AnaTupleFileTask(version=self.version, era=ERA_A)
+        other = ana_prod.AnaTupleFileTask(version=self.version + "_other", era=ERA_A)
         self.assertTrue(ana_prod.InputFileTask.WF_complete(task))
         self.assertFalse(ana_prod.InputFileTask.WF_complete(other))
 
 
 class BuilderBranchSetsPerEra(_ScratchAnalysis):
     def builder_sets(self, era):
-        builder = ana_prod.AnaTupleFileListBuilderTask(version=self.version, period=era)
+        builder = ana_prod.AnaTupleFileListBuilderTask(version=self.version, era=era)
         anaTuple_map = builder._get_anaTuple_map()
         return {
             dataset: builder._get_branch_set_for_dataset(dataset, group, anaTuple_map)
@@ -194,7 +194,7 @@ class BuilderBranchSetsPerEra(_ScratchAnalysis):
         self.write_input_lists(ERA_B)
         for era in (ERA_A, ERA_B):
             builder = ana_prod.AnaTupleFileListBuilderTask(
-                version=self.version, period=era
+                version=self.version, era=era
             )
             files = [entry[1] for entry in builder._get_anaTuple_map().values()]
             datasets = sorted(
@@ -204,9 +204,7 @@ class BuilderBranchSetsPerEra(_ScratchAnalysis):
             self.assertEqual(files, expected, era)
 
     def test_the_placeholder_is_never_cached(self):
-        builder = ana_prod.AnaTupleFileListBuilderTask(
-            version=self.version, period=ERA_A
-        )
+        builder = ana_prod.AnaTupleFileListBuilderTask(version=self.version, era=ERA_A)
         self.assertNotIsInstance(builder._get_anaTuple_map(), dict)
         self.write_input_lists(ERA_A)
         self.assertEqual(self.builder_sets(ERA_A), {"data": {0, 1}, "TTto2L2Nu": {2}})
@@ -227,7 +225,7 @@ class AnaTupleOutputsPerUserCustom(_ScratchAnalysis):
         ):
             for user_custom in (first, second, first):
                 ref = ana_prod.AnaTupleMergeTask(
-                    version=self.version, period=ERA_A, user_custom=user_custom
+                    version=self.version, era=ERA_A, user_custom=user_custom
                 )
                 self.assertEqual(
                     analysis._anaTuple_outputs(ref), {0: [user_custom]}, user_custom
@@ -285,7 +283,7 @@ class EraValidation(_ScratchAnalysis):
 
 
 class EraIds(unittest.TestCase):
-    def test_the_ids_are_the_cpp_period_values(self):
+    def test_the_ids_are_the_cpp_enum_values(self):
         with open(os.path.join(flaf_repo, "include", "AnalysisTools.h")) as f:
             header = f.read()
         body = re.search(r"enum class Period : int \{(.*?)\};", header, re.S).group(1)

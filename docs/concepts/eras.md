@@ -1,11 +1,20 @@
-# Eras & periods
+# Eras
 
-Every run targets one **era** (also called a **period**), passed as `--period`. An era is a CMS
-data-taking period; choosing one selects the matching datasets, corrections and NanoAOD input.
+Every run targets one **era**, passed as `--era`. An era is a CMS data-taking period; choosing one
+selects the matching datasets, corrections and NanoAOD input.
+
+!!! note "`--period` was renamed to `--era`"
+    The former `--period` option, the `--<Task>-period` forms and a `[<Task>] period` entry in a
+    law config now stop at once with `'period' was renamed to 'era' (--era)`, and a `period=`
+    keyword with `'period' was renamed to 'era' (use era=...)`.
+    Only the user-facing name changed: output paths (`<version>/<Kind>/<era>/…`), bundle URIs and
+    job-file names are as before, so existing outputs are found unchanged. The AnaTuple column
+    named `period` (the per-event C++ `Period` value), the `Period` enum and the `validity_period`
+    cache settings keep their names.
 
 ## Run 3 eras (current)
 
-| `--period` | Description | √s | NanoAOD (FLAF default version) | HH_bbWW, H_mumu |
+| `--era` | Description | √s | NanoAOD (FLAF default version) | HH_bbWW, H_mumu |
 |---|---|---|---|---|
 | `Run3_2022` | 2022, pre-ECAL repair | 13.6 TeV | v14, HLepRare skim | v12 MC / `22Sep23` data (DAS) |
 | `Run3_2022EE` | 2022, post-ECAL repair ("EE") | 13.6 TeV | v14, HLepRare skim | v12 MC / `22Sep23` data (DAS) |
@@ -90,19 +99,21 @@ Each sub-era has its own corrections and luminosity, which is exactly why the
 
 ## Running several eras
 
-A task runs **one era at a time**. To cover multiple eras, launch the task once per era (often
+A task runs **one era at a time** (`--era` takes one value; several eras in one task are
+"not supported yet"). The eras are set once per invocation: `--<Task>-era` is refused with
+`the eras are set once per invocation, with --era`. To cover multiple eras, launch the task once per era (often
 scripted), or, in CI, list them in the `*_eras` variable (e.g.
 `Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025 Run3_2026`). See the
 [integration pipeline](../ci/integration-pipeline.md). For a 2024+2025+2026
 combination, run each era with `weight_base_branch: weight_base_cmb` and add
 the histograms.
 
-!!! warning "`--period` must be one of the known eras"
+!!! warning "`--era` must be one of the known eras"
     The known eras are the directories `FLAF/config/<era>/` whose `global.yaml` says
-    `era: <era>`; any other `--period` stops at once with `unknown era '…'`
-    ([Troubleshooting](../troubleshooting.md#unknown-era-known-eras-the-configuration-says-era)).
+    `era: <era>`; any other `--era` stops at once with the list of the known ones
+    ([Troubleshooting](../troubleshooting.md#unknown-eras-known-eras-the-configuration-says-era)).
     If a run unexpectedly drops into `InputFileTask` and queries Rucio for nothing, a wrong
-    `--period`/`--version` combination is the usual cause. See
+    `--era`/`--version` combination is the usual cause. See
     [Troubleshooting](../troubleshooting.md).
 
 ## Adding a new era

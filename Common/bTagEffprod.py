@@ -15,7 +15,7 @@ import Corrections.Corrections as Corrections
 
 def bTagProdEff(inDir, config, sample_name, range, evtIds):
 
-    period = config["GLOBAL"]["era"]
+    era = config["GLOBAL"]["era"]
     mass = -1 if "mass" not in config[sample_name] else config[sample_name]["mass"]
     isHH = True if mass > 0 else False
     Baseline.Initialize(False, False)
@@ -51,7 +51,7 @@ def bTagProdEff(inDir, config, sample_name, range, evtIds):
         "sample_type",
         f"static_cast<int>(SampleType::{config[sample_name]['sampleType']})",
     )
-    df = df.Define("period", f"static_cast<int>(Period::{period})")
+    df = df.Define("period", f"static_cast<int>(Period::{era})")
     df = df.Define("X_mass", f"static_cast<int>({mass})")
 
     df = Baseline.CreateRecoP4(df)

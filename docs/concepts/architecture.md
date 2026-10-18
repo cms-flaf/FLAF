@@ -86,3 +86,28 @@ time, and the [data flow](data-flow.md) is what the shared tasks actually do wit
     `FLAF_PATH`/`CORRECTIONS_PATH` at an edited copy — see
     [The environment](environment.md#developing-shared-submodules) and
     [Contributing](../contributing.md).
+
+## Corrections in the analysis hooks
+
+There is no global `Corrections` instance. Each payload builds its own, one per dataset, era and
+stage, and passes it to the analysis hooks as the **required keyword** `corrections=`:
+
+- `anaTupleProducer.py` constructs `Corrections(...)` itself (stage `AnaTuple`, with the
+  dataset's processors and trigger class) and passes it to `addAllVariables(..., *, corrections)`
+  in `anaTupleDef`;
+- `HistTupleProducer.py` and `AnalysisCacheProducer.py` build it with
+  `Utilities.CreateCorrections(setup, dataset_name, stage, aggregated_caches=None)` and pass it to
+  `GetDfw(df, setup, dataset_name, *, corrections[, stage])` and
+  `DefineWeightForHistograms(*, ..., corrections)` in `histTupleDef`; an analysis-cache producer
+  with its own `create_dfw` (`BtagShapeProducer`) receives the same instance;
+- `MergeAnaTuples.py` constructs `Corrections(...)` itself as well (stage `AnaTupleMerge`), a new
+  one for each merge of a simulated dataset, for the normalisation weights; no analysis hook is
+  called there.
+
+A hook that needs a correction reads it from that argument, never from a module-level object. The
+instance must stay referenced for as long as the dataframe lives: the C++ providers it creates are
+referenced by address, so a `Corrections` object that is dropped while its dataframe is still being
+evaluated crashes. `HistTupleProducer.py` and the analysis-cache producers keep it on the
+DataFrameWrapper (`dfw.corrections`); `anaTupleProducer.py` and `MergeAnaTuples.py` hold it in a
+local variable of the function that runs the event loop. Inside `Corrections` the POG campaign is
+called `campaign` (`campaign_names`) and the FLAF era `era`.

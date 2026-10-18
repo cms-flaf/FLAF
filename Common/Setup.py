@@ -359,7 +359,7 @@ class Setup:
     def __init__(
         self,
         ana_path,
-        period,
+        era,
         law_run_version,
         custom_process_selection=None,
         custom_dataset_selection=None,
@@ -368,12 +368,10 @@ class Setup:
         user_custom_file=None,
     ):
         eras = known_eras(ana_path)
-        if period not in eras:
-            raise UnknownEraError(
-                f"unknown era '{period}'; known eras: {', '.join(eras)}"
-            )
+        if era not in eras:
+            raise UnknownEraError(f"unknown era '{era}'; known eras: {', '.join(eras)}")
         self.ana_path = ana_path
-        self.period = period
+        self.era = era
         self.law_run_version = law_run_version
 
         # Resolve user_custom for every caller (Task and standalone scripts). Relative
@@ -385,9 +383,9 @@ class Setup:
 
         self.config_path_order = [
             os.path.join(ana_path, "FLAF", "config"),
-            os.path.join(ana_path, "FLAF", "config", period),
+            os.path.join(ana_path, "FLAF", "config", era),
             os.path.join(ana_path, "config"),
-            os.path.join(ana_path, "config", period),
+            os.path.join(ana_path, "config", era),
         ]
 
         self.global_params = Config(
@@ -415,11 +413,11 @@ class Setup:
                 self.global_params["shared_mc"] = reuse_global["shared_mc"]
 
         apply_customisations(self.global_params, customisations)
-        if self.global_params.get("era") != period:
+        if self.global_params.get("era") != era:
             raise RuntimeError(
-                f"era '{period}': the configuration says era: "
+                f"era '{era}': the configuration says era: "
                 f"{self.global_params.get('era')!r}. The key is set by "
-                f"FLAF/config/{period}/global.yaml, and no other layer, user_custom file "
+                f"FLAF/config/{era}/global.yaml, and no other layer, user_custom file "
                 "or customisation may change it."
             )
 
@@ -905,7 +903,7 @@ class Setup:
     @staticmethod
     def getGlobal(
         ana_path,
-        period,
+        era,
         law_run_version,
         custom_process_selection=None,
         custom_dataset_selection=None,
@@ -915,7 +913,7 @@ class Setup:
     ):
         key = (
             ana_path,
-            period,
+            era,
             law_run_version,
             custom_process_selection,
             custom_dataset_selection,
@@ -926,7 +924,7 @@ class Setup:
         if key not in Setup._global_instances:
             Setup._global_instances[key] = Setup(
                 ana_path,
-                period,
+                era,
                 law_run_version,
                 custom_process_selection=custom_process_selection,
                 custom_dataset_selection=custom_dataset_selection,

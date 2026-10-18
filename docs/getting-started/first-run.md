@@ -47,7 +47,7 @@ file written from scratch (for H→μμ, add `histTuple_flavor: CI` to it).
 ```sh
 law run FLAF.Analysis.tasks.HistPlotTask \
   --version my_first_run \
-  --period Run3_2022 \
+  --era Run3_2022 \
   --workflow local \
   --branches 0 \
   --test 1000
@@ -65,7 +65,7 @@ histograms — before making the plot. You do not run the intermediate tasks you
 |---|---|
 | `FLAF.Analysis.tasks.HistPlotTask` | The task you want — here, the plotting task (the end of the chain). |
 | `--version my_first_run` | A label for this run. Outputs are grouped under it, so you can keep runs apart. Use any name. |
-| `--period Run3_2022` | Which data-taking [era](../concepts/eras.md) to process. |
+| `--era Run3_2022` | Which data-taking [era](../concepts/eras.md) to process. |
 | `--workflow local` | Run on this machine (not the batch system). Good for testing. |
 | `--branches 0` | Only the first work unit. `HistPlotTask` has one branch per variable, so this plots a single variable (one PDF per channel × category × region). |
 | `--test 1000` | Use only the **first input file** of each dataset and only its first 1000 events — fast, just to check the machinery. |
@@ -101,7 +101,7 @@ These and many more options are catalogued in [Command arguments](../workflow/ar
     the same task parameters as the run — `--test` in particular changes which tasks are meant:
     ```sh
     law run FLAF.Analysis.tasks.HistPlotTask \
-      --version my_first_run --period Run3_2022 --workflow local --branches 0 --test 1000 \
+      --version my_first_run --era Run3_2022 --workflow local --branches 0 --test 1000 \
       --print-status 3,1
     ```
     The numbers are *task depth* and *target-collection depth*. This is the quickest way to see

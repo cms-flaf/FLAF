@@ -230,8 +230,8 @@ class AnaTupleProducerMixin:
             "python3",
             "-u",
             os.path.join(self._flaf_root(), "AnaProd", "anaTupleProducer.py"),
-            "--period",
-            self.period,
+            "--era",
+            self.era[0],
             "--inFile",
             local_input,
             "--outDir",
@@ -477,7 +477,7 @@ class AnaTupleFileTask(
     def output(self):
         dataset_name, _, output_name = self.branch_data
         output_path = os.path.join(
-            self.version, "AnaTuples_split", self.period, dataset_name
+            self.version, "AnaTuples_split", self.era[0], dataset_name
         )
         root_output = os.path.join(output_path, f"{output_name}.root")
         report_output = os.path.join(output_path, f"{output_name}.json")
@@ -665,7 +665,7 @@ class AnaTupleCostProbeTask(
         result = {
             "ok": False,
             "dataset_name": dataset_name,
-            "era": self.period,
+            "era": self.era[0],
             "probe_events": probe_events,
         }
         job_home, remove_job_home = self.law_job_home()
@@ -838,7 +838,7 @@ class AnaTupleFileListBuilderTask(
         base_name = "AnaTupleFileList"
         if output_name != "plan":
             base_name += f"_{output_name}"
-        return os.path.join(self.version, base_name, self.period, output_file)
+        return os.path.join(self.version, base_name, self.era[0], output_file)
 
     def output(self):
         dataset_name, process_group = self.branch_data
@@ -1143,7 +1143,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
     def _branch_output_targets(self, branch_data):
         dataset_name = branch_data[0]
         output_file_list = branch_data[5]
-        output_dir = os.path.join(self.version, "AnaTuples", self.period, dataset_name)
+        output_dir = os.path.join(self.version, "AnaTuples", self.era[0], dataset_name)
         return [
             self.remote_target(os.path.join(output_dir, out_file), fs=self.fs_anaTuple)
             for out_file in output_file_list

@@ -89,7 +89,7 @@ Each of these has caused a production incident. They are ordered by how much dam
   the identity is not set; it must never fall back to the plain name.
 - **A flavour must list every task whose output it packs** in `task_requires`. Miss one and the
   tarball is built while that task is still writing. FLAF warns about a packed
-  `data/<version>/<Task>/<period>` directory that nothing requires; do not silence that warning.
+  `data/<version>/<Task>/<era>` directory that nothing requires; do not silence that warning.
 - Bundles preserve symlinks inside a packed directory verbatim. An absolute symlink into AFS
   therefore still sends every job back to AFS — which is what the bundle exists to avoid.
 
@@ -184,6 +184,28 @@ Each of these has caused a production incident. They are ordered by how much dam
   (`RunKit/grid_helper_tasks.py`): `voms-proxy-init` needs the certificate passphrase, so a run
   without a controlling terminal fails it, and removing the old proxy first left such a run with
   none, although it was still valid for hours.
+
+### Eras (`run_tools/law_customizations.py`, `Common/Setup.py`)
+
+- **The FLAF era is `era`; `period` no longer exists as a parameter, option, keyword or pattern.**
+  `--period`, `--<Task>-period` and `[<Task>] period` must keep failing with `'period' was renamed to
+  'era' (--era)`, `period=` with `'period' was renamed to 'era' (use era=...)`, and `--<Task>-era`
+  with `the eras are set once per invocation, with --era`;
+  do not add a silent alias. The task parameter is `era = EraParameter(max_len=1)` (a sorted tuple of
+  unique known eras; one era per task for now). Payload scripts take `--era` (one value) and
+  `Setup(ana_path, era, version)` exposes `Setup.era`. Bundle patterns use `{era}`; `{period}` is refused.
+- **Names that stay `period` on purpose:** the AnaTuple column `period` (per-event C++ `Period`), the
+  C++ `Period` enum, `validity_period` cache settings. Output paths (`<version>/<Kind>/<era>/…`), bundle
+  URIs and job-file names are unchanged, so existing outputs must keep being found. Do not rename them.
+- **No global `Corrections`.** Payloads build one per dataset/era/stage and pass it to the analysis
+  hooks as the required keyword `corrections=`: `anaTupleProducer.py` constructs `Corrections(...)`
+  directly for `anaTupleDef.addAllVariables`; `HistTupleProducer.py` and `AnalysisCacheProducer.py`
+  use `Utilities.CreateCorrections(setup, dataset_name, stage, aggregated_caches=None)` for
+  `histTupleDef.GetDfw` and `DefineWeightForHistograms`; `MergeAnaTuples.py` constructs one directly
+  per merge (no hook). It must stay referenced for the dataframe's lifetime (`dfw.corrections`, or a
+  local of the function that runs the event loop): its C++ providers are referenced by address. Flag a
+  hook reading a module-level instance, and a `Corrections` created inside a function whose dataframe
+  outlives it.
 
 ### Processors and stitching
 
@@ -305,7 +327,8 @@ analysis PRs only), the config checkers `checkCrossSections.py`,
 `checkDatasetConfigConsistency.py` and `checkDatasetNaming.py` (on FLAF PRs that change those
 config files), and, through `unit-tests.yaml` on every FLAF PR and push to `main`, the pure-Python
 suites that need neither ROOT nor CVMFS nor a grid proxy (the CRAB backend, path cache and
-remote-storage suites). The other suites (`test_*.py` that need ROOT or CVMFS) are not run
+remote-storage suites), plus `run_tools/check_era_rename.py` over FLAF's own files (no leftover of the
+`period` → `era` rename). The other suites (`test_*.py` that need ROOT or CVMFS) are not run
 anywhere, so a broken one is not caught automatically. A new suite of the first kind must be added
 to the list in `unit-tests.yaml`, or it is not run either.
 
@@ -354,7 +377,7 @@ separate PR; say so in the review rather than assuming it will be noticed.
 ## Already enforced by CI — do not comment on these
 
 `formatting-check` (black, yamllint, clang-format, and in FLAF `flake8 --select=F821,F811` over
-the whole package), `unit-tests` (the pure-Python suites in `test/`), `repo-sanity-checks` (binary
+the whole package), `unit-tests` (the pure-Python suites in `test/`, and the `period` → `era` leftover check), `repo-sanity-checks` (binary
 files, repo size), `ds-consistency-check`, `cross-section-check`. Formatting, indentation, quote
 style and trailing whitespace are settled by tooling; comments about them are pure noise.
 

@@ -25,7 +25,7 @@ def GetHistName(dataset_name, dataset_type, uncName, unc_scale, global_cfg_dict)
     return histName
 
 
-def GetUncNames(setup, global_cfg_dict, period):
+def GetUncNames(setup, global_cfg_dict, era):
     """Map each active uncertainty source to the histogram-name template used by the merger.
 
     ``HistMergerFromHists`` writes the varied histograms as ``<process>_<name.format(scale)>``,
@@ -35,7 +35,7 @@ def GetUncNames(setup, global_cfg_dict, period):
     unc_cfg_dict = setup.weights_config
     all_unc_dict = dict(unc_cfg_dict["norm"])
     all_unc_dict.update(unc_cfg_dict["shape"])
-    uncs_to_exclude = (global_cfg_dict.get("uncs_to_exclude") or {}).get(period, [])
+    uncs_to_exclude = (global_cfg_dict.get("uncs_to_exclude") or {}).get(era, [])
     return {
         unc_name: unc_entry["name"]
         for unc_name, unc_entry in all_unc_dict.items()
@@ -185,7 +185,7 @@ if __name__ == "__main__":
     parser.add_argument("--rebin", required=False, type=str_to_bool, default=False)
     parser.add_argument("--analysis", required=False, type=str, default="")
     parser.add_argument("--ana_path", required=True, type=str)
-    parser.add_argument("--period", required=True, type=str)
+    parser.add_argument("--era", required=True, type=str)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
     parser.add_argument("--user-custom", type=str, default=None)
     parser.add_argument(
@@ -210,7 +210,7 @@ if __name__ == "__main__":
 
     setup = Setup.Setup(
         args.ana_path,
-        args.period,
+        args.era,
         args.LAWrunVersion,
         user_custom_file=args.user_custom,
     )
@@ -424,7 +424,7 @@ if __name__ == "__main__":
             total_unc_hist = GetTotalUncertaintyHist(
                 dir_1,
                 bkg_hists,
-                GetUncNames(setup, setup.global_params, args.period),
+                GetUncNames(setup, setup.global_params, args.era),
                 list(setup.global_params["scales"]),
                 apply_binning,
             )

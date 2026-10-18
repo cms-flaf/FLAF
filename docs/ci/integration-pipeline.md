@@ -185,11 +185,13 @@ flowchart TD
     G["Parent: generate_child_pipeline<br/>(generate_child_pipeline.py writes the child)"] --> T["Parent: run_child_pipeline<br/>(starts the child and waits for it)"]
     T --> B["Child, stage build:<br/>build_{analysis}, one job per active analysis"]
     B --> D["Child, stage test_dataset:<br/>one job per era and process"]
+    B --> C["Child, stage test_dataset:<br/>test_corrections, one job<br/>(Corrections' own tests, GitLab only)"]
     D --> E["Child, stage test_era:<br/>one job per era"]
     E --> M["Child, stage test_multi_era: one job,<br/>only for a Combine/Inference target"]
     M --> N["Parent: notify_success / notify_failure<br/>(result comment on the PR)"]
     E -.->|"other targets"| N
     D -.->|"dataset-level target:<br/>no test_era job"| N
+    C --> N
 ```
 
 - The **parent** pipeline (`.gitlab-ci.yml`) runs `scripts/generate_child_pipeline.py`, which
@@ -200,11 +202,12 @@ flowchart TD
   a week or when `rebuild_cache` is `1`, then switches the analysis and its submodules to the
   requested versions (`FLAF`, then `FLAF/PlotKit`, `Corrections`, `StatInference`). The result
   reaches the test jobs as a tarball on EOS, not as a GitLab artifact.
-- Each **test** job unpacks that build, checks it contains every `<repo>_expected_sha`, copies
-  the analysis's `config/ci_custom.yaml` to `config/user_custom.yaml` and runs
+- Each **law test** job (`test_dataset` per era and process, `test_era`, `test_multi_era`)
+  unpacks that build, checks it contains every `<repo>_expected_sha`, copies the analysis's
+  `config/ci_custom.yaml` to `config/user_custom.yaml` and runs
 
     ```sh
-    law run <task> --version CI --period <era> --workflow local --workers $LAW_WORKERS <ana>_args
+    law run <task> --version CI --era <era> --workflow local --workers $LAW_WORKERS <ana>_args
     ```
 
     (plus `--process <proc>` in the `test_dataset` jobs). A failed `law run` is retried once;
@@ -223,11 +226,20 @@ flowchart TD
     | Target task | `test_dataset` (per era and process) | `test_era` (per era) | `test_multi_era` |
     |---|---|---|---|
     | `FLAF.Analysis.tasks.NanoAODProducerTask` (listed by the generator, but no such task exists in FLAF), `…HistTupleProducerTask` or `…HistFromNtupleProducerTask` | the target | — | — |
-    | Full name contains `Combine` or `Inference` (e.g. HH_bbWW's `StatInference.law.tasks.ResonantLimitsAndHistPlotTask`) | `HistFromNtupleProducerTask` | `HistPlotTask` | the target, once, with the first era (or every era, see the era switches above) |
+    | Full name contains `Combine` or `Inference` (e.g. HH_bbWW's `StatInference.law.tasks.ResonantLimitsAndHistPlotTask`) | `HistFromNtupleProducerTask` | `HistPlotTask` | the target, once, with `--era` set to the first era (or to every era, see the era switches above) |
     | Anything else (e.g. `FLAF.Analysis.tasks.HistPlotTask`) | `HistFromNtupleProducerTask` | the target | — |
 
     The test is a substring match on the full task name, so any task under `StatInference.`
     gets the multi-era job. The GitHub Actions backend uses the same mapping.
+
+- The **`test_corrections`** job (stage `test_dataset`, one per pipeline,
+  `flaf_integration/scripts/test_corrections.sh`) runs Corrections' own tests, not a law task.
+  It unpacks the build of the first active analysis, which holds the requested `Corrections`
+  (`default` is the revision that analysis pins), checks the `<repo>_expected_sha` like the law
+  test jobs, sources that analysis's `env.sh` and runs each `test_*.py` of `<ana>/Corrections`
+  in its own `python3 -m unittest` process. No `ci_custom.yaml` is copied and no `law run` is
+  started. The job fails when a test fails, and also when that Corrections revision has no
+  `test_*.py` at all. It runs only on GitLab.
 
 - The **parent** then notifies GitHub of success/failure. The result comment is more than
   pass/fail: it lists the active analysis and any non-default dependency (`FLAF`, `PlotKit`,
@@ -255,7 +267,8 @@ With `ci_backend: github` the same stages run as GitHub Actions jobs
 (`FLAF/.github/workflows/integration-test.yaml`, scripts in `FLAF/.github/scripts/ci/`), inside the
 `kandrosov/flaf` container with CVMFS mounted. The trigger dispatches that workflow on
 `cms-flaf/FLAF` at `main`, whichever repo the PR is in, so the run appears under FLAF's Actions
-tab.
+tab. The `test_corrections` job exists only on GitLab: this workflow does not run Corrections'
+tests.
 
 - **build** (one job per analysis) assembles the checkout at the requested revisions *and installs
   the analysis environment* (`flaf_env`, CMSSW, combine) into `soft/`. The result is passed to the
@@ -294,7 +307,7 @@ test job does:
 
 ```sh
 cp config/ci_custom.yaml ci_local.yaml     # then point fs_default at a local path
-law run FLAF.Analysis.tasks.HistPlotTask --version CI --period Run3_2022 --workflow local \
+law run FLAF.Analysis.tasks.HistPlotTask --version CI --era Run3_2022 --workflow local \
     --test 1000 --user-custom ci_local.yaml
 ```
 

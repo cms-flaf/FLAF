@@ -17,7 +17,7 @@ also provides built-in options for status and cleanup.
 | Option | Default | Meaning |
 |---|---|---|
 | `--version` | *(required)* | Label that namespaces this run's outputs. Different versions never collide. |
-| `--period` | *(required)* | The [era](../concepts/eras.md), e.g. `Run3_2022`. A task runs one era at a time; launch it once per era to [cover several](../concepts/eras.md#running-several-eras). |
+| `--era` | *(required)* | The [era](../concepts/eras.md), e.g. `Run3_2022`. A task runs one era at a time; launch it once per era to [cover several](../concepts/eras.md#running-several-eras). |
 | `--workflow` | `htcondor` | `local` (this machine), `htcondor` (CERN batch), or `crab` (WLCG). Without the option LAW picks the first workflow a task declares, which for FLAF tasks is HTCondor — so always pass it. `InputFileTask` and `AnaTupleFileListTask` always run locally. See [HTCondor](htcondor.md) and [CRAB](crab.md). |
 | `--branches` | *(all)* | Which branches of the launched task to run, e.g. `0`, `0,2`, `5:8` (a `start:end` range excludes its end, so this is 5, 6, 7). Upstream tasks are then asked only for the branches these need — once their branch maps exist; on a from-scratch run the upstream stages that define the branch map are required in full. |
 | `--test` | `-1` | AnaTuple production only: keep just the **first input file of every dataset** and process at most N events of it (`-1` = everything). See the warning below. |
@@ -36,7 +36,7 @@ also provides built-in options for status and cleanup.
 
 | Option | Default | Meaning |
 |---|---|---|
-| `--transfer-logs` | on | Keep each job's log (HTCondor and CRAB). With a remote `fs_default` the log is uploaded to `<version>/logs/<Task>/<period>/` there (plus the producer name for the analysis-cache tasks); with a local `fs_default` the log is part of the job's output sandbox, which HTCondor copies back to the task's local directory under `data/` only with `--htcondor-spool False` (with the default `-spool` it stays on the schedd until `condor_transfer_data` is run, which law does not do). On CRAB the file is `stdall_<first branch>_crab<tag>.<job number>.txt` (see [CRAB](crab.md#submit)). Switch off with `--transfer-logs False`. |
+| `--transfer-logs` | on | Keep each job's log (HTCondor and CRAB). With a remote `fs_default` the log is uploaded to `<version>/logs/<Task>/<era>/` there (plus the producer name for the analysis-cache tasks); with a local `fs_default` the log is part of the job's output sandbox, which HTCondor copies back to the task's local directory under `data/` only with `--htcondor-spool False` (with the default `-spool` it stays on the schedd until `condor_transfer_data` is run, which law does not do). On CRAB the file is `stdall_<first branch>_crab<tag>.<job number>.txt` (see [CRAB](crab.md#submit)). Switch off with `--transfer-logs False`. |
 | `--parallel-jobs` | unbounded (HTCondor) / **2000** (`AnaTupleFileTask` on HTCondor, `anaTuple_scheduling.parallel_jobs`) / **5000** (CRAB, `crab.parallel_jobs`) | Cap concurrent jobs. On CRAB this is also the max size of each CRAB task. The bare form, and the launched task's prefixed form, are copied to every task it requires; `--<Task>-parallel-jobs` for another task caps that task alone. |
 | `--tasks-per-job` | `1` (`10` for `HistTupleProducerTask`) | Branches per job. Applies to the launched task only; set it for an upstream task with `--<Task>-tasks-per-job`. On `AnaTupleFileTask`, jobs are normally composed by [estimated cost](htcondor.md#how-branches-become-jobs) instead; passing this option explicitly restores fixed-size chunking. |
 | `--max-runtime` | *(task default)* | Per-job wall-clock limit in hours: 12 unless the task sets its own (e.g. 40 for `AnaTupleFileTask`, 48 for `AnaTupleMergeTask`). On HTCondor, a resubmitted `AnaTupleFileTask` job gets a longer limit, unless `--tasks-per-job` is given. |
@@ -130,7 +130,7 @@ single run without touching your (git-ignored) `config/user_custom.yaml`:
 
 ```sh
 law run FLAF.Analysis.tasks.HistPlotTask \
-  --version test --period Run3_2022 --workflow local --branches 0 --test 1000 \
+  --version test --era Run3_2022 --workflow local --branches 0 --test 1000 \
   --user-custom config/user_custom_test.yaml
 ```
 
@@ -147,7 +147,7 @@ law run FLAF.Analysis.tasks.HistTupleProducerTask \
   --version my_dev \
   --AnaTupleMergeTask-version v2605 \
   --AnaTupleFileListTask-version v2605 \
-  --period Run3_2022EE --workflow local
+  --era Run3_2022EE --workflow local
 ```
 
 Here the anaTuples are reused from the central `v2605` production (provided your `fs_anaTuple`
@@ -171,7 +171,7 @@ So the multi-flag example above (and any deeper fork) collapses to one flag:
 ```sh
 law run FLAF.Analysis.tasks.HistTupleProducerTask \
   --version my_dev --ana-version v2605 \
-  --period Run3_2022EE --workflow local
+  --era Run3_2022EE --workflow local
 ```
 
 Use `--anaTuple-version` / `--anaCache-version` when you want to fork only one of the two upstream

@@ -227,7 +227,7 @@ settings and their defaults (`DEFAULTS` in `FLAF/run_tools/crab_sites.py`):
 
 ```sh
 law run FLAF.Analysis.tasks.HistTupleProducerTask \
-  --period Run3_2022EE --version my_crab \
+  --era Run3_2022EE --version my_crab \
   --workflow crab \
   --branches 0 \
   --test 1000 \
@@ -241,7 +241,7 @@ law run FLAF.Analysis.tasks.HistTupleProducerTask \
 | `--max-runtime` / `--n-cpus` | Same as HTCondor; mapped to CRAB `maxJobRuntimeMin` (at least `crab.min_runtime_min`) / `numCores` (rounded up to 1, 2, 4 or 8). See [Resources](#resources). |
 | `--crab-memory` | CRAB `maxMemoryMB` in MB (CRAB only); default the most CRAB grants for the cores. See [Resources](#resources). |
 | `--poll-interval` | Minutes between `crab status` polls (default `5`). Like `--parallel-jobs`: the bare and the launched task's prefixed form reach every required task, `--<Task>-poll-interval` for another task applies to that task. |
-| `--transfer-logs` | On by default; each job uploads its log to `<version>/logs/<Task>/<period>/stdall_<first branch>_crab<tag>.<N>.txt` on `fs_default` (with the producer name after `<period>` for per-producer tasks). `<N>` is the CRAB job number and `<tag>` the unique suffix of the CRAB task: CRAB numbers the jobs of every task from 1 and a production is many tasks, so the number alone would let one job's log overwrite another's. CRAB's own log transfer stays off. |
+| `--transfer-logs` | On by default; each job uploads its log to `<version>/logs/<Task>/<era>/stdall_<first branch>_crab<tag>.<N>.txt` on `fs_default` (with the producer name after `<era>` for per-producer tasks). `<N>` is the CRAB job number and `<tag>` the unique suffix of the CRAB task: CRAB numbers the jobs of every task from 1 and a production is many tasks, so the number alone would let one job's log overwrite another's. CRAB's own log transfer stays off. |
 
 You do **not** need `--bundle` for CRAB — bundles are forced whenever the workflow is `crab`.
 
@@ -344,7 +344,7 @@ same as the payload doing anything: a production of 600 branches once sat at 598
 behind two such jobs. The watchdog finds them. It is on by default for CRAB.
 
 - Each CRAB job's branch refreshes a **flag file** every `interval_minutes`, at
-  `<fs_default>/<version>/heartbeat/<Task>/<period>[/<producer>]/<branch>`. The flag is removed
+  `<fs_default>/<version>/heartbeat/<Task>/<era>[/<producer>]/<branch>`. The flag is removed
   when the payload ends, however it ends.
 - The driver lists that one directory once per interval (however many jobs are running) and
   reads only the modification times. A job that CRAB still reports as running, and whose flag
@@ -393,7 +393,7 @@ submitted for another task.
 
 ```sh
 law run FLAF.Analysis.tasks.HistTupleProducerTask \
-  --period Run3_2022EE --version my_crab \
+  --era Run3_2022EE --version my_crab \
   --workflow crab --branches 0 --test 1000 \
   --user-custom /path/to/user_custom_with_crab.yaml \
   --print-status 1,1

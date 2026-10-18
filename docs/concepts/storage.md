@@ -42,23 +42,23 @@ flowchart TD
 ## How outputs are laid out
 
 Under each filesystem, a product is stored as `<version>/<ProductDir>/…`, in most cases followed
-by the period (paths below are relative to `<version>/`):
+by the era (paths below are relative to `<version>/`):
 
 | Product directory | Written by | Filesystem |
 |---|---|---|
-| `AnaTuples_split/<period>/<dataset>/` | `AnaTupleFileTask` (`anaTupleFile_<i>.root` + a `.json` report per input file) | `fs_anaTuple` |
-| `AnaTupleFileList/<period>/`, `AnaTupleFileList_reports/<period>/` | `AnaTupleFileListBuilderTask` (merge plan and reports, one JSON per dataset) | `fs_anaTuple` |
-| `AnaTupleCost/<nano version>/` | `AnaTupleCostProbeTask` (no period: probes are shared by the eras) | `fs_anaTuple` |
-| `AnaTuples/<period>/<dataset>/` | `AnaTupleMergeTask` | `fs_anaTuple` |
-| `HistTuples/<period>/<dataset>/` | `HistTupleProducerTask` | `fs_HistTuple` |
-| `Hists_split/<period>/<variable>/<dataset>/` | `HistFromNtupleProducerTask` | `fs_HistTuple` |
-| `Hists_merged/<period>/<variable>/` | `HistMergerTask` | `fs_HistTuple` |
-| `PreHistTupleProduction/<period>/<dataset>/` | `PreHistTupleProductionTask` (one `.done` marker per anaTuple file) | `fs_HistTuple` |
-| `AnalysisCache/<producer>/<period>/`, `AnalysisCacheAggregation/<producer>/<period>/` | `AnalysisCacheTask`, `AnalysisCacheAggregationTask` | `fs_anaCacheTuple` |
-| `Plots/<period>/<variable>/…` | `HistPlotTask` | `fs_plots` |
-| `bundles/<period>/` | `BundleTask` (`<flavour>.tar.bz2`, `<flavour>_<hash>.tar.bz2` for a flavour with `hashed: true`, `<flavour>_<FLAF_ENVIRONMENT_ID>.tar.bz2` for the one that packs `flaf_env`) | `fs_default` |
-| `logs/<Task>/<period>/` | job logs staged by remote jobs (only for a remote `fs_default`) | `fs_default` |
-| `worker_files/<period>/` | input files of bundle HTCondor jobs, uploaded at submission — only when `htcondor_spool` (on by default) is turned off | `fs_default` |
+| `AnaTuples_split/<era>/<dataset>/` | `AnaTupleFileTask` (`anaTupleFile_<i>.root` + a `.json` report per input file) | `fs_anaTuple` |
+| `AnaTupleFileList/<era>/`, `AnaTupleFileList_reports/<era>/` | `AnaTupleFileListBuilderTask` (merge plan and reports, one JSON per dataset) | `fs_anaTuple` |
+| `AnaTupleCost/<nano version>/` | `AnaTupleCostProbeTask` (no era: probes are shared by the eras) | `fs_anaTuple` |
+| `AnaTuples/<era>/<dataset>/` | `AnaTupleMergeTask` | `fs_anaTuple` |
+| `HistTuples/<era>/<dataset>/` | `HistTupleProducerTask` | `fs_HistTuple` |
+| `Hists_split/<era>/<variable>/<dataset>/` | `HistFromNtupleProducerTask` | `fs_HistTuple` |
+| `Hists_merged/<era>/<variable>/` | `HistMergerTask` | `fs_HistTuple` |
+| `PreHistTupleProduction/<era>/<dataset>/` | `PreHistTupleProductionTask` (one `.done` marker per anaTuple file) | `fs_HistTuple` |
+| `AnalysisCache/<producer>/<era>/`, `AnalysisCacheAggregation/<producer>/<era>/` | `AnalysisCacheTask`, `AnalysisCacheAggregationTask` | `fs_anaCacheTuple` |
+| `Plots/<era>/<variable>/…` | `HistPlotTask` | `fs_plots` |
+| `bundles/<era>/` | `BundleTask` (`<flavour>.tar.bz2`, `<flavour>_<hash>.tar.bz2` for a flavour with `hashed: true`, `<flavour>_<FLAF_ENVIRONMENT_ID>.tar.bz2` for the one that packs `flaf_env`) | `fs_default` |
+| `logs/<Task>/<era>/` | job logs staged by remote jobs (only for a remote `fs_default`) | `fs_default` |
+| `worker_files/<era>/` | input files of bundle HTCondor jobs, uploaded at submission — only when `htcondor_spool` (on by default) is turned off | `fs_default` |
 
 Bundle naming matters when something they pack changes: only flavours with `hashed: true` (in
 the analyses: `core`) get a new name, and an existing unhashed bundle (e.g. `soft`, `cmssw`) is
@@ -146,7 +146,7 @@ Independently of the `fs_*` storage, each analysis checkout has a `data/` direct
 
 - your **VOMS proxy** (`data/voms.proxy`, where `X509_USER_PROXY` points by default),
 - LAW job files (`data/jobs/`),
-- small local outputs under `data/<version>/<Task>/<period>/` — e.g. the input file lists of
+- small local outputs under `data/<version>/<Task>/<era>/` — e.g. the input file lists of
   `InputFileTask` and the per-dataset copies of `AnaTupleFileListTask` — and the AnaTuple cost
   model (`data/<version>/AnaTupleCost/cost_model.json`).
 

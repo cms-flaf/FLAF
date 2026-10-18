@@ -10,7 +10,7 @@ full list.
 | **Task** | One stage of the pipeline (e.g. "produce analysis ntuples", "make plots"). A unit of work LAW knows how to run, with defined inputs and outputs. You request a task and LAW runs whatever it depends on. |
 | **Workflow** | A task that splits into many independent **branches**. Run it `--workflow local` (on your machine), `--workflow htcondor` (on the CERN batch system) or `--workflow crab` (on the WLCG through CRAB, see [CRAB](../workflow/crab.md)). |
 | **Branch** | One independent work unit inside a workflow — for example one input file, one dataset, or one variable. `--branches 0,2,5:8` selects which ones to run (here 0, 2, 5, 6 and 7; the end of a `start:end` range is excluded). |
-| **Era** / **period** | A CMS data-taking period, e.g. `Run3_2022`, `Run3_2023BPix`. Passed as `--period`. Selects which datasets, corrections and NanoAOD version apply. See [Eras](../concepts/eras.md). |
+| **Era** | A CMS data-taking period, e.g. `Run3_2022`, `Run3_2023BPix`. Passed as `--era`. Selects which datasets, corrections and NanoAOD version apply. See [Eras](../concepts/eras.md). |
 | **Dataset** | A specific CMS sample, identified by its DAS name (a simulated signal/background, or a chunk of real data). |
 | **Process** | A *physics* object built from one or more datasets (e.g. "TT", "DY", "signal"). What you actually plot and fit. Defined in `processes.yaml`. |
 | **Sample** | Loosely used for "a dataset or a process". When precision matters, prefer *dataset* (CMS file set) vs *process* (physics grouping). |
@@ -27,7 +27,7 @@ full list.
 | **CMSSW** | The CMS software framework. Some pipeline steps run inside it (the tasks switch into it themselves); for interactive commands use the `cmsEnv` alias. |
 
 !!! tip "The mental model in one sentence"
-    You ask LAW for the **task** whose output you want, for a given **version** and **period**;
+    You ask LAW for the **task** whose output you want, for a given **version** and **era**;
     LAW runs the chain of tasks needed, splitting big tasks into **branches** that can go to
     **HTCondor** or **CRAB**, reading and writing each output to its configured **filesystem**.
 

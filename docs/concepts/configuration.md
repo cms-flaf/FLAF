@@ -9,7 +9,7 @@ The implementation lives in `FLAF/Common/Setup.py`.
 
 ## Four layers, merged in order
 
-When you run a task with `--period <era>`, FLAF loads configuration from **four directories**, in
+When you run a task with `--era <era>`, FLAF loads configuration from **four directories**, in
 this order:
 
 ```python
@@ -94,7 +94,7 @@ available together. A dataset name defined in both files keeps the analysis's en
 | `Setup` | The master configuration object: the global parameters, the selected datasets and processes, the physics model and more. It expands the [meta-processes](../configuration/processes-and-models.md#meta-processes) while loading. |
 | `PhysicsModel` | Classifies each process as **background**, **signal** or **data**, and keeps the list of concrete processes each meta-process expanded into. |
 
-`Setup.getGlobal(...)` returns a cached instance: one per combination of analysis path, period,
+`Setup.getGlobal(...)` returns a cached instance: one per combination of analysis path, era,
 version, `--process`/`--dataset`/`--model` selection, `--customisations` and `--user-custom`. Every
 task of a run with the same parameters therefore sees the same configuration.
 

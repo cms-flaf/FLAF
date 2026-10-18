@@ -78,7 +78,7 @@ def createHistTuple(
     unc_cfg_dict = setup.weights_config
     hist_cfg_dict = setup.hists
     stage = "HistTuple"
-    Utilities.InitializeCorrections(
+    corrections = Utilities.CreateCorrections(
         setup, dataset_name, stage=stage, aggregated_caches=aggregatedCacheNames
     )
     histTupleDef.Initialize()
@@ -148,7 +148,10 @@ def createHistTuple(
             signature = inspect.signature(histTupleDef.GetDfw)
             if "stage" in signature.parameters:
                 getDfw_kwargs["stage"] = stage
-            dfw = histTupleDef.GetDfw(df, setup, dataset_name, **getDfw_kwargs)
+            dfw = histTupleDef.GetDfw(
+                df, setup, dataset_name, corrections=corrections, **getDfw_kwargs
+            )
+            dfw.corrections = corrections
             for var in fullres_variables:
                 dfw.colToSave.append(var)
 
@@ -191,6 +194,7 @@ def createHistTuple(
                     global_params=setup.global_params,
                     final_weight_name=desc["weight"],
                     df_is_central=isCentral,
+                    corrections=corrections,
                 )
                 dfw.colToSave.append(desc["weight"])
 
@@ -217,7 +221,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--period", required=True, type=str)
+    parser.add_argument("--era", required=True, type=str)
     parser.add_argument("--inFile", required=True, type=str)
     parser.add_argument("--outFile", required=True, type=str)
     parser.add_argument("--cacheFiles", required=False, type=str, default=None)
@@ -249,7 +253,7 @@ if __name__ == "__main__":
 
     setup = Setup.getGlobal(
         os.environ["ANALYSIS_PATH"],
-        args.period,
+        args.era,
         args.LAWrunVersion,
         user_custom_file=args.user_custom,
     )

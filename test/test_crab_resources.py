@@ -109,7 +109,11 @@ def flaf_env(crab_cfg=None):
     )
     with tempfile.TemporaryDirectory() as tmp, mock.patch.object(
         lc.Setup, "getGlobal", return_value=setup
-    ), mock.patch.dict(os.environ, {"ANALYSIS_DATA_PATH": tmp, "ANALYSIS_PATH": tmp}):
+    ), mock.patch.object(
+        lc, "_known_eras", return_value=("Run3_2022",)
+    ), mock.patch.dict(
+        os.environ, {"ANALYSIS_DATA_PATH": tmp, "ANALYSIS_PATH": tmp}
+    ):
         for var in ("LAW_JOB_HOME", "LAW_CRAB_JOB_NUMBER", "X509_USER_PROXY"):
             os.environ.pop(var, None)
         yield tmp
@@ -117,7 +121,7 @@ def flaf_env(crab_cfg=None):
 
 def make_task(cls=CrabResProducer, **params):
     params.setdefault("version", unique_version())
-    params.setdefault("period", "Run3_2022")
+    params.setdefault("era", "Run3_2022")
     params.setdefault("workflow", "local")
     return cls(**params)
 
@@ -435,8 +439,8 @@ class TheCrabJobConfig(unittest.TestCase):
 
     def test_the_log_tag_stays_unique_for_a_long_version(self):
         """CRAB request names are limited to 100 characters. Truncated from the end, a long
-        task family + version + period would cut through the uuid, and crab_log_tag (the
-        text after the last `_`) would become the period's tail, shared by every CRAB task
+        task family + version + era would cut through the uuid, and crab_log_tag (the
+        text after the last `_`) would become the era's tail, shared by every CRAB task
         of the production -- one job's staged log would then overwrite another's."""
         with flaf_env() as tmp:
             task = make_task(version="v2610_" + "x" * 75)
@@ -491,7 +495,7 @@ class TheRequestBelongsToItsTask(unittest.TestCase):
             CrabResConsumer.get_task_family(),
             "--version",
             unique_version(),
-            "--period",
+            "--era",
             "Run3_2022",
             "--workflow",
             "local",

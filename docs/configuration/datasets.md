@@ -150,7 +150,7 @@ See [CI / GitHub Actions](../ci/github-actions.md).
 1. Create `FLAF/config/<new_era>/` with at least `datasets.yaml` and `global.yaml`. The
    `global.yaml` must name the era as `era: <new_era>` on a line of its own (no quotes, no
    trailing comment): that line is what makes the directory a known era, and any other
-   `--period` is refused with `unknown era '…'`.
+   `--era` is refused with `unknown era(s) …; known eras: …`.
 2. Add the era to the C++ `Period` enum in `FLAF/include/AnalysisTools.h` and to the
    `PeriodToHHbTagInput` maps in `FLAF/include/HHbTagScores.h`. AnaTuple production
    JIT-compiles `Period::<era>` (`anaTupleProducer.py`); a missing enumerator fails
@@ -160,7 +160,7 @@ See [CI / GitHub Actions](../ci/github-actions.md).
    config directories.
 3. Create `<analysis>/config/<new_era>/` with the analysis-specific overrides and signals.
    In `triggers.yaml`, every `jsonTRGcorrection_key` map must include the
-   Corrections period name (`2026_Summer24` for `Run3_2026`). Missing keys
+   Corrections campaign name (`2026_Summer24` for `Run3_2026`). Missing keys
    fail MC jobs with `KeyError` in `TrigCorrProducer`. Until a 2026
    Electron-ID-SF JSON is published, `EleCorrProducer` evaluates that
    correction with year `2025Prompt` (the only year key in the 2025 file
@@ -173,4 +173,4 @@ See [CI / GitHub Actions](../ci/github-actions.md).
    [`cms-flaf/FLAF_ci`](https://github.com/cms-flaf/FLAF_ci) if it should be part of CI runs.
    See [Integration pipeline](../ci/integration-pipeline.md#integration_cfgyaml).
 
-See also [Eras & periods](../concepts/eras.md).
+See also [Eras](../concepts/eras.md).

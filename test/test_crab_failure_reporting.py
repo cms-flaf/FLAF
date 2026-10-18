@@ -94,7 +94,7 @@ Traceback (most recent call last):
   File "/srv/job_Wd4YqAOF1qHD/bundle/FLAF/RunKit/run_tools.py", line 137, in ps_call
     raise PsCallError(cmd_str, proc.returncode)
 FLAF.RunKit.run_tools.PsCallError: Error while running "python3 -u /srv/job_Wd4YqAOF1qHD/\
-bundle/FLAF/AnaProd/anaTupleProducer.py --period Run3_2022EE". Error code: 1
+bundle/FLAF/AnaProd/anaTupleProducer.py --era Run3_2022EE". Error code: 1
 
 During handling of the above exception, another exception occurred:
 
@@ -105,7 +105,7 @@ RuntimeError: anaTupleProducer failed.
 INFO: Informed scheduler that task   AnaTupleFileTask_0__False_b42dcddd8f   has status   FAILED
 ===== Luigi Execution Summary =====
 anaTupleProducer failed: Error while running "python3 -u /srv/job_Wd4YqAOF1qHD/bundle/FLAF/\
-AnaProd/anaTupleProducer.py --period Run3_2022EE". Error code: 1
+AnaProd/anaTupleProducer.py --era Run3_2022EE". Error code: 1
 task exit code: 40
 execution of branch 0 failed (exit code 40), stop job
 """

@@ -196,7 +196,7 @@ def mergeAnaTuples(
             processor_instances["ds"] = DefaultAnaCacheProcessor(
                 default_denom_processor=ds_processor_default
             )
-        Corrections.initializeGlobal(
+        corrections = Corrections(
             setup=setup,
             stage="AnaTupleMerge",
             dataset_name=dataset_name,
@@ -205,10 +205,8 @@ def mergeAnaTuples(
             process_cfg=process,
             processors=processor_instances,
             isData=is_data,
-            load_corr_lib=True,
             trigger_class=None,
         )
-        corrections = Corrections.getGlobal()
 
         ana_caches = {}
         for ds_name, reports in input_reports.items():
@@ -324,7 +322,7 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--period", required=True, type=str)
+    parser.add_argument("--era", required=True, type=str)
     parser.add_argument("--dataset", required=True, type=str)
     parser.add_argument("--work-dir", required=True, type=str)
     parser.add_argument("--customisations", required=False, type=str, default=None)
@@ -341,7 +339,7 @@ if __name__ == "__main__":
 
     setup = Setup.getGlobal(
         os.environ["ANALYSIS_PATH"],
-        args.period,
+        args.era,
         args.LAWrunVersion,
         customisations=args.customisations,
         user_custom_file=args.user_custom,

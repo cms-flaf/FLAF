@@ -227,6 +227,18 @@ def _branch_items(param, branches):
     ]
 
 
+def _numbers_in_map(items, keys):
+    """The numbers of `keys` (a non-empty set) that (start, stop) ranges select, open edges
+    reaching the ends of the map."""
+    low, high = min(keys), max(keys) + 1
+    selected = set()
+    for start, stop in items:
+        start = low if start is None else max(start, low)
+        stop = high if stop is None else min(stop, high)
+        selected.update(k for k in range(start, stop) if k in keys)
+    return selected
+
+
 def _items_from_numbers(numbers):
     """The fewest (start, stop) ranges that select exactly `numbers`."""
     items = []
@@ -302,15 +314,18 @@ def _reject_removed_era_flags():
     # A branch of a workflow over several eras is a branch of one era's own map. Only the root
     # task's flag is refused: law makes the branch tasks of such a workflow itself.
     root_cls = luigi.task_register.Register.get_task_cls(parser.known_args.root_task)
+    branch = args.get("branch")
+    if branch in (None, "-1"):
+        branch = args.get(f"{root_cls.get_task_family()}_branch")
     if (
         getattr(root_cls, "era_branches", False)
         and args.get("era") is not None
-        and args.get("branch") not in (None, "-1")
+        and branch not in (None, "-1")
     ):
         eras = root_cls.era.parse(args["era"])
         if len(eras) > 1:
             raise ValueError(
-                f"--branch {args['branch']} with --era {era_csv(eras)}: a branch belongs to one "
+                f"--branch {branch} with --era {era_csv(eras)}: a branch belongs to one "
                 "era; use --era <era> --branch <its number in that era>, or --branches with "
                 "the numbers of the run over several eras"
             )
@@ -737,12 +752,7 @@ class Task(law.Task):
         if not _branch_map_ready(whole):
             return items
         keys = set(whole.get_branch_map())
-        low, high = min(keys), max(keys) + 1
-        selected = set()
-        for start, stop in items:
-            start = low if start is None else max(start, low)
-            stop = high if stop is None else min(stop, high)
-            selected.update(k for k in range(start, stop) if k in keys)
+        selected = _numbers_in_map(items, keys)
         if not selected or selected == keys:
             return None
         return _items_from_numbers(selected)
@@ -797,11 +807,18 @@ class Task(law.Task):
             else:
                 strict[era] = items
         lifted = []
-        if whole:
+        # over one era that requires the stage once, its requirement is kept as it is
+        if len(whole) == 1 and len(by_era[whole[0]]) == 1:
+            lifted.append(by_era[whole[0]][0])
+        elif whole:
             lifted.append(by_era[whole[0]][0].with_eras(whole))
         if len(strict) == 1:
             era, items = next(iter(strict.items()))
-            lifted.append(by_era[era][0].with_eras((era,), _branches_value(items)))
+            reqs = by_era[era]
+            if len(reqs) == 1:
+                lifted.append(reqs[0])
+            else:
+                lifted.append(reqs[0].with_eras((era,), _branches_value(items)))
         elif strict:
             numbers = []
             for era, items in strict.items():
@@ -953,6 +970,18 @@ class Task(law.Task):
                         "yet while the one over all eras is being built"
                     )
                 era_map = self.single(era).get_branch_map()
+                selection = _branch_items(
+                    type(self).branches, self.local_selection(era)
+                )
+                if selection and not (
+                    era_map and _numbers_in_map(selection, set(era_map))
+                ):
+                    # law would widen such a selection to the whole map, here and in the
+                    # era's requirements, while this map would hold none of the era
+                    raise BranchSelectionError(
+                        f"{self.get_task_family()}(era={era_csv(self.era)}): --branches "
+                        f"selects no branch of the {len(era_map)} of {era}"
+                    )
                 base = ERA_IDS[era] * ERA_BRANCH_STRIDE
                 branch_map.update(
                     (base + local, data) for local, data in era_map.items()

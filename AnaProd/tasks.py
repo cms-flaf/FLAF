@@ -348,8 +348,8 @@ class AnaTupleFileTask(
         )
         return InputFileTask.load_file_info(input_file_list)
 
-    #: cost_model_path() -> CostModel: everything in this process shares one writer per
-    #: store, the instances of every era included
+    #: cost_model_path() -> (CostModel, the settings it was loaded with): everything in this
+    #: process shares one writer per store, the instances of every era included
     _cost_models = {}
     _cost_model_probed = False
 
@@ -357,10 +357,16 @@ class AnaTupleFileTask(
         """Calibration store, refreshed once per instance with any probe results of its
         datasets it has not seen yet (the probe lookup goes to remote storage)."""
         path = self.cost_model_path()
-        model = AnaTupleFileTask._cost_models.get(path)
+        params = self.cost_params()
+        model, model_params = AnaTupleFileTask._cost_models.get(path, (None, None))
         if model is None:
-            model = CostModel.load(path, self.cost_params())
-            AnaTupleFileTask._cost_models[path] = model
+            model, model_params = CostModel.load(path, params), params
+            AnaTupleFileTask._cost_models[path] = (model, model_params)
+        if params != model_params:
+            raise RuntimeError(
+                f"{path} is used with two anaTuple_scheduling settings in one process "
+                f"({model_params} and {params}); make them the same in every era"
+            )
         if self._cost_model_probed:
             return model
         self._cost_model_probed = True

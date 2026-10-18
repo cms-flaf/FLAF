@@ -418,10 +418,17 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
     in-process path cache and ships it with the job; the worker loads that
     snapshot and uses a longer local TTL (`24 × localPathCacheValidity`, at
     least 24 h, or `WLCGFileSystem.crabLocalPathCacheValidity` when set) so concurrent
-    jobs do not re-stat the same remote paths. An "absent" (a missing file, or a listing
-    that implies one) recorded before the driver's current poll, or learned from the
-    cache server, is not shipped: it may predate a file another CRAB job wrote. The driver
-    compensates for the missing server link on its side: see
+    jobs do not re-stat the same remote paths. The snapshot also carries every output of the
+    submitted branches' requirements that exists, resolved at submit whatever the age of the
+    driver's own entries: a job checks those outputs before it runs, and without them it lists
+    each requirement directory itself, one `gfal-ls` at a time (for a `HistMergerTask` branch,
+    one directory per variable for every `HistFromNtupleProducerTask` branch, which outlasted
+    a 5 h wall time from CERN to FNAL storage). The driver prints the count when it submits
+    (`path-cache snapshot with N entries; X of the Y outputs of Z requirements found in T s`); an
+    output it did not find is not shipped, and the job checks it on storage itself. An "absent"
+    (a missing file, or a listing that implies one) recorded before the driver's current
+    poll, or learned from the cache server, is not shipped: it may predate a file another
+    CRAB job wrote. The driver compensates for the missing server link on its side: see
     [Finished means on storage](#status-handling).
 
 !!! note "Workers read their proxy with `voms-proxy-info -dont-verify-ac`"

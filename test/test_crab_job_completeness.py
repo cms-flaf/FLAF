@@ -28,6 +28,8 @@ server, the analysis configuration, the credentials and the submission itself.
 """
 
 import contextlib
+import io
+import itertools
 import json
 import os
 import shutil
@@ -138,6 +140,32 @@ class MergedProductTask(ResumedProductTask):
             return super().complete()
         product = self.output()
         return product.exists() or merged_marker(product).exists()
+
+
+class MergeProductsTask(
+    lc.Task, lc.HTCondorWorkflow, lc.CrabWorkflow, law.LocalWorkflow
+):
+    """Built like HistMergerTask: each branch requires several products, one of them shared
+    with the other branch."""
+
+    bundle_flavours = ["core"]
+
+    def create_branch_map(self):
+        return {0: [0, 1, 2], 1: [2, 3, 4, 5]}
+
+    def requires(self):
+        return [ResumedProductTask.req(self, branch=b) for b in self.branch_data]
+
+    def output(self):
+        return self.remote_target(
+            self.version,
+            self.__class__.__name__,
+            self.period,
+            f"merged_{self.branch}.root",
+        )
+
+    def run(self):
+        raise AssertionError("nothing in these tests runs a branch")
 
 
 class Entry:
@@ -1116,6 +1144,154 @@ class TestWhyItCannotBeLeftToTheLog(unittest.TestCase):
                 f.write("config.General.requestName = 'ProductTask_v1_Run3_2022_abc'\n")
             log_data = lc.FLAFCrabJobManager._parse_log_file(path) or {}
         self.assertIsNone(log_data.get("disable_output_collection"))
+
+
+class TheJobChecksItsRequirementsFromTheSnapshot(unittest.TestCase):
+    """Before a job runs its branches, luigi checks the outputs of their requirements, and a
+    CRAB worker answers from the shipped snapshot alone. The HH_bbWW v2610 control-plot
+    HistMergerTask jobs (2026-10-16) found 3 of 315 datasets in it -- the driver's entries are
+    shipped only while still valid -- and listed the others one gfal-ls at a time until the
+    wall clock killed every job. The outputs of the submitted branches' requirements are
+    therefore resolved at submit, whatever the age of the driver's own entries."""
+
+    def setUp(self):
+        self.h = Harness(self, task_cls=MergeProductsTask)
+        self.required = {
+            dep.branch: self.h.fs.file_interface.uri(dep.output().path)
+            for branch in (0, 1)
+            for dep in self.h.task.as_branch(branch).deps()
+        }
+        for uri in self.required.values():
+            self.h.storage.add(uri)
+
+    def stage(self):
+        """What crab_job_config ships for a submission of both branches, one job each."""
+        config = types.SimpleNamespace(input_files={})
+        out = io.StringIO()
+        listed = len(self.h.storage.listings)
+        with contextlib.redirect_stdout(out):
+            self.h.task._stage_path_cache_input(config, [[0], [1]])
+        path = config.input_files["path_cache"].path
+        with open(path) as f:
+            shipped = {e["path"]: e["exists"] for e in json.load(f)["entries"]}
+        return path, shipped, out.getvalue(), self.h.storage.listings[listed:]
+
+    def check_on_worker(self, path, branch):
+        """luigi's check of a branch's requirements in a CRAB job that loaded `path`: no
+        cache server, only the snapshot, as Setup._create_fs_instance builds it there.
+        """
+        with mock.patch.dict(
+            os.environ, {law_gfal.SHIPPED_PATH_CACHE_ENV: path}
+        ), mock.patch.object(law_gfal, "_shipped_path_cache_entries", None):
+            self.h.fs = WLCGFileSystem(BASE, local_path_cache_validity_period=86400)
+            law_gfal.apply_shipped_path_cache(self.h.fs)
+        listed = len(self.h.storage.listings)
+        complete = [dep.complete() for dep in self.h.task.as_branch(branch).deps()]
+        return complete, self.h.storage.listings[listed:]
+
+    def test_a_job_lists_nothing_its_driver_checked_long_before_submitting(self):
+        """The production case: the driver checked the requirements when it scheduled the
+        workflow, and submits after its own entries have expired."""
+        for branch in (0, 1):
+            for dep in self.h.task.as_branch(branch).deps():
+                self.assertTrue(dep.complete())
+        later = law_gfal.time.time() + 3600
+        with mock.patch.object(law_gfal.time, "time", return_value=later):
+            path, shipped, _, listings = self.stage()
+        self.assertEqual(listings, [], "the cache server answers at submit")
+        for uri in self.required.values():
+            self.assertIs(shipped.get(uri), True, uri)
+        for branch in (0, 1):
+            complete, listings = self.check_on_worker(path, branch)
+            self.assertTrue(all(complete))
+            self.assertEqual(listings, [])
+
+    def test_outputs_are_shipped_even_if_resolving_them_outlasts_their_validity(self):
+        """Resolving many requirement outputs can take longer than the driver keeps an
+        entry: what was found must be shipped all the same."""
+        clock = itertools.count(law_gfal.time.time(), 1000)
+        with mock.patch.object(law_gfal.time, "time", side_effect=lambda: next(clock)):
+            _, shipped, _, _ = self.stage()
+        for uri in self.required.values():
+            self.assertIs(shipped.get(uri), True, uri)
+
+    def test_a_directory_unknown_to_the_cache_server_is_listed_once_at_submit(self):
+        _, shipped, _, listings = self.stage()
+        dirs = sorted({os.path.dirname(uri) for uri in self.required.values()})
+        self.assertEqual(sorted(listings), dirs)
+        for uri in self.required.values():
+            self.assertIs(shipped.get(uri), True, uri)
+
+    def test_a_missing_requirement_still_reads_missing_on_the_worker(self):
+        self.h.storage.remove(self.required[3])
+        path, shipped, out, _ = self.stage()
+        self.assertNotEqual(shipped.get(self.required[3]), True)
+        self.assertIn("5 of the 6 outputs", out)
+        complete, _ = self.check_on_worker(path, 1)
+        self.assertEqual(complete, [True, False, True, True])
+
+    def test_every_crab_task_of_a_run_ships_its_own_snapshot(self):
+        """law builds every CRAB task of a run with one job file factory, in one directory, and
+        copies an input marked shared there once (law.job.base provide_input, skip_existing):
+        each later wave or retry shipped the first submission's snapshot."""
+        from law.job.base import JobInputFile
+
+        for uri in self.required.values():
+            self.h.server.entries[uri] = True
+        workdir = tempfile.mkdtemp(prefix="flaf_snapshot_factory_", dir=_data_dir)
+        script = os.path.join(workdir, "job.sh")
+        with open(script, "w") as f:
+            f.write("#!/bin/bash\n")
+        factory = lc.FLAFCrabJobFileFactory(dir=workdir, mkdtemp=False, cleanup=False)
+        shipped = []
+        for n, branches in enumerate(([[0]], [[1]])):
+            config = types.SimpleNamespace(input_files={})
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.h.task._stage_path_cache_input(config, branches)
+            with mock.patch.object(lc, "wait_for_job_sources"):
+                _, c = factory(
+                    executable=JobInputFile(script, copy=False, render_job=True),
+                    input_files={
+                        "job_file": JobInputFile(script, copy=False, render_job=True),
+                        "path_cache": config.input_files["path_cache"],
+                    },
+                    arguments=["a"],
+                    request_name=f"req_{n}",
+                    work_area=workdir,
+                    storage_site="T2_CH_CERN",
+                    output_lfn_base="/store/group/FLAF_crab_unused",
+                    render_variables={},
+                )
+            sandbox_file = c.input_files["path_cache"].path_sub_abs
+            with open(sandbox_file) as f:
+                shipped.append({e["path"] for e in json.load(f)["entries"]})
+        self.assertNotIn(self.required[3], shipped[0])
+        self.assertTrue(set(self.required.values()) <= shipped[1])
+
+        # the job finds its copy under the name the factory gave it
+        init_dir = tempfile.mkdtemp(prefix="flaf_job_init_", dir=_data_dir)
+        shutil.copy(sandbox_file, init_dir)
+        with mock.patch.dict(
+            os.environ, {"LAW_JOB_INIT_DIR": init_dir}
+        ), mock.patch.object(law_gfal, "_shipped_path_cache_entries", None):
+            os.environ.pop(law_gfal.SHIPPED_PATH_CACHE_ENV, None)
+            os.environ.pop("LAW_JOB_HOME", None)
+            self.h.fs = WLCGFileSystem(BASE, local_path_cache_validity_period=86400)
+            law_gfal.apply_shipped_path_cache(self.h.fs)
+        listed = len(self.h.storage.listings)
+        self.assertTrue(all(dep.complete() for dep in self.h.task.as_branch(1).deps()))
+        self.assertEqual(self.h.storage.listings[listed:], [])
+
+    def test_a_shared_requirement_is_resolved_once(self):
+        _, _, out, _ = self.stage()
+        self.assertIn("6 of the 6 outputs of 6 requirements", out)
+
+    def test_what_the_driver_knew_is_still_shipped(self):
+        other = os.path.join(BASE, "elsewhere", "file.root")
+        self.h.storage.add(other)
+        self.assertTrue(self.h.fs.exists("/elsewhere/file.root"))
+        _, shipped, _, _ = self.stage()
+        self.assertIs(shipped.get(other), True)
 
 
 if __name__ == "__main__":

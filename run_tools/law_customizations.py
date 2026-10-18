@@ -2583,16 +2583,18 @@ class EraJobFiles(law.target.base.Target):
     def _repr_pairs(self):
         return [("files", self.uri())]
 
-    def exists(self):
-        return any(target.exists() for target in self.targets().values())
+    # keyword arguments as law's file targets take and forward them (e.g. `--remove-output`
+    # passes local_sync)
+    def exists(self, **kwargs):
+        return any(target.exists(**kwargs) for target in self.targets().values())
 
-    def uri(self, return_all=False):
-        uris = [target.uri() for target in self.targets().values()]
+    def uri(self, return_all=False, **kwargs):
+        uris = [target.uri(**kwargs) for target in self.targets().values()]
         return uris if return_all else ",".join(uris)
 
-    def remove(self, silent=True):
+    def remove(self, silent=True, **kwargs):
         for target in self.targets().values():
-            target.remove(silent=silent)
+            target.remove(silent=silent, **kwargs)
 
     @property
     def parent(self):

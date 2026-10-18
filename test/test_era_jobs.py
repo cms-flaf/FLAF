@@ -1154,6 +1154,18 @@ class _EachErasFileIsTheSingleEraFile:
             files.remove()
             self.assertFalse(any(os.path.exists(t.path) for t in targets.values()))
 
+    def test_laws_output_removal_removes_every_eras_file(self):
+        # `--remove-output 0,a`: law's own removal, which passes keyword arguments
+        write_gates(self.version, **{A: 3, B: 2})
+        with self.cli((A, B)) as root:
+            targets = root.workflow_proxy.output()["jobs"].targets()
+            for target in targets.values():
+                target.parent.touch()
+                with open(target.path, "w") as f:
+                    json.dump({"jobs": {}}, f)
+            law.task.interactive.remove_task_output(root, "0", mode="a")
+            self.assertFalse(any(os.path.exists(t.path) for t in targets.values()))
+
     def test_a_local_job_number_beyond_the_stride_is_refused(self):
         write_gates(self.version, **{A: 3, B: 2})
         with self.cli((A, B)) as root:

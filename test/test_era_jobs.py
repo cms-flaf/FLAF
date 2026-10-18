@@ -2164,7 +2164,9 @@ class HTCondorABatchInterruptedPartWay(_Case):
                 raise RuntimeError(f"no job file factory for {B}")
             return create(task, **kwargs)
 
-        with in_flight_jobs(), self.batched(), mock.patch.object(
+        # law's own rate (a dump every 50 jobs), so A's ids reach its file through the
+        # failure handling alone
+        with in_flight_jobs(), self.batched(dump_every=50), mock.patch.object(
             EraJobsUp, "htcondor_create_job_file_factory", factory
         ):
             with self.assertRaises(RuntimeError):

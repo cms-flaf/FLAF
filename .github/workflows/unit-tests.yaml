@@ -55,6 +55,7 @@ jobs:
           test/test_crab_watchdog_integration.py
           test/test_crab_wave_gate.py
           test/test_check_era_rename.py
+          test/test_ci_generate_matrix.py
           test/test_era_branches.py
           test/test_era_jobs.py
           test/test_era_parameter.py

@@ -1117,8 +1117,12 @@ class BranchSelection(_ScratchAnalysis):
     def test_without_era_branches_the_numbers_are_the_maps_own(self):
         task = EraBrMapOwner(version=self.version, era=(ERA_A, ERA_B), branches=(1,))
         self.assertEqual(task.get_branch_map(), {1: "B"})
-        with self.assertRaises(lc.BranchSelectionError):
+        with self.assertRaises(lc.BranchSelectionError) as caught:
             EraBrMapOwner(version=self.version, era=(ERA_A, ERA_B), branches=(BASE_A,))
+        # not the advice for a stage with era branches (`--era <era> --branches <local>`):
+        # this workflow's branches need all of its eras
+        self.assertIn("numbers its branches as its own map does", str(caught.exception))
+        self.assertNotIn("--branches", str(caught.exception))
 
 
 class BranchOnTheCommandLine(_ScratchAnalysis):

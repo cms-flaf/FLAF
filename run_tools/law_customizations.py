@@ -624,6 +624,13 @@ class Task(law.Task):
                 for number in (start, None if stop is None else stop - 1):
                     if number is not None and number >= ERA_BRANCH_STRIDE:
                         era, local = split_era_branch(number)
+                        if len(self.era) > 1:
+                            raise BranchSelectionError(
+                                f"{family}(era={era_csv(self.era)}): branch {number} is "
+                                "in the numbering of the stages with era branches; this "
+                                "workflow has none and numbers its branches as its own map "
+                                "does over any eras"
+                            )
                         if era not in _known_eras(os.getenv("ANALYSIS_PATH")):
                             raise BranchSelectionError(
                                 f"{family}: branch {number} is beyond the "

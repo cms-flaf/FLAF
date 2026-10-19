@@ -175,13 +175,16 @@ inference** page (linked from [Analyses](../analyses.md)) and the
 
 ```sh
 law run PlotResonantLimitsTask --version $VER --hists-version <VERSION_OF_THE_MERGED_HISTS> \
-  --era $ERA --workflow local
+  --era Run3_2022,Run3_2022EE,Run3_2023,Run3_2023BPix --workflow local
 ```
+
+`--era` must hold every real era behind the configuration's cards, here the four of `Run3_Early`
+([Eras](../concepts/eras.md#which-tasks-take-several-eras)).
 
 It runs `PreprocessShapesTask` (only when the configuration declares a `preprocess:` step), then
 `CreateDatacardsTask`, `ResonantLimitsTask` and `PlotResonantLimitsTask`; `PlotPullsAndImpactsTask`
 draws pulls and impacts, and `ResonantLimitsAndHistPlotTask` (what the HH→bb̄WW CI runs) asks for
-the limits together with `HistPlotTask` for every era of the configuration. The chain reads the
+the limits together with `HistPlotTask` for every era of `--era`. The chain reads the
 merged histograms of `--hists-version` (default: `--version`) as an external input, so produce
 them first. It runs from the normal FLAF shell: the tasks run the steps that need CMSSW inside it
 themselves.

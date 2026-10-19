@@ -12,10 +12,11 @@ which they run, see the [walkthrough](../workflow/walkthrough.md) and
 **Eras.** Every task below takes `--era` with one era. The production and analysis tasks of this
 page also take several, separated by commas (`--era Run3_2022,Run3_2022EE`): every stage up to the
 launched one then runs for all of them, as one workflow per stage over the eras that still need work
-there, with branches numbered `era id × 1 000 000 + the number in the era's own map`. The other
-tasks (`BundleTask`, which stays per era, the analyses' Studies tasks and the `StatInference` tasks)
-take one era and refuse several with `<Task> takes one era`. A branch is always one era's: its
-inputs, outputs, paths and logs are those of a run over that era alone. See
+there, with branches numbered `era id × 1 000 000 + the number in the era's own map`. A branch is
+always one era's: its inputs, outputs, paths and logs are those of a run over that era alone. The
+`StatInference` tasks take several eras too, but their branches are the datacard cards, which may
+read several eras each (see below). The other tasks (`BundleTask`, which stays per era, and the
+analyses' Studies tasks) take one era and refuse several with `<Task> takes one era`. See
 [Running several eras](../concepts/eras.md#running-several-eras).
 
 ## Production tasks (`AnaProd`)
@@ -261,7 +262,10 @@ environment.
   `Hists_merged` files of `--hists-version` (default: `--version`) as external inputs and never
   schedules their production — only `ResonantLimitsAndHistPlotTask`, through `HistPlotTask`,
   does. Eras, masses and variables come from the datacard configuration named by
-  `StatInference.config` in `global.yaml`.
+  `StatInference.config` in `global.yaml`. `CreateDatacardsTask` and `PreprocessShapesTask` are
+  one workflow each, with one branch per card of the configuration's `eras:`, and `--era` must
+  hold every real era behind those cards
+  ([Eras](../concepts/eras.md#which-tasks-take-several-eras)).
 - **`dhi` tasks** from `inference.dhi.tasks` (e.g. `PlotResonantLimits`, `PlotPullsAndImpacts`,
   without the `Task` suffix), run directly on existing datacards. HH→bb̄ττ documents this manual
   route, after creating its datacards with `StatInference/dc_make/create_datacards.py`.

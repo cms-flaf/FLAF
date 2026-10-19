@@ -52,7 +52,9 @@ law run FLAF.Analysis.tasks.HistMergerTask --version v1 --era Run3_2022,Run3_202
   and stays inside one era. Once an era's branch map exists, at least one of its numbers must be a
   branch of that map: a run over one era would take a selection naming none of its branches as the
   whole map, which a run over several eras refuses.
-- `--branch` is refused over several eras: use `--era <era> --branch <its number in that era>`.
+- `--branch` is refused over several eras for the stages with era branches: use
+  `--era <era> --branch <its number in that era>`. A `StatInference` card workflow takes
+  `--branch <card number>` over several eras.
 - A run over one era refuses the numbers of a run over several eras (1 000 000 and above): with the
   decoded form when the number belongs to a configured era, as beyond the numbers of one era
   otherwise. See

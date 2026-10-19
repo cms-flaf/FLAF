@@ -235,6 +235,13 @@ Each of these has caused a production incident. They are ordered by how much dam
     per era, and `parallel_jobs` and the refused/failed-submission stops are run-wide. Two
     instances of a stage sharing an era never run at once (the luigi resource
     `flaf_jobs:<job-file directory>`).
+  - **A second model: `allow_multi_era` without `era_branches`** (StatInference's card stages,
+    guarded by `EraCardWorkflow` in `test/test_era_jobs.py`): law's own branches, every branch task
+    over all eras of the run, `store_parts()`/`remote_log_dir_target()` overridden without the era,
+    the map built without `cached_branch_map`, the plain (not the merged) proxy, one job file and one
+    luigi token. FLAF code must not build the map of, or ask completeness of, the `single(era)`
+    instances such a workflow is constructed into for its resource tokens: their maps may refuse an
+    era set (a card needs all of its eras).
   - **The merge, HistTuple and AnalysisCache producers check the `period` column of every valid
     event against their era** (`Utilities.book_era_check`/`check_era`) and must keep doing it.
 - **Names that stay `period` on purpose:** the AnaTuple column `period` (per-event C++ `Period`), the

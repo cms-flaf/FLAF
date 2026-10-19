@@ -58,10 +58,23 @@ line. Outputs written before the rename are found as before, since the paths nev
 the run. An unknown era lists the known ones.
 
 ## `<Task> takes one era; got --era …`
-The task does not support several eras: `--era Run3_2022,Run3_2023` was given to `BundleTask`, an
-analysis Studies task or a `StatInference` task. The stages of the production and analysis chain
-take several eras ([Eras](concepts/eras.md#which-tasks-take-several-eras)); launch the others once
-per era.
+The task does not support several eras: `--era Run3_2022,Run3_2023` was given to `BundleTask` or
+an analysis Studies task. The stages of the production and analysis chain and the `StatInference`
+tasks take several eras ([Eras](concepts/eras.md#which-tasks-take-several-eras)); launch the
+others once per era.
+
+## `the cards of <configuration> need <card>: <eras>, which --era does not include`
+A `StatInference` task was run over fewer eras than its datacard configuration needs: every real
+era behind a card (the card's own era, or the members of a group era in `era_groups:`) must be in
+`--era`. Add the eras the message names, e.g. `--era Run3_2022,Run3_2022EE,Run3_2023,Run3_2023BPix`
+for a configuration whose cards cover those four. Nothing has run.
+
+- `ResonantLimitsTask`, `ResonantLimitsAndHistPlotTask` and the plot tasks check when they are
+  created: `law run` ends at once with a traceback whose last line is this message (exit code 60).
+- `CreateDatacardsTask` or `PreprocessShapesTask` started directly check while luigi schedules
+  them. Over `--workflow htcondor` the message ends a traceback (exit code 60): luigi asks the
+  workflow for its resources outside its error handling. Over `--workflow local` luigi reports
+  `1 failed scheduling` and `law run` exits with code 50.
 
 ## `--branch <n> with --era <eras>: a branch belongs to one era`
 `--branch` selects one branch, and over several eras a branch belongs to one era. Use
@@ -86,6 +99,10 @@ A `--branches` selection (`BranchSelectionError`) does not fit the numbering of 
   over that era alone would take such a selection as the whole map; select an existing branch.
 - `branch <n> is beyond the 1000000 numbers of a run over one era`: a run over one era was given a
   number of 1 000 000 or more that belongs to no configured era.
+- `branch <n> is in the numbering of the stages with era branches; this workflow has none and
+  numbers its branches as its own map does over any eras`: a workflow without era branches (the
+  `StatInference` card workflows) was given such a number over several eras. Its branches keep
+  their own numbers: `--branches 1` is its second card.
 
 ## `… differs between the eras (…), but one run over several eras uses one value for all of them`
 `EraDependentValueError`: a setting that a run over several eras reads once differs between its

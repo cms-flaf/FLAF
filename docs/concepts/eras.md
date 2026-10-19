@@ -132,7 +132,8 @@ under [Branch numbers](#branch-numbers).
 - **A stage whose branch map is read from an earlier stage's output** (the file lists of
   `InputFileTask`, the merge plan of `AnaTupleFileListTask`) is built only once that output exists
   for every era of the run, so the slowest era sets the pace at that point.
-- **Nothing is summed across eras.** Every output belongs to one era, as in a run over one era.
+- **A FLAF stage sums nothing across eras.** Every output of a stage belongs to one era, as in a
+  run over one era (a `StatInference` card of a group era is built from several, see below).
   Combining eras, such as 2024+2025+2026 with `weight_base_branch: weight_base_cmb`, stays a
   separate step: add the histograms of the eras.
 - **Shared-MC eras** (`Run3_2025` and `Run3_2026` reuse the 2024 MC datasets, see above) each
@@ -144,7 +145,8 @@ under [Branch numbers](#branch-numbers).
   column (the C++ `Period` value of the AnaTuple) is not the era the branch runs for, and stop
   with an error when there is any (placeholder rows, `valid == false`, carry no era and are
   skipped). An AnaTuple of another era among the inputs is caught this way.
-- **One driver per era.** The branches of an era are tracked in that era's job file (see
+- **One driver per era** (stages with era branches). The branches of an era are tracked in that
+  era's job file (see
   [HTCondor](../workflow/htcondor.md#several-eras-in-one-submission)). Two instances of one stage
   that share an era never run at once inside one `law run` (a luigi resource per job-file
   directory, `flaf_jobs:<directory>`, of capacity 1 unless luigi's `[resources]` configuration
@@ -159,11 +161,29 @@ The stages of the production and analysis chain: `InputFileTask`, `AnaTupleCostP
 `PreHistTupleProductionTask`, `HistFromNtupleProducerTask`, `HistMergerTask` and `HistPlotTask`
 (the classes that set `allow_multi_era` and `era_branches`).
 
+The `StatInference` tasks take several eras too, without era branches (they set
+`allow_multi_era` only). `CreateDatacardsTask` and `PreprocessShapesTask` are one workflow each
+whose branches are the cards of the datacard configuration (its `eras:`, in order, a group era of
+`era_groups:` among them), and each branch reads the real eras its card needs. So:
+
+- `--era` must hold every real era behind the cards: a card is built from all of its sub-eras or
+  not at all, and over fewer eras the run stops with
+  `the cards of <configuration> need <card>: <eras>, which --era does not include; add <eras> to --era`.
+  More eras are allowed; they are not carded (`ResonantLimitsAndHistPlotTask` plots them).
+- Their paths and job state belong to the configuration, not to `--era`: `Datacards/<card>`,
+  `Hists_preprocessed/<card>` and one job file `data/<version>/CreateDatacardsTask/htcondor_jobs_*.json`,
+  so a later run over more eras finds the same cards and resumes the same jobs. A job carries the
+  whole `--era`, and its branch numbers are the workflow's own (`--branches 1` is the second card).
+  Use one datacard configuration per `--version`, and do not reorder its `eras:` while its jobs
+  exist: the job file is named after the branch numbers, which are positions in `eras:`.
+- A setting they read once must agree between the eras of the run: the `StatInference` block of
+  `global.yaml`, and the `var_list` of a plotted variable between the eras summed in one plot.
+
 Every other task takes one era and refuses several with
-`<Task> takes one era; got --era Run3_2022,Run3_2023`. That covers the analyses' Studies tasks,
-the `StatInference` tasks and `BundleTask`: bundles stay per era, the stages that ship one
-require the bundles of each era that still has work, and an existing bundle of one era is never
-rebuilt for another. Launch the tasks that refuse several eras once per era.
+`<Task> takes one era; got --era Run3_2022,Run3_2023`. That covers the analyses' Studies tasks
+and `BundleTask`: bundles stay per era, the stages that ship one require the bundles of each era
+that still has work, and an existing bundle of one era is never rebuilt for another. Launch the
+tasks that refuse several eras once per era.
 
 ### Branch numbers
 
@@ -191,7 +211,9 @@ An era's branch numbers therefore never depend on the other eras of the run: bra
   an era's branch map exists, at least one of its selected numbers must be a branch of it; a run
   over one era would take a selection naming none of its branches as the whole map, which a run
   over several eras refuses.
-- **`--branch` is refused** over several eras: use `--era <era> --branch <its number in that era>`.
+- **`--branch` is refused** over several eras for the stages with era branches: use
+  `--era <era> --branch <its number in that era>`. A `StatInference` card workflow takes
+  `--branch <card number>` over several eras.
 - **A run over one era takes that era's own numbers.** A number of a run over several eras
   (1 000 000 or more) stops with the decoded hint, for example
   `branch 6000001 is branch 1 of Run3_2022EE in a run over several eras; a run over one era takes that era's own numbers: --era Run3_2022EE --branches 1`.
@@ -222,9 +244,10 @@ instance in `config/<era>/user_custom.yaml`, see
 
 ### What stays the same as in a run over one era
 
-Branch tasks, jobs, payloads (one era per subprocess, `--era <the branch's era>`), output paths,
-job files, logs, heartbeats, worker files, bundles and CRAB request names are per era and
-identical to what `--era <that era>` alone writes. A run over several eras and runs over some of
+For the stages with era branches, branch tasks, jobs, payloads (one era per subprocess,
+`--era <the branch's era>`), output paths, job files, logs, heartbeats, worker files, bundles and
+CRAB request names are per era and identical to what `--era <that era>` alone writes (the
+`StatInference` card workflows keep theirs per configuration instead, see above). A run over several eras and runs over some of
 them therefore find each other's outputs and unfinished jobs, in any order. The `--dataset`
 selection applies to every era: a dataset that exists in only one of the eras fails the run
 (`No datasets selected with a custom selection: …`), so run such a dataset on its own era.

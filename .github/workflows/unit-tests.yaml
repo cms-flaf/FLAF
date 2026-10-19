@@ -68,13 +68,12 @@ jobs:
           test/test_submission_guards.py
           test/test_voms_proxy_info.py
 
-      # The period -> era rename (multi-era change set): no leftover in FLAF's own files. The CI
-      # scripts pick the era flag of the checkout they test, the path-cache server's
-      # periods are cache validity times, and two tests spell the old names on purpose.
+      # The period -> era rename (multi-era change set): no leftover in FLAF's own files. The
+      # path-cache server's periods are cache validity times, and two tests spell the old names
+      # on purpose.
       - name: No leftover of the period -> era rename
         run: >-
           python3 run_tools/check_era_rename.py --repo .
-          --exclude '.github/scripts/ci/*'
           --exclude 'RunKit/pathCacheServer.py'
           --exclude 'test/test_era_parameter.py'
           --exclude 'test/test_check_era_rename.py'

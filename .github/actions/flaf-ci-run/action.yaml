@@ -21,11 +21,7 @@ inputs:
     required: false
     default: ''
   era:
-    description: 'Era for which the task is run.'
-    required: false
-    default: ''
-  eras:
-    description: 'All eras of the multi-era job, comma-separated (empty for the other jobs).'
+    description: 'Era for which the task is run (every era, comma-separated, in the multi-era job).'
     required: false
     default: ''
   variables:
@@ -85,7 +81,6 @@ runs:
         ANALYSIS_TASK: ${{ inputs.task }}
         ANALYSIS_ARGS: ${{ inputs.args }}
         ERA: ${{ inputs.era }}
-        ERAS: ${{ inputs.eras }}
         VARIABLES: ${{ inputs.variables }}
         LAW_WORKERS: ${{ inputs.law_workers }}
         BUILD_CACHE_REFRESH: ${{ inputs.build_cache_refresh }}
@@ -108,7 +103,6 @@ runs:
           -e ANALYSIS_TASK \
           -e ANALYSIS_ARGS \
           -e ERA \
-          -e ERAS \
           -e VARIABLES \
           -e LAW_WORKERS \
           -e BUILD_CACHE_REFRESH \

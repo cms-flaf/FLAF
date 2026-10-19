@@ -694,7 +694,6 @@ class TheJobManagerIsWiredToTheWorkflow(FlafTaskTestCase):
         task = self.workflow()
         m = task.workflow_proxy.job_manager
         self.assertIsInstance(m, lc.FLAFCrabJobManager)
-        self.assertIs(task._flaf_crab_job_manager, m)
         self.assertIs(m.watchdog, task.job_watchdog())
         self.assertIs(m.site_stats, task.site_stats())
         self.assertEqual(

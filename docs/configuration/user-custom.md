@@ -46,7 +46,7 @@ default and fail with a `KeyError` when they are missing. For H→μμ also add
 
 | Field | Type | Meaning |
 |---|---|---|
-| `fs_default` | string or list | **Required.** Default storage for all outputs. The fallback for every other `fs_*`. See [Storage](../concepts/storage.md). |
+| `fs_default` | string or list | **Required.** Default storage for all outputs. The fallback for every other `fs_*`. See [Storage](../concepts/storage.md). The same in every era of a [run over several eras](#several-eras-in-one-run). |
 | `fs_anaTuple`, `fs_HistTuple`, `fs_anaCacheTuple`, `fs_plots`, … | string/list | Optional per-output-type storage. Unset ⇒ uses `fs_default`. |
 | `phys_model` | string | Which [physics model](processes-and-models.md) to run: `TestModel` (small, for testing/CI) or the analysis's production model (e.g. `BaseModel`). |
 | `analysis_config_area` | string | **Required by `HistPlotTask`.** The analysis config directory, relative to the checkout — normally `config`; the plotter reads its `global.yaml` from there. |
@@ -58,8 +58,8 @@ default and fail with a `KeyError` when they are missing. For H→μμ also add
 | `histTuple_flavor` | string | Optional. Selects which `histTuple_flavors` entry drives the variable lists. The analyses set `default` in `config/global.yaml`; HH→bb̄ττ and H→μμ also define a short `CI` flavor. |
 | `hist_from_ntuple_max_hists` | int | Max histograms `HistFromNtupleProducerTask` books in one RDataFrame pass. The count is variables × selections × (Central + every Up/Down). Default `4000`; `0` disables batching. Lower this (do not raise CI memory) if a job OOMs. |
 | `anaTuple_shift_invariant_columns` | list | Set in the analysis `config/global.yaml`, not here. Regular expressions (`re.search`) of the anaTuple columns no systematic shift changes; they are stored in the central tree only. See [`AnaTupleFileTask`](../reference/tasks.md#anatuplefiletask). A list in a later config file replaces an earlier one. Default: empty. |
-| `anaTuple_scheduling` | map | Tunes how `AnaTupleFileTask` branches are composed into HTCondor jobs. Every key has a default; see below. |
-| `crab` | map | Optional. CRAB backend settings: site lists, `parallel_jobs`, `refill_fraction`, `retry_release_minutes`, `poll_interval`, `min_runtime_min`, `auto_blacklist`, `watchdog`, `ignore_global_blacklist`. A `crab:` block here replaces the `global.yaml` one as a whole. `memory_mb_per_cpu` is retired and raises an error. See [Running on CRAB](../workflow/crab.md#config). |
+| `anaTuple_scheduling` | map | Tunes how `AnaTupleFileTask` branches are composed into HTCondor jobs. Every key has a default; see below. The same in every era of a [run over several eras](#several-eras-in-one-run). |
+| `crab` | map | Optional. CRAB backend settings: site lists, `parallel_jobs`, `refill_fraction`, `retry_release_minutes`, `poll_interval`, `min_runtime_min`, `auto_blacklist`, `watchdog`, `ignore_global_blacklist`. A `crab:` block here replaces the `global.yaml` one as a whole. `memory_mb_per_cpu` is retired and raises an error. The same in every era of a [run over several eras](#several-eras-in-one-run). See [Running on CRAB](../workflow/crab.md#config). |
 
 ### `anaTuple_scheduling`
 
@@ -103,6 +103,35 @@ compute_unc_variations: true
 compute_unc_histograms: true
 store_noncentral: true
 ```
+
+## Several eras in one run
+
+`--era Run3_2022,Run3_2022EE` builds one configuration per era ([Eras](../concepts/eras.md#running-several-eras)):
+each era reads `config/user_custom.yaml` and its own `config/<era>/user_custom.yaml`, and a file
+passed with `--user-custom` is read for every era. A few settings are used once for the whole run,
+so they have to be the same in every era, or constructing the task stops with
+`EraDependentValueError` naming the key and each era's value:
+
+- `fs_default`;
+- `crab` (the whole block), `runTokenServer`, `WLCGFileSystem.remotePathCacheHost` and
+  `WLCGFileSystem.remotePathCachePort`;
+- `anaTuple_scheduling` and `use_cmssw_env_AnaTupleProduction`;
+- for each entry of `payload_producers`: `n_cpus`, `max_runtime`, `crab_memory`, `save_as` and
+  `cmssw_env`.
+
+Everything else may differ per era: datasets, processes, corrections, bundles and the output
+filesystems `fs_anaTuple`, `fs_HistTuple`, `fs_anaCacheTuple` and `fs_plots`. To send one era's
+AnaTuples elsewhere, set that key in the era's file:
+
+```yaml
+# config/Run3_2022EE/user_custom.yaml
+fs_anaTuple: T3_US_FNALLPC:/store/user/lpcflaf/HH_bbtautau/
+```
+
+!!! note "The calibration file is shared by the eras of a version"
+    `data/<version>/AnaTupleCost/cost_model.json` is keyed by version, not era (see
+    [`anaTuple_scheduling`](#anatuple_scheduling)), so the eras of one run, and of earlier runs,
+    share it.
 
 ## Per-run overrides (`--user-custom`)
 

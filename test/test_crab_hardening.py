@@ -573,13 +573,13 @@ class TestCrabJobManager(unittest.TestCase):
         self.assertIn("still broken", m.stop_reason)
 
         workflow = mock.Mock(spec=lc.CrabWorkflow)
-        workflow._flaf_crab_job_manager = m
+        workflow.workflow_proxy.job_manager = m
         with self.assertRaises(RuntimeError) as ctx:
             lc.CrabWorkflow.crab_poll_callback(workflow, mock.Mock())
         self.assertIn("unreadable", str(ctx.exception))
 
         # and a manager with nothing to report lets the poll loop go on
-        workflow._flaf_crab_job_manager = make_manager()
+        workflow.workflow_proxy.job_manager = make_manager()
         self.assertTrue(lc.CrabWorkflow.crab_poll_callback(workflow, mock.Mock()))
 
     def test_degrade_without_job_ids_reraises_without_crab_log(self):

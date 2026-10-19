@@ -202,6 +202,7 @@ def createAnalysisCache(
             if isCentral:
                 centralTree = tree
                 centralCaches = cacheTrees
+                foreign_count = Utilities.book_era_check(df, setup.global_params["era"])
             ROOT.RDF.Experimental.AddProgressBar(df_orig)
 
             if saveAs == "root":
@@ -255,6 +256,10 @@ def createAnalysisCache(
                 workingDir,
             )
             tmp_fileNames.append(tmp_fileName)
+            if isCentral:
+                Utilities.check_era(
+                    foreign_count, setup.global_params["era"], inFileName
+                )
 
     return tmp_fileNames
 

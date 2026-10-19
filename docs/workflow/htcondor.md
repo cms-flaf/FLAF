@@ -19,8 +19,8 @@ law run FLAF.AnaProd.tasks.AnaTupleFileTask \
 |---|---|
 | `--workflow htcondor` | Submit branches as batch jobs instead of running locally. |
 | `--transfer-logs` | **On by default** (turn off with `--transfer-logs False`). Each job's combined stdout/stderr (`stdall*.txt`) is kept: with a remote `fs_default` the job uploads it to `<version>/logs/<Task>/<era>/` on `fs_default` (plus the producer name for per-producer tasks) as `stdall_<first>To<end>_<cluster>.<proc>.txt` (branches `<first>` to `<end>` − 1; `<cluster>.<proc>` is the HTCondor job id), so every attempt of a resubmitted job keeps its own log, and `--print-status` points there; with a local `fs_default` the log is part of the job's output sandbox: HTCondor copies it back to the task's `data/<version>/<Task>/<era>/` directory only with `--htcondor-spool False`, since with the default `-spool` the sandbox stays on the schedd until `condor_transfer_data` is run (law does not run it). |
-| `--parallel-jobs 100` | Cap how many jobs are in flight at once. Be a good citizen on the shared pool; very large uncapped submissions are discouraged. |
-| `--branches 0:100` | Submit only a subset (e.g. to retry a range); `start:end` excludes the end, so this is branches 0–99. |
+| `--parallel-jobs 100` | Cap how many jobs are in flight at once. Be a good citizen on the shared pool; very large uncapped submissions are discouraged. Over [several eras](#several-eras-in-one-submission) it is one cap for the whole run, not one per era. |
+| `--branches 0:100` | Submit only a subset (e.g. to retry a range); `start:end` excludes the end, so this is branches 0–99. Over several eras the numbers carry the era ([Command arguments](arguments.md#several-eras-era-and-branches)). |
 
 Other HTCondor parameters available on every workflow task: `--max-runtime`, `--n-cpus`,
 `--priority`, `--htcondor-spool`. See [Command arguments](arguments.md).
@@ -96,6 +96,47 @@ law run FLAF.AnaProd.tasks.AnaTupleFileTask \
 
 Standard `condor_q` / `condor_status` work for the underlying jobs.
 
+## Several eras in one submission
+
+`--era Run3_2022,Run3_2022EE` submits each stage once, for all the eras that still need work at
+that stage ([Eras](../concepts/eras.md#running-several-eras)). A stage is one workflow with one
+poll loop, but the jobs stay per era:
+
+- **A job never mixes eras.** Each era's jobs are laid out as `--era <that era>` alone would lay
+  them out, with the per-task values of the command line (`--tasks-per-job`, `--max-runtime`,
+  `--n-cpus`): the cost-based packing of `AnaTupleFileTask` runs per era with that era's
+  measurements, and the durations of the finished jobs are recorded per era. A job runs
+  `law run <Task> --era <its era> --branches=<the era's own numbers> --workflow=local`, with that
+  era's bundles, logs and worker files.
+- **`--parallel-jobs` is one cap for the whole run**, all eras together; the jobs of the eras are
+  polled in one loop.
+- **Each era keeps its own job file**, the file a run over that era alone reads and writes:
+  `data/<version>/<Task>/<era>/htcondor_jobs_<branches>.json` (`<branches>` is the range of the
+  era's branches, e.g. `0To96`), holding that era's jobs and branches in the era's own numbers.
+  A run over several eras and runs over some of its eras therefore pick up each other's jobs, in
+  any order:
+
+    | Sequence | What happens |
+    |---|---|
+    | `--era A` stopped, then `--era A,B` | A's file is loaded: its jobs in flight are polled to the end and its unsubmitted jobs are submitted once. B starts a file of its own. |
+    | `--era A,B` stopped, then `--era A` | A resumes from its file as in any run over one era; B's file is untouched. |
+    | `--era A,B`, then `--era B,C` | B is resumed, C starts fresh, A is untouched. |
+    | A finished, then `--era A,B` | A is pruned: nothing is submitted for it and its file is unchanged. B runs. |
+    | The same run restarted | The same files each time; every branch is submitted once. |
+    | A `--branches` selection | The files are named as a run over one era with the same selection (in the era's own numbers) names them, in either order. |
+
+- **A change of an era's branch map while its jobs are in flight resubmits them**, as in a run over
+  one era: the file name carries the branches of the map, so a map with other branches (datasets
+  added or removed, another `--dataset` or `--process` selection) starts a new file, and every
+  branch that still lacks an output is submitted, including those still running under the old
+  file. Let the jobs finish, or kill them, before changing the lists.
+- **Two instances of one stage that share an era never run at once in one `law run`** (a luigi
+  resource per job-file directory, `flaf_jobs:<directory>`, of capacity 1 unless luigi's
+  `[resources]` configuration section sets another), so the second finds the work of the first
+  done. Run **one driver per era**: two separate `law run` processes on the
+  same era, from two terminals, do not see each other, exactly as two drivers of one era never
+  did.
+
 ## Bundles: shipping the code to workers
 
 A batch worker needs your code and environment. FLAF supports two modes:
@@ -127,7 +168,9 @@ not available on the target pool.
 
 The `patterns` of a flavour (in the analysis `global.yaml`) can use `{era}` and `{version}`. The former
 `{period}` is refused with `… use {period}, which was renamed to {era}`; the bundle URI
-(`<version>/bundles/<era>/`) is unchanged.
+(`<version>/bundles/<era>/`) is unchanged. Bundles stay per era in a run over several eras: it
+requires the bundles of each era that still has work, a missing one is built by the `BundleTask`
+of its era, and an existing one is never rebuilt.
 
 ### A bundle waits for everything it packs
 
@@ -236,7 +279,8 @@ These apply to both batch backends (HTCondor and [CRAB](crab.md)).
   completeness rule (so branches whose inputs were merged and replaced by markers, as with
   `HistMergerTask` and `remove_merged_inputs`, count as done). A job whose branches are complete
   is booked as finished, not resubmitted. If more than 10 % of all its jobs — and at least 2 —
-  are still missing, the run stops
+  are still missing (over several eras: of an era's jobs, so that the unsubmitted jobs of a fresh
+  era do not dilute another era's loss), the run stops
   instead of resubmitting them, and their entries in the job file are put back as they were, so
   a later run judges them again. The usual cause is storage that was unreachable while outputs
   were checked: run again once it is back. To redo the work on purpose, run again with

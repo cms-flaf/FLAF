@@ -4,16 +4,21 @@ Deterministic HelloWorldTask test runner.
 
 Runs a single law command for a specific configuration and performs all required checks:
 - return code (0 for success, non-0 for force-fail)
-- message in the (remote) log file (hello world or forced failure msg)
+- message in the (remote) log file of every era (hello world or forced failure msg)
 - for force-fail: the reported "log: <path>" in output matches the correct full remote log URL
+
+With several eras (`--era Run3_2022,Run3_2023`) the run is one workflow over all of them, with
+branch 0 of each era selected by its number in that run, and each era's log and output are
+checked where a run over that era alone puts them.
 
 Usage (after cd to analysis dir + source env.sh + ../flaf_dev.sh):
   python FLAF/test/test_hello_world.py \
     --version myver-a \
-    --era Run3_2022EE \
+    --era Run3_2022EE[,Run3_2023] \
     --workflow local \
     [--force-fail] \
-    [--bundle]
+    [--bundle] \
+    [--user-custom config/user_custom/test_crab/HH_bbWW.yaml]
 
 All checks + return code must pass for the script to exit 0 (test passed).
 """
@@ -26,9 +31,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-# The job's staged log: stdall_0To1.txt, or stdall_0To1_<cluster>.<proc>.txt when it is
-# uploaded by an HTCondor job (one per attempt, see run_tools/stageout_logs.sh).
-LOG_NAME_RE = r"^stdall_0To1(_\d+\.\d+)?\.txt$"
+# The job's staged log: stdall_0To1.txt, stdall_0To1_<cluster>.<proc>.txt when it is
+# uploaded by an HTCondor job (one per attempt), or stdall_0_crab<tag>.<job>.txt from a CRAB
+# job (see run_tools/stageout_logs.sh).
+LOG_NAME_RE = r"^stdall_(0To1(_\d+\.\d+)?|0_crab\w+\.\d+)\.txt$"
 
 
 def run_command(cmd, cwd, timeout=300):
@@ -48,13 +54,21 @@ def run_command(cmd, cwd, timeout=300):
         return 124, output
 
 
-def get_remote_log_dir_uri(analysis_root, version, era):
+def hello_world_task(version, era, user_custom, branch=-1):
+    """Python code constructing the HelloWorldTask of one era, as the run sees it."""
+    return (
+        "from FLAF.test.hello_world_task import HelloWorldTask\n"
+        f"task = HelloWorldTask(version={version!r}, era={era!r}, "
+        f"user_custom={user_custom!r}, branch={branch})\n"
+    )
+
+
+def get_remote_log_dir_uri(analysis_root, version, era, user_custom):
     code = f"""
 import os
 os.chdir(r"{analysis_root}")
-from FLAF.test.hello_world_task import HelloWorldTask
-task = HelloWorldTask(version="{version}", era="{era}")
-log_dir = task.remote_dir_target(task.version, "logs", "HelloWorldTask", task.era[0])
+{hello_world_task(version, era, user_custom)}
+log_dir = task.remote_dir_target(task.version, "logs", "HelloWorldTask", task.only_era)
 base = log_dir.uri() if hasattr(log_dir, "uri") else str(log_dir)
 # Prefix with a unique marker: importing Setup prints banners (e.g.
 # "Using physics model: TestModel") to stdout, so we cannot rely on the URI
@@ -70,13 +84,12 @@ print("REMOTE_LOG_URI=" + base.rstrip("/"))
     return None
 
 
-def remove_remote_log_if_exists(analysis_root, version, era):
+def remove_remote_log_if_exists(analysis_root, version, era, user_custom):
     code = f"""
 import os, re
 os.chdir(r"{analysis_root}")
-from FLAF.test.hello_world_task import HelloWorldTask
-task = HelloWorldTask(version="{version}", era="{era}")
-log_dir = task.remote_dir_target(task.version, "logs", "HelloWorldTask", task.era[0])
+{hello_world_task(version, era, user_custom)}
+log_dir = task.remote_dir_target(task.version, "logs", "HelloWorldTask", task.only_era)
 names = [n for n in (log_dir.listdir() if log_dir.exists() else []) if re.match(r"{LOG_NAME_RE}", n)]
 for name in names:
     log_dir.child(name, type="f").remove()
@@ -86,7 +99,7 @@ print("REMOTE_LOG_REMOVED " + " ".join(names) if names else "REMOTE_LOG_NOT_PRES
     print("[runner] Remote log clean:", out.strip())
 
 
-def fetch_remote_log_content(analysis_root, version, era):
+def fetch_remote_log_content(analysis_root, version, era, user_custom):
     # The htcondor job stages the log out as the *very last* step before the job
     # exits, and EOS is only eventually consistent: a freshly-staged file can be
     # missing from a stat()/exists() check for a few seconds after the workflow
@@ -96,9 +109,8 @@ def fetch_remote_log_content(analysis_root, version, era):
     code = f"""
 import os, re, time
 os.chdir(r"{analysis_root}")
-from FLAF.test.hello_world_task import HelloWorldTask
-task = HelloWorldTask(version="{version}", era="{era}")
-log_dir = task.remote_dir_target(task.version, "logs", "HelloWorldTask", task.era[0])
+{hello_world_task(version, era, user_custom)}
+log_dir = task.remote_dir_target(task.version, "logs", "HelloWorldTask", task.only_era)
 content = None
 for attempt in range(12):
     try:
@@ -131,14 +143,13 @@ else:
     return None
 
 
-def fetch_output_content(analysis_root, version, era):
+def fetch_output_content(analysis_root, version, era, user_custom):
     # output() must be taken from the *branch* task (branch=0): the workflow-level
     # output() returns a DotDict (jobs json + collection), not the single result file.
     code = f"""
 import os
 os.chdir(r"{analysis_root}")
-from FLAF.test.hello_world_task import HelloWorldTask
-task = HelloWorldTask(version="{version}", era="{era}", branch=0)
+{hello_world_task(version, era, user_custom, branch=0)}
 out_t = task.output()
 if out_t.exists():
     with out_t.localize("r") as loc:
@@ -157,21 +168,27 @@ else:
     return None
 
 
-def parse_reported_log_path(output):
-    # Look for the failure report section with "log: "
+def parse_reported_log_paths(output):
+    # every "log: <path>" of the failure report
+    paths = []
     for line in output.splitlines():
         if "log:" in line.lower():
             m = re.search(r"log:\s*(\S+)", line, re.IGNORECASE)
             if m:
-                return m.group(1)
-    return None
+                paths.append(m.group(1))
+    return paths
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", required=True)
-    parser.add_argument("--era", default="Run3_2022EE")
-    parser.add_argument("--workflow", choices=["local", "htcondor"], required=True)
+    parser.add_argument(
+        "--era", default="Run3_2022EE", help="an era, or several separated by commas"
+    )
+    parser.add_argument(
+        "--workflow", choices=["local", "htcondor", "crab"], required=True
+    )
+    parser.add_argument("--user-custom", default="")
     parser.add_argument("--force-fail", action="store_true")
     parser.add_argument("--bundle", action="store_true")
     parser.add_argument("--priority", type=int, default=20)
@@ -193,9 +210,17 @@ def main():
     os.chdir(analysis_root)
 
     version = args.version
-    era = args.era
+    eras = sorted(set(args.era.split(",")))
     force = args.force_fail
     bun = args.bundle
+    user_custom = args.user_custom
+    if len(eras) == 1:
+        branches = "0"
+    else:
+        # branch 0 of each era, by its number in a run over several eras
+        from FLAF.Common.Setup import era_branch
+
+        branches = ",".join(str(era_branch(era, 0)) for era in eras)
 
     # Clean local artifacts for this version
     local_ver_dir = Path("data") / version
@@ -204,7 +229,8 @@ def main():
     print(f"[test] Cleaned local {local_ver_dir}")
 
     # Clean remote logs before run
-    remove_remote_log_if_exists(analysis_root, version, era)
+    for era in eras:
+        remove_remote_log_if_exists(analysis_root, version, era, user_custom)
 
     # Build law command (exact as user specified equivalents)
     cmd = [
@@ -214,11 +240,11 @@ def main():
         "--version",
         version,
         "--era",
-        era,
+        ",".join(eras),
         "--workflow",
         args.workflow,
         "--branches",
-        "0",
+        branches,
         "--test",
         "1",
         "--retries",
@@ -230,12 +256,14 @@ def main():
         cmd.append("--force-fail")
     if bun:
         cmd.append("--bundle")
+    if user_custom:
+        cmd += ["--user-custom", user_custom]
     if args.workflow == "htcondor":
         cmd += ["--priority", str(args.priority)]
 
     law_timeout = args.law_timeout
     if law_timeout is None:
-        law_timeout = 1800 if args.workflow == "htcondor" else 300
+        law_timeout = {"local": 300, "htcondor": 1800, "crab": 7200}[args.workflow]
     rc, full_out = run_command(cmd, analysis_root, timeout=law_timeout)
     log_path = analysis_root / f"test_hello_world_{version}.log"
     log_path.write_text(full_out)
@@ -278,8 +306,29 @@ def main():
         if rc != 0:
             issues.append(f"Expected zero rc for success, got {rc}")
 
+    for era in eras:
+        issues += check_era(
+            analysis_root, version, era, user_custom, args.workflow, force, full_out
+        )
+
+    if issues:
+        print("FAIL")
+        for i in issues:
+            print(f"  - {i}")
+        print("\n--- tail of law output ---")
+        print("\n".join(full_out.splitlines()[-40:]))
+        sys.exit(1)
+
+    print("PASS")
+    sys.exit(0)
+
+
+def check_era(analysis_root, version, era, user_custom, workflow, force, full_out):
+    """The problems found with one era's log and output."""
+    issues = []
+    print(f"[test] {era}:")
     # Message in the log (remote or local depending)
-    log_content = fetch_remote_log_content(analysis_root, version, era)
+    log_content = fetch_remote_log_content(analysis_root, version, era, user_custom)
     if force:
         expected_msg = (
             f"Forced failure for testing log transfer on crash. version = {version}"
@@ -311,14 +360,23 @@ def main():
     # if present, ensure it is not a bad AFS /data/.../stdall path. Always scan for bad AFS mentions.
     # (direct proxy test above covers the logic for the rewrite)
     if force:
-        reported = parse_reported_log_path(full_out)
-        expected_dir = get_remote_log_dir_uri(analysis_root, version, era)
+        expected_dir = get_remote_log_dir_uri(analysis_root, version, era, user_custom)
+        reported = next(
+            (
+                path
+                for path in parse_reported_log_paths(full_out)
+                if expected_dir and os.path.dirname(path) == expected_dir
+            ),
+            None,
+        )
+        if reported is None:
+            reported = next(iter(parse_reported_log_paths(full_out)), None)
         bad_afs_re = r"/data/.*stdall"
         if reported is not None:
             if re.search(bad_afs_re, reported) and "://" not in reported:
                 issues.append(f"Reported log path is bad AFS local path: {reported}")
             elif (
-                args.workflow == "htcondor"
+                workflow == "htcondor"
                 and expected_dir
                 and not (
                     os.path.dirname(reported) == expected_dir
@@ -350,7 +408,7 @@ def main():
     # when fs_default is remote davs:// etc, the file lives on EOS not local data/<ver>/;
     # if fetch fails to confirm content (no proxy or remote-only), rely on law rc==0 + msg in captured out)
     if not force:
-        out_content = fetch_output_content(analysis_root, version, era)
+        out_content = fetch_output_content(analysis_root, version, era, user_custom)
         if out_content is None or "done" not in out_content.lower():
             # note remote fs usage; do not hard-fail the test (success already shown by rc + hello msg)
             print(
@@ -358,17 +416,7 @@ def main():
             )
         else:
             print("[test] Success output content confirmed: OK")
-
-    if issues:
-        print("FAIL")
-        for i in issues:
-            print(f"  - {i}")
-        print("\n--- tail of law output ---")
-        print("\n".join(full_out.splitlines()[-40:]))
-        sys.exit(1)
-
-    print("PASS")
-    sys.exit(0)
+    return issues
 
 
 if __name__ == "__main__":

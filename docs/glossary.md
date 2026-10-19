@@ -15,7 +15,8 @@ Framework and CMS-computing vocabulary, in plain terms. For the quick on-ramp ve
 
 **Branch**
 : One independent work unit of a workflow task. What it represents depends on the task — an input
-  file, a dataset, or a variable. Select with `--branches`.
+  file, a dataset, or a variable. Select with `--branches`; over several eras a branch is numbered
+  `era id × 1 000 000 + its number in the era's own map` (see [Eras](concepts/eras.md#branch-numbers)).
 
 **Bundle**
 : A tarball of code/environment shipped to a batch worker so a job can run without the shared AFS
@@ -60,8 +61,9 @@ Framework and CMS-computing vocabulary, in plain terms. For the quick on-ramp ve
   `TTto2L2Nu`) in `datasets.yaml`, with its DAS name per NanoAOD version in `nanoAOD:`. See [Datasets](configuration/datasets.md).
 
 **Era**
-: A CMS data-taking period (`Run3_2022`, `Run3_2023BPix`, …), passed as `--era`. Selects
-  datasets, corrections and the NanoAOD version. See [Eras](concepts/eras.md).
+: A CMS data-taking period (`Run3_2022`, `Run3_2023BPix`, …), passed as `--era` (one era, or several
+  separated by commas for one run over all of them). Selects datasets, corrections and the NanoAOD
+  version. See [Eras](concepts/eras.md).
 
 **Filesystem (`fs_*`)**
 : A named storage location (local, EOS or a WLCG site) where a given output type is read/written.

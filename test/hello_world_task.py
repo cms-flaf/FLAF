@@ -15,6 +15,8 @@ from FLAF.run_tools.law_customizations import (
 
 
 class HelloWorldTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
+    allow_multi_era = True
+    era_branches = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 0.5)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     poll_interval = copy_param(HTCondorWorkflow.poll_interval, 1)
@@ -42,11 +44,11 @@ class HelloWorldTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     )
 
     def create_branch_map(self):
-        return {0: "hello"}
+        return self.cached_branch_map(lambda: {0: "hello"})
 
     def output(self):
         return self.remote_target(
-            self.version, self.__class__.__name__, self.era[0], "hello_world_done.txt"
+            self.version, self.__class__.__name__, self.only_era, "hello_world_done.txt"
         )
 
     def _probe_grid_access(self):

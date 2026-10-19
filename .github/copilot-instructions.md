@@ -195,9 +195,48 @@ Each of these has caused a production incident. They are ordered by how much dam
   `--period`, `--<Task>-period` and `[<Task>] period` must keep failing with `'period' was renamed to
   'era' (--era)`, `period=` with `'period' was renamed to 'era' (use era=...)`, and `--<Task>-era`
   with `the eras are set once per invocation, with --era`;
-  do not add a silent alias. The task parameter is `era = EraParameter(max_len=1)` (a sorted tuple of
-  unique known eras; one era per task for now). Payload scripts take `--era` (one value) and
-  `Setup(ana_path, era, version)` exposes `Setup.era`. Bundle patterns use `{era}`; `{period}` is refused.
+  do not add a silent alias. The task parameter is `era = EraParameter()` (a sorted tuple of unique
+  known eras; `max_len` is gone, and which classes may be constructed over several is
+  `Task.allow_multi_era`: any other raises `<Task> takes one era`). Payload scripts take `--era` (one
+  value) and `Setup(ana_path, era, version)` exposes `Setup.era`. Bundle patterns use `{era}`;
+  `{period}` is refused.
+- **The era is a branch dimension: `--era A,B` is one workflow per stage whose branches each belong
+  to one era.** `era_branches = True` (it needs `allow_multi_era`) marks the stage classes
+  of `AnaProd/tasks.py` and `Analysis/tasks.py`; a branch is numbered `era id × 1 000 000 + its number
+  in its era's own map` (`ERA_IDS` = the C++ `Period` values, `Common.Setup.era_branch`), and over one era
+  nothing is renumbered. What holds, and what to flag:
+  - **Branch tasks, jobs, payloads and every path (outputs, job files `data/<v>/<Task>/<era>/…`,
+    logs, heartbeats, worker files, bundles, CRAB request names) are one era's and identical to a
+    run over that era alone.** A path, job-file name, resource key or cache keyed by the era *set*,
+    or a branch number of a run over several eras written into an era's own file or command line,
+    breaks the rerun sequences (`--era A` then `--era A,B`, and the reverse) that rely on the two
+    runs sharing state. A job's command line carries `--era <its era>` and the era's own numbers.
+  - **A per-era value is read through `only_era`, `setup_for(era)` or `single(era)`, never
+    `self.era[0]`.** `only_era` raises `EraScopeError` over several eras; `EraScopeError`,
+    `EraDependentValueError` and `BranchSelectionError` must not subclass `AttributeError`, which
+    `getattr(task, name, default)` and `hasattr` would swallow. A setting a run reads once for all its
+    eras goes through `common(getter, what)`, which raises when the eras disagree (`fs_default`,
+    `crab`, `runTokenServer`, the path-cache host and port, `anaTuple_scheduling`,
+    `use_cmssw_env_AnaTupleProduction`, a producer's `n_cpus`/`max_runtime`/`crab_memory`/`save_as`/
+    `cmssw_env`); a new run-wide reader without it silently takes one era's value.
+  - **A stage's requirements live in `stage_workflow_requires()`; `workflow_requires()` is the
+    dispatcher** that, over several eras, prunes each era that is complete (its consumed
+    intermediates must not be requested) and lifts the rest into one requirement per stage. Eras are
+    named in a requirement only through `with_eras`, which keeps the per-task values
+    (`--tasks-per-job`, `--max-runtime`, `--n-cpus`, `--crab-memory`); `run_tools/check_era_rename.py`
+    flags `era=` in `req`/`req_params`/`req_branch`/`req_workflow` outside it and `self.era[...]` in
+    a task class outside `only_era` (`# noqa: era-scope`).
+  - **Branch maps go through `cached_branch_map`**, which restores a `--branches` selection that law
+    reset while the map was its placeholder; a selection is in the numbering of its run
+    (`BranchSelectionError` otherwise), and `--branch` with several eras is refused.
+  - **Submission state is per era.** `EraMergedProxy` (HTCondor and CRAB, active over several eras
+    only) reads and writes each era's job file in the era's own numbers and delegates building and
+    submission to a proxy of that era; the lost-outputs brake is judged per era, the CRAB watchdog
+    per era, and `parallel_jobs` and the refused/failed-submission stops are run-wide. Two
+    instances of a stage sharing an era never run at once (the luigi resource
+    `flaf_jobs:<job-file directory>`).
+  - **The merge, HistTuple and AnalysisCache producers check the `period` column of every valid
+    event against their era** (`Utilities.book_era_check`/`check_era`) and must keep doing it.
 - **Names that stay `period` on purpose:** the AnaTuple column `period` (per-event C++ `Period`), the
   C++ `Period` enum, `validity_period` cache settings. Output paths (`<version>/<Kind>/<era>/…`), bundle
   URIs and job-file names are unchanged, so existing outputs must keep being found. Do not rename them.
@@ -250,7 +289,8 @@ Each of these has caused a production incident. They are ordered by how much dam
 ### Process-level state
 
 - **One law process can handle several eras, versions and `user_custom` files.** A class-level
-  cache or latch must be keyed by everything that determines its value — for branch maps and
+  cache or latch must be keyed by everything that determines its value (the whole era tuple
+  included) — for branch maps and
   what is derived from them, `Task._branch_map_cache_key()` through `Task.cached_branch_map` — and
   must never keep law's placeholder map (`[None]`) or a negative completeness verdict. An
   unkeyed one hands one era's answer to another (cms-flaf/FLAF#338: the Builder selected the
@@ -381,7 +421,7 @@ separate PR; say so in the review rather than assuming it will be noticed.
 ## Already enforced by CI — do not comment on these
 
 `formatting-check` (black, yamllint, clang-format, and in FLAF `flake8 --select=F821,F811` over
-the whole package), `unit-tests` (the pure-Python suites in `test/`, and the `period` → `era` leftover check), `repo-sanity-checks` (binary
+the whole package), `unit-tests` (the pure-Python suites in `test/`, the `period` → `era` leftover check and the era-scope rules of `check_era_rename.py`), `repo-sanity-checks` (binary
 files, repo size), `ds-consistency-check`, `cross-section-check`. Formatting, indentation, quote
 style and trailing whitespace are settled by tooling; comments about them are pure noise.
 
@@ -402,15 +442,15 @@ config loading (`Common/Setup.py`, `config/`) is therefore not checked, and is w
 
 ## Repository facts
 
-Verified 2026-10-09; re-check before relying on any of it.
+Verified 2026-10-18; re-check before relying on any of it.
 
 | | |
 |---|---|
 | Layout | `AnaProd/` (anaTuple production tasks), `Analysis/` (histogram/plot tasks), `Common/` (`Setup.py`, utilities), `Processors/` (stitching), `RunKit/` (vendored grid/job tools), `run_tools/` (`law_customizations.py`), `config/`, `include/` (C++ headers), `test/`, `docs/` |
 | Submodule | `PlotKit` only. **`RunKit` is vendored**, not a submodule; imports are `from FLAF.RunKit.<module> import …` |
 | Datasets | `config/<era>/datasets.yaml` for Run 3. Run 2 eras still use the older `samples.yaml` |
-| Eras | `Run3_2022`, `Run3_2022EE`, `Run3_2023`, `Run3_2023BPix`, `Run3_2024`, `Run3_2025`, `Run3_2026`; Run 2 legacy |
-| Workflows | `formatting-check`, `unit-tests`, `repo-sanity-checks`, `ds-consistency-check`, `cross-section-check`, `test-setup-loading`, `deploy-docs`, `integration-test`, `trigger-flaf-integration` |
+| Eras | `Run3_2022`, `Run3_2022EE`, `Run3_2023`, `Run3_2023BPix`, `Run3_2024`, `Run3_2025`, `Run3_2026`; Run 2 legacy. `--era` takes several for the stage classes; ids 5 (`Run3_2022`) … 11 (`Run3_2026`), branch number over several eras `era id × 1 000 000 + local` |
+| Workflows | `formatting-check`, `unit-tests`, `repo-sanity-checks`, `ds-consistency-check`, `cross-section-check`, `test-setup-loading`, `test-era-dimension` (reusable: an analysis calls it with its eras), `deploy-docs`, `integration-test`, `trigger-flaf-integration` |
 | Integration test | Triggered by `@cms-flaf-bot please test`. Its configuration (process lists, eras, versions) lives in **`cms-flaf/FLAF_ci`**, not in this repo |
 | Docs | `docs/`, built with `mkdocs build --strict`; see the documentation section above |
 | Package pins | `run_tools/mk_flaf_env.sh` (law `0.1.21`, luigi `3.8.1`, pip `26.2.1`, …); the CI workflows install the same versions |

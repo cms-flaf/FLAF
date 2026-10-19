@@ -102,7 +102,7 @@ class ProductTask(lc.Task, lc.HTCondorWorkflow, lc.CrabWorkflow, law.LocalWorkfl
         return self.remote_target(
             self.version,
             self.__class__.__name__,
-            self.era[0],
+            self.only_era,
             f"product_{self.branch}.root",
         )
 
@@ -120,7 +120,7 @@ class ResumedProductTask(ProductTask):
         return self.remote_target(
             self.version,
             self.__class__.__name__,
-            self.era[0],
+            self.only_era,
             self.branch_data,
             f"product_{self.branch}.root",
         )
@@ -160,7 +160,7 @@ class MergeProductsTask(
         return self.remote_target(
             self.version,
             self.__class__.__name__,
-            self.era[0],
+            self.only_era,
             f"merged_{self.branch}.root",
         )
 

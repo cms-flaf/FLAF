@@ -149,11 +149,11 @@ class EraIdentity(_ScratchAnalysis):
         with self.assertRaises(ValueError):
             EraParamProbe(version="v", era="")
 
-    def test_several_eras_are_not_taken_yet(self):
+    def test_a_class_without_allow_multi_era_takes_one_era(self):
         with self.assertRaises(ValueError) as caught:
             EraParamProbe(version="v", era="Run3_2023,Run3_2022")
+        self.assertIn("EraParamProbe takes one era", str(caught.exception))
         self.assertIn("Run3_2022,Run3_2023", str(caught.exception))
-        self.assertIn("not supported yet", str(caught.exception))
 
     def test_the_command_line_round_trips(self):
         task = EraParamProbe(version="v", era="Run3_2022")

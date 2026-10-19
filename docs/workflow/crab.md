@@ -93,6 +93,12 @@ crab:
     The config layers are concatenated and parsed as one YAML document, so a later
     `crab:` mapping wins as a whole — repeat the keys you want to keep.
 
+!!! note "The `crab:` block has to be the same in every era of one run"
+    A run over [several eras](#several-eras-in-one-run) reads the block once for all of them, so
+    a block that differs between the eras stops the run with `EraDependentValueError`, naming each
+    era's value (the same holds for `fs_default`, `runTokenServer` and the path-cache host and
+    port, see [Eras](../concepts/eras.md#settings-that-must-agree-between-the-eras)).
+
 | Key | Meaning |
 |---|---|
 | `whitelist` | Restricts `Site.whitelist`. Default: `T1_*`, `T2_*`, `T3_*`. |
@@ -237,7 +243,7 @@ law run FLAF.Analysis.tasks.HistTupleProducerTask \
 | Option | Why |
 |---|---|
 | `--workflow crab` | Submit via CRAB instead of local/HTCondor. |
-| `--parallel-jobs` | Jobs in flight (default **5000** on CRAB; on HTCondor unlimited, except 2000 for `AnaTupleFileTask`). Each refill is one CRAB task. Also `crab.parallel_jobs` in `global.yaml`. The bare form, and the prefixed form of the task that is launched, are copied to every task it requires; `--<Task>-parallel-jobs` for another task applies to that task. |
+| `--parallel-jobs` | Jobs in flight (default **5000** on CRAB; on HTCondor unlimited, except 2000 for `AnaTupleFileTask`). Each refill is one CRAB task (one per era over several eras, see [below](#several-eras-in-one-run)). Also `crab.parallel_jobs` in `global.yaml`. The bare form, and the prefixed form of the task that is launched, are copied to every task it requires; `--<Task>-parallel-jobs` for another task applies to that task. |
 | `--max-runtime` / `--n-cpus` | Same as HTCondor; mapped to CRAB `maxJobRuntimeMin` (at least `crab.min_runtime_min`) / `numCores` (rounded up to 1, 2, 4 or 8). See [Resources](#resources). |
 | `--crab-memory` | CRAB `maxMemoryMB` in MB (CRAB only); default the most CRAB grants for the cores. See [Resources](#resources). |
 | `--poll-interval` | Minutes between `crab status` polls (default `5`). Like `--parallel-jobs`: the bare and the launched task's prefixed form reach every required task, `--<Task>-poll-interval` for another task applies to that task. |
@@ -270,6 +276,8 @@ submitted in waves of at least `refill_fraction × parallel_jobs` jobs.
   so the oldest parked retry waits at most one window; retries a release could not take get a
   fresh window. Parked retries are recognised from the attempt counters in the job file, so a
   restarted driver delays a release by at most one window and loses no job.
+- Over [several eras](#several-eras-in-one-run) the gate measures the backlog of all the eras
+  together, and a wave goes out as one CRAB task per era.
 - `--no-poll` bypasses the gate: a no-poll run resubmits failures exactly once and returns, so a
   parked job would not be offered again. It applies to the workflow it is given to only: law
   does not pass it on to the remote workflows that one requires, which are polled to completion
@@ -286,14 +294,16 @@ follows.
   directory, together with a hint to check the whitelist; the cached CRIC site list is dropped,
   so the next submission re-reads it. A **second** refused submission made by this run stops
   the run — a refusal is a verdict on what was sent, and retrying would spend every branch's
-  attempts on the same verdict. Refusals left by earlier runs are reported but never count.
+  attempts on the same verdict. Over several eras the count is that of the whole run, all eras
+  together. Refusals left by earlier runs are reported but never count.
 - **Failed submission.** A task the TaskWorker or the schedd failed to submit (`SUBMITFAILED`)
   has its jobs reported failed by law, which submits them again as a new task, so a one-off
   failure recovers by itself. The server's failure message is printed once with the project
   directory. A **second** failed submission made by this run stops the run, quoting the server:
   a cause that does not go away (for example a MyProxy credential the TaskWorker cannot
   retrieve) would otherwise spend every branch's attempts. Failed submissions left by earlier
-  runs are reported but never count, and refusals and failed submissions are counted apart.
+  runs are reported but never count, and refusals and failed submissions are counted apart (each
+  over the whole run, all eras together).
 - **Waiting task.** `WAITING` (accepted by the server, not yet on a scheduler) is read as
   pending, not as an error, whatever command it waits on: law reports a new task
   (`WAITING on command SUBMIT`) as pending itself, without a limit, and cannot read the other
@@ -345,7 +355,8 @@ behind two such jobs. The watchdog finds them. It is on by default for CRAB.
 
 - Each CRAB job's branch refreshes a **flag file** every `interval_minutes`, at
   `<fs_default>/<version>/heartbeat/<Task>/<era>[/<producer>]/<branch>`. The flag is removed
-  when the payload ends, however it ends.
+  when the payload ends, however it ends. Over several eras each era has its own directory and
+  its own watchdog: its jobs are judged, and the brakes below count, per era.
 - The driver lists that one directory once per interval (however many jobs are running) and
   reads only the modification times. A job that CRAB still reports as running, and whose flag
   has not moved for `missed_checks` intervals as of the latest listing, is failed, so law's
@@ -380,6 +391,29 @@ unknown keys are refused:
 | `max_per_branch` | `1` | Most rescues of one branch. |
 | `max_stale_fraction` | `0.5` | A listing in which more than this fraction of the running jobs look stale issues no verdicts. |
 | `dry_run` | `false` | Log the verdicts that would have been issued and issue none. |
+
+## Several eras in one run
+
+`--era Run3_2022,Run3_2022EE` runs each stage once for all the eras that still need work there
+([Eras](../concepts/eras.md#running-several-eras)). On CRAB:
+
+- **One CRAB task per era per wave.** A job never mixes eras, so the jobs a wave submits for
+  different eras go out as separate CRAB tasks, each as a run over its era alone would submit it:
+  the CRAB request name `<family>_<version>_<era>_<unique suffix>`, the bundles, the PSet, the
+  path-cache snapshot and the logs are the era's own.
+- **`--parallel-jobs` (`crab.parallel_jobs`) is one cap for the whole run.** It bounds the jobs in
+  flight over all eras together, and one poll loop queries the CRAB tasks of every era. The wave
+  gate sees the backlog of all the eras.
+- **The refused and failed submission stops count over the whole run**, all eras together (see
+  [Status handling](#status-handling)).
+- **The stall watchdog works per era** (see [Stall watchdog](#stall-watchdog)).
+- **Each era keeps its own job file**, `data/<version>/<Task>/<era>/crab_jobs_<branches>.json`,
+  the one a run over that era alone uses, so the rerun sequences of
+  [HTCondor](htcondor.md#several-eras-in-one-submission) hold here too. A CRAB task submitted by a
+  run over one era is polled by a later run over several eras that includes it (and the reverse):
+  each job records its own project directory.
+- **One driver per era**, as on HTCondor: two separate `law run` processes on the same era are
+  not guarded against each other.
 
 ## Submission safeguards
 

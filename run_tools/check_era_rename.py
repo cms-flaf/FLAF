@@ -7,7 +7,12 @@ Reports, with file and line:
 * the era tuple used as a string: `{self.era}` in an f-string, `str(self.era)`,
   `"...".join(self.era)`;
 * `getattr(x, "period", ...)` and `x.get("period", ...)` (the attribute or key of the era);
-* `--period` and `{period}` in Python, YAML, shell and configuration files.
+* `--period` and `{period}` in Python, YAML, shell and configuration files;
+* era-scope leaks: a requirement that names its eras -- `X.req(...)`, `req_params`, `req_branch`
+  or `req_workflow` with an `era` keyword -- outside `with_eras`, the one place that derives a
+  task over other eras; and `self.era[...]` read inside a task class outside `only_era`, which
+  refuses a task over several eras instead of reading the first of them. Marked with
+  `noqa: era-scope`.
 
 The tuple checks apply inside classes derived from a `...Task` or `...Workflow` class, where
 `self.era` is the era parameter; elsewhere (an analysis' dataframe builder, a correction)
@@ -37,6 +42,8 @@ ALLOWED_NAMES = {
     "grace_period",
 }
 NOQA = "noqa: era-rename"
+SCOPE_NOQA = "noqa: era-scope"
+REQ_METHODS = {"req", "req_params", "req_branch", "req_workflow"}
 TEXT_SUFFIXES = (".py", ".yaml", ".yml", ".sh", ".cfg", ".ini", ".json")
 TEXT_PATTERNS = {
     "--period": re.compile(r"--period\b"),
@@ -70,11 +77,64 @@ def task_class_nodes(tree):
     return inside
 
 
+def names_era(call):
+    """Whether a call passes an `era` keyword, directly or as `**{"era": ...}`."""
+    for keyword in call.keywords:
+        if keyword.arg == "era":
+            return True
+        if keyword.arg is None and isinstance(keyword.value, ast.Dict):
+            if any(
+                isinstance(key, ast.Constant) and key.value == "era"
+                for key in keyword.value.keys
+            ):
+                return True
+    return False
+
+
+class EraScopeVisitor(ast.NodeVisitor):
+    """The era-scope findings, with the enclosing functions known."""
+
+    def __init__(self, in_task):
+        self.in_task = in_task
+        self.functions = []
+        self.found = []
+
+    def visit_FunctionDef(self, node):
+        self.functions.append(node.name)
+        self.generic_visit(node)
+        self.functions.pop()
+
+    visit_AsyncFunctionDef = visit_FunctionDef
+
+    def visit_Call(self, node):
+        func = node.func
+        if (
+            isinstance(func, ast.Attribute)
+            and func.attr in REQ_METHODS
+            and "with_eras" not in self.functions
+            and names_era(node)
+        ):
+            self.found.append(
+                (node.lineno, f"{func.attr}(..., era=...) outside with_eras")
+            )
+        self.generic_visit(node)
+
+    def visit_Subscript(self, node):
+        if (
+            id(node) in self.in_task
+            and is_self_era(node.value)
+            and "only_era" not in self.functions
+        ):
+            self.found.append((node.lineno, "self.era[...] outside only_era"))
+        self.generic_visit(node)
+
+
 def python_findings(path, source):
+    """(line, what, noqa marker) of every finding in a Python source."""
     try:
         tree = ast.parse(source, filename=path)
     except SyntaxError as e:
-        return [(e.lineno or 0, f"cannot parse: {e.msg}")]
+        return [(e.lineno or 0, f"cannot parse: {e.msg}", NOQA)]
     found = []
     in_task = task_class_nodes(tree)
 
@@ -117,7 +177,11 @@ def python_findings(path, source):
                             f"{'getattr' if is_getattr else 'get'}(..., 'period')",
                         )
                     )
-    return found
+    scope = EraScopeVisitor(in_task)
+    scope.visit(tree)
+    return [(line, what, NOQA) for line, what in found] + [
+        (line, what, SCOPE_NOQA) for line, what in scope.found
+    ]
 
 
 def text_findings(source):
@@ -125,7 +189,7 @@ def text_findings(source):
     for number, line in enumerate(source.splitlines(), 1):
         for label, pattern in TEXT_PATTERNS.items():
             if pattern.search(line):
-                found.append((number, f"'{label}'"))
+                found.append((number, f"'{label}'", NOQA))
     return found
 
 
@@ -159,8 +223,8 @@ def main():
         lines = source.splitlines()
         problems += [
             f"{path}:{line}: {what}"
-            for line, what in sorted(set(found))
-            if not (0 < line <= len(lines) and NOQA in lines[line - 1])
+            for line, what, noqa in sorted(set(found))
+            if not (0 < line <= len(lines) and noqa in lines[line - 1])
         ]
     for problem in problems:
         print(problem)

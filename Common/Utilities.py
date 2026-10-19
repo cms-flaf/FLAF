@@ -195,6 +195,31 @@ class DataFrameBuilderBase:
         self.df = df
 
 
+def book_era_check(df, era):
+    """A lazy count of the events of `df` produced for another era than `era`.
+
+    Every AnaTuple carries the era of its events in the column `period` (the C++ `Period` value);
+    placeholder rows (valid == false) carry none. Booked before the event loop that runs anyway
+    and read after it with `check_era`.
+    """
+    from FLAF.Common.Setup import ERA_IDS
+
+    condition = f"period != {ERA_IDS[era]}"
+    if df.HasColumn("valid"):
+        condition = f"valid && {condition}"
+    return df.Filter(condition, "EventsOfAnotherEra").Count()
+
+
+def check_era(foreign_count, era, what):
+    """Raise when the count booked by `book_era_check` is not zero."""
+    n_foreign = foreign_count.GetValue()
+    if n_foreign:
+        raise RuntimeError(
+            f"{what}: {n_foreign} event(s) were produced for another era than {era} "
+            "(AnaTuple column `period`)"
+        )
+
+
 def CreateDataFrame(
     *,
     treeName,

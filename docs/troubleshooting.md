@@ -39,9 +39,10 @@ is no reachable directory (a file, a broken link) sits at `soft/flaf_env`: move 
 `global.yaml` says `era: <era>`: the seven Run 3 eras ([Eras](concepts/eras.md)). A typo or a
 meta-era name (a datacard era such as a sum of sub-eras) is not one; a payload script started by
 hand with such an `--era` stops with `unknown era '…'; known eras: …` instead. A comma-separated
-list of known eras stops with `several eras in one task are not supported yet` (see below).
-The `era` key itself is set only by that file: an analysis layer, a `user_custom` file or a
-`--customisations` entry that sets it to another value stops the run.
+list takes several known eras, for the tasks that support them (see
+[below](#task-takes-one-era-got-era)). The `era` key itself is set only by that file: an
+analysis layer, a `user_custom` file or a `--customisations` entry that sets it to another value
+stops the run.
 
 ## `'period' was renamed to 'era' (--era)`
 The `period` parameter is gone. Use `--era Run3_2022` instead of `--period Run3_2022`, `era=` instead of
@@ -52,10 +53,67 @@ and `{era}` instead of `{period}` in a bundle pattern (the message then reads
 line. Outputs written before the rename are found as before, since the paths never changed.
 
 ## `the eras are set once per invocation, with --era`
-`--<Task>-era` (or `era` in a `[<Task>]` config section) is refused: the era is a single value given to
-`law run` once and passed to every task of the run. A value with several eras
-(`--era Run3_2022,Run3_2023`) stops with `several eras in one task are not supported yet`: launch the
-run once per era. An unknown era lists the known ones.
+`--<Task>-era` (or `era` in a `[<Task>]` config section) is refused: the eras are given to
+`law run` once, with `--era` (one era, or several separated by commas), and passed to every task of
+the run. An unknown era lists the known ones.
+
+## `<Task> takes one era; got --era …`
+The task does not support several eras: `--era Run3_2022,Run3_2023` was given to `BundleTask`, an
+analysis Studies task or a `StatInference` task. The stages of the production and analysis chain
+take several eras ([Eras](concepts/eras.md#which-tasks-take-several-eras)); launch the others once
+per era.
+
+## `--branch <n> with --era <eras>: a branch belongs to one era`
+`--branch` selects one branch, and over several eras a branch belongs to one era. Use
+`--era <era> --branch <its number in that era>`, or `--branches` with the numbers of the run over
+several eras (`era id × 1 000 000 + the number in the era's own map`, see
+[Eras](concepts/eras.md#branch-numbers)).
+
+## Branch selection errors: `branch <n> is branch <m> of <era> …`
+A `--branches` selection (`BranchSelectionError`) does not fit the numbering of the run:
+
+- `branch 6000001 is branch 1 of Run3_2022EE in a run over several eras; a run over one era takes
+  that era's own numbers: --era Run3_2022EE --branches 1`: a number of a run over several eras was
+  given to a run over one era. Use the number the hint names.
+- `branch <n> is branch <m> of <era>, not of an era of this run`: over several eras, a number that
+  belongs to an era that `--era` does not list (or to no era).
+- `an open range in --branches` / `the range <a>:<b> spans <era> and <era>; a range stays inside
+  one era`: over several eras every range has a start and an end and stays inside one era.
+- `--branches selects no branch of <era>; select a branch of each era or drop it from --era`: every
+  era of the run needs a number; an era without one is still part of the run.
+- `--branches selects no branch of the <N> of <era>`: over several eras, every number given for
+  `<era>` lies outside its branch map (`<N>` branches, numbered `era id × 1 000 000` upwards). A run
+  over that era alone would take such a selection as the whole map; select an existing branch.
+- `branch <n> is beyond the 1000000 numbers of a run over one era`: a run over one era was given a
+  number of 1 000 000 or more that belongs to no configured era.
+
+## `… differs between the eras (…), but one run over several eras uses one value for all of them`
+`EraDependentValueError`: a setting that a run over several eras reads once differs between its
+eras. The message names the key and each era's value. Make it the same in every era, or run the
+eras separately. The settings are `fs_default`, the `crab` block, `runTokenServer`,
+`WLCGFileSystem.remotePathCacheHost`/`remotePathCachePort`, `anaTuple_scheduling`,
+`use_cmssw_env_AnaTupleProduction` and, per `payload_producers` entry, `n_cpus`, `max_runtime`,
+`crab_memory`, `save_as` and `cmssw_env`; everything else, including `fs_anaTuple`, `fs_HistTuple`,
+`fs_anaCacheTuple` and `fs_plots`, may differ ([Eras](concepts/eras.md#settings-that-must-agree-between-the-eras)).
+
+## `a value of one era was read on a task over several eras`
+`EraScopeError`: code read a per-era value (the setup, an output path, the era name) on a task
+over several eras, where it has no single answer. In a task class the era is read through
+`only_era` and the setup through `setup`, which are both for a task over one era; over several eras
+`setup_for(era)`, `single(era)` or `common()` are used instead, as the message says
+([Contributing](contributing.md#writing-code-for-several-eras)). On the command line the error
+points to a bug in the task class.
+
+## `No datasets selected with a custom selection: …` over several eras
+`--dataset` has to match at least one dataset in every era of a run over several eras. A dataset
+that exists in only one of the eras fails the run, because the configuration of each of the other
+eras then selects nothing: run that dataset with `--era <its era>`.
+
+## `… event(s) were produced for another era than …`
+A producer (`AnaTupleMergeTask`, `HistTupleProducerTask`, `AnalysisCacheTask`) found events of
+another era in its inputs: the AnaTuple column `period` (the C++ `Period` value) of a counted
+event is not the era of the branch. The job fails: find the input file that carries the events
+of the other era, regenerate or remove it, and run again.
 
 ## A run unexpectedly drops into `InputFileTask` / Rucio errors
 For a from-scratch production, `InputFileTask` running first is normal. But if a run that should

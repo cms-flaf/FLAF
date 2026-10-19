@@ -762,7 +762,7 @@ class AnUnreadableTaskStopsTheRunFromTheCallback(unittest.TestCase):
         m = manager(max_unreadable_polls=1)
         self.unreadable_polls(m, 2)
         workflow = mock.Mock(spec=lc.CrabWorkflow)
-        workflow._flaf_crab_job_manager = m
+        workflow.workflow_proxy.job_manager = m
         with self.assertRaises(RuntimeError) as caught:
             lc.CrabWorkflow.crab_poll_callback(workflow, mock.Mock())
         self.assertIn("unreadable for 2 consecutive polls", str(caught.exception))
@@ -787,6 +787,10 @@ class _RefusedSubmissionTestCrabWorkflow(lc.CrabWorkflow):
 
     def ana_data_path(self):
         return self._data_dir
+
+    def common(self, getter, what):
+        # Task.common() of a task over one era: the getter applied to that era's Setup
+        return getter(types.SimpleNamespace(global_params=self.global_params))
 
 
 class PollLoopNotStopped(AssertionError):
@@ -853,6 +857,10 @@ class RealPollLoop:
         self.workflow = wf
 
         proxy = object.__new__(lc._FLAFCrabWorkflowProxy)
+        # the poll callback reads the job manager of the workflow's proxy
+        wf.branch = -1
+        wf._workflow_initialized = True
+        wf._workflow_proxy = proxy
         proxy.task = wf
         proxy.dashboard = NoJobDashboard()
         proxy.poll_data = PollData(
@@ -930,13 +938,15 @@ class StoppingTheRunActuallyStopsIt(unittest.TestCase):
 
     def test_the_poll_callback_raises_what_the_manager_recorded(self):
         workflow = mock.Mock(spec=lc.CrabWorkflow)
-        workflow._flaf_crab_job_manager = manager(stop_reason="two refused submissions")
+        workflow.workflow_proxy.job_manager = manager(
+            stop_reason="two refused submissions"
+        )
         with self.assertRaises(RuntimeError) as caught:
             lc.CrabWorkflow.crab_poll_callback(workflow, mock.Mock())
         self.assertIn("two refused submissions", str(caught.exception))
 
-    def test_the_manager_that_polls_is_the_one_the_callback_reads(self):
-        """The single link in the stop chain: without this assignment nothing is ever raised."""
+    def test_the_manager_carries_the_site_record_and_the_watchdog(self):
+        """What the job manager the proxy polls with needs from its workflow."""
         workflow = object.__new__(_RefusedSubmissionTestCrabWorkflow)
         workflow._data_dir = "/data"
         workflow.global_params = {}
@@ -952,7 +962,6 @@ class StoppingTheRunActuallyStopsIt(unittest.TestCase):
         ):
             returned = workflow.crab_create_job_manager()
         self.assertIs(returned, built)
-        self.assertIs(workflow._flaf_crab_job_manager, built)
         self.assertIs(built.site_stats, stats)
         self.assertIs(built.watchdog, watchdog)
         self.assertEqual(built.site_cache_path, "/data/cms_psn_sites.json")
@@ -960,7 +969,7 @@ class StoppingTheRunActuallyStopsIt(unittest.TestCase):
 
     def test_it_does_nothing_but_renew_when_there_is_nothing_to_report(self):
         workflow = mock.Mock(spec=lc.CrabWorkflow)
-        workflow._flaf_crab_job_manager = manager()
+        workflow.workflow_proxy.job_manager = manager()
         workflow._crab_kinit_update = mock.Mock()
         workflow._watchdog_refresh = None
         workflow.job_watchdog.return_value = types.SimpleNamespace(enabled=False)
@@ -971,7 +980,7 @@ class StoppingTheRunActuallyStopsIt(unittest.TestCase):
         self,
     ):
         loop = RealPollLoop(self, UNREADABLE_OUTPUT, max_unreadable_polls=2)
-        self.assertIs(loop.workflow._flaf_crab_job_manager, loop.manager)
+        self.assertIs(loop.workflow.workflow_proxy.job_manager, loop.manager)
         with self.assertRaises(RuntimeError) as caught:
             loop.run()
         self.assertIn("unreadable for 3 consecutive polls", str(caught.exception))

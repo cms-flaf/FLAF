@@ -16,7 +16,11 @@ from FLAF.Common.TupleHelpers import copyFileContent
 from Corrections.Corrections import Corrections
 from Corrections.CorrectionsCore import central, getSystName, getScales
 from FLAF.AnaProd.anaTupleProducer import DefaultAnaCacheProcessor
-from FLAF.Common.Utilities import DeserializeObjectFromString
+from FLAF.Common.Utilities import (
+    DeserializeObjectFromString,
+    book_era_check,
+    check_era,
+)
 
 ROOT.gInterpreter.Declare("""
     struct EventDuplicateFilter {
@@ -244,6 +248,8 @@ def mergeAnaTuples(
     # not set it.
     drop_column_patterns = setup.global_params.get("anaTupleMerge_drop_columns", [])
 
+    era = setup.global_params["era"]
+    foreign_count = None
     for unc_source, unc_scale, tree_name in tree_list:
         syst_name = getSystName(unc_source, unc_scale)
         print(f"Merging {syst_name}")
@@ -251,6 +257,7 @@ def mergeAnaTuples(
         df = ROOT.RDataFrame(tree_name, input_roots)
         columns, _ = getColumns(df)
         if unc_source == central:
+            foreign_count = book_era_check(df, era)
             if is_data:
                 if len(runs) > 0:
                     filter_str = " || ".join([f"run == {r}" for r in runs])
@@ -292,6 +299,7 @@ def mergeAnaTuples(
         if event_filter is not None:
             event_filter.clear()
         snapshot_options.fMode = "UPDATE"
+    check_era(foreign_count, era, f"merge of {dataset_name}")
 
     if len(root_outputs) > 1:
         tree_name = tree_list[0][2]

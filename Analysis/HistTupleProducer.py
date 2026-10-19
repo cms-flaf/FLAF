@@ -111,6 +111,7 @@ def createHistTuple(
 
     snaps = []
     tmp_fileNames = []
+    foreign_count = None
 
     centralTree = None
     centralCaches = None
@@ -135,6 +136,7 @@ def createHistTuple(
             if isCentral:
                 centralTree = tree
                 centralCaches = cacheTrees
+                foreign_count = Utilities.book_era_check(df, setup.global_params["era"])
             ROOT.RDF.Experimental.AddProgressBar(df_orig)
 
             if range is not None:
@@ -213,6 +215,7 @@ def createHistTuple(
 
     if snapshotOptions.fLazy == True:
         ROOT.RDF.RunGraphs(snaps)
+    Utilities.check_era(foreign_count, setup.global_params["era"], inFileName)
 
     return tmp_fileNames
 

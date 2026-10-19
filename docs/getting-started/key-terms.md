@@ -9,8 +9,8 @@ full list.
 |---|---|
 | **Task** | One stage of the pipeline (e.g. "produce analysis ntuples", "make plots"). A unit of work LAW knows how to run, with defined inputs and outputs. You request a task and LAW runs whatever it depends on. |
 | **Workflow** | A task that splits into many independent **branches**. Run it `--workflow local` (on your machine), `--workflow htcondor` (on the CERN batch system) or `--workflow crab` (on the WLCG through CRAB, see [CRAB](../workflow/crab.md)). |
-| **Branch** | One independent work unit inside a workflow — for example one input file, one dataset, or one variable. `--branches 0,2,5:8` selects which ones to run (here 0, 2, 5, 6 and 7; the end of a `start:end` range is excluded). |
-| **Era** | A CMS data-taking period, e.g. `Run3_2022`, `Run3_2023BPix`. Passed as `--era`. Selects which datasets, corrections and NanoAOD version apply. See [Eras](../concepts/eras.md). |
+| **Branch** | One independent work unit inside a workflow — for example one input file, one dataset, or one variable. `--branches 0,2,5:8` selects which ones to run (here 0, 2, 5, 6 and 7; the end of a `start:end` range is excluded). Over several eras a branch number carries its era (`era id × 1 000 000 + its number in the era`), see [Eras](../concepts/eras.md#branch-numbers). |
+| **Era** | A CMS data-taking period, e.g. `Run3_2022`, `Run3_2023BPix`. Passed as `--era`: one era, or several separated by commas for one run over all of them. Selects which datasets, corrections and NanoAOD version apply. See [Eras](../concepts/eras.md). |
 | **Dataset** | A specific CMS sample, identified by its DAS name (a simulated signal/background, or a chunk of real data). |
 | **Process** | A *physics* object built from one or more datasets (e.g. "TT", "DY", "signal"). What you actually plot and fit. Defined in `processes.yaml`. |
 | **Sample** | Loosely used for "a dataset or a process". When precision matters, prefer *dataset* (CMS file set) vs *process* (physics grouping). |

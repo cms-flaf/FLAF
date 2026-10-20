@@ -45,6 +45,9 @@ def get_all_items_recursive(root_dir, path=()):
         if obj.InheritsFrom("TDirectory"):
             items_dict.update(get_all_items_recursive(obj, path + (key.GetName(),)))
         elif obj.InheritsFrom("TH1"):
+            # owned here, not by the file: closing a file that owns ~20k histograms takes
+            # minutes, and would delete the ones returned
+            obj.SetDirectory(0)
             local_items[key.GetName()] = obj
 
     if local_items:

@@ -12,7 +12,6 @@ from FLAF.run_tools.law_customizations import (
     HTCondorWorkflow,
     CrabWorkflow,
     copy_param,
-    era_csv,
 )
 from FLAF.AnaProd.tasks import (
     AnaTupleFileListTask,
@@ -1664,12 +1663,8 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     plot_analysis,
                     "--ana_path",
                     self.ana_path(),
-                    # a real era for HistPlotter's Setup; over a meta-era its eras, whose
-                    # processes and uncertainty sources the summed file holds
                     "--era",
-                    self.sub_eras[0],
-                    "--eras",
-                    era_csv(self.sub_eras),
+                    self.only_era,
                     "--LAWrunVersion",
                     self.version,
                 ]

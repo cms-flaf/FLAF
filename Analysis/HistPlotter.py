@@ -186,14 +186,6 @@ if __name__ == "__main__":
     parser.add_argument("--analysis", required=False, type=str, default="")
     parser.add_argument("--ana_path", required=True, type=str)
     parser.add_argument("--era", required=True, type=str)
-    parser.add_argument(
-        "--eras",
-        required=False,
-        type=str,
-        default="",
-        help="the eras whose sum --inFile holds (a meta-era), comma-separated: the "
-        "processes and uncertainty sources of each are plotted; --era is one of them",
-    )
     parser.add_argument("--LAWrunVersion", required=True, type=str)
     parser.add_argument("--user-custom", type=str, default=None)
     parser.add_argument(
@@ -216,23 +208,19 @@ if __name__ == "__main__":
         os.environ["ANALYSIS_PATH"], "config", "plot/histograms.yaml"
     )
 
-    setup = Setup.Setup(
-        args.ana_path,
-        args.era,
-        args.LAWrunVersion,
-        user_custom_file=args.user_custom,
-    )
-    # The Setup of each era of the plotted file: their datasets and uncertainty sources need
-    # not be the same.
-    setups = {args.era: setup}
-    for era in args.eras.split(",") if args.eras else []:
-        if era not in setups:
-            setups[era] = Setup.Setup(
-                args.ana_path,
-                era,
-                args.LAWrunVersion,
-                user_custom_file=args.user_custom,
-            )
+    # The Setup of each era of the plotted file: a meta-era of `era_groups:` is the sum of
+    # its eras, whose datasets and uncertainty sources need not be the same.
+    eras = Setup.meta_eras(args.ana_path).get(args.era, (args.era,))
+    setups = {
+        era: Setup.Setup(
+            args.ana_path,
+            era,
+            args.LAWrunVersion,
+            user_custom_file=args.user_custom,
+        )
+        for era in eras
+    }
+    setup = setups[eras[0]]
 
     #### config opening ####
     with open(hist_cfg, "r") as f:

@@ -36,8 +36,9 @@ from FLAF.Common.Setup import (
     ERA_IDS,
     Setup,
     UnknownEraError,
+    check_meta_era,
+    era_groups,
     known_eras,
-    meta_eras,
     split_era_branch,
 )
 from FLAF.AnaProd.CostModel import pack_units
@@ -179,7 +180,8 @@ def _known_eras(ana_path):
 
 @functools.cache
 def _meta_eras(ana_path):
-    return meta_eras(ana_path)
+    # a group is checked against the known eras when it is given as --era
+    return era_groups(ana_path)
 
 
 class MetaEraError(ValueError):
@@ -207,6 +209,8 @@ class EraParameter(law.CSVParameter):
                 + (f"; meta-eras: {', '.join(groups)}" if groups else "")
             )
         meta = [era for era in value if era in groups]
+        for era in meta:
+            check_meta_era(era, groups[era], eras)
         if meta and len(value) > 1:
             raise MetaEraError(
                 f"--era {era_csv(value)}: {meta[0]} is a meta-era, the sum of "  # noqa: era-scope

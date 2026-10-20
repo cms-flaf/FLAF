@@ -380,10 +380,11 @@ def known_eras(ana_path):
     return eras
 
 
-def meta_eras(ana_path):
-    """{meta-era: its eras, sorted} from the `era_groups:` of FLAF's and the analysis's
-    global.yaml. A meta-era is the sum of its eras: it has no configuration of its own, and
-    only the stages that sum (HistMergerTask) and those reading the sum take it."""
+def era_groups(ana_path):
+    """{meta-era: its eras, sorted} as the `era_groups:` of FLAF's and the analysis's
+    global.yaml list them. A meta-era is the sum of its eras: it has no configuration of its
+    own, and only the stages that sum (HistMergerTask) and those reading the sum take it.
+    """
     groups = {}
     for path in (
         os.path.join(ana_path, "FLAF", "config", "global.yaml"),
@@ -392,19 +393,29 @@ def meta_eras(ana_path):
         if os.path.isfile(path):
             with open(path) as f:
                 groups.update((yaml.safe_load(f) or {}).get("era_groups") or {})
-    eras = known_eras(ana_path)
-    result = {}
-    for name, members in groups.items():
-        if name in eras:
-            raise ValueError(f"era_groups: {name} is an era, not a group of eras")
-        unknown = [era for era in members if era not in eras]
-        if unknown or not members:
-            raise UnknownEraError(
-                f"era_groups: {name} lists unknown eras {unknown or members}; known eras: "
-                f"{', '.join(eras)}"
-            )
-        result[name] = tuple(sorted(set(members)))
-    return result
+    return {name: tuple(sorted(set(members or ()))) for name, members in groups.items()}
+
+
+def check_meta_era(name, members, eras):
+    """Raise unless meta-era `name` is the sum of known `eras` and not itself an era."""
+    if name in eras:
+        raise ValueError(f"era_groups: {name} is an era, not a group of eras")
+    unknown = [era for era in members if era not in eras]
+    if unknown or not members:
+        raise UnknownEraError(
+            f"era_groups: {name} lists unknown eras {unknown or list(members)}; known "
+            f"eras: {', '.join(eras)}"
+        )
+
+
+def meta_eras(ana_path):
+    """era_groups(), each group checked against the known eras."""
+    groups = era_groups(ana_path)
+    if groups:
+        eras = known_eras(ana_path)
+        for name, members in groups.items():
+            check_meta_era(name, members, eras)
+    return groups
 
 
 class Setup:

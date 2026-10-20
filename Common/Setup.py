@@ -384,8 +384,11 @@ def era_groups(ana_path):
     """{meta-era: its eras, sorted} as the `era_groups:` of FLAF's and the analysis's
     global.yaml list them. A meta-era is the sum of its eras: it has no configuration of its
     own, and only the stages that sum (HistMergerTask) and those reading the sum take it.
+    Without an analysis path there is no configuration, and so no meta-era.
     """
     groups = {}
+    if not ana_path:
+        return groups
     for path in (
         os.path.join(ana_path, "FLAF", "config", "global.yaml"),
         os.path.join(ana_path, "config", "global.yaml"),

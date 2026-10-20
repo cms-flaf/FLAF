@@ -38,6 +38,7 @@ from FLAF.Common.Setup import (
     UnknownEraError,
     check_meta_era,
     era_groups,
+    expand_meta_era,
     known_eras,
     split_era_branch,
 )
@@ -184,15 +185,21 @@ def _meta_eras(ana_path):
     return era_groups(ana_path)
 
 
+def _expand_meta_era(eras):
+    """The real eras a stage that does not sum runs over for `eras`: a meta-era's eras."""
+    return expand_meta_era(eras, _meta_eras(os.getenv("ANALYSIS_PATH")))
+
+
 class MetaEraError(ValueError):
-    """A meta-era where it cannot be: beside other eras, or on a stage that does not sum."""
+    """A meta-era beside other eras in --era."""
 
 
 class EraParameter(law.CSVParameter):
     """FLAF eras, as a sorted tuple of unique known names: `--era Run3_2022` or a comma-separated
     list. Which classes take several is `Task.allow_multi_era`. A meta-era of `era_groups:`
-    (`--era Run3_22_23`) stands alone: it is the sum of its eras, which a list of them runs
-    separately instead."""
+    (`--era Run3_22_23`) stands alone: the stages that sum its eras take it as one era of its
+    own (`Task.allow_meta_era`), every other stage runs over its eras as over the list of
+    them."""
 
     def __init__(self, **kwargs):
         super(EraParameter, self).__init__(unique=True, sort=True, min_len=1, **kwargs)
@@ -349,6 +356,8 @@ def _reject_removed_era_flags():
         and branch not in (None, "-1")
     ):
         eras = root_cls.era.parse(args["era"])
+        if not getattr(root_cls, "allow_meta_era", False):
+            eras = _expand_meta_era(eras)
         if len(eras) > 1:
             raise ValueError(
                 f"--branch {branch} with --era {era_csv(eras)}: a branch belongs to one "
@@ -451,8 +460,9 @@ class Task(law.Task):
     #: whether the branches of this workflow carry the era: over several eras its branch map
     #: is the union of the eras' own maps, numbered by `era_branch` (needs allow_multi_era)
     era_branches = False
-    #: whether a task of this class may be constructed over a meta-era of `era_groups:`, the
-    #: sum of its eras: one era of the task's own, with the Setups of its sub-eras
+    #: whether a task of this class takes a meta-era of `era_groups:` as one era of its own,
+    #: the sum of its eras, with the Setups of its sub-eras; a class that does not runs over
+    #: the meta-era's eras instead, as over the list of them (modify_param_values)
     allow_meta_era = False
     # The removed period: a parameter only so that the parser accepts it and the run stops
     # with the rename message instead of "unrecognized arguments".
@@ -490,6 +500,13 @@ class Task(law.Task):
     )
 
     @classmethod
+    def modify_param_values(cls, params):
+        # before the instance exists, so that it is the very task of the list of the eras
+        if params.get("era") and not cls.allow_meta_era:
+            params["era"] = _expand_meta_era(params["era"])
+        return super(Task, cls).modify_param_values(params)
+
+    @classmethod
     def modify_param_args(cls, params, args, kwargs):
         _reject_removed_era_flags()
         if kwargs.get("period") is not None:  # noqa: era-rename
@@ -511,12 +528,6 @@ class Task(law.Task):
         if len(self.era) > 1 and not self.allow_multi_era:
             raise ValueError(
                 f"{self.get_task_family()} takes one era; got --era {era_csv(self.era)}"
-            )
-        if self.meta_era and not self.allow_meta_era:
-            raise MetaEraError(
-                f"{self.get_task_family()} takes no meta-era; {self.meta_era} is the sum of "
-                f"{era_csv(self.sub_eras)}, which --era {era_csv(self.sub_eras)} runs "
-                "separately"
             )
         self._setups = {}
         for era in self.sub_eras:

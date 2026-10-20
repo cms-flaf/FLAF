@@ -399,6 +399,15 @@ def era_groups(ana_path):
     return {name: tuple(sorted(set(members or ()))) for name, members in groups.items()}
 
 
+def expand_meta_era(eras, groups):
+    """The eras `eras` stand for: a meta-era of `groups` given alone stands for its eras,
+    anything else for itself."""
+    eras = tuple(eras)
+    if len(eras) == 1 and eras[0] in groups:
+        return groups[eras[0]]
+    return eras
+
+
 def check_meta_era(name, members, eras):
     """Raise unless meta-era `name` is the sum of known `eras` and not itself an era."""
     if name in eras:

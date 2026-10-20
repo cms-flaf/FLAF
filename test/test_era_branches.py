@@ -1767,12 +1767,27 @@ class MetaEras(_ScratchAnalysis):
                     analysis.HistMergerTask(version=self.version, era=era)
                 self.assertIn("is run on its own", str(caught.exception))
 
-    def test_a_stage_that_does_not_sum_refuses_a_meta_era(self):
-        for cls in (ana_prod.AnaTupleMergeTask, analysis.HistFromNtupleProducerTask):
+    def test_a_stage_that_does_not_sum_runs_over_its_eras(self):
+        for cls in (
+            ana_prod.InputFileTask,
+            ana_prod.AnaTupleMergeTask,
+            analysis.HistFromNtupleProducerTask,
+        ):
             with self.subTest(cls=cls.__name__):
-                with self.assertRaises(lc.MetaEraError) as caught:
-                    cls(version=self.version, era=META)
-                self.assertIn(f"--era {ERA_A},{ERA_B}", str(caught.exception))
+                task = cls(version=self.version, era=META)
+                self.assertEqual(task.era, (ERA_A, ERA_B))
+                self.assertIsNone(task.meta_era)
+                self.assertIs(task, cls(version=self.version, era=f"{ERA_A},{ERA_B}"))
+
+    def test_on_the_command_line_too(self):
+        task = self.from_command_line(
+            "AnaTupleMergeTask", "--version", self.version, "--era", META
+        )
+        self.assertEqual(task.era, (ERA_A, ERA_B))
+        merger = self.from_command_line(
+            "HistMergerTask", "--version", self.version, "--era", META
+        )
+        self.assertEqual(merger.era, (META,))
 
     def test_the_sum_requires_the_merges_of_its_eras(self):
         task = analysis.HistMergerTask(version=self.version, era=META, workflow="local")

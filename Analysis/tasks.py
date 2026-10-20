@@ -46,6 +46,32 @@ def _dedup_variables(variables):
     return result
 
 
+def _active_variables(setup, variables=""):
+    """The variables of `setup` that are histogrammed and merged, restricted to the
+    comma-separated `variables` when given: one HistMergerTask branch each, in this order.
+    """
+    all_vars = _dedup_variables(setup.histTuple_plot_vars)
+    if not variables:
+        return all_vars
+    selected = {v.strip() for v in variables.split(",") if v.strip()}
+    result = [
+        v for v in all_vars if (v["name"] if isinstance(v, dict) else v) in selected
+    ]
+    found = {v["name"] if isinstance(v, dict) else v for v in result}
+    missing = selected - found
+    if missing:
+        print(f"Warning: variables not found in config: {sorted(missing)}")
+    return result
+
+
+def _merged_hists_target(task, era, var_name, fs):
+    """The merged histograms of `var_name` over `era`, as HistMergerTask writes them."""
+    return task.remote_target(
+        os.path.join(task.version, "Hists_merged", era, var_name, f"{var_name}.root"),
+        fs=fs,
+    )
+
+
 def _variable_applies_to_dataset(setup, var_name, dataset_name):
     """True unless the variable sets `signal_params` and the dataset matches none of its entries.
 
@@ -826,11 +852,26 @@ def _anaTuple_file_list(task, **kwargs):
 
 def _anaTuple_plans_ready(task):
     """Whether the AnaTuple merge plans of `task`'s era(s) exist: the condition of the
-    branch maps built from them."""
+    branch maps built from them. A meta-era's maps are built from the configuration
+    alone, so they have none."""
+    if task.meta_era:
+        return True
     return all(
         file_list.complete()
         for file_list in _anaTuple_file_list(task, branch=-1, branches=())
     )
+
+
+class MergedHistsTask(Task, law.ExternalTask):
+    """The merged histograms of one variable of an era, made by HistMergerTask: what its sum
+    over a meta-era reads, without building that era's branch map to find the file."""
+
+    variable = luigi.Parameter()
+
+    def output(self):
+        return _merged_hists_target(
+            self, self.only_era, self.variable, self.fs_HistTuple
+        )
 
 
 class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
@@ -854,18 +895,7 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 
     @property
     def active_variables(self):
-        all_vars = _dedup_variables(self.setup.histTuple_plot_vars)
-        if not self.variables:
-            return all_vars
-        selected = {v.strip() for v in self.variables.split(",") if v.strip()}
-        result = [
-            v for v in all_vars if (v["name"] if isinstance(v, dict) else v) in selected
-        ]
-        found = {v["name"] if isinstance(v, dict) else v for v in result}
-        missing = selected - found
-        if missing:
-            print(f"Warning: variables not found in config: {sorted(missing)}")
-        return result
+        return _active_variables(self.setup, self.variables)
 
     def stage_workflow_requires(self):
         reqs = super().stage_workflow_requires()
@@ -905,15 +935,12 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     def requires(self):
         var_name, br_indices, datasets = self.branch_data
         if self.meta_era:
-            # br_indices: {era: this variable's branch of HistMergerTask over that era}
+            # the merged file of each era, read as it is: HistMergerTask over the eras is a
+            # requirement of the workflow (stage_workflow_requires), and requiring its branches
+            # here would build the branch maps of every era in every job
             return {
-                era: self.sub_era_task(
-                    HistMergerTask,
-                    era,
-                    branch=br_idx,
-                    max_runtime=HistMergerTask.max_runtime._default,
-                )
-                for era, br_idx in br_indices.items()
+                era: self.sub_era_task(MergedHistsTask, era, variable=var_name)
+                for era in self.sub_eras
             }
         return [
             HistFromNtupleProducerTask.req(
@@ -964,33 +991,26 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 
     def _build_meta_era_branch_map(self):
         """One branch per variable that every era of the meta-era merges, in the order of
-        the first era's map: (variable, {era: its branch there}, None)."""
-        branches_of = {}
-        for era in self.sub_eras:
-            era_map = self.sub_era_task(
-                HistMergerTask, era, branch=-1, branches=()
-            ).create_branch_map()
-            if not era_map:
-                return {}
-            branches_of[era] = {data[0]: br for br, data in sorted(era_map.items())}
+        the first era's: (variable, (), None). From the configuration alone, not from the
+        eras' branch maps, which are built from their AnaTuple merge plans."""
+        names_of = {
+            era: [
+                v["name"] if isinstance(v, dict) else v
+                for v in _active_variables(self.setup_for(era), self.variables)
+            ]
+            for era in self.sub_eras
+        }
         names = [
             name
-            for name in branches_of[self.sub_eras[0]]
-            if all(name in branches_of[era] for era in self.sub_eras)
+            for name in names_of[self.sub_eras[0]]
+            if all(name in names_of[era] for era in self.sub_eras)
         ]
-        return {
-            k: (name, {era: branches_of[era][name] for era in self.sub_eras}, None)
-            for k, name in enumerate(names)
-        }
+        return {k: (name, (), None) for k, name in enumerate(names)}
 
     @workflow_condition.output
     def output(self):
         var_name, br_indices, datasets = self.branch_data
-        output_path = os.path.join(
-            self.version, "Hists_merged", self.only_era, var_name
-        )
-        output_file_name = os.path.join(output_path, f"{var_name}.root")
-        return self.remote_target(output_file_name, fs=self.fs_HistTuple)
+        return _merged_hists_target(self, self.only_era, var_name, self.fs_HistTuple)
 
     def run(self):
         self._refuse_inline_on_worker()

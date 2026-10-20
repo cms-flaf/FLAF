@@ -1746,7 +1746,9 @@ class MetaEras(_ScratchAnalysis):
         super().setUp()
         self.write(
             os.path.join(self.ana, "config", "global.yaml"),
-            FILES["config/global.yaml"].replace("@FS@", self.fs)
+            FILES["config/global.yaml"]
+            .replace("@FS@", self.fs)
+            .replace("    variables: []", "    variables: [ v1, v2 ]", 1)
             + f"era_groups:\n  {META}: [ {ERA_B}, {ERA_A} ]\n",
         )
 
@@ -1795,6 +1797,27 @@ class MetaEras(_ScratchAnalysis):
         self.assertIsInstance(merge, analysis.HistMergerTask)
         self.assertEqual(merge.era, (ERA_A, ERA_B))
         self.assertIsNone(merge.meta_era)
+
+    def test_the_sum_reads_the_merged_files_of_its_eras(self):
+        # no AnaTuple merge plan exists here: neither the map of the sum nor what a branch of it
+        # reads may need one
+        task = analysis.HistMergerTask(version=self.version, era=META, workflow="local")
+        branch_map = task.create_branch_map()
+        self.assertEqual([data[0] for data in branch_map.values()], ["v1", "v2"])
+        branch = analysis.HistMergerTask(
+            version=self.version, era=META, workflow="local", branch=1
+        )
+        reqs = branch.requires()
+        self.assertEqual(sorted(reqs), [ERA_A, ERA_B])
+        for era, req in reqs.items():
+            self.assertIsInstance(req, analysis.MergedHistsTask)
+            self.assertEqual(req.era, (era,))
+            self.assertTrue(
+                req.output().path.endswith(f"Hists_merged/{era}/v2/v2.root")
+            )
+        self.assertTrue(
+            branch.output().path.endswith(f"Hists_merged/{META}/v2/v2.root")
+        )
 
     def test_its_outputs_belong_to_the_meta_era(self):
         task = analysis.HistMergerTask(version=self.version, era=META, workflow="local")

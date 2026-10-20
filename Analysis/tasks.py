@@ -12,6 +12,7 @@ from FLAF.run_tools.law_customizations import (
     HTCondorWorkflow,
     CrabWorkflow,
     copy_param,
+    era_csv,
 )
 from FLAF.AnaProd.tasks import (
     AnaTupleFileListTask,
@@ -814,16 +815,42 @@ class HistFromNtupleProducerTask(
             shutil.rmtree(job_home)
 
 
+def _anaTuple_file_list(task, **kwargs):
+    """AnaTupleFileListTask of `task`'s era, or of each era of its meta-era."""
+    if task.meta_era:
+        return [
+            task.sub_era_task(AnaTupleFileListTask, era, **kwargs)
+            for era in task.sub_eras
+        ]
+    return [AnaTupleFileListTask.req(task, **kwargs)]
+
+
+def _anaTuple_plans_ready(task):
+    """Whether the AnaTuple merge plans of `task`'s era(s) exist: the condition of the
+    branch maps built from them."""
+    return all(
+        file_list.complete()
+        for file_list in _anaTuple_file_list(task, branch=-1, branches=())
+    )
+
+
 class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
+    """The histograms of each variable merged over the datasets of an era.
+
+    Over a meta-era of `era_groups:` (`--era Run3_22_23`) they are the sum of the merged
+    histograms of its eras, which this task over each of those eras makes.
+    """
+
     allow_multi_era = True
     era_branches = True
+    allow_meta_era = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     variables = luigi.Parameter(default="")
 
     @property
     def bundle_flavours(self):
-        fl = AnaTupleFileListTask.req(self, branches=())
+        fl = _anaTuple_file_list(self, branches=())[0]
         return ["core", "soft", ("AnaTupleFileList", fl.version)]
 
     @property
@@ -843,6 +870,12 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 
     def stage_workflow_requires(self):
         reqs = super().stage_workflow_requires()
+        if self.meta_era:
+            # the merged histograms of its eras: one workflow over them, with era branches
+            reqs["HistMergerTask"] = self.sub_era_task(
+                HistMergerTask, self.sub_eras, branches=()
+            )
+            return reqs
         branch_map = self.create_branch_map()
         merge_organization_complete = AnaTupleFileListTask.req(
             self,
@@ -872,6 +905,17 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 
     def requires(self):
         var_name, br_indices, datasets = self.branch_data
+        if self.meta_era:
+            # br_indices: {era: this variable's branch of HistMergerTask over that era}
+            return {
+                era: self.sub_era_task(
+                    HistMergerTask,
+                    era,
+                    branch=br_idx,
+                    max_runtime=HistMergerTask.max_runtime._default,
+                )
+                for era, br_idx in br_indices.items()
+            }
         return [
             HistFromNtupleProducerTask.req(
                 self,
@@ -884,17 +928,15 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
-        return AnaTupleFileListTask.req(
-            self,
-            branch=-1,
-            branches=(),
-        ).complete()
+        return _anaTuple_plans_ready(self)
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
         return self.cached_branch_map(self._build_branch_map)
 
     def _build_branch_map(self):
+        if self.meta_era:
+            return self._build_meta_era_branch_map()
         hfn_branch_map = HistFromNtupleProducerTask.req(
             self, branches=()
         ).create_branch_map()
@@ -921,6 +963,27 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
             branches[k] = (var_name, [b for b, _ in kept], [d for _, d in kept])
         return branches
 
+    def _build_meta_era_branch_map(self):
+        """One branch per variable that every era of the meta-era merges, in the order of
+        the first era's map: (variable, {era: its branch there}, None)."""
+        branches_of = {}
+        for era in self.sub_eras:
+            era_map = self.sub_era_task(
+                HistMergerTask, era, branch=-1, branches=()
+            ).create_branch_map()
+            if not era_map:
+                return {}
+            branches_of[era] = {data[0]: br for br, data in sorted(era_map.items())}
+        names = [
+            name
+            for name in branches_of[self.sub_eras[0]]
+            if all(name in branches_of[era] for era in self.sub_eras)
+        ]
+        return {
+            k: (name, {era: branches_of[era][name] for era in self.sub_eras}, None)
+            for k, name in enumerate(names)
+        }
+
     @workflow_condition.output
     def output(self):
         var_name, br_indices, datasets = self.branch_data
@@ -933,6 +996,8 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     def run(self):
         self._refuse_inline_on_worker()
         var_name, br_indices, datasets = self.branch_data
+        if self.meta_era:
+            return self._sum_eras()
         customisation_dict = getCustomisationSplit(self.customisations)
 
         channels = (
@@ -1040,6 +1105,22 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     print(
                         f"HistMergerTask: could not remove merged input for {var_name}: {e}"
                     )
+
+    def _sum_eras(self):
+        """The merged histograms of the meta-era: the sum of those of its eras."""
+        from FLAF.Common.HistHelper import SumEraFiles
+
+        scales = self.common(
+            lambda setup: list(setup.global_params["scales"]), "scales"
+        )
+        inputs = self.input()
+        with contextlib.ExitStack() as stack:
+            local_inputs = [
+                stack.enter_context(inputs[era].localize("r")).abspath
+                for era in self.sub_eras
+            ]
+            with self.output().localize("w") as out_file:
+                SumEraFiles(local_inputs, out_file.abspath, scales)
 
 
 class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
@@ -1337,16 +1418,32 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
 
 
 class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
+    """The plots of the merged histograms of an era, or of a meta-era (`--era Run3_22_23`):
+    those of the sum HistMergerTask makes over it, labelled by config/plot/<meta-era>.yaml.
+    """
+
     allow_multi_era = True
     era_branches = True
+    allow_meta_era = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 2.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     variables = luigi.Parameter(default="")
 
     @property
     def bundle_flavours(self):
-        fl = AnaTupleFileListTask.req(self, branches=())
+        fl = _anaTuple_file_list(self, branches=())[0]
         return ["core", "soft", ("AnaTupleFileList", fl.version)]
+
+    def plot_setting(self, getter, what):
+        """`getter(setup)` of the era, or the value every era of the meta-era agrees on."""
+        if self.meta_era:
+            return self.common(getter, what)
+        return getter(self.setup)
+
+    def global_param(self, key, default=None):
+        return self.plot_setting(
+            lambda setup: setup.global_params.get(key, default), key
+        )
 
     @property
     def active_variables(self):
@@ -1365,10 +1462,7 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 
     def stage_workflow_requires(self):
         reqs = super().stage_workflow_requires()
-        merge_organization_complete = AnaTupleFileListTask.req(
-            self,
-            branches=(),
-        ).complete()
+        merge_organization_complete = _anaTuple_plans_ready(self)
         if not merge_organization_complete:
             reqs["HistMergerTask"] = HistMergerTask.req(
                 self,
@@ -1376,7 +1470,7 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                 customisations=self.customisations,
             )
             # rely on req auto-copy for ana* so FileList __init__ manages version; no if/version for org list
-            reqs["AnaTupleFileListTask"] = AnaTupleFileListTask.req(
+            reqs["AnaTupleFileListTask"] = _anaTuple_file_list(
                 self,
                 branches=(),
                 max_runtime=AnaTupleFileListTask.max_runtime._default,
@@ -1423,11 +1517,7 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
-        return AnaTupleFileListTask.req(
-            self,
-            branch=-1,
-            branches=(),
-        ).complete()
+        return _anaTuple_plans_ready(self)
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
@@ -1442,7 +1532,9 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
             customisations=self.customisations,
         ).create_branch_map()
         var_dict = {}
-        for var in self.setup.histTuple_plot_vars:
+        for var in self.plot_setting(
+            lambda setup: setup.histTuple_plot_vars, "histTuple_plot_vars"
+        ):
             var_name = var if isinstance(var, str) else var["name"]
             var_dict[var_name] = var
         for k, (_, (var, _, _)) in enumerate(merge_map.items()):
@@ -1461,21 +1553,21 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         customisation_dict = getCustomisationSplit(self.customisations)
 
         channels = customisation_dict.get(
-            "channels", self.global_params["channelSelection"]
+            "channels", self.global_param("channelSelection")
         )
         if isinstance(channels, str):
             channels = channels.split(",")
 
-        base_cats = self.global_params.get("categories") or []
-        boosted_cats = self.global_params.get("boosted_categories") or []
+        base_cats = self.global_param("categories") or []
+        boosted_cats = self.global_param("boosted_categories") or []
         categories = base_cats + boosted_cats
         if isinstance(categories, str):
             categories = categories.split(",")
 
-        custom_region_name = self.global_params.get("custom_regions")
+        custom_region_name = self.global_param("custom_regions")
 
         custom_regions = customisation_dict.get(
-            custom_region_name, self.global_params[custom_region_name]
+            custom_region_name, self.global_param(custom_region_name)
         )
 
         for ch in channels:
@@ -1506,7 +1598,7 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         def bool_flag(key, default):
             return (
                 customisation_dict.get(
-                    key, str(self.global_params.get(key, default))
+                    key, str(self.global_param(key, default))
                 ).lower()
                 == "true"
             )
@@ -1517,14 +1609,16 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         plot_wantQCD = bool_flag("plot_wantQCD", False)
         plot_rebin = bool_flag("plot_rebin", True)
         plot_analysis = customisation_dict.get(
-            "plot_analysis", self.global_params.get("plot_analysis", "")
+            "plot_analysis", self.global_param("plot_analysis", "")
         )
         # Same resolution as in HistMergerTask: it decides whether the merged file holds the
         # up/down variations that the full-uncertainty band and ratio panel are built from.
         compute_unc_histograms = (
             customisation_dict["compute_unc_histograms"] == "True"
             if "compute_unc_histograms" in customisation_dict
-            else self.setup.compute_unc_histograms
+            else self.plot_setting(
+                lambda setup: setup.compute_unc_histograms, "compute_unc_histograms"
+            )
         )
 
         with self.input().localize("r") as local_input:
@@ -1557,7 +1651,7 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     "--globalConfig",
                     os.path.join(
                         self.ana_path(),
-                        self.global_params["analysis_config_area"],
+                        self.global_param("analysis_config_area"),
                         "global.yaml",
                     ),
                     "--var",
@@ -1570,8 +1664,12 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     plot_analysis,
                     "--ana_path",
                     self.ana_path(),
+                    # a real era for HistPlotter's Setup; over a meta-era its eras, whose
+                    # processes and uncertainty sources the summed file holds
                     "--era",
-                    self.only_era,
+                    self.sub_eras[0],
+                    "--eras",
+                    era_csv(self.sub_eras),
                     "--LAWrunVersion",
                     self.version,
                 ]

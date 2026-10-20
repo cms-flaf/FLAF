@@ -380,6 +380,33 @@ def known_eras(ana_path):
     return eras
 
 
+def meta_eras(ana_path):
+    """{meta-era: its eras, sorted} from the `era_groups:` of FLAF's and the analysis's
+    global.yaml. A meta-era is the sum of its eras: it has no configuration of its own, and
+    only the stages that sum (HistMergerTask) and those reading the sum take it."""
+    groups = {}
+    for path in (
+        os.path.join(ana_path, "FLAF", "config", "global.yaml"),
+        os.path.join(ana_path, "config", "global.yaml"),
+    ):
+        if os.path.isfile(path):
+            with open(path) as f:
+                groups.update((yaml.safe_load(f) or {}).get("era_groups") or {})
+    eras = known_eras(ana_path)
+    result = {}
+    for name, members in groups.items():
+        if name in eras:
+            raise ValueError(f"era_groups: {name} is an era, not a group of eras")
+        unknown = [era for era in members if era not in eras]
+        if unknown or not members:
+            raise UnknownEraError(
+                f"era_groups: {name} lists unknown eras {unknown or members}; known eras: "
+                f"{', '.join(eras)}"
+            )
+        result[name] = tuple(sorted(set(members)))
+    return result
+
+
 class Setup:
     _global_instances = {}
 

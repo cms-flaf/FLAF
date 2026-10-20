@@ -186,6 +186,14 @@ if __name__ == "__main__":
     parser.add_argument("--analysis", required=False, type=str, default="")
     parser.add_argument("--ana_path", required=True, type=str)
     parser.add_argument("--era", required=True, type=str)
+    parser.add_argument(
+        "--eras",
+        required=False,
+        type=str,
+        default="",
+        help="the eras whose sum --inFile holds (a meta-era), comma-separated: the "
+        "processes and uncertainty sources of each are plotted; --era is one of them",
+    )
     parser.add_argument("--LAWrunVersion", required=True, type=str)
     parser.add_argument("--user-custom", type=str, default=None)
     parser.add_argument(
@@ -214,6 +222,17 @@ if __name__ == "__main__":
         args.LAWrunVersion,
         user_custom_file=args.user_custom,
     )
+    # The Setup of each era of the plotted file: their datasets and uncertainty sources need
+    # not be the same.
+    setups = {args.era: setup}
+    for era in args.eras.split(",") if args.eras else []:
+        if era not in setups:
+            setups[era] = Setup.Setup(
+                args.ana_path,
+                era,
+                args.LAWrunVersion,
+                user_custom_file=args.user_custom,
+            )
 
     #### config opening ####
     with open(hist_cfg, "r") as f:
@@ -257,14 +276,18 @@ if __name__ == "__main__":
                 "plot_color": "kGray+2",
             }
 
-        for dataset_name in setup.datasets.keys():
-            base_process_name = setup.datasets[dataset_name]["process_name"]
-            process_group = setup.datasets[dataset_name]["process_group"]
+        for era_setup, dataset_name in (
+            (era_setup, dataset_name)
+            for era_setup in setups.values()
+            for dataset_name in era_setup.datasets.keys()
+        ):
+            base_process_name = era_setup.datasets[dataset_name]["process_name"]
+            process_group = era_setup.datasets[dataset_name]["process_group"]
             if process_group == "data":
                 continue
 
-            process_name = setup.base_processes[base_process_name]["parent_process"]
-            process = setup.parent_processes[process_name]
+            process_name = era_setup.base_processes[base_process_name]["parent_process"]
+            process = era_setup.parent_processes[process_name]
             all_datasets_key = process_name
 
             if process.get("to_plot", True):
@@ -424,7 +447,15 @@ if __name__ == "__main__":
             total_unc_hist = GetTotalUncertaintyHist(
                 dir_1,
                 bkg_hists,
-                GetUncNames(setup, setup.global_params, args.era),
+                # every era's sources: one decorrelated between the eras is a source of
+                # its own in each, keyed by its histogram-name template
+                {
+                    template: template
+                    for era, era_setup in setups.items()
+                    for template in GetUncNames(
+                        era_setup, era_setup.global_params, era
+                    ).values()
+                },
                 list(setup.global_params["scales"]),
                 apply_binning,
             )

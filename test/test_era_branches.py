@@ -1734,5 +1734,65 @@ class CostProbeMaps(_ScratchAnalysis):
         )
 
 
+# --------------------------------------------------------------------------------------
+# Meta-eras: a group of `era_groups:` given alone as --era, summed by HistMergerTask
+# --------------------------------------------------------------------------------------
+
+META = "Run3_Test"
+
+
+class MetaEras(_ScratchAnalysis):
+    def setUp(self):
+        super().setUp()
+        self.write(
+            os.path.join(self.ana, "config", "global.yaml"),
+            FILES["config/global.yaml"].replace("@FS@", self.fs)
+            + f"era_groups:\n  {META}: [ {ERA_B}, {ERA_A} ]\n",
+        )
+
+    def test_a_meta_era_is_one_era_with_the_setups_of_its_eras(self):
+        task = analysis.HistMergerTask(version=self.version, era=META)
+        self.assertEqual(task.era, (META,))
+        self.assertEqual(task.only_era, META)
+        self.assertEqual(task.meta_era, META)
+        self.assertEqual(task.sub_eras, (ERA_A, ERA_B))
+        self.assertEqual(task.setup_for(ERA_B).era, ERA_B)
+        with self.assertRaises(lc.EraScopeError):
+            task.setup
+
+    def test_a_meta_era_beside_another_era_is_refused(self):
+        for era in (f"{META},{ERA_A}", f"{META},{ERA_C}"):
+            with self.subTest(era=era):
+                with self.assertRaises(lc.MetaEraError) as caught:
+                    analysis.HistMergerTask(version=self.version, era=era)
+                self.assertIn("is run on its own", str(caught.exception))
+
+    def test_a_stage_that_does_not_sum_refuses_a_meta_era(self):
+        for cls in (ana_prod.AnaTupleMergeTask, analysis.HistFromNtupleProducerTask):
+            with self.subTest(cls=cls.__name__):
+                with self.assertRaises(lc.MetaEraError) as caught:
+                    cls(version=self.version, era=META)
+                self.assertIn(f"--era {ERA_A},{ERA_B}", str(caught.exception))
+
+    def test_the_sum_requires_the_merges_of_its_eras(self):
+        task = analysis.HistMergerTask(version=self.version, era=META, workflow="local")
+        merge = task.stage_workflow_requires()["HistMergerTask"]
+        self.assertIsInstance(merge, analysis.HistMergerTask)
+        self.assertEqual(merge.era, (ERA_A, ERA_B))
+        self.assertIsNone(merge.meta_era)
+
+    def test_its_outputs_belong_to_the_meta_era(self):
+        task = analysis.HistMergerTask(version=self.version, era=META, workflow="local")
+        self.assertEqual(task.store_parts(), (self.version, "HistMergerTask", META))
+        self.assertEqual(
+            task.era_fs("HistTuple"), task.setup_for(ERA_A).get_fs("HistTuple")
+        )
+
+    def test_a_list_of_eras_stays_separate(self):
+        task = analysis.HistMergerTask(version=self.version, era=f"{ERA_A},{ERA_B}")
+        self.assertIsNone(task.meta_era)
+        self.assertEqual(task.sub_eras, (ERA_A, ERA_B))
+
+
 if __name__ == "__main__":
     unittest.main()

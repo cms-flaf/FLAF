@@ -3,6 +3,7 @@ import sys
 import os
 import array
 import math
+import re
 
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
@@ -116,29 +117,57 @@ def GetTotalUncertaintyHist(
     return central_total
 
 
+def _group_instances(group, hists, used):
+    """{parameter values: member processes} of one plot group. A process of the group may
+    name a parameter, e.g. GluGluToRadion_bbWW_2L_${MASS}: the group then stands for one
+    entry per value found in `hists`, in increasing order."""
+    patterns = [
+        re.compile(
+            "^" + re.sub(r"\\\$\\\{(\w+)\\\}", r"(?P<\1>\\w+?)", re.escape(p)) + "$"
+        )
+        for p in group["processes"]
+    ]
+    instances = {}
+    for pattern in patterns:
+        for name in hists:
+            match = pattern.match(name)
+            if match and name not in used:
+                values = tuple(sorted(match.groupdict().items()))
+                instances.setdefault(values, []).append(name)
+
+    def order(values):
+        return [int(v) if v.isdigit() else v for _, v in values]
+
+    return {values: instances[values] for values in sorted(instances, key=order)}
+
+
 def GroupProcesses(hists, groups):
-    """The backgrounds of `hists` summed into the plot groups of `groups` (global.yaml's
-    plot_process_groups: [{name, color, processes}]), stacked in that order from the
-    bottom. A group with none of its processes is skipped, and every entry no group takes
-    (signals, data, ungrouped backgrounds) is kept as it is, after the groups.
+    """The entries of `hists` summed into the plot groups of `groups` (global.yaml's
+    plot_process_groups: [{name, color, processes}]): backgrounds into stack entries, stacked
+    in that order from the bottom, and signals into one curve each. A group whose processes
+    carry a parameter (${MASS}) makes an entry per value, its name formatted with it. A group
+    with none of its processes is skipped, and every entry no group takes is kept as it is,
+    after the groups. The members of a group are all backgrounds or all signals.
     ``hists``: {process: (hist, plot name, color, process group)}."""
     grouped, used = {}, set()
     for group in groups:
-        members = [
-            p
-            for p in group["processes"]
-            if p in hists and hists[p][3] == "backgrounds" and p not in used
-        ]
-        if not members:
-            continue
-        key = "+".join(members)
-        total = hists[members[0]][0].Clone(key)
-        total.SetDirectory(0)
-        for p in members[1:]:
-            total.Add(hists[p][0])
-        color = group.get("color", hists[members[0]][2])
-        grouped[key] = (total, group["name"], color, "backgrounds")
-        used.update(members)
+        for values, members in _group_instances(group, hists, used).items():
+            kinds = {hists[p][3] for p in members}
+            if len(kinds) != 1 or kinds & {"data"}:
+                raise RuntimeError(
+                    f"plot group {group['name']!r} mixes {sorted(kinds)}: {members}"
+                )
+            key = "+".join(members)
+            total = hists[members[0]][0].Clone(key)
+            total.SetDirectory(0)
+            for p in members[1:]:
+                total.Add(hists[p][0])
+            name = group["name"]
+            for param, value in values:
+                name = name.replace("${" + param + "}", value)
+            color = group.get("color", hists[members[0]][2])
+            grouped[key] = (total, name, color, kinds.pop())
+            used.update(members)
     grouped.update((k, v) for k, v in hists.items() if k not in used)
     return grouped
 

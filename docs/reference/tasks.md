@@ -267,8 +267,34 @@ Plot styling comes from the analysis `config/plot/*.yaml` files (`cms_stacked.ya
 `histograms.yaml`, `<era>.yaml`) — unchanged from the legacy renderer. Signal overlays are scaled by
 `signal_plot_scale` in `global.yaml`: a fixed factor (e.g. `100`) **or** `bkg` to normalise each
 signal's integral to the summed background (shape comparison; the legend then reads
-`… (norm. to bkg)`). PlotKit can also render outside FLAF; see its README for the standalone
-`python -m PlotKit.cli` entry point.
+`… (norm. to bkg)`, or a single `sgn_hist.norm_legend_note` entry; see the PlotKit README for this
+and the other optional style settings). PlotKit can also render outside FLAF; see its README for
+the standalone `python -m PlotKit.cli` entry point.
+
+Two optional `global.yaml` keys shape what is drawn:
+
+- **`plot_control_regions`** (list of custom regions, e.g. `[ TT_CR, DY_CR ]`): no signal is
+  overlaid in these regions, and their data is shown even for variables with `blind: true` in
+  `histograms.yaml` (a blinded variable hides the data in the other regions only).
+- **`plot_process_groups`** (list of `{name, processes, color}`): sums processes into one legend
+  entry each. Background groups are stacked in list order from the bottom; signal groups become one
+  curve each. A process may carry a parameter, e.g. `GluGluToRadion_bbWW_2L_${MASS}`: the group
+  then makes one entry per value found (in increasing order), with `${MASS}` in `name` replaced by
+  it. `color` defaults to the colour of the group's first process. A group's processes are all
+  backgrounds or all signals; processes no group takes are plotted as before, after the groups.
+  Without the key nothing is grouped.
+
+```yaml
+plot_control_regions: [ TT_CR, DY_CR ]
+plot_process_groups:
+  - { name: "Single top", processes: [ ST ] }
+  - { name: "t#bar{t} + t#bar{t}V", processes: [ TT, ttV ] }
+  - name: "X #rightarrow HH M_{X} = ${MASS} GeV"
+    processes: [ "GluGluToRadion_bbWW_2L_${MASS}", "GluGluToRadion_bbWW_1L_${MASS}" ]
+```
+
+A per-process `signal_plot_scale` dict is keyed by the plotted entry, so with signal groups it must
+name the group entry (members joined with `+`) rather than the single processes.
 
 ## Statistical-inference tasks
 

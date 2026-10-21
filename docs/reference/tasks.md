@@ -17,7 +17,9 @@ always one era's: its inputs, outputs, paths and logs are those of a run over th
 `StatInference` tasks take several eras too, but their branches are the datacard cards, which may
 read several eras each (see below). The other tasks (`BundleTask`, which stays per era, and the
 analyses' Studies tasks) take one era and refuse several with `<Task> takes one era`. See
-[Running several eras](../concepts/eras.md#running-several-eras).
+[Running several eras](../concepts/eras.md#running-several-eras). A meta-era of `era_groups:`
+(`--era Run3_22_23`) is the sum of its eras for `HistMergerTask` and `HistPlotTask`, and stands
+for the list of its eras for every other task; see [Meta-eras](../concepts/eras.md#meta-eras).
 
 ## Production tasks (`AnaProd`)
 
@@ -191,6 +193,22 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
   and merged here only for datasets matching at least one entry. A dataset matches an entry if,
   for every key of the entry, it lacks that key or has that value, so backgrounds always match.
   Any dataset key can be listed; a single dict is a one-entry list.
+- **Meta-era** (`--era Run3_22_23`, a group of `era_groups:`): one branch per variable that every
+  era of the group merges. It requires `HistMergerTask` over the eras and sums, bin by bin, their
+  merged files of the variable (read through [`MergedHistsTask`](#mergedhiststask)) into
+  `<version>/Hists_merged/<meta-era>/<variable>/<variable>.root`. An era without a variation of a
+  process (a source decorrelated between the eras) contributes its central histogram to it. See
+  [Meta-eras](../concepts/eras.md#meta-eras).
+
+### `MergedHistsTask`
+An **external** task: the merged histograms of one variable of one era, at `HistMergerTask`'s
+output path (`<version>/Hists_merged/<era>/<variable>/<variable>.root` on that era's
+`fs_HistTuple`). It produces nothing; it is what a branch of `HistMergerTask` over a meta-era
+requires of each era, so that the branch checks the eras' merged files without building their
+`HistMergerTask` branch maps (`HistMergerTask` over the eras is the requirement of the workflow,
+which makes them).
+
+- **Parameter:** `--variable` (the variable whose merged file it is; required).
 
 ### `AnalysisCacheTask`
 Runs one **payload producer** (`Analysis/AnalysisCacheProducer.py`) and stores its per-event
@@ -240,6 +258,10 @@ Produces the final **plots** via the [PlotKit](https://github.com/cms-flaf/PlotK
 per variable, skipping variables configured with `plot_task: false`).
 
 - **Parameter:** `--variables` (string; restrict which variables).
+- **Meta-era** (`--era Run3_22_23`): plots the sum `HistMergerTask` makes over the meta-era, into
+  `<version>/Plots/<meta-era>/…`, with the processes and uncertainty sources of every era of the
+  group and the labels of `config/plot/<meta-era>.yaml`. See
+  [Meta-eras](../concepts/eras.md#meta-eras).
 
 Plot styling comes from the analysis `config/plot/*.yaml` files (`cms_stacked.yaml`,
 `histograms.yaml`, `<era>.yaml`) — unchanged from the legacy renderer. Signal overlays are scaled by

@@ -36,6 +36,9 @@ from FLAF.Common.Setup import (
     ERA_IDS,
     Setup,
     UnknownEraError,
+    check_meta_era,
+    era_groups,
+    expand_meta_era,
     known_eras,
     split_era_branch,
 )
@@ -176,20 +179,50 @@ def _known_eras(ana_path):
     return tuple(known_eras(ana_path))
 
 
+@functools.cache
+def _meta_eras(ana_path):
+    # a group is checked against the known eras when it is given as --era
+    return era_groups(ana_path)
+
+
+def _expand_meta_era(eras):
+    """The real eras a stage that does not sum runs over for `eras`: a meta-era's eras."""
+    return expand_meta_era(eras, _meta_eras(os.getenv("ANALYSIS_PATH")))
+
+
+class MetaEraError(ValueError):
+    """A meta-era beside other eras in --era."""
+
+
 class EraParameter(law.CSVParameter):
     """FLAF eras, as a sorted tuple of unique known names: `--era Run3_2022` or a comma-separated
-    list. Which classes take several is `Task.allow_multi_era`."""
+    list. Which classes take several is `Task.allow_multi_era`. A meta-era of `era_groups:`
+    (`--era Run3_22_23`) stands alone: the stages that sum its eras take it as one era of its
+    own (`Task.allow_meta_era`), every other stage runs over its eras as over the list of
+    them."""
 
     def __init__(self, **kwargs):
         super(EraParameter, self).__init__(unique=True, sort=True, min_len=1, **kwargs)
 
     def parse(self, inp):
         value = super(EraParameter, self).parse(inp)
-        eras = _known_eras(os.getenv("ANALYSIS_PATH"))
-        unknown = [era for era in value if era not in eras]
+        ana_path = os.getenv("ANALYSIS_PATH")
+        eras = _known_eras(ana_path)
+        groups = _meta_eras(ana_path)
+        unknown = [era for era in value if era not in eras and era not in groups]
         if unknown:
             raise UnknownEraError(
                 f"unknown era(s) {', '.join(unknown)}; known eras: {', '.join(eras)}"
+                + (f"; meta-eras: {', '.join(groups)}" if groups else "")
+            )
+        meta = [era for era in value if era in groups]
+        for era in meta:
+            check_meta_era(era, groups[era], eras)
+        if meta and len(value) > 1:
+            raise MetaEraError(
+                f"--era {era_csv(value)}: {meta[0]} is a meta-era, the sum of "  # noqa: era-scope
+                f"{era_csv(groups[meta[0]])}, and is run on its own; give "  # noqa: era-scope
+                "it alone, or list real eras to run them separately"
             )
         return value
 
@@ -323,6 +356,8 @@ def _reject_removed_era_flags():
         and branch not in (None, "-1")
     ):
         eras = root_cls.era.parse(args["era"])
+        if not getattr(root_cls, "allow_meta_era", False):
+            eras = _expand_meta_era(eras)
         if len(eras) > 1:
             raise ValueError(
                 f"--branch {branch} with --era {era_csv(eras)}: a branch belongs to one "
@@ -425,6 +460,10 @@ class Task(law.Task):
     #: whether the branches of this workflow carry the era: over several eras its branch map
     #: is the union of the eras' own maps, numbered by `era_branch` (needs allow_multi_era)
     era_branches = False
+    #: whether a task of this class takes a meta-era of `era_groups:` as one era of its own,
+    #: the sum of its eras, with the Setups of its sub-eras; a class that does not runs over
+    #: the meta-era's eras instead, as over the list of them (modify_param_values)
+    allow_meta_era = False
     # The removed period: a parameter only so that the parser accepts it and the run stops
     # with the rename message instead of "unrecognized arguments".
     period = luigi.OptionalParameter(  # noqa: era-rename
@@ -461,6 +500,13 @@ class Task(law.Task):
     )
 
     @classmethod
+    def modify_param_values(cls, params):
+        # before the instance exists, so that it is the very task of the list of the eras
+        if params.get("era") and not cls.allow_meta_era:
+            params["era"] = _expand_meta_era(params["era"])
+        return super(Task, cls).modify_param_values(params)
+
+    @classmethod
     def modify_param_args(cls, params, args, kwargs):
         _reject_removed_era_flags()
         if kwargs.get("period") is not None:  # noqa: era-rename
@@ -484,9 +530,9 @@ class Task(law.Task):
                 f"{self.get_task_family()} takes one era; got --era {era_csv(self.era)}"
             )
         self._setups = {}
-        for era in self.era:
+        for era in self.sub_eras:
             self.setup_for(era)
-        if len(self.era) > 1:
+        if len(self.sub_eras) > 1:
             for what, getter in self.common_settings:
                 self.common(getter, what)
         if isinstance(self, law.BaseWorkflow) and self.is_workflow():
@@ -495,11 +541,31 @@ class Task(law.Task):
         self._dataset_id_name_dict = None
         self._dataset_name_id_dict = None
 
+    @property
+    def meta_era(self):
+        """The meta-era this task is over (`--era Run3_22_23`), or None. A meta-era stands
+        alone in --era, so it is the task's one era."""
+        era = self.era[0]  # noqa: era-scope
+        return era if era in _meta_eras(os.getenv("ANALYSIS_PATH")) else None
+
+    @property
+    def sub_eras(self):
+        """The real eras whose Setups this task has: those of its meta-era, else its eras."""
+        if self.meta_era:
+            return _meta_eras(os.getenv("ANALYSIS_PATH"))[self.meta_era]
+        return self.era
+
+    def sub_era_task(self, cls, eras, **kwargs):
+        """`cls.req(self, ...)` over real `eras` (an era or a tuple of them): what a task over
+        a meta-era requires of its sub-eras."""
+        eras = (eras,) if isinstance(eras, str) else tuple(eras)
+        return cls.req(self, era=eras, **kwargs)  # noqa: era-scope
+
     def setup_for(self, era):
-        """The Setup of one of this task's eras."""
-        if era not in self.era:
+        """The Setup of one of this task's (sub-)eras."""
+        if era not in self.sub_eras:
             raise ValueError(
-                f"{self.get_task_family()}: {era} is not one of {self.era}"  # noqa: era-rename
+                f"{self.get_task_family()}: {era} is not one of {self.sub_eras}"  # noqa: era-rename
             )
         setup = self._setups.get(era)
         if setup is None:
@@ -536,6 +602,11 @@ class Task(law.Task):
 
     @property
     def setup(self):
+        if self.meta_era:
+            raise EraScopeError(
+                f"{self.get_task_family()}(era={self.meta_era}): the meta-era has no Setup of "
+                f"its own; use setup_for(<one of {era_csv(self.sub_eras)}>) or common()"
+            )
         return self.setup_for(self.only_era)
 
     def era_of(self, branch):
@@ -572,8 +643,8 @@ class Task(law.Task):
         """`getter(setup)` of a setting that holds for every era of this task: its value when
         all eras agree; raises EraDependentValueError naming `what` and each era's value when
         they do not."""
-        values = {era: getter(self.setup_for(era)) for era in self.era}
-        value = values[self.era[0]]  # noqa: era-scope
+        values = {era: getter(self.setup_for(era)) for era in self.sub_eras}
+        value = values[self.sub_eras[0]]
         if any(other != value for other in values.values()):
             raise EraDependentValueError(
                 f"{self.get_task_family()}(era={era_csv(self.era)}): {what} differs between "
@@ -1012,7 +1083,7 @@ class Task(law.Task):
     @property
     def cmssw_env(self):
         # the same for every era: it depends on FLAF_CMSSW_BASE and the environment alone
-        return self.setup_for(self.era[0]).cmssw_env  # noqa: era-scope
+        return self.setup_for(self.sub_eras[0]).cmssw_env
 
     @property
     def datasets(self):
@@ -1025,39 +1096,50 @@ class Task(law.Task):
     @property
     def fs_default(self):
         # one for all eras of a task (construction checks that they agree)
-        return self.setup_for(self.era[0]).get_fs("default")  # noqa: era-scope
+        return self.setup_for(self.sub_eras[0]).get_fs("default")
+
+    def era_fs(self, name):
+        """The file system `fs_<name>` of this task's era; of a meta-era, the one all its
+        sub-eras configure (construction does not check it: each stage reads its own).
+        """
+        if self.meta_era:
+            self.common(
+                lambda setup: setup.global_params.get(f"fs_{name}"), f"fs_{name}"
+            )
+            return self.setup_for(self.sub_eras[0]).get_fs(name)
+        return self.setup.get_fs(name)
 
     @property
     def fs_nanoAOD(self):
-        return self.setup.get_fs("nanoAOD")
+        return self.era_fs("nanoAOD")
 
     @property
     def fs_anaCache(self):
-        return self.setup.get_fs("anaCache")
+        return self.era_fs("anaCache")
 
     @property
     def fs_anaTuple(self):
-        return self.setup.get_fs("anaTuple")
+        return self.era_fs("anaTuple")
 
     @property
     def fs_HistTuple(self):
-        return self.setup.get_fs("HistTuple")
+        return self.era_fs("HistTuple")
 
     @property
     def fs_anaCacheTuple(self):
-        return self.setup.get_fs("anaCacheTuple")
+        return self.era_fs("anaCacheTuple")
 
     @property
     def fs_nnCacheTuple(self):
-        return self.setup.get_fs("nnCacheTuple")
+        return self.era_fs("nnCacheTuple")
 
     @property
     def fs_histograms(self):
-        return self.setup.get_fs("histograms")
+        return self.era_fs("histograms")
 
     @property
     def fs_plots(self):
-        return self.setup.get_fs("plots")
+        return self.era_fs("plots")
 
     def ana_path(self):
         return os.getenv("ANALYSIS_PATH")
@@ -1757,6 +1839,15 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         the flavours it knows about, and an analysis that keeps e.g. its environment inside
         another bundle simply has fewer of them.
         """
+        if self.meta_era:
+            # bundles are per era: a task over a meta-era ships those of each of its eras
+            return [
+                bundle
+                for era in self.sub_eras
+                for bundle in self.sub_era_task(
+                    type(self), era, branch=-1, branches=()
+                )._bundle_tasks()
+            ]
         configured = self.global_params.get("bundles", {})
         tasks = []
         for item in self.bundle_flavours:

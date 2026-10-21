@@ -113,7 +113,8 @@ under [Branch numbers](#branch-numbers).
 
 !!! warning "`--era` must be one of the known eras"
     The known eras are the directories `FLAF/config/<era>/` whose `global.yaml` says
-    `era: <era>`; any other `--era` stops at once with the list of the known ones
+    `era: <era>`, and the meta-eras of `era_groups:` (see [Meta-eras](#meta-eras)); any other
+    `--era` stops at once with the list of the known ones
     ([Troubleshooting](../troubleshooting.md#unknown-eras-known-eras-the-configuration-says-era)).
     If a run unexpectedly drops into `InputFileTask` and queries Rucio for nothing, a wrong
     `--era`/`--version` combination is the usual cause. See
@@ -132,10 +133,11 @@ under [Branch numbers](#branch-numbers).
 - **A stage whose branch map is read from an earlier stage's output** (the file lists of
   `InputFileTask`, the merge plan of `AnaTupleFileListTask`) is built only once that output exists
   for every era of the run, so the slowest era sets the pace at that point.
-- **A FLAF stage sums nothing across eras.** Every output of a stage belongs to one era, as in a
-  run over one era (a `StatInference` card of a group era is built from several, see below).
-  Combining eras, such as 2024+2025+2026 with `weight_base_branch: weight_base_cmb`, stays a
-  separate step: add the histograms of the eras.
+- **A run over a list of eras sums nothing across them.** Every output of a stage belongs to one
+  era, as in a run over one era (a `StatInference` card of a group era is built from several, see
+  below). Summing eras is what a meta-era is for: `HistMergerTask --era <meta-era>` adds the merged
+  histograms of its eras, and `HistPlotTask` plots the sum (see [Meta-eras](#meta-eras)). Combining
+  2024+2025+2026 also needs `weight_base_branch: weight_base_cmb` in each of the three eras.
 - **Shared-MC eras** (`Run3_2025` and `Run3_2026` reuse the 2024 MC datasets, see above) each
   produce their own AnaTuples: in a run over `Run3_2024,Run3_2025,Run3_2026` the shared MC
   datasets are read three times and written as three sets of AnaTuples, so the work is not shared
@@ -161,10 +163,15 @@ The stages of the production and analysis chain: `InputFileTask`, `AnaTupleCostP
 `PreHistTupleProductionTask`, `HistFromNtupleProducerTask`, `HistMergerTask` and `HistPlotTask`
 (the classes that set `allow_multi_era` and `era_branches`).
 
+`HistMergerTask` and `HistPlotTask` also take a meta-era, as one era of its own (they set
+`allow_meta_era`); every other stage given a meta-era runs over its eras instead (see
+[Meta-eras](#meta-eras)).
+
 The `StatInference` tasks take several eras too, without era branches (they set
 `allow_multi_era` only). `CreateDatacardsTask` and `PreprocessShapesTask` are one workflow each
 whose branches are the cards of the datacard configuration (its `eras:`, in order, a group era of
-`era_groups:` among them), and each branch reads the real eras its card needs. So:
+its own `era_groups:` among them -- the datacard configuration's, not the `era_groups:` of
+`global.yaml` that declares meta-eras), and each branch reads the real eras its card needs. So:
 
 - `--era` must hold every real era behind the cards: a card is built from all of its sub-eras or
   not at all, and over fewer eras the run stops with
@@ -184,6 +191,44 @@ Every other task takes one era and refuses several with
 and `BundleTask`: bundles stay per era, the stages that ship one require the bundles of each era
 that still has work, and an existing bundle of one era is never rebuilt for another. Launch the
 tasks that refuse several eras once per era.
+
+### Meta-eras
+
+A **meta-era** is a named group of real eras, declared under `era_groups:` in the analysis's
+`global.yaml` (or FLAF's):
+
+```yaml
+era_groups:
+  Run3_22_23: [ Run3_2022, Run3_2022EE, Run3_2023, Run3_2023BPix ]
+```
+
+It is given **alone** as `--era` (`--era Run3_22_23`), and what it means depends on the stage:
+
+- **`HistMergerTask` sums its eras.** Over a meta-era it is one workflow whose branches are the
+  variables every era of the group merges (the `variables` of their histTuple flavour, numbered as
+  over one era). It requires `HistMergerTask` over the eras (one workflow with era branches, so
+  that runs first), and each branch reads the merged file of its variable in every era
+  (`MergedHistsTask`, an external task at `HistMergerTask`'s output path) and adds them bin by bin
+  into `<version>/Hists_merged/<meta-era>/<variable>/<variable>.root`. A variation that an era does
+  not have -- a source decorrelated between the eras, such as a per-era jet energy scale -- enters
+  the sum as that era's central histogram of the process, so the source moves only its own era's
+  events.
+- **`HistPlotTask` plots that sum**, into `<version>/Plots/<meta-era>/…`, labelled by the
+  analysis's `config/plot/<meta-era>.yaml` (which states the summed luminosity). The processes
+  and uncertainty sources shown are those of every era of the group.
+- **Every other stage runs over the eras of the meta-era**, as over the list of them:
+  `law run FLAF.AnaProd.tasks.InputFileTask --era Run3_22_23` is the very task of
+  `--era Run3_2022,Run3_2022EE,Run3_2023,Run3_2023BPix`, with its outputs and job files. A task
+  that takes one era refuses it like any list of eras, and `--branch` follows the eras it runs over.
+
+A meta-era beside any other era is refused, the group's own eras included:
+`--era Run3_2022,Run3_22_23: Run3_22_23 is a meta-era, the sum of …, and is run on its own`. The
+eras of a group must be known eras and its name must not be one, or a `--era` naming it stops with
+the reason. A meta-era has no configuration of its own: its tasks read the configuration of its
+eras, and a setting they read once (the filesystems, the plot settings of `HistPlotTask`, the
+`scales`) must be the same in all of them, or construction stops with `EraDependentValueError`
+as in [Settings that must agree](#settings-that-must-agree-between-the-eras). Its paths, job file
+and logs are under the meta-era's name, so they never collide with those of its eras.
 
 ### Branch numbers
 
@@ -259,7 +304,8 @@ explained in [Troubleshooting](../troubleshooting.md#task-takes-one-era-got-era)
 In CI, the eras are listed in the `*_eras` variable (e.g.
 `Run3_2022 Run3_2022EE Run3_2023 Run3_2023BPix Run3_2024 Run3_2025 Run3_2026`). See the
 [integration pipeline](../ci/integration-pipeline.md). For a 2024+2025+2026 combination, run each
-era with `weight_base_branch: weight_base_cmb` and add the histograms.
+era with `weight_base_branch: weight_base_cmb` and add the histograms, e.g. with a meta-era of the
+three (see [Meta-eras](#meta-eras)).
 
 ## Adding a new era
 

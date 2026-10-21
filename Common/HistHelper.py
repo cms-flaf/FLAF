@@ -45,6 +45,9 @@ def get_all_items_recursive(root_dir, path=()):
         if obj.InheritsFrom("TDirectory"):
             items_dict.update(get_all_items_recursive(obj, path + (key.GetName(),)))
         elif obj.InheritsFrom("TH1"):
+            # owned here, not by the file: closing a file that owns ~20k histograms takes
+            # minutes, and would delete the ones returned
+            obj.SetDirectory(0)
             local_items[key.GetName()] = obj
 
     if local_items:
@@ -312,3 +315,41 @@ def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
         # model = ROOT.RDF.THnDModel("", "", )
 
     return model, unit_bin_model
+
+
+def SumEraFiles(in_paths, out_path, scales):
+    """Sum the merged histogram files of several eras into one, bin by bin.
+
+    A variation that an era does not have -- a source decorrelated between the eras, such
+    as ``TT_CMS_scale_j_2022_Up`` in Run3_2023 -- enters the sum as that era's central
+    histogram of the process: the source does not move that era's events. A plain hadd
+    would leave the varied histogram holding the events of its own era alone.
+    """
+    in_files = [ROOT.TFile.Open(path, "READ") for path in in_paths]
+    eras = [get_all_items_recursive(in_file) for in_file in in_files]
+    # 209 = LZMA level 9, as the merged files of one era
+    out_file = ROOT.TFile(out_path, "RECREATE", "", 209)
+    for dir_path in dict.fromkeys(path for era in eras for path in era):
+        hists = [era.get(dir_path, {}) for era in eras]
+        names = list(dict.fromkeys(name for era_hists in hists for name in era_hists))
+        centrals = [name for name in names if not name.endswith(tuple(scales))]
+        out_dir = mkdir_recursive(out_file, "/".join(dir_path))
+        for name in names:
+            # the process of a variation: the longest central name it extends
+            process = None
+            if name not in centrals:
+                process = max(
+                    (c for c in centrals if name.startswith(c + "_")),
+                    key=len,
+                    default=None,
+                )
+            parts = [h.get(name, h.get(process)) for h in hists]
+            parts = [part for part in parts if part]
+            total = parts[0].Clone(name)
+            total.SetDirectory(0)
+            for part in parts[1:]:
+                total.Add(part)
+            out_dir.WriteTObject(total, name, "Overwrite")
+    out_file.Close()
+    for in_file in in_files:
+        in_file.Close()

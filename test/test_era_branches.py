@@ -1734,5 +1734,103 @@ class CostProbeMaps(_ScratchAnalysis):
         )
 
 
+# --------------------------------------------------------------------------------------
+# Meta-eras: a group of `era_groups:` given alone as --era, summed by HistMergerTask
+# --------------------------------------------------------------------------------------
+
+META = "Run3_Test"
+
+
+class MetaEras(_ScratchAnalysis):
+    def setUp(self):
+        super().setUp()
+        self.write(
+            os.path.join(self.ana, "config", "global.yaml"),
+            FILES["config/global.yaml"]
+            .replace("@FS@", self.fs)
+            .replace("    variables: []", "    variables: [ v1, v2 ]", 1)
+            + f"era_groups:\n  {META}: [ {ERA_B}, {ERA_A} ]\n",
+        )
+
+    def test_a_meta_era_is_one_era_with_the_setups_of_its_eras(self):
+        task = analysis.HistMergerTask(version=self.version, era=META)
+        self.assertEqual(task.era, (META,))
+        self.assertEqual(task.only_era, META)
+        self.assertEqual(task.meta_era, META)
+        self.assertEqual(task.sub_eras, (ERA_A, ERA_B))
+        self.assertEqual(task.setup_for(ERA_B).era, ERA_B)
+        with self.assertRaises(lc.EraScopeError):
+            task.setup
+
+    def test_a_meta_era_beside_another_era_is_refused(self):
+        for era in (f"{META},{ERA_A}", f"{META},{ERA_C}"):
+            with self.subTest(era=era):
+                with self.assertRaises(lc.MetaEraError) as caught:
+                    analysis.HistMergerTask(version=self.version, era=era)
+                self.assertIn("is run on its own", str(caught.exception))
+
+    def test_a_stage_that_does_not_sum_runs_over_its_eras(self):
+        for cls in (
+            ana_prod.InputFileTask,
+            ana_prod.AnaTupleMergeTask,
+            analysis.HistFromNtupleProducerTask,
+        ):
+            with self.subTest(cls=cls.__name__):
+                task = cls(version=self.version, era=META)
+                self.assertEqual(task.era, (ERA_A, ERA_B))
+                self.assertIsNone(task.meta_era)
+                self.assertIs(task, cls(version=self.version, era=f"{ERA_A},{ERA_B}"))
+
+    def test_on_the_command_line_too(self):
+        task = self.from_command_line(
+            "AnaTupleMergeTask", "--version", self.version, "--era", META
+        )
+        self.assertEqual(task.era, (ERA_A, ERA_B))
+        merger = self.from_command_line(
+            "HistMergerTask", "--version", self.version, "--era", META
+        )
+        self.assertEqual(merger.era, (META,))
+
+    def test_the_sum_requires_the_merges_of_its_eras(self):
+        task = analysis.HistMergerTask(version=self.version, era=META, workflow="local")
+        merge = task.stage_workflow_requires()["HistMergerTask"]
+        self.assertIsInstance(merge, analysis.HistMergerTask)
+        self.assertEqual(merge.era, (ERA_A, ERA_B))
+        self.assertIsNone(merge.meta_era)
+
+    def test_the_sum_reads_the_merged_files_of_its_eras(self):
+        # no AnaTuple merge plan exists here: neither the map of the sum nor what a branch of it
+        # reads may need one
+        task = analysis.HistMergerTask(version=self.version, era=META, workflow="local")
+        branch_map = task.create_branch_map()
+        self.assertEqual([data[0] for data in branch_map.values()], ["v1", "v2"])
+        branch = analysis.HistMergerTask(
+            version=self.version, era=META, workflow="local", branch=1
+        )
+        reqs = branch.requires()
+        self.assertEqual(sorted(reqs), [ERA_A, ERA_B])
+        for era, req in reqs.items():
+            self.assertIsInstance(req, analysis.MergedHistsTask)
+            self.assertEqual(req.era, (era,))
+            self.assertTrue(
+                req.output().path.endswith(f"Hists_merged/{era}/v2/v2.root")
+            )
+        self.assertTrue(
+            branch.output().path.endswith(f"Hists_merged/{META}/v2/v2.root")
+        )
+
+    def test_its_outputs_belong_to_the_meta_era(self):
+        task = analysis.HistMergerTask(version=self.version, era=META, workflow="local")
+        self.assertEqual(task.store_parts(), (self.version, "HistMergerTask", META))
+        self.assertEqual(
+            task.era_fs("HistTuple"), task.setup_for(ERA_A).get_fs("HistTuple")
+        )
+
+    def test_a_list_of_eras_stays_separate(self):
+        task = analysis.HistMergerTask(version=self.version, era=f"{ERA_A},{ERA_B}")
+        self.assertIsNone(task.meta_era)
+        self.assertEqual(task.sub_eras, (ERA_A, ERA_B))
+
+
 if __name__ == "__main__":
     unittest.main()

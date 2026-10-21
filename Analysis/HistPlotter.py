@@ -116,6 +116,33 @@ def GetTotalUncertaintyHist(
     return central_total
 
 
+def GroupProcesses(hists, groups):
+    """The backgrounds of `hists` summed into the plot groups of `groups` (global.yaml's
+    plot_process_groups: [{name, color, processes}]), stacked in that order from the
+    bottom. A group with none of its processes is skipped, and every entry no group takes
+    (signals, data, ungrouped backgrounds) is kept as it is, after the groups.
+    ``hists``: {process: (hist, plot name, color, process group)}."""
+    grouped, used = {}, set()
+    for group in groups:
+        members = [
+            p
+            for p in group["processes"]
+            if p in hists and hists[p][3] == "backgrounds" and p not in used
+        ]
+        if not members:
+            continue
+        key = "+".join(members)
+        total = hists[members[0]][0].Clone(key)
+        total.SetDirectory(0)
+        for p in members[1:]:
+            total.Add(hists[p][0])
+        color = group.get("color", hists[members[0]][2])
+        grouped[key] = (total, group["name"], color, "backgrounds")
+        used.update(members)
+    grouped.update((k, v) for k, v in hists.items() if k not in used)
+    return grouped
+
+
 def findNewBins(hist_cfg_dict, var, **keys):
     cfg = hist_cfg_dict.get(var, {})
 
@@ -283,6 +310,11 @@ if __name__ == "__main__":
                     if "channels" in process.keys():
                         if channel not in process["channels"]:
                             continue
+                    # no signal overlay in the control regions
+                    if custom_region in (
+                        global_cfg_dict.get("plot_control_regions") or []
+                    ):
+                        continue
                 all_datasets_dict[all_datasets_key] = {}
                 all_datasets_dict[all_datasets_key]["process_name"] = process_name
                 all_datasets_dict[all_datasets_key]["process_group"] = process_group
@@ -313,10 +345,13 @@ if __name__ == "__main__":
         }
         var_entry = findBinEntry(hist_cfg_dict, args.var)
 
+        # A blinded variable hides the data outside the control regions only. Without data
+        # the CMS label reads "Simulation" from want_data, so datasim_text keeps its scope.
         blind_check = hist_cfg_dict[var_entry].get("blind", False)
-        args.wantData = args.wantData and (not blind_check)
-        if args.wantData == False:
-            custom1["datasim_text"] = "CMS simulation"
+        want_data = args.wantData and not (
+            blind_check
+            and custom_region not in (global_cfg_dict.get("plot_control_regions") or [])
+        )
         inFile_root = ROOT.TFile.Open(args.inFile, "READ")
         dir_0 = inFile_root.Get(channel)
         keys_0 = [str(k) for k in dir_0.GetListOfKeys()]
@@ -357,7 +392,7 @@ if __name__ == "__main__":
             dataset_plot_name = dataset_content["plot_name"]
             dataset_plot_color = dataset_content["plot_color"]
 
-            if dataset_process_group == "data" and not args.wantData:
+            if dataset_process_group == "data" and not want_data:
                 continue
 
             if args.uncSource != "Central":
@@ -448,12 +483,15 @@ if __name__ == "__main__":
                 apply_binning,
             )
 
+        hists_to_plot_binned = GroupProcesses(
+            hists_to_plot_binned, global_cfg_dict.get("plot_process_groups") or []
+        )
         scale = global_cfg_dict.get("signal_plot_scale", 1.0)
         plotter.plot(
             var_entry,
             hists_to_plot_binned,
             outFile,
-            want_data=args.wantData,
+            want_data=want_data,
             custom=custom1,
             scale=scale,
             total_unc=total_unc_hist,

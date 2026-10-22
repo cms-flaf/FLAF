@@ -251,13 +251,19 @@ class RemotePathCache:
     def has_listing(self, base_dir):
         return self.get(listing_marker(base_dir))[0] is True
 
+    def _keep(self, path, result):
+        # Not a listing marker: it says the server's knowledge of the directory is complete,
+        # which no copy of part of it here is -- kept, it would answer "absent" for a file
+        # never fetched once the server is gone or restarted from an older state.
+        if result is not None and os.path.basename(path) != LISTING_MARKER:
+            self.local_cache.set_from_server(path, result)
+
     def get(self, path):
         local_result, _ = self.local_cache.get(path)
         if local_result is not None:
             return local_result, True
         remote_result = self._server(get_remote_cache_status, path)
-        if remote_result is not None:
-            self.local_cache.set_from_server(path, remote_result)
+        self._keep(path, remote_result)
         return remote_result, False
 
     def get_many(self, paths):
@@ -276,8 +282,7 @@ class RemotePathCache:
             remote = self._server(get_remote_cache_status_many, missing, default={})
             for path in missing:
                 remote_result = remote.get(path)
-                if remote_result is not None:
-                    self.local_cache.set_from_server(path, remote_result)
+                self._keep(path, remote_result)
                 results[path] = remote_result
         return results
 
@@ -349,11 +354,7 @@ def list_target_directories(targets, n_threads=PARALLEL_LISTINGS):
     to_list = {}
     target_dirs = []
     for fi, items in per_interface.values():
-        dirs = {os.path.dirname(uri) for _, uris in items for uri in uris}
-        fi.path_cache.get_many(
-            [uri for _, uris in items for uri in uris]
-            + [listing_marker(d) for d in dirs]
-        )
+        fi.path_cache.get_many([uri for _, uris in items for uri in uris])
         for target, uris in items:
             # the listings this target's own answer depends on
             keys = []

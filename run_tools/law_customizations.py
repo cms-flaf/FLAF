@@ -968,6 +968,18 @@ class Task(law.Task):
             t for req in requirements.values() for t in _leaf_targets(req.output())
         ]
         required, n_found = collect_existing_target_entries(targets)
+        # The jobs' own output directories, listed now unless a listing of this poll is
+        # cached: otherwise a later round would ship no listing of them (require_fresh_negatives
+        # drops earlier ones from the snapshot), and every job would list them itself -- for a
+        # HistFromNtupleProducerTask job one directory per variable.
+        list_target_directories(
+            [
+                t
+                for job_branches in branches
+                for b in job_branches
+                for t in _leaf_targets(self.as_branch(b).output())
+            ]
+        )
         entries = {}
         # a task over a meta-era has no Setup of its own, but those of its eras
         for era in self.sub_eras:
@@ -2420,8 +2432,12 @@ class SubmissionGuards(LawProxyState):
         for job_num in candidates:
             data = self.job_data.jobs.get(job_num) or {}
             is_unlisted = any(id(t) in unlisted for t in outputs[job_num])
-            # by a job the batch system still knows, not recorded as finished before
-            reported_finished = data.get("error") == self.missing_outputs_error
+            # By a job the batch system still knows, not recorded as finished before. Not held
+            # with --no-poll: that run ends after this round, and the next starts the hold
+            # afresh, so it would never come to the second look.
+            reported_finished = data.get(
+                "error"
+            ) == self.missing_outputs_error and not getattr(self.task, "no_poll", False)
             if not is_unlisted and all(
                 self.task.as_branch(b).complete() for b in retry_jobs[job_num]
             ):

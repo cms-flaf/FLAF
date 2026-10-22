@@ -1046,6 +1046,17 @@ class AResumedRunHoldsTooOnItsFirstPoll(unittest.TestCase):
         self.assertEqual(h.status(1), manager.FINISHED)
         self.assertEqual(h.submitted, [], "a job that did its work was resubmitted")
 
+    def test_with_no_poll_it_is_retried_at_once(self):
+        """--no-poll ends after this one round, and the next run would start the hold afresh:
+        it would never come to the second look, so the job is retried as before."""
+        h = self.old_driver()
+        h.task_params["no_poll"] = True
+        h.new_driver()
+        h.drive(self.responses)
+        self.assertTrue(h.task.no_poll)
+        self.assertEqual(h.queries, 1)
+        self.assertEqual(h.submitted, [{1: [0]}])
+
     def test_a_product_still_missing_a_poll_later_is_resubmitted(self):
         h = self.old_driver()
         h.drive(self.responses, max_polls=2)
@@ -1441,7 +1452,10 @@ class TheJobChecksItsRequirementsFromTheSnapshot(unittest.TestCase):
         later = law_gfal.time.time() + 3600
         with mock.patch.object(law_gfal.time, "time", return_value=later):
             path, shipped, _, listings = self.stage()
-        self.assertEqual(listings, [], "the cache server answers at submit")
+        # the cache server answers for the requirements; only the jobs' own output directory
+        # (not created yet) is listed, so that the jobs do not list it themselves
+        req_dirs = {os.path.dirname(uri) for uri in self.required.values()}
+        self.assertFalse(req_dirs & set(listings), "the cache server answers at submit")
         for uri in self.required.values():
             self.assertIs(shipped.get(uri), True, uri)
         for branch in (0, 1):
@@ -1460,8 +1474,13 @@ class TheJobChecksItsRequirementsFromTheSnapshot(unittest.TestCase):
 
     def test_a_directory_unknown_to_the_cache_server_is_listed_once_at_submit(self):
         _, shipped, _, listings = self.stage()
-        dirs = sorted({os.path.dirname(uri) for uri in self.required.values()})
-        self.assertEqual(sorted(listings), dirs)
+        dirs = {os.path.dirname(uri) for uri in self.required.values()}
+        # with the jobs' own output directory (not created yet: with its absent ancestors)
+        own = os.path.dirname(
+            self.h.fs.file_interface.uri(self.h.task.as_branch(0).output().path)
+        )
+        self.assertEqual(sorted(listings), sorted(set(listings)))
+        self.assertTrue(dirs | {own} <= set(listings), listings)
         for uri in self.required.values():
             self.assertIs(shipped.get(uri), True, uri)
 
@@ -1559,6 +1578,31 @@ class TheJobChecksItsRequirementsFromTheSnapshot(unittest.TestCase):
                 for uri in upstream:
                     with self.subTest(branches=branches, uri=uri):
                         self.assertEqual(shipped.get(uri) is True, wanted)
+
+    def test_a_job_of_a_later_round_does_not_list_its_own_outputs(self):
+        """Every poll moves the fresh-negatives epoch, and a listing older than it is not
+        shipped: the stager lists the jobs' own output directory again, so that a job of a
+        later round (retry, refill, resumed run) reads its outputs as missing from the
+        snapshot instead of listing the directory itself."""
+        own_dir = os.path.dirname(
+            self.h.fs.file_interface.uri(self.h.task.as_branch(0).output().path)
+        )
+        self.h.storage.add(own_dir, is_dir=True)
+        # the driver's look at the outputs when the run started, then a later poll
+        self.assertFalse(self.h.task.as_branch(0).output().exists())
+        lc.require_fresh_negatives()
+        path, shipped, _, _ = self.stage()
+        self.assertIs(shipped.get(law_gfal.listing_marker(own_dir)), True)
+        # the job: no epoch, only the snapshot
+        GFALFileInterface.negatives_valid_after = 0.0
+        with mock.patch.dict(
+            os.environ, {law_gfal.SHIPPED_PATH_CACHE_ENV: path}
+        ), mock.patch.object(law_gfal, "_shipped_path_cache_entries", None):
+            self.h.fs = WLCGFileSystem(BASE, local_path_cache_validity_period=86400)
+            law_gfal.apply_shipped_path_cache(self.h.fs)
+        listed = len(self.h.storage.listings)
+        self.assertFalse(self.h.task.as_branch(0).complete())
+        self.assertEqual(self.h.storage.listings[listed:], [])
 
     def test_a_shared_requirement_is_resolved_once(self):
         _, _, out, _ = self.stage()

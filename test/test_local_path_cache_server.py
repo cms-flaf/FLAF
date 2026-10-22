@@ -246,19 +246,83 @@ class AServerThatEnds(_ServerCase):
 
     def test_the_end_of_a_session_writes_the_state(self):
         """logind sends SIGTERM and then SIGHUP to a session's processes, the server's
-        logger included: the second signal must not cut the shutdown short."""
+        logger included: the second signal must not cut the shutdown short, nor a signal
+        taken by another thread leave the server waiting. Several times: which thread the
+        kernel hands a signal to varies."""
+        for n in range(1, 9):
+            address = ensure_local_server(self.dir)
+            set_status([(f"{FILE}.{n}.{i}", True) for i in range(2000)], address, 5)
+            server = self.server_pids()[-1]
+            with open(f"/proc/{server}/task/{server}/children") as f:
+                processes = [server] + [int(pid) for pid in f.read().split()]
+            for signum in (signal.SIGTERM, signal.SIGHUP):
+                for pid in processes:
+                    os.kill(pid, signum)
+            self.wait_dead(server, timeout=15)
+            self.assertFalse(os.path.exists(address))
+            with open(os.path.join(self.dir, pathCacheClient.STATE_NAME)) as f:
+                self.assertEqual(len(json.load(f)["cache"]), 2000 * n)
+
+    def test_a_process_starting_while_the_server_shuts_down_gets_the_next_one(self):
+        """A server shutting down has removed its socket but still writes its state: a law
+        process starting then must get the next server, not none for its whole life -- nor
+        wait for a client that keeps its connection open."""
         address = ensure_local_server(self.dir)
+        (first,) = self.server_pids()
+        for n in range(200):
+            set_status([(f"{FILE}.{n}.{i}", True) for i in range(1000)], address, 5)
+        idle = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.addCleanup(idle.close)
+        idle.connect(address)
+        # served once, then kept open: its handler waits for the next request
+        idle.sendall(b"GET /\n")
+        self.assertEqual(idle.makefile("rb").readline().strip(), b"u")
+        os.kill(first, signal.SIGTERM)
+        deadline = time.time() + 10
+        while os.path.exists(address):
+            self.assertLess(time.time(), deadline)
+            time.sleep(0.01)
+        self.assertTrue(self.alive(first), "the state write was over too soon to test")
+        start = time.time()
+        self.assertEqual(ensure_local_server(self.dir), address)
+        self.assertLess(time.time() - start, 25)
+        self.wait_dead(first)
+        self.assertEqual(len(self.server_pids()), 2)
+        self.assertIs(get_status(f"{FILE}.199.999", address, 5), True)
+
+    def test_only_the_main_thread_takes_the_exit_signals(self):
+        """The main thread waits in accept() and handles a signal at once; another thread
+        that took one would leave it asleep there until accept() times out."""
+        address = ensure_local_server(self.dir)
+        (server,) = self.server_pids()
         set_status([(f"{FILE}.{i}", True) for i in range(2000)], address, 5)
+        pathCacheClient.get_status_many(
+            [f"{FILE}.{i}" for i in range(2000)], address, 5
+        )
+        blocked = {}
+        for tid in os.listdir(f"/proc/{server}/task"):
+            with open(f"/proc/{server}/task/{tid}/status") as f:
+                fields = dict(line.split(":", 1) for line in f if ":" in line)
+            blocked[int(tid)] = int(fields["SigBlk"].strip(), 16)
+        exit_mask = (1 << (signal.SIGTERM - 1)) | (1 << (signal.SIGHUP - 1))
+        others = {tid: mask for tid, mask in blocked.items() if tid != server}
+        self.assertTrue(others, "the server runs no other thread to check")
+        for tid, mask in others.items():
+            self.assertEqual(mask & exit_mask, exit_mask, f"thread {tid}")
+
+    def test_a_server_whose_logger_died_still_exits(self):
+        address = ensure_local_server(self.dir)
         (server,) = self.server_pids()
         with open(f"/proc/{server}/task/{server}/children") as f:
-            processes = [server] + [int(pid) for pid in f.read().split()]
-        for signum in (signal.SIGTERM, signal.SIGHUP):
-            for pid in processes:
-                os.kill(pid, signum)
+            (logger,) = [int(pid) for pid in f.read().split()]
+        os.kill(logger, signal.SIGKILL)
+        # far more log lines than the pipe to the dead logger holds
+        try:
+            pathCacheClient._pipelined(address, 5, ["BOGUS " + "x" * 200 + "\n"] * 1500)
+        except ServerUnavailable:
+            pass
+        os.kill(server, signal.SIGTERM)
         self.wait_dead(server, timeout=20)
-        self.assertFalse(os.path.exists(address))
-        with open(os.path.join(self.dir, pathCacheClient.STATE_NAME)) as f:
-            self.assertEqual(len(json.load(f)["cache"]), 2000)
 
     def test_a_relative_directory_works(self):
         parent = os.path.dirname(self.dir)
@@ -416,8 +480,8 @@ class TheFileSystemsOfAProcess(unittest.TestCase):
         )
         with mock.patch.dict(os.environ, env), mock.patch.object(
             law_gfal, "get_voms_proxy_info", lambda: {"path": None}
-        ), mock.patch.object(Setup, "_local_path_cache_server", []), mock.patch.object(
-            Setup, "ensure_local_server", return_value="/tmp/x/server_v1.sock"
+        ), mock.patch.object(
+            Setup, "local_server_address", return_value="/tmp/x/server_v1.sock"
         ) as ensure, mock.patch.object(
             law_gfal, "apply_shipped_path_cache"
         ) as apply:

@@ -295,13 +295,16 @@ These apply to both batch backends (HTCondor and [CRAB](crab.md)).
   the run stops and nothing is resubmitted. A held job counts as running, so a workflow cannot
   finish while a job is unconfirmed. The same holds in the first poll of a resumed run, where law
   itself would send such a job back: the lost-outputs check above holds it instead, and stops the
-  run when too many jobs came back so. Job durations
+  run when too many jobs came back so. A hold lasts for the driver process: one restarted starts it
+  afresh, and a `--no-poll` run, which polls once, retries such a job at once. Job durations
   for the cost model end when a job was reported finished, not when it was confirmed.
 - **Jobs ship a path-cache snapshot.** Jobs never contact a path-cache server: every submission
   round ships a snapshot of the driver's cache as the job input
   `path_cache_<taskhash>_<time_ns>.json.gz`, with the outputs of the submitted branches'
-  requirements resolved at submit time, so a job does not list its requirements itself (details:
-  [CRAB → Caveats](crab.md#caveats)).
+  requirements resolved at submit time and the jobs' own output directories listed then, so a job
+  lists neither itself (details: [CRAB → Caveats](crab.md#caveats)). Without spooling (`--bundle
+  --htcondor-spool False`) each round uploads its snapshot to `worker_files/` under its own name;
+  nothing removes earlier ones.
 - **A job does not rebuild upstream products.** In a batch job, `AnaTupleFileTask`,
   `AnaTupleMergeTask`, `AnalysisCacheTask`, `HistTupleProducerTask`,
   `HistFromNtupleProducerTask` and `HistMergerTask` refuse to run as an inline requirement of a

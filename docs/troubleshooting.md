@@ -222,7 +222,9 @@ URL scheme (`davs://…`) never matches. Match on the part of the path you care 
 
 The caches are per machine. After an out-of-band deletion (a version removed by hand), invalidate
 on each machine that ran law for that version, or stop the server (its pid is in `server.log`) and
-remove `/tmp/flaf-path-cache-<uid>/cache.json`.
+remove `/tmp/flaf-path-cache-<uid>/cache.json`. Files that jobs remove (e.g. inputs consumed by
+`AnaTupleMergeTask` with `delete_inputs_after_merge`, or by `HistMergerTask` with
+`remove_merged_inputs`) are not published either: the server reads them as existing for up to 24 h.
 
 ### Outputs written by a job read as missing
 

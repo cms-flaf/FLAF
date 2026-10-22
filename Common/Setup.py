@@ -1,5 +1,4 @@
 import os
-import sys
 import re
 import yaml
 import json
@@ -8,7 +7,7 @@ import law
 
 from FLAF.RunKit.envToJson import get_cmsenv
 from FLAF.RunKit.law_wlcg import WLCGFileSystem
-from FLAF.RunKit.pathCacheClient import ServerUnavailable, ensure_local_server
+from FLAF.RunKit.pathCacheClient import local_server_address
 from FLAF.RunKit.run_tools import on_batch_node
 from FLAF.Common.Utilities import create_processor_instances
 
@@ -64,24 +63,10 @@ def resolve_user_custom_path(user_custom):
     return path
 
 
-_local_path_cache_server = []
-
-
 def local_path_cache_server():
-    """The socket of this user's path-cache server on this machine, started if needed, or None
-    when it cannot be used: the process then works from its own cache. Looked up once per
-    process."""
-    if not _local_path_cache_server:
-        try:
-            _local_path_cache_server.append(ensure_local_server())
-        except ServerUnavailable as e:
-            print(
-                f"Setup: no path-cache server on this machine ({e}); this process lists "
-                "every directory it looks at itself and shares nothing it learns",
-                file=sys.stderr,
-            )
-            _local_path_cache_server.append(None)
-    return _local_path_cache_server[0]
+    """The socket of this user's path-cache server on this machine. The process's cache
+    starts the server when it does not answer, and works alone while it cannot."""
+    return local_server_address()
 
 
 def select_items(all_items, filters):

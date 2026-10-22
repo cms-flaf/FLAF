@@ -79,6 +79,8 @@ class Logger:
         self.queue.put(entry)
 
     def join(self):
+        # A dead logger reads nothing: exiting must then not wait for the queue's feeder.
+        self.queue.cancel_join_thread()
         self.queue.put(None)
         self.process.join()
 
@@ -124,6 +126,9 @@ class Logger:
                     message = Logger.message_texts[MSG_UNKNOWN].format(entry=entry)
                 print_ts(message, file=sys.stderr)
             except KeyboardInterrupt as e:
+                pass
+            except Exception:
+                # e.g. a full disk: a message is lost, not the logger
                 pass
 
 
@@ -376,7 +381,7 @@ def result_to_string(result):
     return "1" if result else "0"
 
 
-def handle_client(conn, addr, cache, logger):
+def handle_client(conn, addr, cache, logger, connections=None):
     # a Unix socket's peer has no address
     addr_str = f"{addr[0]}:{addr[1]}" if isinstance(addr, tuple) else "local"
     try:
@@ -471,6 +476,9 @@ def handle_client(conn, addr, cache, logger):
 
     except Exception as e:
         logger.log(f"Error handling client {addr_str}: {e}")
+    finally:
+        if connections is not None:
+            connections.discard(conn)
 
 
 def _socket_inode(path):
@@ -489,10 +497,18 @@ def _exit_on_signal(signum, frame):
     raise SystemExit(0)
 
 
-def _block_exit_signals():
-    # in the worker threads: a signal is then delivered to the main thread, which waits in
-    # accept() and handles it at once
-    signal.pthread_sigmask(signal.SIG_BLOCK, EXIT_SIGNALS)
+def _server_answers(socket_path):
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+        probe.settimeout(5)
+        try:
+            probe.connect(socket_path)
+        except OSError:
+            return False
+    return True
+
+
+# How long a server waits for one that is shutting down to release the socket.
+LOCK_WAIT = 60
 
 
 def start_server(cfg, socket_path, cache_file, n_threads, verbose=False):
@@ -503,27 +519,37 @@ def start_server(cfg, socket_path, cache_file, n_threads, verbose=False):
     idle_timeout = parse_seconds(cfg.get("idle_timeout", 24 * 60 * 60), "idle_timeout")
     for signum in EXIT_SIGNALS:
         signal.signal(signum, _exit_on_signal)
+    # Delivered to the main thread only, and only while it waits in accept(): a thread that
+    # took one would leave the main thread asleep there. Every thread inherits the block.
+    signal.pthread_sigmask(signal.SIG_BLOCK, EXIT_SIGNALS)
 
     with Logger(verbose=verbose) as logger:
         # Held for the server's whole life: one server per socket, so the socket found at
         # the path is never one a live server listens on. Taken after the logger is forked,
-        # which would otherwise hold it on after the server is killed.
+        # which would otherwise hold it on after the server is killed. A server shutting
+        # down holds it until its state is written: waited for, unless another one answers.
         run_lock = open(socket_path + ".lock", "a")
-        try:
-            fcntl.flock(run_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            run_lock.close()
-            logger.log(f"A cache server already runs for {socket_path}; exiting")
-            return 0
+        deadline = time.time() + LOCK_WAIT
+        while True:
+            try:
+                fcntl.flock(run_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if _server_answers(socket_path) or time.time() > deadline:
+                    run_lock.close()
+                    logger.log(
+                        f"A cache server already runs for {socket_path}; exiting"
+                    )
+                    return 0
+                time.sleep(0.2)
+        connections = set()
         with PathCache(
             validity_db,
             logger,
             cache_file=cache_file,
             cache_write_interval=cfg.get("cache_write_interval", 60),
         ) as cache:
-            with ThreadPoolExecutor(
-                max_workers=n_threads, initializer=_block_exit_signals
-            ) as executor:
+            with ThreadPoolExecutor(max_workers=n_threads) as executor:
                 bound_inode = None
                 status = 0
                 try:
@@ -545,6 +571,7 @@ def start_server(cfg, socket_path, cache_file, n_threads, verbose=False):
                         )
 
                         while True:
+                            signal.pthread_sigmask(signal.SIG_UNBLOCK, EXIT_SIGNALS)
                             try:
                                 conn, addr = s.accept()
                             except socket.timeout:
@@ -555,7 +582,12 @@ def start_server(cfg, socket_path, cache_file, n_threads, verbose=False):
                                     )
                                     break
                                 continue
-                            executor.submit(handle_client, conn, addr, cache, logger)
+                            finally:
+                                signal.pthread_sigmask(signal.SIG_BLOCK, EXIT_SIGNALS)
+                            connections.add(conn)
+                            executor.submit(
+                                handle_client, conn, addr, cache, logger, connections
+                            )
                 except KeyboardInterrupt:
                     logger.log("Server shutting down due to keyboard interrupt.")
                 except SystemExit:
@@ -570,6 +602,12 @@ def start_server(cfg, socket_path, cache_file, n_threads, verbose=False):
                         and _socket_inode(socket_path) == bound_inode
                     ):
                         os.unlink(socket_path)
+                    # a client that keeps a connection open does not delay the shutdown
+                    for conn in list(connections):
+                        try:
+                            conn.shutdown(socket.SHUT_RDWR)
+                        except OSError:
+                            pass
         run_lock.close()
     return status
 

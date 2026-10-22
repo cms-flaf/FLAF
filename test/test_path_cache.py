@@ -382,6 +382,38 @@ class TestAPublicationCutShort(unittest.TestCase):
                 self.assertEqual(GFALFileInterface.listdir_counter - n0, 1)
 
 
+class TestAMarkerFromTheServer(unittest.TestCase):
+    def test_it_answers_only_while_the_server_has_it(self):
+        """A listing marker says the server knows the directory completely; a process keeps
+        only the entries it fetched, so a copy of the marker kept here would answer "absent"
+        for a file it never fetched once the server lost the listing (restart from an older
+        state, cache.json removed) or cannot be reached."""
+        server = FakeCacheServer()
+        tree = {"data": ["file_0.root", "file_1.root"]}
+
+        def client():
+            return make_interface(
+                tree, RemotePathCache("server.sock", local_cache_validity_period=600)
+            )
+
+        with server.patch(), mock.patch.object(
+            law_gfal,
+            "ensure_local_server",
+            side_effect=law_gfal.ServerUnavailable("cannot start"),
+        ), mock.patch("sys.stderr"):
+            lister = client()
+            with lister.patch_ls():
+                self.assertTrue(lister.exists("data/file_0.root"))
+            reader = client()
+            with reader.patch_ls():
+                n0 = GFALFileInterface.listdir_counter
+                self.assertFalse(reader.exists("data/file_2.root"))
+                self.assertEqual(GFALFileInterface.listdir_counter - n0, 0)
+                server.entries.clear()
+                self.assertTrue(reader.exists("data/file_1.root"))
+                self.assertEqual(GFALFileInterface.listdir_counter - n0, 1)
+
+
 class TestListedForWhom(unittest.TestCase):
     def test_a_known_file_is_not_held_for_a_sibling_listing_that_failed(self):
         """list_target_directories reports a target unlisted only when its own answer needed

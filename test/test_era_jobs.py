@@ -1047,7 +1047,9 @@ class _Case(unittest.TestCase):
         stack.enter_context(mock.patch.object(lc, "_era_cli_checked", False))
         # each driver run here is a process of its own: none shares a path-cache server
         stack.enter_context(
-            mock.patch.object(setup_module, "_local_path_cache_server", [None])
+            mock.patch.object(
+                setup_module, "local_path_cache_server", return_value=None
+            )
         )
         self.addCleanup(wipe, self.version)
 

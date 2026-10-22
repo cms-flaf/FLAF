@@ -277,7 +277,8 @@ submitted in waves of at least `refill_fraction × parallel_jobs` jobs.
   restarted driver delays a release by at most one window and loses no job.
 - Over [several eras](#several-eras-in-one-run) the gate measures the backlog of all the eras
   together, and a wave goes out as one CRAB task per era.
-- `--no-poll` bypasses the gate: a no-poll run resubmits failures exactly once and returns, so a
+- `--no-poll` bypasses the gate: a no-poll run resubmits failures exactly once and returns (a job
+  reported finished without its outputs included: the one-more-poll hold needs a second poll), so a
   parked job would not be offered again. It applies to the workflow it is given to only: law
   does not pass it on to the remote workflows that one requires, which are polled to completion
   (and gated) as usual.

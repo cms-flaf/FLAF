@@ -238,6 +238,9 @@ def _ensure_local_server(directory, startup_timeout):
             if process.poll() is not None:
                 break
             time.sleep(0.1)
+        # it may have left the socket to a server that came up meanwhile
+        if server_answers(address, timeout=1.0):
+            return address
     raise ServerUnavailable(
         f"the path-cache server did not start (exit code {process.poll()}); see {log_path}"
     )

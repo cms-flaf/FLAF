@@ -15,9 +15,11 @@ import re
 import signal
 import socket
 import stat
+import struct
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import types
 import unittest
@@ -187,6 +189,19 @@ class NobodyElsesServerIsBelieved(_ServerCase):
         warnings = [c for c in stderr.write.call_args_list if "not used" in str(c)]
         self.assertEqual(len(warnings), 1)
 
+    def test_a_uid_above_two_to_the_31_is_read_unsigned(self):
+        """struct ucred holds unsigned ids: read signed, a user whose uid has the top bit set
+        would never be believed by their own processes."""
+        uid = 2**31 + 5
+        creds = struct.pack("iII", 1234, uid, uid)
+        sock = types.SimpleNamespace(getsockopt=lambda *args: creds)
+        with mock.patch.object(pathCacheClient.os, "getuid", return_value=uid):
+            pathCacheClient._check_peer(sock, "server.sock")
+        with mock.patch.object(
+            pathCacheClient.os, "getuid", return_value=uid + 1
+        ), self.assertRaises(ServerUnavailable):
+            pathCacheClient._check_peer(sock, "server.sock")
+
     def test_a_server_of_another_user_is_not_believed(self):
         address = self.poisoner(self.dir)
         real_uid = os.getuid()
@@ -254,6 +269,31 @@ class OneServerPerUserAndMachine(_ServerCase):
                 ensure_local_server(self.dir, startup_timeout=1.0)
             self.assertLess(time.time() - start, 10)
         self.assertIn("starting", str(caught.exception))
+
+    def test_a_server_started_meanwhile_ends_the_wait_for_the_lock(self):
+        """The process holding the start lock may have started the server and been stopped
+        since: the others take the server as soon as it answers, not after the timeout.
+        """
+        import fcntl
+
+        os.mkdir(self.dir, 0o700)
+        address = os.path.join(self.dir, pathCacheClient.SOCKET_NAME)
+        with open(os.path.join(self.dir, "server.lock"), "a") as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            log = open(os.path.join(self.dir, "server.log"), "a")
+            self.addCleanup(log.close)
+            starter = threading.Timer(
+                1.0,
+                subprocess.Popen,
+                args=([sys.executable, pathCacheServer.__file__, "--socket", address],),
+                kwargs={"stdout": log, "stderr": subprocess.STDOUT},
+            )
+            starter.start()
+            start = time.time()
+            self.assertEqual(
+                ensure_local_server(self.dir, startup_timeout=20.0), address
+            )
+            self.assertLess(time.time() - start, 10)
 
     def test_a_directory_others_can_enter_is_refused(self):
         os.mkdir(self.dir, 0o700)

@@ -278,11 +278,18 @@ Two optional `global.yaml` keys shape what is drawn:
   `histograms.yaml` (a blinded variable hides the data in the other regions only).
 - **`plot_process_groups`** (list of `{name, processes, color}`): sums processes into one legend
   entry each. Background groups are stacked in list order from the bottom; signal groups become one
-  curve each. A process may carry a parameter, e.g. `GluGluToRadion_bbWW_2L_${MASS}`: the group
-  then makes one entry per value found (in increasing order), with `${MASS}` in `name` replaced by
-  it. `color` defaults to the colour of the group's first process. A group's processes are all
-  backgrounds or all signals; processes no group takes are plotted as before, after the groups.
-  Without the key nothing is grouped.
+  curve each. A process may carry parameters: a mass, `GluGluToRadion_bbWW_2L_${MASS}`, or
+  couplings, `GluGluToHHto2B2Tau_${kl}_${kt}_${c2}`. The group then makes one entry per set of
+  values found, with each `${…}` in `name` replaced by its value. Entries come in increasing
+  order, the parameters compared in the order the pattern names them: numbers by value, written
+  plainly or in the CMS form (`1p74` = 1.74, `m0p758` = −0.758), then any other value as text.
+  A value is made of letters, digits, `_`, `.` and `-`. `color` defaults to the colour of the
+  group's first process. A group's processes are all backgrounds or all signals; processes no
+  group takes are plotted as before, after the groups, and a process an earlier group took is
+  not taken again. Without the key nothing is grouped. A group must have a `name` and a list of
+  `processes`, every process naming the same parameters as the `name` does, none listed twice;
+  a histogram matched by two processes of one group, or a group mixing backgrounds, signals and
+  data, is an error.
 
 ```yaml
 plot_control_regions: [ TT_CR, DY_CR ]

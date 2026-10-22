@@ -203,7 +203,7 @@ class TestSharedListing(unittest.TestCase):
     def _client(self):
         return make_interface(
             self.tree,
-            path_cache=RemotePathCache("host", 1, local_cache_validity_period=600),
+            path_cache=RemotePathCache("server.sock", local_cache_validity_period=600),
         )
 
     def test_second_process_answers_from_the_shared_listing(self):
@@ -341,6 +341,129 @@ class TestSharedListing(unittest.TestCase):
                 self.assertFalse(second.exists("data/file_2.root"))
 
 
+class TestAPublicationCutShort(unittest.TestCase):
+    """The machine's server can stop answering in the middle of a listing's publication: the
+    entries that arrived must not come with a listing marker, which would answer "absent" for
+    the others in every process of the machine."""
+
+    def test_no_marker_without_all_the_entries(self):
+        server = FakeCacheServer()
+        stored = server.set_status
+
+        def cut_short(entries, *args, **kwargs):
+            stored(entries[:3])
+            raise law_gfal.ServerUnavailable("stopped answering")
+
+        tree = {"data": [f"file_{i}.root" for i in range(10)]}
+
+        def client():
+            return make_interface(
+                tree, RemotePathCache("server.sock", local_cache_validity_period=600)
+            )
+
+        with server.patch(), mock.patch.object(
+            law_gfal,
+            "ensure_local_server",
+            side_effect=law_gfal.ServerUnavailable("cannot start"),
+        ), mock.patch("sys.stderr"):
+            first = client()
+            with mock.patch.object(
+                law_gfal, "set_remote_cache_status", cut_short
+            ), first.patch_ls():
+                self.assertTrue(first.exists("data/file_0.root"))
+            self.assertFalse(
+                any(p.endswith(law_gfal.LISTING_MARKER) for p in server.entries),
+                server.entries,
+            )
+            second = client()
+            with second.patch_ls():
+                n0 = GFALFileInterface.listdir_counter
+                self.assertTrue(second.exists("data/file_9.root"))
+                self.assertEqual(GFALFileInterface.listdir_counter - n0, 1)
+
+
+class TestAMarkerFromTheServer(unittest.TestCase):
+    def test_it_answers_only_while_the_server_has_it(self):
+        """A listing marker says the server knows the directory completely; a process keeps
+        only the entries it fetched, so a copy of the marker kept here would answer "absent"
+        for a file it never fetched once the server lost the listing (restart from an older
+        state, cache.json removed) or cannot be reached."""
+        server = FakeCacheServer()
+        tree = {"data": ["file_0.root", "file_1.root"]}
+
+        def client():
+            return make_interface(
+                tree, RemotePathCache("server.sock", local_cache_validity_period=600)
+            )
+
+        with server.patch(), mock.patch.object(
+            law_gfal,
+            "ensure_local_server",
+            side_effect=law_gfal.ServerUnavailable("cannot start"),
+        ), mock.patch("sys.stderr"):
+            lister = client()
+            with lister.patch_ls():
+                self.assertTrue(lister.exists("data/file_0.root"))
+            reader = client()
+            with reader.patch_ls():
+                n0 = GFALFileInterface.listdir_counter
+                self.assertFalse(reader.exists("data/file_2.root"))
+                self.assertEqual(GFALFileInterface.listdir_counter - n0, 0)
+                server.entries.clear()
+                self.assertTrue(reader.exists("data/file_1.root"))
+                self.assertEqual(GFALFileInterface.listdir_counter - n0, 1)
+
+
+class TestManyQuestionsAtOnce(unittest.TestCase):
+    def test_a_batch_of_targets_costs_two_requests(self):
+        """list_target_directories asks the server about all its targets and their
+        directories' listings in two pipelined requests, not two round trips per target.
+        """
+        from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget
+
+        server = FakeCacheServer()
+        with mock.patch.object(law_gfal, "get_voms_proxy_info", lambda: {"path": None}):
+            fs = WLCGFileSystem(BASE)
+        fs.file_interface.path_cache = RemotePathCache(
+            "server.sock", local_cache_validity_period=600
+        )
+        targets = [WLCGFileTarget(f"d{i % 4}/file_{i}.root", fs) for i in range(40)]
+        single = mock.Mock(side_effect=server.get_status)
+        many = mock.Mock(side_effect=server.get_status_many)
+        with server.patch(), mock.patch.multiple(
+            law_gfal,
+            get_remote_cache_status=single,
+            get_remote_cache_status_many=many,
+            # existing, empty directories: listing an absent one also climbs its ancestors
+            gfal_ls_checked=lambda uri, **kwargs: [],
+        ):
+            law_gfal.list_target_directories(targets)
+        self.assertEqual(single.call_count, 0)
+        self.assertEqual(many.call_count, 2)
+
+
+class TestListedForWhom(unittest.TestCase):
+    def test_a_known_file_is_not_held_for_a_sibling_listing_that_failed(self):
+        """list_target_directories reports a target unlisted only when its own answer needed
+        the listing that failed."""
+        from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget
+
+        with mock.patch.object(law_gfal, "get_voms_proxy_info", lambda: {"path": None}):
+            fs = WLCGFileSystem(BASE)
+        fs.file_interface.path_cache.set(os.path.join(BASE, "data/known.root"), True)
+        known = WLCGFileTarget("data/known.root", fs)
+        unknown = WLCGFileTarget("data/unknown.root", fs)
+
+        def failing_ls(uri, **kwargs):
+            raise GfalError("gfal-ls error: 110 (Connection timed out)")
+
+        with mock.patch.object(law_gfal, "gfal_ls_checked", failing_ls), mock.patch(
+            "sys.stderr"
+        ):
+            unlisted = law_gfal.list_target_directories([known, unknown])
+        self.assertEqual(unlisted, {id(unknown)})
+
+
 class TestExistingTargetEntries(unittest.TestCase):
     def test_a_file_is_recorded_under_every_base_and_other_targets_are_skipped(self):
         # A reader picks one base at random, so a file found under one is shipped under all.
@@ -350,7 +473,7 @@ class TestExistingTargetEntries(unittest.TestCase):
         mirror = BASE.replace("server", "mirror")
         with mock.patch.object(law_gfal, "get_voms_proxy_info", lambda: {"path": None}):
             fs = WLCGFileSystem([BASE, mirror])
-        fs.file_interface.path_cache = RemotePathCache("host", 0, 600)
+        fs.file_interface.path_cache = RemotePathCache("server.sock", 600)
         server = FakeCacheServer()
         server.entries[os.path.join(BASE, "data/file_0.root")] = True
         server.entries[os.path.join(mirror, "data/file_0.root")] = True
@@ -377,32 +500,25 @@ class TestCacheServerProtocol(unittest.TestCase):
         # to cms-flaf.cern.ch); the client then waited out its timeout for the other answers.
         from FLAF.RunKit import pathCacheClient, pathCacheServer
 
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-            listener.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
-            listener.bind(("127.0.0.1", 0))
-            listener.listen(1)
-            client_end = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_end.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
-            client_end.connect(listener.getsockname())
-            server_end, _ = listener.accept()
-        # as socket.create_connection(..., timeout) leaves it
+        client_end, server_end = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+        client_end.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+        server_end.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+        # as _connect(..., timeout) leaves it
         client_end.settimeout(10)
         cache = types.SimpleNamespace(
-            get=lambda path: (path, path.endswith("1.root"), 0)
+            get=lambda path: (path, path.endswith("1.root"), 0), touch=lambda: None
         )
-        logger = types.SimpleNamespace(log=lambda *args, **kwargs: None)
+        logger = types.SimpleNamespace(log=lambda *args, **kwargs: None, verbose=False)
         threading.Thread(
             target=pathCacheServer.handle_client,
-            args=(server_end, ("loopback", 0), cache, logger),
+            args=(server_end, "", cache, logger),
             daemon=True,
         ).start()
         paths = [os.path.join(BASE, "d" * 150, f"file_{i}.root") for i in range(1000)]
         with mock.patch.object(
-            pathCacheClient.socket,
-            "create_connection",
-            lambda *args, **kwargs: client_end,
+            pathCacheClient, "_connect", lambda *args, **kwargs: client_end
         ):
-            result = pathCacheClient.get_status_many(paths, "host", 0, timeout=10)
+            result = pathCacheClient.get_status_many(paths, "server.sock", timeout=10)
         self.assertEqual(result, {p: p.endswith("1.root") for p in paths})
 
 

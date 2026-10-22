@@ -111,7 +111,7 @@ class FreshNegatives(unittest.TestCase):
     def client(self):
         with mock.patch.object(law_gfal, "get_voms_proxy_info", lambda: {"path": None}):
             fs = GFALFileInterface(base=[BASE])
-        fs.path_cache = RemotePathCache("host", 1, local_cache_validity_period=600)
+        fs.path_cache = RemotePathCache("server.sock", local_cache_validity_period=600)
         return fs
 
     def test_the_server_marker_answers_absent_while_the_epoch_is_off(self):
@@ -335,7 +335,9 @@ class TheSnapshotShippedToCrabJobs(unittest.TestCase):
                 law_gfal, "get_voms_proxy_info", lambda: {"path": None}
             ):
                 fs = GFALFileInterface(base=[BASE])
-            fs.path_cache = RemotePathCache("host", 1, local_cache_validity_period=600)
+            fs.path_cache = RemotePathCache(
+                "server.sock", local_cache_validity_period=600
+            )
             return fs
 
         with server.patch(), self.storage.patch():

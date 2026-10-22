@@ -1,6 +1,9 @@
-host: "0.0.0.0"
-port: 5000
-max_connections: 10000
-cache_write_interval: 600  # interval in seconds to write the cache to disk
+max_connections: 1024
+cache_write_interval: 60  # interval in seconds to write the cache to its state file
+idle_timeout: 24 * 60 * 60  # the server exits after this many seconds without a request
+# Jobs do not publish what they write, so an "absent" (and a directory listing, which implies one
+# for every file it does not list) is kept only this long; every "exists" is kept for its prefix's
+# validity period.
+negative_validity: 10 * 60
 validity_periods:
   default: 24 * 60 * 60  # default validity period in seconds

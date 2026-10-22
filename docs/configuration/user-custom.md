@@ -113,8 +113,7 @@ so they have to be the same in every era, or constructing the task stops with
 `EraDependentValueError` naming the key and each era's value:
 
 - `fs_default`;
-- `crab` (the whole block), `runTokenServer`, `WLCGFileSystem.remotePathCacheHost` and
-  `WLCGFileSystem.remotePathCachePort`;
+- `crab` (the whole block) and `runTokenServer`;
 - `anaTuple_scheduling` and `use_cmssw_env_AnaTupleProduction`;
 - for each entry of `payload_producers`: `n_cpus`, `max_runtime`, `crab_memory`, `save_as` and
   `cmssw_env`.

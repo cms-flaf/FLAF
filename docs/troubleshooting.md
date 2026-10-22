@@ -108,7 +108,7 @@ A `--branches` selection (`BranchSelectionError`) does not fit the numbering of 
 `EraDependentValueError`: a setting that a run over several eras reads once differs between its
 eras. The message names the key and each era's value. Make it the same in every era, or run the
 eras separately. The settings are `fs_default`, the `crab` block, `runTokenServer`,
-`WLCGFileSystem.remotePathCacheHost`/`remotePathCachePort`, `anaTuple_scheduling`,
+`anaTuple_scheduling`,
 `use_cmssw_env_AnaTupleProduction` and, per `payload_producers` entry, `n_cpus`, `max_runtime`,
 `crab_memory`, `save_as` and `cmssw_env`; everything else, including `fs_anaTuple`, `fs_HistTuple`,
 `fs_anaCacheTuple` and `fs_plots`, may differ ([Eras](concepts/eras.md#settings-that-must-agree-between-the-eras)).
@@ -186,34 +186,56 @@ checks for freshly written outputs and intermittently "can't find" them, don't t
 `exists()` — list the parent directory and retry a few times with a short delay.
 
 ## `--print-status` reports outputs as missing although the files are on storage
-Existence checks go through a path cache (a per-process cache backed by the shared cache server
-configured under `WLCGFileSystem` in `global.yaml`), so a status check does not stat every file
-individually. A directory is listed once; that listing is published to the cache server, so every
-later check — in any process, including jobs — is answered from the cache without touching
-storage, and a file created afterwards is published by the job that writes it. Only a path that
-the cache knows nothing about, in a directory whose listing has expired, costs a real listing.
-That is also what makes the cache self-healing: if a job's own cache update is lost, its file
-becomes visible again as soon as the directory's cached listing expires.
+Existence checks go through a path cache, so a status check does not stat every file
+individually. Each user runs one path-cache server per machine, started on demand by the first
+law process that needs it (`RunKit/pathCacheClient.py`, `ensure_local_server`). It listens on a Unix
+socket, `/tmp/flaf-path-cache-<uid>/server_v1.sock` (the directory is mode 0700 and the socket 0600;
+`FLAF_PATH_CACHE_DIR` chooses another directory, the socket path being at most 107 bytes). A process
+uses it only when that directory belongs to its user and nobody else can enter it, and only a server
+running as the same user is believed (checked on every connection on Linux); otherwise the process
+works from its own cache. The server shares what one process learns with every other law process
+of that user on that machine: the forked luigi workers, later runs and `--print-status`. A directory is listed once and the listing is
+published to the server, so every later check is answered from the cache without touching storage.
+The server keeps its state in `cache.json` next to the socket (written every 60 s while in use and
+on SIGTERM/SIGHUP, reloaded on start), logs to `server.log` there, and exits after 24 h without a
+request. On lxplus (`KillUserProcesses=yes`) it ends with the session that started it, and the next
+law process restarts it from its state. If the server cannot be used, a process works from its own
+in-process cache and says so once on stderr.
+
+An "exists" is kept for 24 h. An "absent" and a directory listing marker (which implies an absence
+for every file it does not list) are kept for 10 minutes only (`negative_validity` in
+`RunKit/pathCacheServerCfg.yaml`), because no job publishes the files it writes: a file created
+after a listing becomes visible when that listing expires. Jobs never contact a server (see
+[CRAB → Caveats](workflow/crab.md#caveats) and
+[HTCondor → Submission safeguards](workflow/htcondor.md#submission-safeguards)).
 
 If a status check still disagrees with what you see on the storage element, list the directory
 yourself (`gfal-ls`) to establish the truth, and drop the cached entries for that subtree:
 
 ```sh
-python3 $FLAF_PATH/RunKit/pathCacheClient.py --host cms-flaf.cern.ch --port 5000 \
+python3 $FLAF_PATH/RunKit/pathCacheClient.py \
   --command invalidate_regex --path '.*/<version>/.*'
 ```
 
-The pattern is matched against stored paths, which are normalised — repeated slashes are
-collapsed, so a pattern containing the URL scheme (`davs://…`) never matches. Match on the part
-of the path you care about, as above.
+The client talks to this user's server on this machine (`--socket` chooses another one);
+`--command` is `get`, `set`, `invalidate` or `invalidate_regex`. The pattern is matched against
+stored paths, which are normalised — repeated slashes are collapsed, so a pattern containing the
+URL scheme (`davs://…`) never matches. Match on the part of the path you care about, as above.
 
-### CRAB: outputs written by a job read as missing
+The caches are per machine. After an out-of-band deletion (a version removed by hand), invalidate
+on each machine that ran law for that version, or stop the server (its pid is in `server.log`) and
+remove `/tmp/flaf-path-cache-<uid>/cache.json`. Files that jobs remove (e.g. inputs consumed by
+`AnaTupleMergeTask` with `delete_inputs_after_merge`, or by `HistMergerTask` with
+`remove_merged_inputs`) are not published either: the server reads them as existing for up to 24 h.
 
-CRAB workers cannot reach the path-cache server, so a directory listing published before a CRAB
-job wrote its file keeps answering "absent" for that file until it expires (24 h by default). On
-`--workflow crab` the driver therefore takes one fresh listing per output directory per poll
-before it accepts an absence, and believes a CRAB `FINISHED` only when the outputs are on
-storage (see [CRAB → Status handling](workflow/crab.md#status-handling)); a (re)started driver
+### Outputs written by a job read as missing
+
+Jobs publish nothing to the path cache, so a directory listing taken before a job wrote its file
+keeps answering "absent" for that file until it expires (10 minutes). On both batch backends the
+driver therefore never takes the batch system's "finished" at its word: at every poll it lists the
+output directories of the jobs reported finished and accepts an absence only on a listing taken in
+that poll (see [CRAB → Status handling](workflow/crab.md#status-handling) and
+[HTCondor → Submission safeguards](workflow/htcondor.md#submission-safeguards)); a (re)started driver
 takes fresh listings before it judges which outputs exist. A *plain* status check
 (`--print-status`) started separately has no such guarantee: drop the cached entries as above if
 it disagrees with the storage.

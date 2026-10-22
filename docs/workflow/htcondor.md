@@ -302,9 +302,9 @@ These apply to both batch backends (HTCondor and [CRAB](crab.md)).
   round ships a snapshot of the driver's cache as the job input
   `path_cache_<taskhash>_<time_ns>.json.gz`, with the outputs of the submitted branches'
   requirements resolved at submit time and the jobs' own output directories listed then, so a job
-  lists neither itself (details: [CRAB → Caveats](crab.md#caveats)). Without spooling (`--bundle
-  --htcondor-spool False`) each round uploads its snapshot to `worker_files/` under its own name;
-  nothing removes earlier ones.
+  lists neither its requirements' directories nor its own output directories itself (details:
+  [CRAB → Caveats](crab.md#caveats)). Without spooling (`--bundle --htcondor-spool False`) each
+  round uploads its snapshot to `worker_files/` under its own name; nothing removes earlier ones.
 - **A job does not rebuild upstream products.** In a batch job, `AnaTupleFileTask`,
   `AnaTupleMergeTask`, `AnalysisCacheTask`, `HistTupleProducerTask`,
   `HistFromNtupleProducerTask` and `HistMergerTask` refuse to run as an inline requirement of a

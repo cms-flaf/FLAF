@@ -204,6 +204,11 @@ class PathCache:
         self.cache = {}
         self.n_calls = 0
         self.last_write_time = 0
+        # A write runs in a thread of its own: a later copy of the cache must never be
+        # replaced by an earlier one that took longer to write (the last, at shutdown).
+        self.write_lock = threading.Lock()
+        self.n_copies = 0
+        self.n_copy_written = 0
         if cache_file is not None and os.path.exists(cache_file):
             try:
                 self._load(cache_file)
@@ -270,10 +275,14 @@ class PathCache:
                 n_calls = self.n_calls
                 cache = copy.deepcopy(self.cache)
                 last_write_time = self.last_write_time
+                self.n_copies += 1
+                n_copy = self.n_copies
         else:
             n_calls = self.n_calls
             cache = self.cache
             last_write_time = self.last_write_time
+            self.n_copies += 1
+            n_copy = self.n_copies
         # Expired entries are otherwise dropped only when they are asked for, so the state
         # would keep everything ever learned.
         current_time = time.time()
@@ -286,7 +295,12 @@ class PathCache:
         tmp_file = f"{self.cache_file}.{threading.get_ident()}.tmp"
         with open(tmp_file, "w") as f:
             json.dump(data, f)
-        os.replace(tmp_file, self.cache_file)
+        with self.write_lock:
+            if n_copy < self.n_copy_written:
+                os.remove(tmp_file)
+                return
+            os.replace(tmp_file, self.cache_file)
+            self.n_copy_written = n_copy
         self.logger.log(
             f"Cache written to {self.cache_file} with {len(cache)} entries and n_calls={n_calls}"
         )

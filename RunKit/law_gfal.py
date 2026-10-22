@@ -108,6 +108,9 @@ class PathCache:
     def has_listing(self, base_dir):
         return self.get(listing_marker(base_dir))[0] is True
 
+    def has_listings(self, base_dirs):
+        return {base_dir: self.has_listing(base_dir) for base_dir in base_dirs}
+
     def get(self, path):
         entry = self.cache.get(path)
         if entry is not None:
@@ -251,6 +254,22 @@ class RemotePathCache:
     def has_listing(self, base_dir):
         return self.get(listing_marker(base_dir))[0] is True
 
+    def has_listings(self, base_dirs):
+        """has_listing of many directories in one pipelined request to the server."""
+        result = {}
+        ask = []
+        for base_dir in base_dirs:
+            if self.local_cache.has_listing(base_dir):
+                result[base_dir] = True
+            else:
+                ask.append(base_dir)
+        if ask:
+            markers = [listing_marker(base_dir) for base_dir in ask]
+            remote = self._server(get_remote_cache_status_many, markers, default={})
+            for base_dir, marker in zip(ask, markers):
+                result[base_dir] = remote.get(marker) is True
+        return result
+
     def _keep(self, path, result):
         # Not a listing marker: it says the server's knowledge of the directory is complete,
         # which no copy of part of it here is -- kept, it would answer "absent" for a file
@@ -354,13 +373,22 @@ def list_target_directories(targets, n_threads=PARALLEL_LISTINGS):
     to_list = {}
     target_dirs = []
     for fi, items in per_interface.values():
-        fi.path_cache.get_many([uri for _, uris in items for uri in uris])
+        # every question in two pipelined requests, not two round trips per target
+        answers = fi.path_cache.get_many([uri for _, uris in items for uri in uris])
+        listings = fi.path_cache.has_listings(
+            {
+                os.path.dirname(uri)
+                for _, uris in items
+                for uri in uris
+                if answers.get(uri) is None
+            }
+        )
         for target, uris in items:
             # the listings this target's own answer depends on
             keys = []
             for uri in uris:
                 dir_uri = os.path.dirname(uri)
-                if fi._cached_answer(uri, dir_uri)[0] is None:
+                if fi._cached_answer(uri, dir_uri, (answers, listings))[0] is None:
                     key = (id(fi), dir_uri)
                     keys.append(key)
                     to_list.setdefault(key, fi)
@@ -557,11 +585,20 @@ class GFALFileInterface(RemoteFileInterface):
 
         return result
 
-    def _cached_answer(self, path_uri, dir_uri):
+    def _cached_answer(self, path_uri, dir_uri, prefetched=None):
         """What the cache can say about `path_uri` (True, False, or None when only a listing
-        of `dir_uri` can tell), and whether it came from the in-process level."""
-        cached_result, from_local_cache = self.path_cache.get(path_uri)
-        from_listing = cached_result is None and self.path_cache.has_listing(dir_uri)
+        of `dir_uri` can tell), and whether it came from the in-process level.
+
+        `prefetched`: (answers by path, listings by directory) of one batch of questions,
+        instead of asking the cache for this path alone."""
+        if prefetched is None:
+            cached_result, from_local_cache = self.path_cache.get(path_uri)
+            from_listing = cached_result is None and self.path_cache.has_listing(
+                dir_uri
+            )
+        else:
+            cached_result, from_local_cache = prefetched[0].get(path_uri), False
+            from_listing = cached_result is None and prefetched[1].get(dir_uri, False)
         if from_listing:
             # The directory has been listed and its cached entries are therefore complete,
             # so this path is absent. A listing is what proves absence: that the directory

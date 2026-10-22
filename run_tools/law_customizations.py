@@ -1775,7 +1775,7 @@ MAX_UNVERIFIABLE_FINISH_MINUTES = 30.0
 
 
 def _branch_outputs(task, branches):
-    return [t for b in branches for t in law.util.flatten(task.as_branch(b).output())]
+    return [t for b in branches for t in _leaf_targets(task.as_branch(b).output())]
 
 
 def _hold_unconfirmed(proxy, job_num, job_id, unlisted, now):

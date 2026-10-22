@@ -10,6 +10,7 @@ import fcntl
 import os
 import socket
 import stat
+import struct
 import subprocess
 import sys
 import threading
@@ -35,10 +36,27 @@ def _connect(address, timeout):
     sock.settimeout(timeout)
     try:
         sock.connect(address)
+        _check_peer(sock, address)
     except OSError:
         sock.close()
         raise
     return sock
+
+
+def _check_peer(sock, address):
+    """Only a server of this user is believed: whoever could put a socket at the address
+    would otherwise answer every question of this user's processes."""
+    if not hasattr(socket, "SO_PEERCRED"):
+        # not Linux: the private directory (checked_server_address) is the protection
+        return
+    creds = sock.getsockopt(
+        socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")
+    )
+    _, uid, _ = struct.unpack("3i", creds)
+    if uid != os.getuid():
+        raise ServerUnavailable(
+            f"{address} is served by another user (uid {uid}); it is not used"
+        )
 
 
 def _send_all(sock, data, failure):
@@ -186,6 +204,20 @@ def server_answers(address, timeout=5.0):
     return True
 
 
+def checked_server_address(directory=None):
+    """The socket address of this user's server in `directory` (by default this machine's
+    one), once the directory is found private to this user: nobody else can then put a
+    socket there. Raises ServerUnavailable otherwise."""
+    directory = _private_dir(os.path.abspath(directory or local_server_dir()))
+    address = local_server_address(directory)
+    if len(os.fsencode(address)) > MAX_SOCKET_PATH:
+        raise ServerUnavailable(
+            f"{address} is longer than a Unix socket path may be ({MAX_SOCKET_PATH} bytes); "
+            f"set {LOCAL_SERVER_DIR_ENV} to a shorter directory"
+        )
+    return address
+
+
 def ensure_local_server(directory=None, startup_timeout=30.0):
     """The socket address of this user's path-cache server on this machine, started first
     if it is not running. Raises ServerUnavailable when it cannot be started."""
@@ -198,18 +230,25 @@ def ensure_local_server(directory=None, startup_timeout=30.0):
 
 
 def _ensure_local_server(directory, startup_timeout):
-    directory = _private_dir(os.path.abspath(directory or local_server_dir()))
-    address = local_server_address(directory)
-    if len(os.fsencode(address)) > MAX_SOCKET_PATH:
-        raise ServerUnavailable(
-            f"{address} is longer than a Unix socket path may be ({MAX_SOCKET_PATH} bytes); "
-            f"set {LOCAL_SERVER_DIR_ENV} to a shorter directory"
-        )
+    address = checked_server_address(directory)
+    directory = os.path.dirname(address)
     if server_answers(address):
         return address
-    # One process starts it; the others wait for the lock and then find it running.
+    # One process starts it; the others wait for the lock and then find it running -- not
+    # for ever: a process stopped while it starts the server keeps the lock.
     with open(os.path.join(directory, "server.lock"), "a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+        deadline = time.monotonic() + startup_timeout
+        while True:
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() > deadline:
+                    raise ServerUnavailable(
+                        f"another process has been starting the path-cache server in "
+                        f"{directory} for {startup_timeout:.0f} s"
+                    )
+                time.sleep(0.1)
         if server_answers(address):
             return address
         log_path = os.path.join(directory, "server.log")

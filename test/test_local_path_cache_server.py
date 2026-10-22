@@ -130,6 +130,71 @@ class _ServerCase(unittest.TestCase):
         self.fail(f"server {pid} still runs")
 
 
+class NobodyElsesServerIsBelieved(_ServerCase):
+    """A server that another user runs -- e.g. one listening in /tmp/flaf-path-cache-<uid>
+    created by someone else before this user's first run on the node -- would answer every
+    question of this user's processes: "exists" for files never written, which jobs then
+    skip and snapshots ship."""
+
+    def poisoner(self, directory):
+        """A listener answering "exists" to everything, as a foreign server could."""
+        import threading
+
+        os.makedirs(directory, exist_ok=True)
+        os.chmod(directory, 0o777)
+        address = os.path.join(directory, pathCacheClient.SOCKET_NAME)
+        listener = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.addCleanup(listener.close)
+        listener.bind(address)
+        listener.listen(8)
+
+        def answer():
+            while True:
+                try:
+                    conn, _ = listener.accept()
+                except OSError:
+                    return
+                with conn:
+                    for _ in conn.makefile("rb"):
+                        conn.sendall(b"1\n")
+
+        threading.Thread(target=answer, daemon=True).start()
+        return address
+
+    def test_a_process_does_not_use_a_directory_others_can_enter(self):
+        address = self.poisoner(self.dir)
+        with mock.patch.dict(
+            os.environ, {pathCacheClient.LOCAL_SERVER_DIR_ENV: self.dir}
+        ), mock.patch.object(Setup, "_local_path_cache_server", []), mock.patch(
+            "sys.stderr"
+        ):
+            self.assertIsNone(Setup.local_path_cache_server())
+        with self.assertRaises(ServerUnavailable):
+            ensure_local_server(self.dir)
+        self.assertTrue(os.path.exists(address))
+
+    def test_a_server_of_another_user_is_not_believed(self):
+        address = self.poisoner(self.dir)
+        real_uid = os.getuid()
+        with mock.patch.object(
+            pathCacheClient.os, "getuid", return_value=real_uid + 1
+        ), self.assertRaises(ServerUnavailable) as caught:
+            get_status(FILE, address, 5)
+        self.assertIn("another user", str(caught.exception))
+        # and the cache of a process falls back to its own answers
+        cache = RemotePathCache(address, local_cache_validity_period=600)
+        with mock.patch.object(
+            pathCacheClient.os, "getuid", return_value=real_uid + 1
+        ), mock.patch.object(
+            law_gfal,
+            "ensure_local_server",
+            side_effect=ServerUnavailable("not private"),
+        ), mock.patch(
+            "sys.stderr"
+        ):
+            self.assertIsNone(cache.get(FILE)[0])
+
+
 class OneServerPerUserAndMachine(_ServerCase):
     def test_it_is_started_once_and_then_reused(self):
         address = ensure_local_server(self.dir)
@@ -161,6 +226,20 @@ class OneServerPerUserAndMachine(_ServerCase):
         st = os.lstat(address)
         self.assertTrue(stat.S_ISSOCK(st.st_mode))
         self.assertEqual(stat.S_IMODE(st.st_mode) & 0o077, 0)
+
+    def test_a_process_stopped_while_starting_the_server_does_not_stop_the_others(self):
+        """One process starts the server under a lock; one stopped then (Ctrl-Z) must not
+        keep every other process of the user waiting."""
+        import fcntl
+
+        os.mkdir(self.dir, 0o700)
+        with open(os.path.join(self.dir, "server.lock"), "a") as held:
+            fcntl.flock(held, fcntl.LOCK_EX)
+            start = time.time()
+            with self.assertRaises(ServerUnavailable) as caught:
+                ensure_local_server(self.dir, startup_timeout=1.0)
+            self.assertLess(time.time() - start, 10)
+        self.assertIn("starting", str(caught.exception))
 
     def test_a_directory_others_can_enter_is_refused(self):
         os.mkdir(self.dir, 0o700)
@@ -431,6 +510,39 @@ class AProcessWhoseServerGoes(_ServerCase):
         self.assertIs(self.client().get(MARKER)[0], True)
 
 
+class TheStateFile(unittest.TestCase):
+    def test_a_later_copy_is_never_replaced_by_an_earlier_one(self):
+        """The periodic write runs in a thread: one that took longer must not replace the
+        copy written after it (the last one, at shutdown)."""
+        import threading
+
+        directory = tempfile.mkdtemp(prefix="fpc", dir="/tmp")
+        self.addCleanup(subprocess.run, ["rm", "-rf", directory])
+        state = os.path.join(directory, "cache.json")
+        db = pathCacheServer.ValidityPeriodDB({"default": 3600})
+        logger = types.SimpleNamespace(log=lambda *args, **kwargs: None, verbose=False)
+        cache = pathCacheServer.PathCache(db, logger, cache_file=state)
+        cache.set(FILE, True)
+        real_dump = json.dump
+        slow = threading.Event()
+
+        def dump(data, f, *args, **kwargs):
+            if len(data["cache"]) == 1:
+                slow.wait(10)
+            return real_dump(data, f, *args, **kwargs)
+
+        with mock.patch.object(pathCacheServer.json, "dump", side_effect=dump):
+            early = threading.Thread(target=cache._write, args=(True,))
+            early.start()
+            time.sleep(0.2)
+            cache.set(MARKER, True)
+            cache._write(need_lock=True)
+            slow.set()
+            early.join()
+        with open(state) as f:
+            self.assertEqual(len(json.load(f)["cache"]), 2)
+
+
 class AnAbsentLivesShorter(unittest.TestCase):
     """No job publishes what it writes, so an "absent" on the machine's server -- a negative,
     or a listing marker, which implies one for every file it does not list -- is kept for
@@ -480,8 +592,8 @@ class TheFileSystemsOfAProcess(unittest.TestCase):
         )
         with mock.patch.dict(os.environ, env), mock.patch.object(
             law_gfal, "get_voms_proxy_info", lambda: {"path": None}
-        ), mock.patch.object(
-            Setup, "local_server_address", return_value="/tmp/x/server_v1.sock"
+        ), mock.patch.object(Setup, "_local_path_cache_server", []), mock.patch.object(
+            Setup, "checked_server_address", return_value="/tmp/x/server_v1.sock"
         ) as ensure, mock.patch.object(
             law_gfal, "apply_shipped_path_cache"
         ) as apply:

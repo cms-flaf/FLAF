@@ -414,6 +414,34 @@ class TestAMarkerFromTheServer(unittest.TestCase):
                 self.assertEqual(GFALFileInterface.listdir_counter - n0, 1)
 
 
+class TestManyQuestionsAtOnce(unittest.TestCase):
+    def test_a_batch_of_targets_costs_two_requests(self):
+        """list_target_directories asks the server about all its targets and their
+        directories' listings in two pipelined requests, not two round trips per target.
+        """
+        from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget
+
+        server = FakeCacheServer()
+        with mock.patch.object(law_gfal, "get_voms_proxy_info", lambda: {"path": None}):
+            fs = WLCGFileSystem(BASE)
+        fs.file_interface.path_cache = RemotePathCache(
+            "server.sock", local_cache_validity_period=600
+        )
+        targets = [WLCGFileTarget(f"d{i % 4}/file_{i}.root", fs) for i in range(40)]
+        single = mock.Mock(side_effect=server.get_status)
+        many = mock.Mock(side_effect=server.get_status_many)
+        with server.patch(), mock.patch.multiple(
+            law_gfal,
+            get_remote_cache_status=single,
+            get_remote_cache_status_many=many,
+            # existing, empty directories: listing an absent one also climbs its ancestors
+            gfal_ls_checked=lambda uri, **kwargs: [],
+        ):
+            law_gfal.list_target_directories(targets)
+        self.assertEqual(single.call_count, 0)
+        self.assertEqual(many.call_count, 2)
+
+
 class TestListedForWhom(unittest.TestCase):
     def test_a_known_file_is_not_held_for_a_sibling_listing_that_failed(self):
         """list_target_directories reports a target unlisted only when its own answer needed

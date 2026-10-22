@@ -190,9 +190,11 @@ Existence checks go through a path cache, so a status check does not stat every 
 individually. Each user runs one path-cache server per machine, started on demand by the first
 law process that needs it (`RunKit/pathCacheClient.py`, `ensure_local_server`). It listens on a Unix
 socket, `/tmp/flaf-path-cache-<uid>/server_v1.sock` (the directory is mode 0700 and the socket 0600;
-`FLAF_PATH_CACHE_DIR` chooses another directory, the socket path being at most 107 bytes), and
-shares what one process learns with every other law process of that user on that machine: the
-forked luigi workers, later runs and `--print-status`. A directory is listed once and the listing is
+`FLAF_PATH_CACHE_DIR` chooses another directory, the socket path being at most 107 bytes). A process
+uses it only when that directory belongs to its user and nobody else can enter it, and only a server
+running as the same user is believed (checked on every connection on Linux); otherwise the process
+works from its own cache. The server shares what one process learns with every other law process
+of that user on that machine: the forked luigi workers, later runs and `--print-status`. A directory is listed once and the listing is
 published to the server, so every later check is answered from the cache without touching storage.
 The server keeps its state in `cache.json` next to the socket (written every 60 s while in use and
 on SIGTERM/SIGHUP, reloaded on start), logs to `server.log` there, and exits after 24 h without a

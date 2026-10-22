@@ -7,6 +7,8 @@ replaced, its state survives a restart, nobody else can reach it -- and that dec
 kernel, not in Python.
 """
 
+import importlib.util
+import json
 import multiprocessing
 import os
 import re
@@ -27,6 +29,31 @@ if flaf_parent not in sys.path:
     sys.path.insert(0, flaf_parent)
 
 from FLAF.RunKit import law_gfal, pathCacheClient, pathCacheServer  # noqa: E402
+
+# Setup imports ROOT and Corrections at module level, which the unit-test runner does not have
+# and nothing tested here uses: stand-ins for these imports alone (as in test_era_jobs).
+_HEAVY_MODULES = ["ROOT", "numpy", "awkward", "uproot", "Corrections"]
+
+
+def _importable(name):
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+_replaced = {
+    name: sys.modules.get(name) for name in _HEAVY_MODULES if not _importable(name)
+}
+sys.modules.update({name: mock.MagicMock() for name in _replaced})
+try:
+    from FLAF.Common import Setup  # noqa: E402
+finally:
+    for _name, _module in _replaced.items():
+        if _module is None:
+            sys.modules.pop(_name, None)
+        else:
+            sys.modules[_name] = _module
 from FLAF.RunKit.law_gfal import RemotePathCache  # noqa: E402
 from FLAF.RunKit.pathCacheClient import (  # noqa: E402
     ServerUnavailable,
@@ -159,6 +186,36 @@ class OneServerPerUserAndMachine(_ServerCase):
         self.assertIn(pathCacheClient.LOCAL_SERVER_DIR_ENV, str(caught.exception))
 
 
+class ManyClientsAtOnce(_ServerCase):
+    def test_forty_clients_pipelining_a_thousand_requests_each(self):
+        """Every law process of a machine publishes up to 8 listings at once: the server
+        must keep up with dozens of pipelined clients (it once read a request one byte per
+        system call, and clients timed out from about 24 of them on)."""
+        import threading
+
+        address = ensure_local_server(self.dir)
+        errors = []
+
+        def client(n):
+            paths = [f"{FILE}.{n}.{i}" for i in range(1000)]
+            try:
+                set_status([(p, True) for p in paths], address, 5)
+                answers = pathCacheClient.get_status_many(paths, address, 5)
+                if set(answers.values()) != {True}:
+                    errors.append(f"client {n}: wrong answers")
+            except ServerUnavailable as e:
+                errors.append(f"client {n}: {e}")
+
+        threads = [threading.Thread(target=client, args=(n,)) for n in range(40)]
+        start = time.time()
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(errors, [])
+        self.assertLess(time.time() - start, 60)
+
+
 class AServerThatEnds(_ServerCase):
     def test_a_killed_server_is_replaced(self):
         address = ensure_local_server(self.dir)
@@ -186,6 +243,36 @@ class AServerThatEnds(_ServerCase):
         self.assertIs(get_status(FILE, address, 5), True)
         self.assertIs(get_status(MARKER, address, 5), True)
         self.assertIs(get_status(ABSENT_DIR + "/file.root", address, 5), False)
+
+    def test_the_end_of_a_session_writes_the_state(self):
+        """logind sends SIGTERM and then SIGHUP to a session's processes, the server's
+        logger included: the second signal must not cut the shutdown short."""
+        address = ensure_local_server(self.dir)
+        set_status([(f"{FILE}.{i}", True) for i in range(2000)], address, 5)
+        (server,) = self.server_pids()
+        with open(f"/proc/{server}/task/{server}/children") as f:
+            processes = [server] + [int(pid) for pid in f.read().split()]
+        for signum in (signal.SIGTERM, signal.SIGHUP):
+            for pid in processes:
+                os.kill(pid, signum)
+        self.wait_dead(server, timeout=20)
+        self.assertFalse(os.path.exists(address))
+        with open(os.path.join(self.dir, pathCacheClient.STATE_NAME)) as f:
+            self.assertEqual(len(json.load(f)["cache"]), 2000)
+
+    def test_a_relative_directory_works(self):
+        parent = os.path.dirname(self.dir)
+        cwd = os.getcwd()
+        os.chdir(parent)
+        try:
+            with mock.patch.dict(
+                os.environ, {pathCacheClient.LOCAL_SERVER_DIR_ENV: "cache"}
+            ):
+                address = ensure_local_server()
+        finally:
+            os.chdir(cwd)
+        self.assertEqual(address, os.path.join(self.dir, pathCacheClient.SOCKET_NAME))
+        self.assertTrue(pathCacheClient.server_answers(address))
 
     def test_an_idle_server_exits(self):
         os.mkdir(self.dir, 0o700)
@@ -222,7 +309,10 @@ class AServerThatEnds(_ServerCase):
         self.assertTrue(os.path.exists(state))
 
     def test_a_second_server_on_the_same_socket_leaves_the_first_alone(self):
+        """Also one that missed the first while it was starting: a server holds a lock for
+        its whole life, so none ever replaces the socket of a live one."""
         address = ensure_local_server(self.dir)
+        inode = os.lstat(address).st_ino
         result = subprocess.run(
             [sys.executable, pathCacheServer.__file__, "--socket", address],
             capture_output=True,
@@ -231,6 +321,7 @@ class AServerThatEnds(_ServerCase):
         )
         self.assertEqual(result.returncode, 0)
         self.assertTrue(pathCacheClient.server_answers(address))
+        self.assertEqual(os.lstat(address).st_ino, inode)
         self.assertEqual(len(self.server_pids()), 1)
 
 
@@ -320,8 +411,6 @@ class TheFileSystemsOfAProcess(unittest.TestCase):
     process uses its machine's server."""
 
     def create(self, env):
-        from FLAF.Common import Setup
-
         setup = types.SimpleNamespace(
             global_params={"WLCGFileSystem": {"localPathCacheValidity": 600}}
         )
@@ -345,6 +434,14 @@ class TheFileSystemsOfAProcess(unittest.TestCase):
         self.assertEqual(cache.validity_period, 86400)
         self.assertFalse(ensure.called)
         self.assertTrue(apply.called)
+
+    def test_the_renamed_job_validity_key_is_refused(self):
+        setup = types.SimpleNamespace(
+            global_params={"WLCGFileSystem": {"crabLocalPathCacheValidity": 1000}}
+        )
+        with self.assertRaises(RuntimeError) as caught:
+            Setup.Setup._create_fs_instance(setup, "davs://storage.example:1094/store")
+        self.assertIn("jobPathCacheValidity", str(caught.exception))
 
     def test_a_driver_uses_the_server_of_its_machine(self):
         cache, ensure, apply = self.create({})

@@ -341,6 +341,69 @@ class TestSharedListing(unittest.TestCase):
                 self.assertFalse(second.exists("data/file_2.root"))
 
 
+class TestAPublicationCutShort(unittest.TestCase):
+    """The machine's server can stop answering in the middle of a listing's publication: the
+    entries that arrived must not come with a listing marker, which would answer "absent" for
+    the others in every process of the machine."""
+
+    def test_no_marker_without_all_the_entries(self):
+        server = FakeCacheServer()
+        stored = server.set_status
+
+        def cut_short(entries, *args, **kwargs):
+            stored(entries[:3])
+            raise law_gfal.ServerUnavailable("stopped answering")
+
+        tree = {"data": [f"file_{i}.root" for i in range(10)]}
+
+        def client():
+            return make_interface(
+                tree, RemotePathCache("server.sock", local_cache_validity_period=600)
+            )
+
+        with server.patch(), mock.patch.object(
+            law_gfal,
+            "ensure_local_server",
+            side_effect=law_gfal.ServerUnavailable("cannot start"),
+        ), mock.patch("sys.stderr"):
+            first = client()
+            with mock.patch.object(
+                law_gfal, "set_remote_cache_status", cut_short
+            ), first.patch_ls():
+                self.assertTrue(first.exists("data/file_0.root"))
+            self.assertFalse(
+                any(p.endswith(law_gfal.LISTING_MARKER) for p in server.entries),
+                server.entries,
+            )
+            second = client()
+            with second.patch_ls():
+                n0 = GFALFileInterface.listdir_counter
+                self.assertTrue(second.exists("data/file_9.root"))
+                self.assertEqual(GFALFileInterface.listdir_counter - n0, 1)
+
+
+class TestListedForWhom(unittest.TestCase):
+    def test_a_known_file_is_not_held_for_a_sibling_listing_that_failed(self):
+        """list_target_directories reports a target unlisted only when its own answer needed
+        the listing that failed."""
+        from FLAF.RunKit.law_wlcg import WLCGFileSystem, WLCGFileTarget
+
+        with mock.patch.object(law_gfal, "get_voms_proxy_info", lambda: {"path": None}):
+            fs = WLCGFileSystem(BASE)
+        fs.file_interface.path_cache.set(os.path.join(BASE, "data/known.root"), True)
+        known = WLCGFileTarget("data/known.root", fs)
+        unknown = WLCGFileTarget("data/unknown.root", fs)
+
+        def failing_ls(uri, **kwargs):
+            raise GfalError("gfal-ls error: 110 (Connection timed out)")
+
+        with mock.patch.object(law_gfal, "gfal_ls_checked", failing_ls), mock.patch(
+            "sys.stderr"
+        ):
+            unlisted = law_gfal.list_target_directories([known, unknown])
+        self.assertEqual(unlisted, {id(unknown)})
+
+
 class TestExistingTargetEntries(unittest.TestCase):
     def test_a_file_is_recorded_under_every_base_and_other_targets_are_skipped(self):
         # A reader picks one base at random, so a file found under one is shipped under all.

@@ -37,6 +37,7 @@ import shutil
 import sys
 import tempfile
 import threading
+import time
 import types
 import unittest
 import uuid
@@ -1000,6 +1001,60 @@ class AResumedRun(unittest.TestCase):
         self.assertEqual(h.submitted, [], "branches that are done were resubmitted")
 
 
+class AResumedRunHoldsTooOnItsFirstPoll(unittest.TestCase):
+    """law demotes a job reported finished whose outputs it did not see in the first poll of a
+    resumed run, before check_finished_jobs is called; the lost-outputs brake then holds it
+    by the same rule instead of resubmitting it."""
+
+    def old_driver(self):
+        h = RunHarness(self, acceptance=1.0, tolerance=0.0, retries=1)
+        h.drive([{job: "running" for job in range(1, 7)}], max_polls=1)
+        h.new_driver()
+        return h
+
+    responses = [{1: "finished", **{job: "running" for job in range(2, 7)}}] * 2
+
+    def test_a_product_shown_a_poll_late(self):
+        h = self.old_driver()
+        h.drive(self.responses, before_query={1: lambda: h.produce(0)}, max_polls=2)
+        manager = h.proxy.job_manager
+        # demoted by law before the hook (the poll callback sees it so), held by the brake
+        self.assertEqual(
+            h.after_poll[0][1], (manager.RETRY, "initially missing task outputs")
+        )
+        self.assertEqual(h.queries, 2)
+        self.assertEqual(h.status(1), manager.FINISHED)
+        self.assertEqual(h.submitted, [], "a job that did its work was resubmitted")
+        self.assertEqual(dict(h.proxy.job_data.attempts), {})
+
+    def test_a_directory_that_cannot_be_listed_yet(self):
+        h = self.old_driver()
+        h.produce(0)
+        real_ls = h.storage.ls
+        product_dir = os.path.dirname(h.product_uri(0))
+
+        def ls(uri, **kwargs):
+            if uri == product_dir and h.queries <= 1:
+                h.storage.listings.append(uri)
+                raise GfalError("gfal-ls error: 110 (Connection timed out)")
+            return real_ls(uri, **kwargs)
+
+        with mock.patch.object(law_gfal, "gfal_ls_checked", ls):
+            h.drive(self.responses, max_polls=2)
+        manager = h.proxy.job_manager
+        self.assertEqual(h.queries, 2)
+        self.assertEqual(h.status(1), manager.FINISHED)
+        self.assertEqual(h.submitted, [], "a job that did its work was resubmitted")
+
+    def test_a_product_still_missing_a_poll_later_is_resubmitted(self):
+        h = self.old_driver()
+        h.drive(self.responses, max_polls=2)
+        # held in the first poll, retried in the second (the wave gate then parks the
+        # lone retry), with the one attempt that retry is
+        self.assertEqual(h.after_poll[1][1][0], h.proxy.job_manager.RETRY)
+        self.assertEqual(dict(h.proxy.job_data.attempts), {1: 1})
+
+
 class TheSwitchItself(unittest.TestCase):
     def test_crab_workflows_check_completeness(self):
         h = Harness(self, workflow="crab")
@@ -1169,8 +1224,47 @@ class AnUnconfirmedFinish(unittest.TestCase):
                 ):
                     with self.assertRaises(RuntimeError) as caught:
                         h.run()
-                self.assertIn("could not be listed", str(caught.exception))
+                self.assertIn("cannot be listed", str(caught.exception))
                 self.assertEqual(h.offered, [])
+
+    def test_a_crab_retry_of_the_same_job_starts_a_new_hold(self):
+        """CRAB retries a job inside its task under the same job id. A hold of an earlier
+        attempt -- here one whose directory could not be listed -- must not carry over: the
+        retry's own listing blip is held, not counted against the earlier clock."""
+        h = self.harness(
+            "crab",
+            [
+                {1: "transferring"},
+                {1: "cooloff"},
+                {1: "running"},
+                {1: "transferring"},
+                {1: "transferring"},
+            ],
+            before_query={1: lambda: time.sleep(0.3), 3: lambda: h.produce(0)},
+        )
+        h.job(1, 0)
+        with self.unlistable(h, polls=(0, 3)), mock.patch.object(
+            lc, "MAX_UNVERIFIABLE_FINISH_MINUTES", 0.2 / 60
+        ):
+            h.run()
+        self.assertEqual(h.status(1), h.proxy.job_manager.FINISHED)
+        self.assertEqual(h.offered, [])
+
+    def test_outputs_missing_twice_are_retried_whatever_came_between(self):
+        """A listing that fails between two looks that found the outputs missing neither
+        restarts the hold nor keeps the job running for ever."""
+        for workflow, (finished, _) in self.backends.items():
+            with self.subTest(workflow=workflow):
+                h = self.harness(workflow, [{1: finished}] * 6, max_polls=5)
+                h.job(1, 0)
+                with self.unlistable(h, polls=(1, 3, 5)):
+                    h.run()
+                manager = h.proxy.job_manager
+                self.assertEqual(
+                    [poll[1][0] for poll in h.after_poll[:3]],
+                    [manager.RUNNING, manager.RUNNING, manager.RETRY],
+                )
+                self.assertEqual(h.offered[0], {1: [0]})
 
     def test_the_output_directories_are_listed_at_once(self):
         """Six jobs over two directories finish in one poll: both directories are listed
@@ -1393,6 +1487,7 @@ class TheJobChecksItsRequirementsFromTheSnapshot(unittest.TestCase):
             f.write("#!/bin/bash\n")
         factory = lc.FLAFCrabJobFileFactory(dir=workdir, mkdtemp=False, cleanup=False)
         shipped = []
+        sandbox_files = []
         for n, branches in enumerate(([[0]], [[1]])):
             config = types.SimpleNamespace(input_files={})
             with contextlib.redirect_stdout(io.StringIO()):
@@ -1412,10 +1507,17 @@ class TheJobChecksItsRequirementsFromTheSnapshot(unittest.TestCase):
                     render_variables={},
                 )
             sandbox_file = c.input_files["path_cache"].path_sub_abs
+            sandbox_files.append(sandbox_file)
             with gzip.open(sandbox_file, "rt") as f:
                 shipped.append({e["path"] for e in json.load(f)["entries"]})
         self.assertNotIn(self.required[3], shipped[0])
         self.assertTrue(set(self.required.values()) <= shipped[1])
+        # A later round must not overwrite an earlier round's input: a job of the earlier
+        # round that has not started yet reads it (HTCondor without spooling), and the upload
+        # of worker files keeps the first file of a name.
+        self.assertNotEqual(*(os.path.basename(f) for f in sandbox_files))
+        with gzip.open(sandbox_files[0], "rt") as f:
+            self.assertEqual({e["path"] for e in json.load(f)["entries"]}, shipped[0])
 
         # the job finds its copy under the name the factory gave it
         init_dir = tempfile.mkdtemp(prefix="flaf_job_init_", dir=_data_dir)
@@ -1430,6 +1532,33 @@ class TheJobChecksItsRequirementsFromTheSnapshot(unittest.TestCase):
         listed = len(self.h.storage.listings)
         self.assertTrue(all(dep.complete() for dep in self.h.task.as_branch(1).deps()))
         self.assertEqual(self.h.storage.listings[listed:], [])
+
+    def test_a_job_of_several_branches_gets_its_workflow_requirements(self):
+        """A job of several branches runs them as a workflow, and luigi checks the
+        workflow's own requirements as well: their outputs are resolved at submit too, also
+        those none of the job's branches requires."""
+        upstream = [
+            self.h.fs.file_interface.uri(
+                ProductTask.req(self.h.task, branch=b).output().path
+            )
+            for b in (0, 1)
+        ]
+        for uri in upstream:
+            self.h.storage.add(uri)
+        with mock.patch.object(
+            MergeProductsTask,
+            "workflow_requires",
+            lambda task: {"all": ProductTask.req(task, branches=())},
+        ):
+            for branches, wanted in (([[0], [1]], False), ([[0, 1]], True)):
+                config = types.SimpleNamespace(input_files={})
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.h.task._stage_path_cache_input(config, branches)
+                with gzip.open(config.input_files["path_cache"].path, "rt") as f:
+                    shipped = {e["path"]: e["exists"] for e in json.load(f)["entries"]}
+                for uri in upstream:
+                    with self.subTest(branches=branches, uri=uri):
+                        self.assertEqual(shipped.get(uri) is True, wanted)
 
     def test_a_shared_requirement_is_resolved_once(self):
         _, _, out, _ = self.stage()

@@ -96,8 +96,7 @@ crab:
 !!! note "The `crab:` block has to be the same in every era of one run"
     A run over [several eras](#several-eras-in-one-run) reads the block once for all of them, so
     a block that differs between the eras stops the run with `EraDependentValueError`, naming each
-    era's value (the same holds for `fs_default`, `runTokenServer` and the path-cache host and
-    port, see [Eras](../concepts/eras.md#settings-that-must-agree-between-the-eras)).
+    era's value (the same holds for `fs_default` and `runTokenServer`, see [Eras](../concepts/eras.md#settings-that-must-agree-between-the-eras)).
 
 | Key | Meaning |
 |---|---|
@@ -329,10 +328,15 @@ follows.
   that to finished; `transferring` and `transferred` count as finished here, so without the
   output check a failed job would be written off as done. Every "absent" answer of a poll rests
   on a listing taken after the status: one listing per output directory per poll, which also
-  republishes the directory to the path-cache server (for a task with many output directories,
+  refreshes the directory in the path cache (for a task with many output directories,
   such as `HistFromNtupleProducerTask`, that is one `gfal-ls` per directory holding a finished
-  job's outputs, every poll). CRAB workers cannot reach that server, so
-  without this the files they write would read as absent for up to 24 h. For the same reason a
+  job's outputs, every poll). Jobs publish nothing to the path cache, so
+  without this the files they write would read as absent until a listing expires. A job whose
+  outputs are missing is kept running for one more poll and retried only if they are still missing
+  then (storage may show a new file late); one whose output directory cannot be listed is kept
+  running until it can be, at most 30 minutes after it was reported finished, then the run stops
+  without resubmitting; a CRAB automatic retry of the job starts a new hold. The same
+  rule applies to HTCondor ([HTCondor → Submission safeguards](htcondor.md#submission-safeguards)). A
   driver that is (re)started takes fresh listings before it judges which outputs exist: jobs
   that finished while no driver was polling are accepted, not sent back to the grid.
 - **Why a job failed.** Each newly failed job that has a job-level exit code gets one line with
@@ -447,23 +451,25 @@ also use `crab status -d <project_dir>` from a CMSSW environment.
     before large campaigns (`cmsEnv crab createmyproxy`, see Prerequisites).
 
 !!! note "Path-existence cache is shipped with the job"
-    `WLCGFileSystem.remotePathCacheHost` (`cms-flaf.cern.ch`) is behind the CERN
-    firewall, so CRAB workers do not use it. At submit time FLAF dumps the
-    in-process path cache and ships it with the job; the worker loads that
-    snapshot and uses a longer local TTL (`24 × localPathCacheValidity`, at
-    least 24 h, or `WLCGFileSystem.crabLocalPathCacheValidity` when set) so concurrent
-    jobs do not re-stat the same remote paths. The snapshot also carries every output of the
-    submitted branches' requirements that exists, resolved at submit whatever the age of the
-    driver's own entries: a job checks those outputs before it runs, and without them it lists
+    Jobs (CRAB and HTCondor) never contact a path-cache server. Every submission round ships a
+    snapshot of the driver's cache as a job input, `path_cache_<taskhash>_<time_ns>.json.gz`
+    (gzipped JSON); the worker loads it and uses a longer local TTL
+    (`WLCGFileSystem.jobPathCacheValidity`, default `max(24 × localPathCacheValidity, 86400)` s;
+    the former `crabLocalPathCacheValidity` is refused with a message naming it)
+    so concurrent jobs do not re-stat the same remote paths. The snapshot carries every output of
+    the submitted branches' requirements that exists, resolved at submit time whatever the age of
+    the driver's own entries (directories are listed 8 at a time), plus the driver's valid local
+    entries of the task's eras (for a meta-era task, those of its sub-eras); each era of a
+    multi-era run ships its own. A job checks those outputs before it runs, and without them it lists
     each requirement directory itself, one `gfal-ls` at a time (for a `HistMergerTask` branch,
     one directory per variable for every `HistFromNtupleProducerTask` branch, which outlasted
     a 5 h wall time from CERN to FNAL storage). The driver prints the count when it submits
     (`path-cache snapshot with N entries; X of the Y outputs of Z requirements found in T s`); an
     output it did not find is not shipped, and the job checks it on storage itself. An "absent"
     (a missing file, or a listing that implies one) recorded before the driver's current
-    poll, or learned from the cache server, is not shipped: it may predate a file another
-    CRAB job wrote. The driver compensates for the missing server link on its side: see
-    [Finished means on storage](#status-handling).
+    poll is not shipped: it may predate a file another job wrote. Source files of older rounds
+    under `local_path()` are removed. The driver compensates for the missing server link on its
+    side: see [Finished means on storage](#status-handling).
 
 !!! note "Workers read their proxy with `voms-proxy-info -dont-verify-ac`"
     A stale CRL for the VOMS server makes plain `voms-proxy-info` exit non-zero while the proxy

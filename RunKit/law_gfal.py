@@ -239,12 +239,12 @@ class RemotePathCache:
         self.local_cache.set(path, exists)
 
     def set_exists(self, base_dir, items):
-        # The marker is published first so that it can never outlive the entries it covers.
-        entries = [(listing_marker(base_dir), True)]
-        for item in items:
-            path = os.path.join(base_dir, item)
-            entries.append((path, True))
+        # The marker is published last: a publication cut short then leaves no marker that
+        # would answer "absent" for the entries that did not arrive. The server keeps it no
+        # longer than the entries (a marker lives as long as an "absent", pathCacheServer).
+        entries = [(os.path.join(base_dir, item), True) for item in items]
         entries.append((base_dir, True))
+        entries.append((listing_marker(base_dir), True))
         self._server(set_remote_cache_status, entries)
         self.local_cache.set_exists(base_dir, items)
 
@@ -355,13 +355,14 @@ def list_target_directories(targets, n_threads=PARALLEL_LISTINGS):
             + [listing_marker(d) for d in dirs]
         )
         for target, uris in items:
+            # the listings this target's own answer depends on
             keys = []
             for uri in uris:
                 dir_uri = os.path.dirname(uri)
-                key = (id(fi), dir_uri)
-                keys.append(key)
-                if key not in to_list and fi._cached_answer(uri, dir_uri)[0] is None:
-                    to_list[key] = fi
+                if fi._cached_answer(uri, dir_uri)[0] is None:
+                    key = (id(fi), dir_uri)
+                    keys.append(key)
+                    to_list.setdefault(key, fi)
             target_dirs.append((target, keys))
     unlisted = set()
     if to_list:

@@ -862,6 +862,11 @@ class Setup:
         if path_to_check.startswith("/"):
             return law.LocalFileSystem(base=path_to_check)
         cfg = self.global_params.get("WLCGFileSystem", {})
+        if "crabLocalPathCacheValidity" in cfg:
+            raise RuntimeError(
+                "WLCGFileSystem.crabLocalPathCacheValidity is now jobPathCacheValidity: it "
+                "applies to the jobs of both batch backends. Rename the key."
+            )
         cache_validity = cfg.get("localPathCacheValidity", 600)
         verbose = cfg.get("verbose", 0)
         if on_batch_node():

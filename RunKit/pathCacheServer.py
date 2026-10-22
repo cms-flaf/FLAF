@@ -9,6 +9,7 @@ their submission ships.
 """
 
 import copy
+import fcntl
 import socket
 import signal
 import stat
@@ -30,6 +31,9 @@ LISTING_MARKER = ".flaf_listed"
 
 # How long a client may keep a connection open without sending a request.
 CLIENT_TIMEOUT = 30
+
+# What ends a server: logind sends SIGTERM and then SIGHUP to a session's processes.
+EXIT_SIGNALS = (signal.SIGTERM, signal.SIGHUP)
 
 MSG_UNKNOWN = 0
 MSG_FORMAT_ERROR = 1
@@ -100,6 +104,9 @@ class Logger:
             )
 
     def _logger_process(self):
+        # the server stops its logger once it has logged its shutdown
+        for signum in EXIT_SIGNALS:
+            signal.signal(signum, signal.SIG_IGN)
         parent = os.getppid()
         while True:
             try:
@@ -376,7 +383,8 @@ def handle_client(conn, addr, cache, logger):
         # a client that stops talking must not keep a worker thread for ever
         conn.settimeout(CLIENT_TIMEOUT)
         with conn:
-            file = conn.makefile(mode="rwb", buffering=0)
+            # buffered: an unbuffered socket file reads a request one byte per system call
+            file = conn.makefile(mode="rwb")
 
             for line in file:
                 line = line.decode("utf-8").strip()
@@ -473,19 +481,18 @@ def _socket_inode(path):
     return st.st_ino if stat.S_ISSOCK(st.st_mode) else None
 
 
-def _server_answers(socket_path):
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
-        probe.settimeout(5)
-        try:
-            probe.connect(socket_path)
-        except OSError:
-            return False
-    return True
-
-
 def _exit_on_signal(signum, frame):
-    # unwinds start_server, which writes the state before the process ends
+    # Unwinds start_server, which writes the state before the process ends. Once: a second
+    # signal would cut that short.
+    for other in EXIT_SIGNALS:
+        signal.signal(other, signal.SIG_IGN)
     raise SystemExit(0)
+
+
+def _block_exit_signals():
+    # in the worker threads: a signal is then delivered to the main thread, which waits in
+    # accept() and handles it at once
+    signal.pthread_sigmask(signal.SIG_BLOCK, EXIT_SIGNALS)
 
 
 def start_server(cfg, socket_path, cache_file, n_threads, verbose=False):
@@ -494,12 +501,19 @@ def start_server(cfg, socket_path, cache_file, n_threads, verbose=False):
         cfg["validity_periods"], cfg.get("negative_validity")
     )
     idle_timeout = parse_seconds(cfg.get("idle_timeout", 24 * 60 * 60), "idle_timeout")
-    for signum in (signal.SIGTERM, signal.SIGHUP):
+    for signum in EXIT_SIGNALS:
         signal.signal(signum, _exit_on_signal)
 
     with Logger(verbose=verbose) as logger:
-        if _server_answers(socket_path):
-            logger.log(f"A cache server already listens on {socket_path}; exiting")
+        # Held for the server's whole life: one server per socket, so the socket found at
+        # the path is never one a live server listens on. Taken after the logger is forked,
+        # which would otherwise hold it on after the server is killed.
+        run_lock = open(socket_path + ".lock", "a")
+        try:
+            fcntl.flock(run_lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            run_lock.close()
+            logger.log(f"A cache server already runs for {socket_path}; exiting")
             return 0
         with PathCache(
             validity_db,
@@ -507,7 +521,9 @@ def start_server(cfg, socket_path, cache_file, n_threads, verbose=False):
             cache_file=cache_file,
             cache_write_interval=cfg.get("cache_write_interval", 60),
         ) as cache:
-            with ThreadPoolExecutor(max_workers=n_threads) as executor:
+            with ThreadPoolExecutor(
+                max_workers=n_threads, initializer=_block_exit_signals
+            ) as executor:
                 bound_inode = None
                 status = 0
                 try:
@@ -554,6 +570,7 @@ def start_server(cfg, socket_path, cache_file, n_threads, verbose=False):
                         and _socket_inode(socket_path) == bound_inode
                     ):
                         os.unlink(socket_path)
+        run_lock.close()
     return status
 
 

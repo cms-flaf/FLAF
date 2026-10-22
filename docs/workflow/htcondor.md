@@ -223,7 +223,7 @@ Splitting a big immutable payload into its own unhashed flavour is what keeps it
 The trade-off is that such a flavour is **not** rebuilt when its content changes: after
 reinstalling the environment, or changing anything else packed without a hash, delete the
 bundle so that the next submission recreates it — and drop its entry from the path-existence
-cache (see [Troubleshooting](../troubleshooting.md)), or `BundleTask` can keep reporting the
+cache (`pathCacheClient.py --command invalidate`, see [Troubleshooting](../troubleshooting.md)), or `BundleTask` can keep reporting the
 deleted file as present. One change is covered without that: the flavour that packs
 `flaf_env` (`$FLAF_ENVIRONMENT_PATH`, `soft` in the analyses) is named after the environment,
 `soft_<FLAF_ENVIRONMENT_ID>.tar.bz2` (the LCG release and a hash of `run_tools/mk_flaf_env.sh`,
@@ -285,6 +285,23 @@ These apply to both batch backends (HTCondor and [CRAB](crab.md)).
   a later run judges them again. The usual cause is storage that was unreachable while outputs
   were checked: run again once it is back. To redo the work on purpose, run again with
   `--ignore-submission`.
+- **A finished job is believed only when its outputs are on storage.** As on CRAB
+  ([CRAB → Status handling](crab.md#status-handling)), the driver never takes the batch system's
+  "completed" at its word: at every poll it lists, in parallel, the output directories of the jobs
+  reported finished, every "absent" resting on a listing taken in that poll. A job whose outputs
+  are on storage is booked finished; one whose outputs are missing is kept running for one more
+  poll and retried only if they are still missing then; one whose output directory cannot be
+  listed is kept running until it can be, at most 30 minutes after it was reported finished, then
+  the run stops and nothing is resubmitted. A held job counts as running, so a workflow cannot
+  finish while a job is unconfirmed. The same holds in the first poll of a resumed run, where law
+  itself would send such a job back: the lost-outputs check above holds it instead, and stops the
+  run when too many jobs came back so. Job durations
+  for the cost model end when a job was reported finished, not when it was confirmed.
+- **Jobs ship a path-cache snapshot.** Jobs never contact a path-cache server: every submission
+  round ships a snapshot of the driver's cache as the job input
+  `path_cache_<taskhash>_<time_ns>.json.gz`, with the outputs of the submitted branches'
+  requirements resolved at submit time, so a job does not list its requirements itself (details:
+  [CRAB → Caveats](crab.md#caveats)).
 - **A job does not rebuild upstream products.** In a batch job, `AnaTupleFileTask`,
   `AnaTupleMergeTask`, `AnalysisCacheTask`, `HistTupleProducerTask`,
   `HistFromNtupleProducerTask` and `HistMergerTask` refuse to run as an inline requirement of a

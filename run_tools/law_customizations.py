@@ -956,8 +956,16 @@ class Task(law.Task):
         for branch in sorted({b for job_branches in branches for b in job_branches}):
             for req in self.as_branch(branch).deps():
                 requirements.setdefault(req.task_id, req)
+        if any(len(job_branches) > 1 for job_branches in branches):
+            # A job of several branches runs them as a workflow (grouped_law_job_script),
+            # and luigi checks that workflow's own requirements too -- for a meta-era
+            # HistMergerTask every merged file of its eras, not only its branches'. Not the
+            # bundles: a job never requires them (_uses_bundles).
+            for req in law.util.flatten(self.workflow_requires()):
+                if not isinstance(req, BundleTask):
+                    requirements.setdefault(req.task_id, req)
         targets = [
-            t for req in requirements.values() for t in law.util.flatten(req.output())
+            t for req in requirements.values() for t in _leaf_targets(req.output())
         ]
         required, n_found = collect_existing_target_entries(targets)
         entries = {}
@@ -1738,9 +1746,54 @@ class CERNHTCondorJobFileFactory(law.htcondor.HTCondorJobFileFactory):
                 f.write("\n".join(new_lines))
 
 
+def _leaf_targets(output):
+    """The targets of a task's output, a workflow's collection of branch outputs included."""
+    targets = []
+    for target in law.util.flatten(output):
+        if isinstance(target, law.TargetCollection):
+            targets.extend(_leaf_targets(target.targets))
+        else:
+            targets.append(target)
+    return targets
+
+
 #: how long the outputs of a job reported finished may stay unverifiable -- their directory
 #: cannot be listed -- before the run stops
 MAX_UNVERIFIABLE_FINISH_MINUTES = 30.0
+
+
+def _branch_outputs(task, branches):
+    return [t for b in branches for t in law.util.flatten(task.as_branch(b).output())]
+
+
+def _hold_unconfirmed(proxy, job_num, job_id, unlisted, now):
+    """Record that the outputs of job `job_num`, reported finished, are not confirmed on
+    storage (`unlisted`: their directory could not be listed; otherwise they are missing).
+
+    Returns whether law should be left to retry it: its outputs were missing at an earlier
+    look of this hold as well. A hold that could not look at the storage for longer than
+    MAX_UNVERIFIABLE_FINISH_MINUTES stops the run.
+    """
+    if proxy._unconfirmed_finishes is None:
+        proxy._unconfirmed_finishes = {}
+    state = proxy._unconfirmed_finishes.get(job_num)
+    # (job id, outputs seen missing, first reported finished)
+    if state is None or state[0] != job_id:
+        state = (job_id, False, now)
+    _, seen_missing, since = state
+    if unlisted:
+        if now - since > MAX_UNVERIFIABLE_FINISH_MINUTES * 60:
+            raise RuntimeError(
+                f"{proxy.task.task_family}: the outputs of job {job_num}, reported finished "
+                f"{(now - since) / 60:.0f} minutes ago, could not be checked since: their "
+                "directory cannot be listed. Nothing was resubmitted; run again once the "
+                "storage answers."
+            )
+    elif seen_missing:
+        del proxy._unconfirmed_finishes[job_num]
+        return True
+    proxy._unconfirmed_finishes[job_num] = (job_id, seen_missing or not unlisted, since)
+    return False
 
 
 def check_finished_jobs(task):
@@ -1757,13 +1810,15 @@ def check_finished_jobs(task):
     * the output directories of all jobs reported finished are listed at once, several at a
       time, rather than one after the other in law's verdict; the listings also bring what
       the jobs wrote into the cache, for later snapshots and the other processes;
-    * a job whose outputs are not there is kept running for one more poll and is retried
-      only if they are still missing then, since storage may show a new file late; a job
-      whose output directory cannot be listed is kept running until it can be, for at most
-      MAX_UNVERIFIABLE_FINISH_MINUTES, as a listing that fails says nothing about the files.
+    * a job whose outputs are not there is kept running and retried only if they are still
+      missing at the next look, since storage may show a new file late; a job whose output
+      directory cannot be listed is kept running until it can be, for at most
+      MAX_UNVERIFIABLE_FINISH_MINUTES from when it was reported finished, as a listing that
+      fails says nothing about the files.
 
     A job kept running is counted as running by law, so the workflow cannot finish while it
-    is unconfirmed.
+    is unconfirmed. A hold lasts while the job is reported finished: a CRAB automatic retry
+    keeps its job id, and must not inherit what an earlier attempt's hold saw.
     """
     require_fresh_negatives()
     proxy = task.workflow_proxy
@@ -1779,48 +1834,34 @@ def check_finished_jobs(task):
         and data.get("job_id") not in (None, job_data.dummy_job_id)
         and not skippable.get(job_num)
     ]
-    unconfirmed = getattr(proxy, "_unconfirmed_finishes", None)
-    if unconfirmed is None:
-        unconfirmed = proxy._unconfirmed_finishes = {}
+    if proxy._unconfirmed_finishes:
+        current = {job_num for job_num, _ in candidates}
+        for job_num in list(proxy._unconfirmed_finishes):
+            if job_num not in current:
+                del proxy._unconfirmed_finishes[job_num]
     if not candidates:
         return True
     outputs = {
-        job_num: [
-            t
-            for b in data["branches"]
-            for t in law.util.flatten(task.as_branch(b).output())
-        ]
-        for job_num, data in candidates
+        job_num: _branch_outputs(task, data["branches"]) for job_num, data in candidates
     }
     unlisted = list_target_directories(
         [t for targets in outputs.values() for t in targets]
     )
+    if proxy._finish_reported_at is None:
+        proxy._finish_reported_at = {}
     now = time.time()
     held = []
     for job_num, data in candidates:
         job_id = data["job_id"]
-        previous = unconfirmed.get(job_num)
-        if previous is not None and previous[0] != job_id:
-            previous = None
         if any(id(t) in unlisted for t in outputs[job_num]):
-            since = previous[2] if previous and previous[1] == "unlisted" else now
-            if now - since > MAX_UNVERIFIABLE_FINISH_MINUTES * 60:
-                raise RuntimeError(
-                    f"{task.task_family}: the output directories of job {job_num} (reported "
-                    f"finished) could not be listed for {(now - since) / 60:.0f} minutes, so "
-                    "whether it wrote its outputs cannot be told. Nothing was resubmitted; run "
-                    "again once the storage answers."
-                )
-            unconfirmed[job_num] = (job_id, "unlisted", since)
+            _hold_unconfirmed(proxy, job_num, job_id, True, now)
         elif all(task.as_branch(b).complete() for b in data["branches"]):
-            unconfirmed.pop(job_num, None)
+            state = (proxy._unconfirmed_finishes or {}).pop(job_num, None)
+            # when the batch system reported it finished, for the job durations
+            proxy._finish_reported_at[job_num] = state[2] if state else now
             continue
-        elif previous is not None and previous[1] == "absent":
-            # still missing a poll later: law retries it
-            unconfirmed.pop(job_num, None)
+        elif _hold_unconfirmed(proxy, job_num, job_id, False, now):
             continue
-        else:
-            unconfirmed[job_num] = (job_id, "absent", now)
         data["status"] = manager.RUNNING
         held.append(job_num)
     if held:
@@ -2235,6 +2276,10 @@ class SubmissionGuards(LawProxyState):
     _resumed_attempts = None
     _lost_outputs_judged = False
     _skipping_since = None
+    # check_finished_jobs: job_num -> the hold of a job reported finished whose outputs are
+    # not confirmed on storage; job_num -> when a job it booked was first reported finished
+    _unconfirmed_finishes = None
+    _finish_reported_at = None
 
     def _snapshot_resumed_jobs(self):
         """The job data a resumed run starts from, taken before the first poll changes it."""
@@ -2313,6 +2358,21 @@ class SubmissionGuards(LawProxyState):
         finally:
             self._put_back(replaced)
 
+    def _keep_running(self, job_nums, retry_jobs):
+        """Take jobs that law demoted back out of its retry generation `retry_jobs`: as this
+        run loaded them, with their job id, running, and without the attempt law counted.
+        """
+        self._restore_resumed(job_nums)
+        for job_num in job_nums:
+            retry_jobs.pop(job_num, None)
+            self.job_data.jobs[job_num]["status"] = self.job_manager.RUNNING
+            self._job_retries[job_num] = max(self._job_retries[job_num] - 1, 0)
+        self.task.publish_message(
+            f"{len(job_nums)} job(s) reported finished whose outputs are not confirmed on "
+            "storage yet (missing, or their directory cannot be listed); kept running and "
+            "checked again at the next poll"
+        )
+
     def _too_many_lost(self, lost):
         """What is lost, in words, when the jobs `lost` are too many to resubmit; else None."""
         n_lost, n_jobs = len(lost), len(self.job_data)
@@ -2341,17 +2401,43 @@ class SubmissionGuards(LawProxyState):
         # back as "initially missing task outputs"; a branch may also be complete by its task's
         # own rule (e.g. inputs merged and replaced by markers). Only a job whose branches are
         # incomplete on a fresh look counts as lost; the others are marked skippable, so that
-        # law's submit() passes them by and its next poll books them done.
+        # law's submit() passes them by and its next poll books them done. A job reported
+        # finished by the batch system whose outputs are not confirmed is held, as
+        # check_finished_jobs holds it in every later poll -- law demotes it in this first poll
+        # before that hook is called -- unless too many came back so.
         require_fresh_negatives()
+        outputs = {
+            job_num: _branch_outputs(self.task, retry_jobs[job_num])
+            for job_num in candidates
+        }
+        unlisted = list_target_directories(
+            [t for targets in outputs.values() for t in targets]
+        )
         skip_jobs = self._skip_jobs
         lost = []
+        held = []
+        now = time.time()
         for job_num in candidates:
-            if all(self.task.as_branch(b).complete() for b in retry_jobs[job_num]):
+            data = self.job_data.jobs.get(job_num) or {}
+            is_unlisted = any(id(t) in unlisted for t in outputs[job_num])
+            # by a job the batch system still knows, not recorded as finished before
+            reported_finished = data.get("error") == self.missing_outputs_error
+            if not is_unlisted and all(
+                self.task.as_branch(b).complete() for b in retry_jobs[job_num]
+            ):
                 skip_jobs[job_num] = True
+            elif reported_finished and not _hold_unconfirmed(
+                self, job_num, data.get("job_id"), is_unlisted, now
+            ):
+                held.append(job_num)
             else:
                 lost.append(job_num)
-        too_many = self._too_many_lost(lost)
+        # a held job counts, as a lost one does: the next poll would retry it outside this
+        # brake, and a mass of them is what the brake stops
+        too_many = self._too_many_lost(lost + held)
         if not too_many:
+            if held:
+                self._keep_running(held, retry_jobs)
             return
         # law has already rewritten these jobs as retries and counted the attempt; write them
         # as they were, so that the next run finds and judges them again
@@ -2670,14 +2756,19 @@ class _BundleAwareHTCondorWorkflowProxy(
             status = data.get("status")
             if status == self.job_manager.RUNNING:
                 self._job_started_at.setdefault(job_num, now)
+            elif status in (self.job_manager.RETRY, self.job_manager.FAILED):
+                # the next attempt is timed from its own start
+                self._job_started_at.pop(job_num, None)
             elif status == self.job_manager.FINISHED:
                 if job_num in self._job_harvested:
                     continue
                 self._job_harvested.add(job_num)
                 started = self._job_started_at.pop(job_num, None)
+                # not including the polls it was held for while its outputs were checked
+                ended = (self._finish_reported_at or {}).pop(job_num, now)
                 branches = data.get("branches") or []
                 if started is not None and len(branches) == 1:
-                    samples.append((branches, now - started))
+                    samples.append((branches, ended - started))
         if not samples:
             return
         try:

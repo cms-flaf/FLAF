@@ -55,25 +55,47 @@ def _read_line(file):
     return line.decode("utf-8").strip()
 
 
-def set_status(entries, address, timeout, verbose=0):
+def _set_value(path, status):
+    if status is None or status == "u":
+        return "u"
+    if status == "U":
+        return "U"
+    if isinstance(status, bool):
+        return "1" if status else "0"
+    raise ValueError(f"Invalid status value: {status!r} for path: {path!r}")
+
+
+def _pipelined(address, timeout, lines):
+    """Send `lines` on one connection while their answers are read; returns the answers.
+
+    The server stops reading once its answers fill the socket buffer (on a Unix socket every
+    short answer takes ~1 kB of it), so a client that read only after sending all would wait
+    for ever; sendall, since a single write may send only part of a large request.
+    """
+    request = "".join(lines).encode("utf-8")
+    with _connect(address, timeout) as sock:
+        file = sock.makefile(mode="rb")
+        failure = []
+        sender = threading.Thread(
+            target=_send_all, args=(sock, request, failure), daemon=True
+        )
+        sender.start()
+        try:
+            answers = [_read_line(file) for _ in lines]
+        finally:
+            sender.join()
+        if failure:
+            raise failure[0]
+    return answers
+
+
+def set_status(entries, address, timeout, verbose=0, batch_size=1000):
     """Publish (path, status) pairs: True/False, None or "u" to forget a path, "U" to forget
     every path matching a regex. Raises ServerUnavailable."""
+    lines = [f"SET {path} {_set_value(path, status)}\n" for path, status in entries]
     try:
-        with _connect(address, timeout) as sock:
-            file = sock.makefile(mode="rwb", buffering=0)
-            for path, status in entries:
-                if status is None or status == "u":
-                    val = "u"
-                elif status == "U":
-                    val = "U"
-                elif isinstance(status, bool):
-                    val = "1" if status else "0"
-                else:
-                    raise ValueError(
-                        f"Invalid status value: {status!r} for path: {path!r}"
-                    )
-                sock.sendall(f"SET {path} {val}\n".encode("utf-8"))
-                line = _read_line(file)
+        for i in range(0, len(lines), batch_size):
+            for line in _pipelined(address, timeout, lines[i : i + batch_size]):
                 if line != "OK" and verbose > 0:
                     print(
                         f"pathCacheClient.set_status: SET failed: {line!r}",
@@ -102,25 +124,8 @@ def get_status_many(paths, address, timeout, verbose=0, batch_size=1000):
     try:
         for i in range(0, len(paths), batch_size):
             batch = paths[i : i + batch_size]
-            with _connect(address, timeout) as sock:
-                file = sock.makefile(mode="rwb", buffering=0)
-                request = "".join(f"GET {p}\n" for p in batch).encode("utf-8")
-                # Sent while the answers are read: the server stops reading once its answers
-                # fill the socket buffer (on a Unix socket every 2-byte answer takes ~1 kB
-                # of it), and a client that read only after sending all would wait for ever.
-                # sendall, since a single write may send only part of a large batch.
-                failure = []
-                sender = threading.Thread(
-                    target=_send_all, args=(sock, request, failure), daemon=True
-                )
-                sender.start()
-                try:
-                    for p in batch:
-                        results[p] = _decode_status(_read_line(file))
-                finally:
-                    sender.join()
-                if failure:
-                    raise failure[0]
+            answers = _pipelined(address, timeout, [f"GET {p}\n" for p in batch])
+            results.update(zip(batch, map(_decode_status, answers)))
     except ServerUnavailable:
         raise
     except OSError as e:
@@ -148,8 +153,10 @@ def get_status(path, address, timeout, verbose=0):
 
 
 def local_server_dir():
-    return os.environ.get(LOCAL_SERVER_DIR_ENV) or os.path.join(
-        "/tmp", f"flaf-path-cache-{os.getuid()}"
+    # absolute: the server runs in it, and resolves the paths it is given from there
+    return os.path.abspath(
+        os.environ.get(LOCAL_SERVER_DIR_ENV)
+        or os.path.join("/tmp", f"flaf-path-cache-{os.getuid()}")
     )
 
 
@@ -191,7 +198,7 @@ def ensure_local_server(directory=None, startup_timeout=30.0):
 
 
 def _ensure_local_server(directory, startup_timeout):
-    directory = _private_dir(directory or local_server_dir())
+    directory = _private_dir(os.path.abspath(directory or local_server_dir()))
     address = local_server_address(directory)
     if len(os.fsencode(address)) > MAX_SOCKET_PATH:
         raise ServerUnavailable(

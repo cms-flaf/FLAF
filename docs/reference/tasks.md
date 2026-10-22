@@ -258,6 +258,8 @@ Produces the final **plots** via the [PlotKit](https://github.com/cms-flaf/PlotK
 per variable, skipping variables configured with `plot_task: false`).
 
 - **Parameter:** `--variables` (string; restrict which variables).
+- **`plot_wantSignals`** (`global.yaml` or `--customisations`, default `true`): `false` draws no
+  signal on any plot. Signals are never drawn in the `plot_control_regions` (below).
 - **Meta-era** (`--era Run3_22_23`): plots the sum `HistMergerTask` makes over the meta-era, into
   `<version>/Plots/<meta-era>/…`, with the processes and uncertainty sources of every era of the
   group and the labels of `config/plot/<meta-era>.yaml`. See

@@ -27,6 +27,7 @@ from FLAF.Common.PlotGroups import (  # noqa: E402
     control_regions,
     plot_settings,
     want_data,
+    want_signals,
 )
 
 
@@ -240,6 +241,22 @@ class ControlRegions(unittest.TestCase):
         ]:
             with self.subTest(region=region, blind=blind):
                 self.assertEqual(want_data(True, blind, region, crs), expected)
+
+    def test_signals_are_drawn_when_wanted_and_never_in_a_control_region(self):
+        crs = control_regions(["TT_CR", "DY_CR"], self.regions)
+        for region, want, expected in [
+            ("SR", True, True),
+            ("OS_Iso", True, True),
+            ("TT_CR", True, False),
+            ("DY_CR", True, False),
+            # plot_wantSignals: false -- the switch #183 had left without effect
+            ("SR", False, False),
+            ("TT_CR", False, False),
+        ]:
+            with self.subTest(region=region, want=want):
+                self.assertEqual(want_signals(want, region, crs), expected)
+        with self.assertRaises(TypeError):
+            want_signals(True, "SR", "TT_CR")
 
     def test_no_data_when_it_is_not_wanted(self):
         crs = control_regions(["TT_CR"], self.regions)

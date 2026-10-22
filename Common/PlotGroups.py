@@ -63,6 +63,16 @@ def control_regions(value, regions=None):
     return list(value)
 
 
+def want_signals(want, region, control_regions):
+    """Whether a plot draws the signals: when they are wanted (HistPlotTask's
+    plot_wantSignals, default true, passed as --wantSignals), never in a control region --
+    a control region holds next to no signal, which normalised to the background is noise.
+    """
+    if not isinstance(control_regions, list):
+        raise TypeError(f"control_regions = {control_regions!r} must be a list")
+    return bool(want) and region not in control_regions
+
+
 def want_data(want, blind, region, control_regions):
     """Whether a plot shows data: when it is wanted, unless the variable is blinded and the
     region is not a control region. `control_regions` is the list control_regions() gives.

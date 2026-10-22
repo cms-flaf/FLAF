@@ -14,6 +14,7 @@ from FLAF.Common.PlotGroups import (
     control_regions,
     plot_settings,
     want_data,
+    want_signals,
 )
 from FLAF.Common.Utilities import str_to_bool
 
@@ -254,6 +255,10 @@ if __name__ == "__main__":
     for key, outFile in zip(keys, outFiles):
         print(f"Plotting key {key}")
         channel, category, custom_region = key.split(":")
+        # signals as wanted (plot_wantSignals), never in the control regions
+        show_signals = want_signals(
+            args.wantSignals, custom_region, plot_control_regions
+        )
 
         all_histlist = {}
 
@@ -292,12 +297,11 @@ if __name__ == "__main__":
 
             if process.get("to_plot", True):
                 if process_group == "signals":
+                    if not show_signals:
+                        continue
                     if "channels" in process.keys():
                         if channel not in process["channels"]:
                             continue
-                    # no signal overlay in the control regions
-                    if custom_region in plot_control_regions:
-                        continue
                 all_datasets_dict[all_datasets_key] = {}
                 all_datasets_dict[all_datasets_key]["process_name"] = process_name
                 all_datasets_dict[all_datasets_key]["process_group"] = process_group

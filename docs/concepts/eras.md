@@ -276,8 +276,7 @@ era of the run, or constructing the task stops with `EraDependentValueError` nam
 each era's value:
 
 - `fs_default`;
-- `crab` (the whole block), `runTokenServer`, and `WLCGFileSystem.remotePathCacheHost` and
-  `remotePathCachePort`;
+- `crab` (the whole block) and `runTokenServer`;
 - `anaTuple_scheduling` and `use_cmssw_env_AnaTupleProduction`;
 - of each entry of `payload_producers`: `n_cpus`, `max_runtime`, `crab_memory`, `save_as` and
   `cmssw_env`.

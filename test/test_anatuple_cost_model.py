@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Unit tests for the AnaTuple cost model, job packing and entry-range partitioning."""
 
+import importlib.util
 import json
 import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 # Parent of the FLAF repo so `import FLAF.AnaProd...` resolves.
 flaf_repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -270,6 +272,23 @@ class TestCostModel(unittest.TestCase):
         self.assertEqual(params["tier_safety"]["default"], 4.0)
 
 
+# law_customizations imports ROOT and Corrections at module level, which the unit-test runner
+# does not have and nothing tested here uses: stand-ins for these imports alone (as in
+# test_era_jobs).
+_HEAVY_MODULES = ["ROOT", "numpy", "awkward", "uproot", "Corrections"]
+
+
+def _importable(name):
+    try:
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+_replaced = {
+    name: sys.modules.get(name) for name in _HEAVY_MODULES if not _importable(name)
+}
+sys.modules.update({name: mock.MagicMock() for name in _replaced})
 try:
     from FLAF.run_tools.law_customizations import (
         LawProxyState,
@@ -280,6 +299,12 @@ try:
 except Exception:  # law/luigi not importable outside the analysis environment
     HAVE_LAW = False
     LawProxyState = object
+finally:
+    for _name, _module in _replaced.items():
+        if _module is None:
+            sys.modules.pop(_name, None)
+        else:
+            sys.modules[_name] = _module
 
 
 class _StubJobData:
@@ -331,6 +356,8 @@ class _StubProxy(LawProxyState):
         self._cost_own_jobs = set()
         self._cost_poll_started = False
         self._cost_repack_pending = True
+        # set by check_finished_jobs (SubmissionGuards in the real proxies)
+        self._finish_reported_at = None
 
     def _cost_scheduling_enabled(self):
         return True
@@ -489,6 +516,30 @@ class TestProxyBookkeeping(unittest.TestCase):
         self.assertGreaterEqual(recorded[0][1], 0.0)
         harvest(proxy)
         self.assertEqual(len(recorded), 1, "a job is harvested only once")
+
+    def test_a_duration_ends_when_the_job_was_reported_finished(self):
+        """A job held while its outputs are checked on storage (check_finished_jobs) is
+        timed to when the batch system reported it finished, not to when it was booked; a
+        retried job is timed from its own new start."""
+        import law
+
+        task = _StubTask({})
+        recorded = []
+        task.record_job_durations = lambda samples: (recorded.extend(samples) or False)
+        proxy = _StubProxy(task)
+        proxy._job_started_at = {1: 1000.0, 2: 1000.0}
+        proxy._job_harvested = set()
+        proxy._cost_own_jobs = {1, 2}
+        proxy.job_manager = law.job.base.BaseJobManager
+        proxy._finish_reported_at = {1: 4600.0}
+        proxy.job_data.jobs = {
+            1: {"branches": [0], "status": "finished"},
+            2: {"branches": [1], "status": "retry"},
+        }
+        harvest = _BundleAwareHTCondorWorkflowProxy.harvest_job_durations
+        harvest(proxy)
+        self.assertEqual(recorded, [([0], 3600.0)])
+        self.assertNotIn(2, proxy._job_started_at)
 
     def test_durations_of_jobs_from_an_earlier_run_are_ignored(self):
         """A job already running when the workflow restarted would be timed from the

@@ -197,8 +197,8 @@ temporary name or checksum.
   limited to 5 minutes.
 - Listings are taken with `TZ=UTC`, so the dates in them do not depend on the host.
 
-On CRAB the driver additionally takes a fresh listing before it accepts an "absent" answer, since
-the workers cannot publish to the path-cache server
+On both batch backends the driver takes a fresh listing before it accepts an "absent" answer for a
+job reported finished, since jobs publish nothing to the path cache
 ([CRAB → Status handling](../workflow/crab.md#status-handling)). On both batch backends a
 workflow that starts to run gathers its existing outputs again on fresh listings
 ([HTCondor → Submission safeguards](../workflow/htcondor.md#submission-safeguards)).

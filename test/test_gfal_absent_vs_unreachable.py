@@ -379,7 +379,7 @@ class NothingReachesTheServer(unittest.TestCase):
 
     def client(self):
         return make_interface(
-            RemotePathCache("host", 1, local_cache_validity_period=600)
+            RemotePathCache("server.sock", local_cache_validity_period=600)
         )
 
     def test_an_outage_publishes_no_negative(self):

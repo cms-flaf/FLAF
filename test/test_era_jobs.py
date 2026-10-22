@@ -49,6 +49,7 @@ import contextlib
 import datetime
 import fcntl
 import glob
+import gzip
 import importlib.util
 import json
 import os
@@ -100,6 +101,7 @@ _replaced = {
 }
 sys.modules.update({name: mock.MagicMock() for name in _replaced})
 try:
+    from FLAF.Common import Setup as setup_module
     from FLAF.Common.Setup import ERA_BRANCH_STRIDE, ERA_IDS, Setup
     from FLAF.run_tools import law_customizations as lc
 finally:
@@ -190,13 +192,23 @@ def setUpModule():
     # a driver here is never a batch job, and has no grid proxy
     for name in ("LAW_CRAB_JOB_NUMBER", "LAW_JOB_HOME", "X509_USER_PROXY", "CRAB_Id"):
         os.environ.pop(name, None)
+    # The drivers run as processes of their own (_CrossRuns) share a path-cache server, as
+    # on a submit machine: one of this module's (short: a socket path holds 107 bytes).
+    os.environ["FLAF_PATH_CACHE_DIR"] = os.path.join(
+        tempfile.mkdtemp(prefix="fpc", dir="/tmp"), "cache"
+    )
 
 
 def tearDownModule():
     root = os.environ.get("ERA_JOBS_ROOT")
+    server_dir = os.environ.get("FLAF_PATH_CACHE_DIR")
     _module_env.stop()
     if root:
         shutil.rmtree(root, ignore_errors=True)
+    if server_dir:
+        # the server outlives the drivers that started it, by design
+        subprocess.run(["pkill", "-KILL", "-f", "--", f"--socket {server_dir}/"])
+        shutil.rmtree(os.path.dirname(server_dir), ignore_errors=True)
 
 
 # --------------------------------------------------------------------------------------------
@@ -958,7 +970,7 @@ class Render:
             }
         files = c.input_files
         if "path_cache" in files:
-            with open(files["path_cache"].path_sub_abs) as f:
+            with gzip.open(files["path_cache"].path_sub_abs, "rt") as f:
                 summary["path_cache"] = sorted(
                     (e["path"], e["exists"]) for e in json.load(f)["entries"]
                 )
@@ -1033,6 +1045,12 @@ class _Case(unittest.TestCase):
             mock.patch.object(GFALFileInterface, "negatives_valid_after", 0.0)
         )
         stack.enter_context(mock.patch.object(lc, "_era_cli_checked", False))
+        # each driver run here is a process of its own: none shares a path-cache server
+        stack.enter_context(
+            mock.patch.object(
+                setup_module, "local_path_cache_server", return_value=None
+            )
+        )
         self.addCleanup(wipe, self.version)
 
     @contextlib.contextmanager
@@ -1658,6 +1676,17 @@ class _EveryJobIsTheSingleEraJob:
                     self.assertEqual(summary["era_note"], era)
                     self.check_backend(era, summary)
 
+    def check_snapshot(self, era, summary):
+        # the job finds its requirements in the snapshot: those of its era, nothing else
+        paths = [path for path, _ in summary["path_cache"]]
+        self.assertTrue(paths)
+        prefix = f"{BASE}/{self.version}/src/"
+        self.assertEqual(
+            {p[len(prefix) :].split("/")[0] for p in paths if p.startswith(prefix)},
+            {era},
+        )
+        self.assertTrue(all(p.startswith(prefix) for p in paths), paths)
+
 
 class HTCondorEveryJobIsTheSingleEraJob(_EveryJobIsTheSingleEraJob, _Case):
     backend = "htcondor"
@@ -1671,6 +1700,7 @@ class HTCondorEveryJobIsTheSingleEraJob(_EveryJobIsTheSingleEraJob, _Case):
         self.assertEqual(
             summary["worker_files"], f"{BASE}/{self.version}/worker_files/{era}"
         )
+        self.check_snapshot(era, summary)
 
 
 class CrabEveryJobIsTheSingleEraJob(_EveryJobIsTheSingleEraJob, _Case):
@@ -1686,15 +1716,7 @@ class CrabEveryJobIsTheSingleEraJob(_EveryJobIsTheSingleEraJob, _Case):
                 "request_prefix": f"{self.family}_{self.version}_{era}",
             },
         )
-        # the job finds its requirements in the snapshot: those of its era, nothing else
-        paths = [path for path, _ in summary["path_cache"]]
-        self.assertTrue(paths)
-        prefix = f"{BASE}/{self.version}/src/"
-        self.assertEqual(
-            {p[len(prefix) :].split("/")[0] for p in paths if p.startswith(prefix)},
-            {era},
-        )
-        self.assertTrue(all(p.startswith(prefix) for p in paths), paths)
+        self.check_snapshot(era, summary)
 
     def test_the_job_as_it_runs_on_a_crab_worker(self):
         """What a CRAB job builds from its command line, with LAW_CRAB_JOB_NUMBER set: the

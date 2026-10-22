@@ -1,8 +1,11 @@
+import gzip
 import json
 import math
+import threading
 import time
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 from law.target.remote.interface import RemoteFileInterface
 from .grid_tools import (
@@ -17,6 +20,8 @@ from .grid_tools import (
 )
 from .run_tools import repeat_until_success
 from .pathCacheClient import (
+    ServerUnavailable,
+    ensure_local_server,
     set_status as set_remote_cache_status,
     get_status as get_remote_cache_status,
     get_status_many as get_remote_cache_status_many,
@@ -34,11 +39,11 @@ class PathCacheEntry:
 
 
 # Cache key marking that a directory has been listed and that the cached entries for it are
-# therefore complete. It is a key like any other, so it is shared through the cache server and
-# expires with the entries it covers. Only a successful listing writes it — unlike the plain
-# "this directory exists" entry, which is also (re)written when a parent is listed or when a
-# file is copied into the directory, and which therefore says nothing about the directory's
-# content.
+# therefore complete. It is a key like any other, so it is shared through the machine's cache
+# server and shipped in snapshots, and it expires no later than the entries it covers. Only a
+# successful listing writes it — unlike the plain "this directory exists" entry, which is also
+# (re)written when a parent is listed or when a file is copied into the directory, and which
+# therefore says nothing about the directory's content.
 LISTING_MARKER = ".flaf_listed"
 
 
@@ -80,7 +85,7 @@ class PathCache:
             for parent in self._iter_parents(path):
                 pentry = self.cache.get(parent)
                 if pentry is not None and pentry.exists is False:
-                    del self.cache[parent]
+                    self.cache.pop(parent, None)
 
     def set_from_server(self, path, exists):
         self.set(path, exists)
@@ -103,12 +108,15 @@ class PathCache:
     def has_listing(self, base_dir):
         return self.get(listing_marker(base_dir))[0] is True
 
+    def has_listings(self, base_dirs):
+        return {base_dir: self.has_listing(base_dir) for base_dir in base_dirs}
+
     def get(self, path):
         entry = self.cache.get(path)
         if entry is not None:
             if entry.is_valid():
                 return entry.exists, True
-            del self.cache[path]
+            self.cache.pop(path, None)
         # Directory-negative inference: if the nearest cached ancestor directory does not
         # exist, then this path cannot exist either.
         for parent in self._iter_parents(path):
@@ -116,7 +124,7 @@ class PathCache:
             if pentry is None:
                 continue
             if not pentry.is_valid():
-                del self.cache[parent]
+                self.cache.pop(parent, None)
                 continue
             if pentry.exists is False:
                 return False, True
@@ -177,23 +185,56 @@ class PathCache:
 
 
 class RemotePathCache:
-    def __init__(self, host, port, local_cache_validity_period, timeout=5, verbose=0):
-        self.host = host
-        self.port = port
+    """This process's PathCache in front of the path-cache server of its user on this machine
+    (pathCacheServer.py), through which what one process learns serves every other one --
+    the forked workers of a law run, a later run, a --print-status -- also after a restart.
+
+    A server that stops answering (e.g. the session that started it ended) is started again;
+    while that fails the process works from its own cache, re-trying every `retry_seconds`.
+    """
+
+    retry_seconds = 60.0
+
+    def __init__(self, address, local_cache_validity_period, timeout=5, verbose=0):
+        self.address = address
         self.timeout = timeout
         self.verbose = verbose
         self.local_cache = PathCache(local_cache_validity_period)
+        # time the server was last found unusable, None while it answers
+        self._down_since = None
+
+    def _server(self, call, *args, default=None):
+        """`call(*args, address, timeout)` against the server, or `default` while it cannot
+        be used."""
+        now = time.time()
+        if self._down_since is not None and now - self._down_since < self.retry_seconds:
+            return default
+        try:
+            try:
+                result = call(*args, self.address, self.timeout, verbose=self.verbose)
+            except ServerUnavailable:
+                ensure_local_server(os.path.dirname(self.address))
+                result = call(*args, self.address, self.timeout, verbose=self.verbose)
+        except ServerUnavailable as e:
+            if self._down_since is None:
+                print(
+                    f"GFALFileInterface: the path-cache server {self.address} cannot be used "
+                    f"({e}); this process works from its own cache until it can, so no other "
+                    "process learns from it meanwhile",
+                    file=sys.stderr,
+                )
+            self._down_since = now
+            return default
+        if self._down_since is not None:
+            print(
+                f"GFALFileInterface: the path-cache server {self.address} answers again",
+                file=sys.stderr,
+            )
+            self._down_since = None
+        return result
 
     def set(self, path, exists):
-        set_remote_cache_status(
-            [
-                (path, exists),
-            ],
-            self.host,
-            self.port,
-            self.timeout,
-            verbose=self.verbose,
-        )
+        self._server(set_remote_cache_status, [(path, exists)])
         self.local_cache.set(path, exists)
 
     def set_local(self, path, exists):
@@ -201,29 +242,47 @@ class RemotePathCache:
         self.local_cache.set(path, exists)
 
     def set_exists(self, base_dir, items):
-        # The marker is published first so that it can never outlive the entries it covers.
-        entries = [(listing_marker(base_dir), True)]
-        for item in items:
-            path = os.path.join(base_dir, item)
-            entries.append((path, True))
+        # The marker is published last: a publication cut short then leaves no marker that
+        # would answer "absent" for the entries that did not arrive. The server keeps it no
+        # longer than the entries (a marker lives as long as an "absent", pathCacheServer).
+        entries = [(os.path.join(base_dir, item), True) for item in items]
         entries.append((base_dir, True))
-        set_remote_cache_status(
-            entries, self.host, self.port, self.timeout, verbose=self.verbose
-        )
+        entries.append((listing_marker(base_dir), True))
+        self._server(set_remote_cache_status, entries)
         self.local_cache.set_exists(base_dir, items)
 
     def has_listing(self, base_dir):
         return self.get(listing_marker(base_dir))[0] is True
 
+    def has_listings(self, base_dirs):
+        """has_listing of many directories in one pipelined request to the server."""
+        result = {}
+        ask = []
+        for base_dir in base_dirs:
+            if self.local_cache.has_listing(base_dir):
+                result[base_dir] = True
+            else:
+                ask.append(base_dir)
+        if ask:
+            markers = [listing_marker(base_dir) for base_dir in ask]
+            remote = self._server(get_remote_cache_status_many, markers, default={})
+            for base_dir, marker in zip(ask, markers):
+                result[base_dir] = remote.get(marker) is True
+        return result
+
+    def _keep(self, path, result):
+        # Not a listing marker: it says the server's knowledge of the directory is complete,
+        # which no copy of part of it here is -- kept, it would answer "absent" for a file
+        # never fetched once the server is gone or restarted from an older state.
+        if result is not None and os.path.basename(path) != LISTING_MARKER:
+            self.local_cache.set_from_server(path, result)
+
     def get(self, path):
         local_result, _ = self.local_cache.get(path)
         if local_result is not None:
             return local_result, True
-        remote_result = get_remote_cache_status(
-            path, self.host, self.port, self.timeout, verbose=self.verbose
-        )
-        if remote_result is not None:
-            self.local_cache.set_from_server(path, remote_result)
+        remote_result = self._server(get_remote_cache_status, path)
+        self._keep(path, remote_result)
         return remote_result, False
 
     def get_many(self, paths):
@@ -239,31 +298,26 @@ class RemotePathCache:
             else:
                 missing.append(path)
         if missing:
-            remote = get_remote_cache_status_many(
-                missing, self.host, self.port, self.timeout, verbose=self.verbose
-            )
+            remote = self._server(get_remote_cache_status_many, missing, default={})
             for path in missing:
                 remote_result = remote.get(path)
-                if remote_result is not None:
-                    self.local_cache.set_from_server(path, remote_result)
+                self._keep(path, remote_result)
                 results[path] = remote_result
         return results
 
     def invalidate(self, path):
-        set_remote_cache_status(
-            [
-                (path, None),
-            ],
-            self.host,
-            self.port,
-            self.timeout,
-            verbose=self.verbose,
-        )
+        self._server(set_remote_cache_status, [(path, None)])
         self.local_cache.invalidate(path)
 
 
-SHIPPED_PATH_CACHE_BASENAME = "path_cache.json"
+# The snapshot a submission ships to its jobs: <prefix><anything><suffix>, gzipped JSON.
+SHIPPED_PATH_CACHE_PREFIX = "path_cache_"
+SHIPPED_PATH_CACHE_SUFFIX = ".json.gz"
 SHIPPED_PATH_CACHE_ENV = "FLAF_SHIPPED_PATH_CACHE"
+
+# How many directories are listed at once when many have to be looked at, e.g. the output
+# directories of the jobs that finished since the last poll.
+PARALLEL_LISTINGS = 8
 
 _shipped_path_cache_entries = None
 
@@ -280,9 +334,9 @@ def local_path_cache(fs):
 def collect_setup_path_cache_entries(setup):
     """Union of valid path-cache entries from every FS the Setup has already created.
 
-    In a process that requires fresh negatives (a CRAB driver), an "absent" recorded before
-    that may predate a CRAB job's write, and a job that trusted it would find an input
-    missing; it is not shipped.
+    In a process that requires fresh negatives (a driver that submits or polls), an "absent"
+    recorded before that may predate a job's write, and a job that trusted it would find an
+    input missing; it is not shipped.
     """
     entries = {}
     negatives_after = GFALFileInterface.negatives_valid_after
@@ -295,38 +349,91 @@ def collect_setup_path_cache_entries(setup):
     return [{"path": path, "exists": exists} for path, exists in entries.items()]
 
 
+def _gfal_interface(target):
+    fi = getattr(getattr(target, "fs", None), "file_interface", None)
+    return fi if isinstance(fi, GFALFileInterface) else None
+
+
+def list_target_directories(targets, n_threads=PARALLEL_LISTINGS):
+    """Take at once, `n_threads` at a time, every listing that the exists() of the GFAL
+    targets among `targets` would take one after the other, so that those calls are then
+    answered from the cache. Returns the ids of the targets whose directory could not be
+    listed: exists() reads them as absent, though nothing is known about them.
+
+    The cache server is asked first, in one pipelined request per file interface. Every base
+    of a file system is looked at, since exists() picks one at random.
+    """
+    per_interface = {}
+    for target in targets:
+        fi = _gfal_interface(target)
+        if fi is None:
+            continue
+        uris = fi.uri(target.fs.abspath(target.path), return_all=True)
+        per_interface.setdefault(id(fi), (fi, []))[1].append((target, uris))
+    to_list = {}
+    target_dirs = []
+    for fi, items in per_interface.values():
+        # every question of the batch in two pipelined requests
+        answers = fi.path_cache.get_many([uri for _, uris in items for uri in uris])
+        listings = fi.path_cache.has_listings(
+            {
+                os.path.dirname(uri)
+                for _, uris in items
+                for uri in uris
+                if answers.get(uri) is None
+            }
+        )
+        for target, uris in items:
+            # the listings this target's own answer depends on
+            keys = []
+            for uri in uris:
+                dir_uri = os.path.dirname(uri)
+                if fi._cached_answer(uri, dir_uri, (answers, listings))[0] is None:
+                    key = (id(fi), dir_uri)
+                    keys.append(key)
+                    to_list.setdefault(key, fi)
+            target_dirs.append((target, keys))
+    unlisted = set()
+    if to_list:
+
+        def answered(item):
+            (_, dir_uri), fi = item
+            return fi._list(dir_uri, silent=True)[1]
+
+        with ThreadPoolExecutor(max_workers=min(n_threads, len(to_list))) as pool:
+            for key, ok in zip(to_list, pool.map(answered, to_list.items())):
+                if not ok:
+                    unlisted.add(key)
+    return {id(t) for t, keys in target_dirs if any(k in unlisted for k in keys)}
+
+
 def collect_existing_target_entries(targets):
     """Snapshot entries for the files among `targets` that exist on GFAL storage, and how many
     of the targets exist.
 
     Each existence is resolved now, whatever the age of the local entries: the cache server is
-    asked in one pipelined request per file interface, and only a directory it does not know
-    is listed. Only "exists" is recorded; an absent file is left to the reader, which lists
-    it. A file is recorded under every base of its filesystem, since a reader picks one at
-    random.
+    asked first, and the directories it cannot answer for are listed, several at once. Only
+    "exists" is recorded; an absent file is left to the reader, which lists it. A file is
+    recorded under every base of its filesystem, since a reader picks one at random.
     """
-    groups = {}
-    for target in targets:
-        fs = getattr(target, "fs", None)
-        fi = getattr(fs, "file_interface", None)
-        if isinstance(fi, GFALFileInterface):
-            groups.setdefault(id(fi), (fi, []))[1].append(target)
+    list_target_directories(targets)
     entries = {}
     n_found = 0
-    for fi, group in groups.values():
-        uris = [fi.uri(t.fs.abspath(t.path), return_all=True) for t in group]
-        fi.path_cache.get_many([uri for target_uris in uris for uri in target_uris])
-        for target, target_uris in zip(group, uris):
-            if target.exists():
-                n_found += 1
-                entries.update(dict.fromkeys(target_uris, True))
+    for target in targets:
+        fi = _gfal_interface(target)
+        if fi is None:
+            continue
+        if target.exists():
+            n_found += 1
+            uris = fi.uri(target.fs.abspath(target.path), return_all=True)
+            entries.update(dict.fromkeys(uris, True))
     return [
         {"path": path, "exists": exists} for path, exists in entries.items()
     ], n_found
 
 
 def write_path_cache_file(path, entries):
-    with open(path, "w") as f:
+    with gzip.open(path, "wt", compresslevel=6) as f:
         json.dump({"entries": entries}, f)
 
 
@@ -334,7 +441,6 @@ def _resolve_shipped_path_cache_file():
     env_path = os.environ.get(SHIPPED_PATH_CACHE_ENV, "")
     if env_path and os.path.isfile(env_path):
         return env_path
-    stem, ext = os.path.splitext(SHIPPED_PATH_CACHE_BASENAME)
     search_dirs = [
         os.environ.get("LAW_JOB_INIT_DIR", ""),
         os.environ.get("LAW_JOB_HOME", ""),
@@ -342,16 +448,13 @@ def _resolve_shipped_path_cache_file():
         os.getcwd(),
     ]
     for d in search_dirs:
-        if not d:
-            continue
-        direct = os.path.join(d, SHIPPED_PATH_CACHE_BASENAME)
-        if os.path.isfile(direct):
-            return direct
-        if not os.path.isdir(d):
+        if not d or not os.path.isdir(d):
             continue
         try:
             for name in os.listdir(d):
-                if name.startswith(stem + "_") and name.endswith(ext):
+                if name.startswith(SHIPPED_PATH_CACHE_PREFIX) and name.endswith(
+                    SHIPPED_PATH_CACHE_SUFFIX
+                ):
                     cand = os.path.join(d, name)
                     if os.path.isfile(cand):
                         return cand
@@ -361,19 +464,29 @@ def _resolve_shipped_path_cache_file():
 
 
 def apply_shipped_path_cache(fs):
-    """Load a submit-time path-cache snapshot into ``fs`` (once per process)."""
+    """Load the snapshot shipped with this job into ``fs`` (read once per process)."""
     global _shipped_path_cache_entries
     if _shipped_path_cache_entries is None:
         _shipped_path_cache_entries = []
         path = _resolve_shipped_path_cache_file()
-        if path:
+        if path is None:
+            print(
+                "GFALFileInterface: no path-cache snapshot was shipped with this job; every "
+                "directory it looks at is listed",
+                file=sys.stderr,
+            )
+        else:
             try:
-                with open(path) as f:
+                with gzip.open(path, "rt") as f:
                     data = json.load(f)
                 _shipped_path_cache_entries = data.get("entries") or []
                 os.environ[SHIPPED_PATH_CACHE_ENV] = path
-            except (OSError, ValueError, TypeError):
-                _shipped_path_cache_entries = []
+            except (OSError, EOFError, ValueError, TypeError, AttributeError) as e:
+                print(
+                    f"GFALFileInterface: the path-cache snapshot {path} cannot be read "
+                    f"({e}); every directory this job looks at is listed",
+                    file=sys.stderr,
+                )
     pc = local_path_cache(fs)
     if pc is None or not _shipped_path_cache_entries:
         return
@@ -384,14 +497,14 @@ def require_fresh_negatives():
     """From now on, answer "absent" only from a listing taken by this process after this call.
 
     `exists()` answers a missing file from cached knowledge (its own entry, a directory
-    listing marker, an absent ancestor), shared between processes through the cache server,
-    where a listing stays valid for 24 h by default. CRAB jobs cannot reach that server, so
-    a file that a CRAB job wrote after its directory was listed reads as absent everywhere
-    until the marker expires; clearing only the in-process caches would not help, because
-    the next lookup falls through to the same marker on the server. After this call, a
-    negative answer for a directory not listed by this process since the call costs one
-    listing, which also republishes the directory's entries to the cache server. Positive
-    answers stay cache-served.
+    listing marker, an absent ancestor), shared between the processes of a machine through
+    its cache server. No job publishes what it writes -- a job reaches no cache server -- so
+    a file that a job wrote after its directory was listed reads as absent until the marker
+    expires; clearing only the in-process caches would not help, because the next lookup
+    falls through to the same marker on the server. After this call, a negative answer for a
+    directory not listed by this process since the call costs one listing, which also
+    republishes the directory's entries to the cache server. Positive answers stay
+    cache-served.
     """
     GFALFileInterface.negatives_valid_after = time.time()
 
@@ -412,17 +525,15 @@ class GFALFileInterface(RemoteFileInterface):
         self,
         base,
         local_path_cache_validity_period=60,
-        path_cache_host=None,
-        path_cache_port=None,
+        path_cache_server=None,
         verbose=0,
     ):
         self.voms_token = get_voms_proxy_info()["path"]
-        if path_cache_host is None:
+        if path_cache_server is None:
             self.path_cache = PathCache(local_path_cache_validity_period)
         else:
             self.path_cache = RemotePathCache(
-                path_cache_host,
-                path_cache_port,
+                path_cache_server,
                 local_cache_validity_period=local_path_cache_validity_period,
                 verbose=verbose,
             )
@@ -443,6 +554,8 @@ class GFALFileInterface(RemoteFileInterface):
     remove_counter = 0
     filecopy_counter = 0
     listdir_counter = 0
+    # directories are listed from several threads at once (list_target_directories)
+    _counter_lock = threading.Lock()
 
     def exists(self, path, base=None, **kwargs):
         GFALFileInterface.exists_counter += 1
@@ -450,26 +563,7 @@ class GFALFileInterface(RemoteFileInterface):
         path_uri = self.uri(path, base=base)
         dir_uri = self.uri(path_dir, base=base)
         result = False
-        cached_result, from_local_cache = self.path_cache.get(path_uri)
-        from_listing = cached_result is None and self.path_cache.has_listing(dir_uri)
-        if from_listing:
-            # The directory has been listed and its cached entries are therefore complete,
-            # so this path is absent. A listing is what proves absence: that the directory
-            # itself exists says nothing about its content.
-            cached_result = False
-            from_local_cache = True
-        epoch = GFALFileInterface.negatives_valid_after
-        if (
-            cached_result is False
-            and epoch > 0
-            and self._listed_at.get(dir_uri, 0.0) < epoch
-        ):
-            # See require_fresh_negatives: a cached "absent" may predate a CRAB job's write.
-            cached_result = None
-        elif from_listing:
-            # Memoize the negative result locally so repeated checks of the same path do
-            # not query the cache server again (a fresh TCP round-trip per call otherwise).
-            self.path_cache.set_local(path_uri, False)
+        cached_result, from_local_cache = self._cached_answer(path_uri, dir_uri)
         use_cache = cached_result is not None
 
         if use_cache:
@@ -490,6 +584,40 @@ class GFALFileInterface(RemoteFileInterface):
             )
 
         return result
+
+    def _cached_answer(self, path_uri, dir_uri, prefetched=None):
+        """What the cache can say about `path_uri` (True, False, or None when only a listing
+        of `dir_uri` can tell), and whether it came from the in-process level.
+
+        `prefetched`: (answers by path, listings by directory) of one batch of questions,
+        instead of asking the cache for this path alone."""
+        if prefetched is None:
+            cached_result, from_local_cache = self.path_cache.get(path_uri)
+            from_listing = cached_result is None and self.path_cache.has_listing(
+                dir_uri
+            )
+        else:
+            cached_result, from_local_cache = prefetched[0].get(path_uri), False
+            from_listing = cached_result is None and prefetched[1].get(dir_uri, False)
+        if from_listing:
+            # The directory has been listed and its cached entries are therefore complete,
+            # so this path is absent. A listing is what proves absence: that the directory
+            # itself exists says nothing about its content.
+            cached_result = False
+            from_local_cache = True
+        epoch = GFALFileInterface.negatives_valid_after
+        if (
+            cached_result is False
+            and epoch > 0
+            and self._listed_at.get(dir_uri, 0.0) < epoch
+        ):
+            # See require_fresh_negatives: a cached "absent" may predate a job's write.
+            cached_result = None
+        elif from_listing:
+            # Memoize the negative result locally so repeated checks of the same path do
+            # not query the cache server again (a round-trip per call otherwise).
+            self.path_cache.set_local(path_uri, False)
+        return cached_result, from_local_cache
 
     def remove(self, path, base=None, silent=True, **kwargs):
         GFALFileInterface.remove_counter += 1
@@ -585,7 +713,8 @@ class GFALFileInterface(RemoteFileInterface):
         and caches nothing: a negative taken from it would be published to the cache server
         and hide existing files from every client.
         """
-        GFALFileInterface.listdir_counter += 1
+        with GFALFileInterface._counter_lock:
+            GFALFileInterface.listdir_counter += 1
         if self.verbose > 0:
             print(
                 f"GFALFileInterface.listdir: cnt={GFALFileInterface.listdir_counter} path={path_uri}",

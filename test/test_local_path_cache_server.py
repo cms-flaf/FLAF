@@ -173,6 +173,20 @@ class NobodyElsesServerIsBelieved(_ServerCase):
             ensure_local_server(self.dir)
         self.assertTrue(os.path.exists(address))
 
+    def test_a_directory_that_cannot_be_made_leaves_the_process_alone(self):
+        """No private directory (a parent missing or not writable, a full /tmp): the process
+        works from its own cache and says so once, as when the server cannot run."""
+        missing = os.path.join(self.dir, "no", "such", "parent", "cache")
+        with mock.patch.dict(
+            os.environ, {pathCacheClient.LOCAL_SERVER_DIR_ENV: missing}
+        ), mock.patch.object(Setup, "_local_path_cache_server", []), mock.patch(
+            "sys.stderr"
+        ) as stderr:
+            self.assertIsNone(Setup.local_path_cache_server())
+            self.assertIsNone(Setup.local_path_cache_server())
+        warnings = [c for c in stderr.write.call_args_list if "not used" in str(c)]
+        self.assertEqual(len(warnings), 1)
+
     def test_a_server_of_another_user_is_not_believed(self):
         address = self.poisoner(self.dir)
         real_uid = os.getuid()

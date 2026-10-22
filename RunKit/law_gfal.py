@@ -373,7 +373,7 @@ def list_target_directories(targets, n_threads=PARALLEL_LISTINGS):
     to_list = {}
     target_dirs = []
     for fi, items in per_interface.values():
-        # every question in two pipelined requests, not two round trips per target
+        # every question of the batch in two pipelined requests
         answers = fi.path_cache.get_many([uri for _, uris in items for uri in uris])
         listings = fi.path_cache.has_listings(
             {

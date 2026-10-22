@@ -107,7 +107,11 @@ Each of these has caused a production incident. They are ordered by how much dam
   `/tmp/flaf-path-cache-<uid>/server_v1.sock`, started on demand by `ensure_local_server`; the
   central `cms-flaf.cern.ch:5000` server is gone). Jobs (HTCondor and CRAB) never contact a
   server: they read the snapshot their submission shipped. An "absent" and a listing marker live
-  10 min on the server (`negative_validity`), an "exists" 24 h. A change that makes every job do its own
+  10 min on the server (`negative_validity`), an "exists" 24 h. A server address must come from
+  `checked_server_address` (the directory private to the user), and only a same-uid peer is
+  believed (`_check_peer`, SO_PEERCRED): another user on the node could otherwise answer every
+  question with "exists". A server-learned listing marker is never kept locally (`RemotePathCache._keep`).
+  A change that makes every job do its own
   `gfal-ls` will work in a test and DDoS the storage in production. Reviews should ask what a
   change costs at 10k concurrent jobs.
 - **Freshly written remote files can be invisible for seconds.** Code that writes and then

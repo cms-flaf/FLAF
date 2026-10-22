@@ -49,10 +49,11 @@ def _check_peer(sock, address):
     if not hasattr(socket, "SO_PEERCRED"):
         # not Linux: the private directory (checked_server_address) is the protection
         return
+    # Linux struct ucred: pid_t pid; uid_t uid; gid_t gid
     creds = sock.getsockopt(
-        socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("3i")
+        socket.SOL_SOCKET, socket.SO_PEERCRED, struct.calcsize("iII")
     )
-    _, uid, _ = struct.unpack("3i", creds)
+    _, uid, _ = struct.unpack("iII", creds)
     if uid != os.getuid():
         raise ServerUnavailable(
             f"{address} is served by another user (uid {uid}); it is not used"
@@ -208,6 +209,17 @@ def checked_server_address(directory=None):
     """The socket address of this user's server in `directory` (by default this machine's
     one), once the directory is found private to this user: nobody else can then put a
     socket there. Raises ServerUnavailable otherwise."""
+    try:
+        return _checked_server_address(directory)
+    except ServerUnavailable:
+        raise
+    except OSError as e:
+        raise ServerUnavailable(
+            f"no private directory for the path-cache server: {e}"
+        ) from e
+
+
+def _checked_server_address(directory):
     directory = _private_dir(os.path.abspath(directory or local_server_dir()))
     address = local_server_address(directory)
     if len(os.fsencode(address)) > MAX_SOCKET_PATH:
@@ -243,6 +255,9 @@ def _ensure_local_server(directory, startup_timeout):
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
                 break
             except BlockingIOError:
+                # the process holding it may have started the server and been stopped since
+                if server_answers(address, timeout=1.0):
+                    return address
                 if time.monotonic() > deadline:
                     raise ServerUnavailable(
                         f"another process has been starting the path-cache server in "

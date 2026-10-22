@@ -169,6 +169,34 @@ def BuildAllHistActions(
     return save_fns
 
 
+def BuildELReweighterSnapshots(key_filter_dict, further_cuts, rdf_central, vars_to_store, tmp_dir):
+    """Book one Central-only Snapshot per selection key, independent of plotted variables.
+
+    Unlike histogram booking, this doesn't depend on ``vars_to_process`` and must run
+    exactly once per key_tuple regardless of how histogram booking gets batched, so it
+    is kept out of ``histFromNtupleBatch``'s batching entirely.
+    """
+    cut_names = list(further_cuts.keys()) if further_cuts else [None]
+    snap_info = []  # (key_tuple, tmp_path, tmp_name)
+    col_vec = Utilities.ListToVector(list(vars_to_store))
+    opts = ROOT.RDF.RSnapshotOptions()
+    opts.fLazy = True
+    for key, filter_base in key_filter_dict.items():
+        for further_cut_name in cut_names:
+            filt = (
+                f"{filter_base} && {further_cut_name}"
+                if further_cut_name
+                else filter_base
+            )
+            key_tuple = key + (further_cut_name,) if further_cut_name else key
+            rdf_filtered = rdf_central.Filter(filt)
+            tmp_name = "elr_" + "_".join(key_tuple)
+            tmp_path = os.path.join(tmp_dir, f"{tmp_name}.root")
+            snap = rdf_filtered.Snapshot(tmp_name, tmp_path, col_vec, opts)
+            snap_info.append((key_tuple, tmp_path, tmp_name, snap))
+    return snap_info
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("inputFiles", nargs="+", type=str)
@@ -219,6 +247,14 @@ if __name__ == "__main__":
 
     hist_cfg_dict = setup.hists
 
+    elr_cfg = setup.global_params.get("ELReweighter_variables", {})
+    store_elr_vars = elr_cfg.get("store_ELReweighter_vars", False)
+    elr_vars_to_store = elr_cfg.get("vars_to_store", [])
+    is_signal = (
+        setup.datasets.get(args.dataset_name, {}).get("process_group") == "signals"
+    )
+    write_elr_tree = bool(store_elr_vars and is_signal and elr_vars_to_store)
+
     channels = (
         args.channels.split(",")
         if args.channels
@@ -250,6 +286,16 @@ if __name__ == "__main__":
             if further_cut_name not in rdf.GetColumnNames():
                 rdf = rdf.Define(further_cut_name, cut_expr)
         all_trees[tree_name] = rdf
+
+    if write_elr_tree:
+        central_cols = set(str(c) for c in all_trees[treeName].GetColumnNames())
+        missing = [v for v in elr_vars_to_store if v not in central_cols]
+        if missing:
+            raise ValueError(
+                f"ELReweighter_variables.vars_to_store references column(s) "
+                f"{missing} not present in HistTuple tree {treeName!r}; check "
+                f"histTuple_flavor."
+            )
 
     uncs_to_compute = {}
     uncs_to_compute["Central"] = ["Central"]
@@ -327,6 +373,18 @@ if __name__ == "__main__":
             f"max_hists={max_hists} → {len(batches)} batch(es)"
         )
 
+        elr_snap_info = []
+        if write_elr_tree:
+            elr_tmp_dir = os.path.join(args.outDir, "elr_tmp")
+            os.makedirs(elr_tmp_dir, exist_ok=True)
+            elr_snap_info = BuildELReweighterSnapshots(
+                key_filter_dict,
+                further_cuts,
+                all_trees[treeName],
+                elr_vars_to_store,
+                elr_tmp_dir,
+            )
+
         for batch_idx, (b_uncs, b_keys, b_cuts, b_vars) in enumerate(batches, start=1):
             n_batch = count_booked_hists(
                 max(1, len(b_vars)),
@@ -348,6 +406,19 @@ if __name__ == "__main__":
             for fn in save_fns:
                 fn()
             del save_fns
+
+        for key_tuple, tmp_path, tmp_name, _snap in elr_snap_info:
+            src_file = ROOT.TFile.Open(tmp_path, "READ")
+            src_tree = src_file.Get(tmp_name)
+            dir_name = "/".join(key_tuple)
+            for var in vars_to_process:
+                _, out_root_file = var_tmp_files[var]
+                dir_ptr = Utilities.mkdir(out_root_file, dir_name)
+                dir_ptr.cd()
+                cloned = src_tree.CloneTree(-1, "fast")
+                dir_ptr.WriteTObject(cloned, "ELReweighter_vars", "Overwrite")
+            src_file.Close()
+            os.remove(tmp_path)
 
         for var in vars_to_process:
             _, out_root_file = var_tmp_files[var]

@@ -203,7 +203,7 @@ class TestSharedListing(unittest.TestCase):
     def _client(self):
         return make_interface(
             self.tree,
-            path_cache=RemotePathCache("host", 1, local_cache_validity_period=600),
+            path_cache=RemotePathCache("server.sock", local_cache_validity_period=600),
         )
 
     def test_second_process_answers_from_the_shared_listing(self):
@@ -350,7 +350,7 @@ class TestExistingTargetEntries(unittest.TestCase):
         mirror = BASE.replace("server", "mirror")
         with mock.patch.object(law_gfal, "get_voms_proxy_info", lambda: {"path": None}):
             fs = WLCGFileSystem([BASE, mirror])
-        fs.file_interface.path_cache = RemotePathCache("host", 0, 600)
+        fs.file_interface.path_cache = RemotePathCache("server.sock", 600)
         server = FakeCacheServer()
         server.entries[os.path.join(BASE, "data/file_0.root")] = True
         server.entries[os.path.join(mirror, "data/file_0.root")] = True
@@ -377,32 +377,25 @@ class TestCacheServerProtocol(unittest.TestCase):
         # to cms-flaf.cern.ch); the client then waited out its timeout for the other answers.
         from FLAF.RunKit import pathCacheClient, pathCacheServer
 
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as listener:
-            listener.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
-            listener.bind(("127.0.0.1", 0))
-            listener.listen(1)
-            client_end = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            client_end.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
-            client_end.connect(listener.getsockname())
-            server_end, _ = listener.accept()
-        # as socket.create_connection(..., timeout) leaves it
+        client_end, server_end = socket.socketpair(socket.AF_UNIX, socket.SOCK_STREAM)
+        client_end.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+        server_end.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)
+        # as _connect(..., timeout) leaves it
         client_end.settimeout(10)
         cache = types.SimpleNamespace(
-            get=lambda path: (path, path.endswith("1.root"), 0)
+            get=lambda path: (path, path.endswith("1.root"), 0), touch=lambda: None
         )
-        logger = types.SimpleNamespace(log=lambda *args, **kwargs: None)
+        logger = types.SimpleNamespace(log=lambda *args, **kwargs: None, verbose=False)
         threading.Thread(
             target=pathCacheServer.handle_client,
-            args=(server_end, ("loopback", 0), cache, logger),
+            args=(server_end, "", cache, logger),
             daemon=True,
         ).start()
         paths = [os.path.join(BASE, "d" * 150, f"file_{i}.root") for i in range(1000)]
         with mock.patch.object(
-            pathCacheClient.socket,
-            "create_connection",
-            lambda *args, **kwargs: client_end,
+            pathCacheClient, "_connect", lambda *args, **kwargs: client_end
         ):
-            result = pathCacheClient.get_status_many(paths, "host", 0, timeout=10)
+            result = pathCacheClient.get_status_many(paths, "server.sock", timeout=10)
         self.assertEqual(result, {p: p.endswith("1.root") for p in paths})
 
 

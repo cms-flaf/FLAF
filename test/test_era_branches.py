@@ -655,9 +655,13 @@ class EraScope(_ScratchAnalysis):
         """The directory HTCondor job inputs are staged to without spooling."""
         task = self.two_eras(bundle=True, htcondor_spool=False, workflow="htcondor")
         config = self.job_config()
-        # bundles need a remote fs_default; what is under test is the path after them
+        # bundles need a remote fs_default, and the path-cache snapshot is written under
+        # local_path(), which raises on two eras as well: what is under test is the path
+        # after them
         with mock.patch.object(
             HelloWorldTask, "_apply_bundle_render_variables", lambda self, c: None
+        ), mock.patch.object(
+            HelloWorldTask, "_stage_path_cache_input", lambda self, c, b: None
         ):
             with self.assertRaises(lc.EraScopeError):
                 task.htcondor_job_config(config, 1, [0])
@@ -772,20 +776,14 @@ class SettingsAgreement(_ScratchAnalysis):
                 "{host: a.cern.ch, port: 1}",
                 "{host: b.cern.ch, port: 1}",
             ),
-            "WLCGFileSystem": (
-                "{remotePathCacheHost: a.cern.ch, remotePathCachePort: 1}",
-                "{remotePathCacheHost: b.cern.ch, remotePathCachePort: 1}",
-            ),
         }
         values = {
             "crab": ("T2_CH_CERN", "T2_DE_DESY"),
             "runTokenServer": ("a.cern.ch", "b.cern.ch"),
-            "WLCGFileSystem": ("a.cern.ch", "b.cern.ch"),
         }
         names = {
             "crab": "crab",
             "runTokenServer": "runTokenServer",
-            "WLCGFileSystem": "WLCGFileSystem.remotePathCacheHost/Port",
         }
         for key, (a, b) in cases.items():
             with self.subTest(key=key):
@@ -797,21 +795,6 @@ class SettingsAgreement(_ScratchAnalysis):
                 self.assert_names(caught, names[key], *values[key])
                 HelloWorldTask(version=version, era=ERA_A)
                 HelloWorldTask(version=version, era=ERA_B)
-
-    def test_a_differing_path_cache_port_alone_is_refused(self):
-        for era, port in ((ERA_A, 9100), (ERA_B, 9200)):
-            self.era_config(
-                era,
-                "WLCGFileSystem: "
-                f"{{remotePathCacheHost: a.cern.ch, remotePathCachePort: {port}}}\n",
-            )
-        with self.assertRaises(lc.EraDependentValueError) as caught:
-            HelloWorldTask(version=self.version, era=(ERA_A, ERA_B))
-        self.assert_names(
-            caught, "WLCGFileSystem.remotePathCacheHost/Port", "9100", "9200"
-        )
-        HelloWorldTask(version=self.version, era=ERA_A)
-        HelloWorldTask(version=self.version, era=ERA_B)
 
     def test_equal_settings_are_read_once(self):
         for era in (ERA_A, ERA_B):
@@ -1830,6 +1813,22 @@ class MetaEras(_ScratchAnalysis):
         task = analysis.HistMergerTask(version=self.version, era=f"{ERA_A},{ERA_B}")
         self.assertIsNone(task.meta_era)
         self.assertEqual(task.sub_eras, (ERA_A, ERA_B))
+
+    def test_its_jobs_get_the_path_cache_of_its_eras(self):
+        """Both backends ship a path-cache snapshot with every submission round, gathered
+        from the Setups of the task's eras: a meta-era has none of its own (`setup` raises),
+        which a stager reading `self.setup` hit on the first CRAB submission."""
+        task = analysis.HistMergerTask(version=self.version, era=META, workflow="crab")
+        for branches in ([[0], [1]], [0, 1]):
+            with self.subTest(branches=branches):
+                config = mock.Mock(input_files={})
+                with mock.patch("builtins.print"):
+                    task._stage_path_cache_input(config, branches)
+                shipped = config.input_files["path_cache"]
+                self.assertTrue(os.path.isfile(shipped.path))
+                self.assertTrue(
+                    shipped.path.startswith(task.local_path()), shipped.path
+                )
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ from law.parser import global_cmdline_values
 
 from FLAF.RunKit.run_tools import natural_sort, on_batch_node, timed_call_wrapper
 from FLAF.RunKit.kinit import update_kinit
-from FLAF.RunKit.law_gfal import require_fresh_negatives
+from FLAF.RunKit.law_gfal import list_target_directories, require_fresh_negatives
 from FLAF.run_tools.crab_sites import SiteStats, processing_sites, resolve_whitelist
 from FLAF.run_tools.crab_watchdog import (
     HEARTBEAT_DIR,
@@ -630,13 +630,6 @@ class Task(law.Task):
         ("fs_default", lambda setup: setup.global_params.get("fs_default")),
         ("crab", lambda setup: setup.global_params.get("crab")),
         ("runTokenServer", lambda setup: setup.global_params.get("runTokenServer")),
-        (
-            "WLCGFileSystem.remotePathCacheHost/Port",
-            lambda setup: tuple(
-                (setup.global_params.get("WLCGFileSystem") or {}).get(key)
-                for key in ("remotePathCacheHost", "remotePathCachePort")
-            ),
-        ),
     )
 
     def common(self, getter, what):
@@ -934,24 +927,31 @@ class Task(law.Task):
         )
 
     def _stage_path_cache_input(self, config, branches):
-        """Dump the submit-process path cache and ship it with the CRAB job.
+        """Ship a snapshot of this process's path cache with the jobs of a submission round.
 
+        A job reaches no cache server: the snapshot is the only path cache of its processes.
         Before a job runs its branches, luigi checks that the outputs of their requirements
-        exist, and on a CRAB worker the snapshot is its only path cache. Local entries are
-        shipped only while still valid, so those outputs are resolved here: otherwise a job
-        lists every requirement directory itself, one gfal-ls at a time, which for a
-        HistMergerTask branch (every HistFromNtupleProducerTask branch, one directory per
-        variable each) outlasts the job's wall time.
+        exist; local entries are shipped only while still valid, so those outputs are
+        resolved here, or a job would list every requirement directory itself, one gfal-ls at
+        a time, which for a HistMergerTask branch (every HistFromNtupleProducerTask branch,
+        one directory per variable each) outlasts the job's wall time.
+
+        `branches` holds one list of branches per job of the round (CRAB, grouped HTCondor
+        submission), or the branches of the one job (HTCondor batched submission).
         """
         from law.job.base import JobInputFile
         from FLAF.RunKit.law_gfal import (
-            SHIPPED_PATH_CACHE_BASENAME,
+            SHIPPED_PATH_CACHE_PREFIX,
+            SHIPPED_PATH_CACHE_SUFFIX,
             collect_existing_target_entries,
             collect_setup_path_cache_entries,
             write_path_cache_file,
         )
 
         start = time.time()
+        branches = list(branches or [])
+        if branches and not isinstance(branches[0], (list, tuple)):
+            branches = [branches]
         requirements = {}
         for branch in sorted({b for job_branches in branches for b in job_branches}):
             for req in self.as_branch(branch).deps():
@@ -960,9 +960,13 @@ class Task(law.Task):
             t for req in requirements.values() for t in law.util.flatten(req.output())
         ]
         required, n_found = collect_existing_target_entries(targets)
-        entries = {
-            e["path"]: e["exists"] for e in collect_setup_path_cache_entries(self.setup)
-        }
+        entries = {}
+        # a task over a meta-era has no Setup of its own, but those of its eras
+        for era in self.sub_eras:
+            entries.update(
+                (e["path"], e["exists"])
+                for e in collect_setup_path_cache_entries(self.setup_for(era))
+            )
         entries.update((e["path"], e["exists"]) for e in required)
         print(
             f"{self.task_family}: path-cache snapshot with {len(entries)} entries; "
@@ -972,17 +976,27 @@ class Task(law.Task):
 
         out_dir = self.local_path()
         os.makedirs(out_dir, exist_ok=True)
-        # Named after the workflow: several workflows can submit at once from one local_path().
-        stem, ext = os.path.splitext(SHIPPED_PATH_CACHE_BASENAME)
-        task_hash = self.task_id.rsplit("_", 1)[-1]
-        path = os.path.join(out_dir, f"{stem}_{task_hash}{ext}")
+        # Named after the workflow, since several workflows can submit at once from one
+        # local_path(), and after the round: law and the HTCondor upload of worker files
+        # (CERNHTCondorJobFileFactory) keep the first file of a name they have seen.
+        stem = f"{SHIPPED_PATH_CACHE_PREFIX}{self.task_id.rsplit('_', 1)[-1]}_"
+        path = os.path.join(
+            out_dir, f"{stem}{time.time_ns()}{SHIPPED_PATH_CACHE_SUFFIX}"
+        )
         write_path_cache_file(
             path, [{"path": p, "exists": exists} for p, exists in entries.items()]
         )
-        # Not shared: law builds every CRAB task of a run in one directory and would reuse the
-        # first submission's copy of a shared input for every later wave or retry.
+        # law has copied the snapshots of earlier rounds into their job directories
+        for name in os.listdir(out_dir):
+            earlier = os.path.join(out_dir, name)
+            if (
+                name.startswith(stem)
+                and name.endswith(SHIPPED_PATH_CACHE_SUFFIX)
+                and earlier != path
+            ):
+                os.remove(earlier)
         config.input_files["path_cache"] = JobInputFile(
-            path=path, copy=True, share=False, render=False, increment=True
+            path=path, copy=True, share=False, render=False, increment=False
         )
 
     # Process-local memoization of create_branch_map results, shared across task
@@ -1724,6 +1738,100 @@ class CERNHTCondorJobFileFactory(law.htcondor.HTCondorJobFileFactory):
                 f.write("\n".join(new_lines))
 
 
+#: how long the outputs of a job reported finished may stay unverifiable -- their directory
+#: cannot be listed -- before the run stops
+MAX_UNVERIFIABLE_FINISH_MINUTES = 30.0
+
+
+def check_finished_jobs(task):
+    """The `check_job_completeness` hook of both remote workflows: a job the batch system
+    reports finished is booked finished only once its outputs are on storage.
+
+    law calls the hook once per poll iteration, after it has read the job statuses and
+    before it judges them (law/workflow/remote.py), and books a job reported FINISHED as
+    finished only if all its branches are complete, else retries it ("branch task(s)
+    incomplete due to missing outputs"). This prepares that verdict:
+
+    * every "absent" behind it rests on a listing taken from now on: no job publishes what
+      it writes, so a cached listing may predate the job's write (require_fresh_negatives);
+    * the output directories of all jobs reported finished are listed at once, several at a
+      time, rather than one after the other in law's verdict; the listings also bring what
+      the jobs wrote into the cache, for later snapshots and the other processes;
+    * a job whose outputs are not there is kept running for one more poll and is retried
+      only if they are still missing then, since storage may show a new file late; a job
+      whose output directory cannot be listed is kept running until it can be, for at most
+      MAX_UNVERIFIABLE_FINISH_MINUTES, as a listing that fails says nothing about the files.
+
+    A job kept running is counted as running by law, so the workflow cannot finish while it
+    is unconfirmed.
+    """
+    require_fresh_negatives()
+    proxy = task.workflow_proxy
+    job_data = proxy.job_data
+    manager = proxy.job_manager
+    skippable = proxy._skip_jobs
+    candidates = [
+        (job_num, data)
+        for job_num, data in job_data.jobs.items()
+        if data.get("status") == manager.FINISHED
+        # an id: not booked finished in an earlier iteration (law then sets the dummy id),
+        # not skipped as complete in this one
+        and data.get("job_id") not in (None, job_data.dummy_job_id)
+        and not skippable.get(job_num)
+    ]
+    unconfirmed = getattr(proxy, "_unconfirmed_finishes", None)
+    if unconfirmed is None:
+        unconfirmed = proxy._unconfirmed_finishes = {}
+    if not candidates:
+        return True
+    outputs = {
+        job_num: [
+            t
+            for b in data["branches"]
+            for t in law.util.flatten(task.as_branch(b).output())
+        ]
+        for job_num, data in candidates
+    }
+    unlisted = list_target_directories(
+        [t for targets in outputs.values() for t in targets]
+    )
+    now = time.time()
+    held = []
+    for job_num, data in candidates:
+        job_id = data["job_id"]
+        previous = unconfirmed.get(job_num)
+        if previous is not None and previous[0] != job_id:
+            previous = None
+        if any(id(t) in unlisted for t in outputs[job_num]):
+            since = previous[2] if previous and previous[1] == "unlisted" else now
+            if now - since > MAX_UNVERIFIABLE_FINISH_MINUTES * 60:
+                raise RuntimeError(
+                    f"{task.task_family}: the output directories of job {job_num} (reported "
+                    f"finished) could not be listed for {(now - since) / 60:.0f} minutes, so "
+                    "whether it wrote its outputs cannot be told. Nothing was resubmitted; run "
+                    "again once the storage answers."
+                )
+            unconfirmed[job_num] = (job_id, "unlisted", since)
+        elif all(task.as_branch(b).complete() for b in data["branches"]):
+            unconfirmed.pop(job_num, None)
+            continue
+        elif previous is not None and previous[1] == "absent":
+            # still missing a poll later: law retries it
+            unconfirmed.pop(job_num, None)
+            continue
+        else:
+            unconfirmed[job_num] = (job_id, "absent", now)
+        data["status"] = manager.RUNNING
+        held.append(job_num)
+    if held:
+        task.publish_message(
+            f"{len(held)} job(s) reported finished whose outputs are not confirmed on storage "
+            "yet (missing, or their directory cannot be listed); kept running and checked "
+            "again at the next poll"
+        )
+    return True
+
+
 class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     """
     Batch systems are typically very heterogeneous by design, and so is HTCondor. Law does not aim
@@ -1947,7 +2055,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         return self._bundle_requirements()
 
     def htcondor_check_job_completeness(self):
-        return False
+        return check_finished_jobs(self)
 
     def htcondor_poll_callback(self, poll_data):
         update_kinit(verbose=0)
@@ -1977,6 +2085,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     def htcondor_job_config(self, config, job_num, branches):
         self._apply_bootstrap_path_render_variables(config)
         self._stage_user_custom_input(config)
+        self._stage_path_cache_input(config, branches)
 
         # force to run on AlmaLinux9, https://batchdocs.web.cern.ch/local/submit.html
         config.custom_content.append(
@@ -2336,9 +2445,9 @@ class SubmissionGuards(LawProxyState):
     def run(self):
         # law judges which outputs exist from what it gathered while luigi scheduled the
         # workflow, through cached existence answers: a workflow scheduled before its inputs
-        # existed, or waiting for its turn, keeps that early "cannot be skipped", and a CRAB
-        # worker cannot reach the path-cache server, so an output written while no driver was
-        # polling still reads as absent there. Gather it again, with every "absent" resting on
+        # existed, or waiting for its turn, keeps that early "cannot be skipped", and no job
+        # publishes what it writes, so an output written while no driver was polling still
+        # reads as absent in the cache. Gather it again, with every "absent" resting on
         # a listing taken from here on: otherwise the first poll of a resumed run sends
         # finished branches back to the batch system.
         require_fresh_negatives()
@@ -4514,20 +4623,10 @@ process.out = cms.EndPath(process.output)
         classifying it, and it parks a payload that exited non-zero there too; with
         transfers skipped, law maps that state to FINISHED. Without this check a poll
         landing in that window writes a failed job off as finished and never queries it
-        again (DSProd booked 113 failed jobs as `finished: 113` in one poll). With it, law
-        checks the branch outputs before accepting FINISHED and demotes a job whose outputs
-        are missing to a retry; each job is checked once for the whole run.
-
-        law calls this once per poll iteration, right before it checks the jobs reported
-        finished, which is the moment to require that every "absent" answer of this
-        iteration rests on a listing taken after the status it judges. Cached answers do
-        not: a CRAB worker cannot reach the path-cache server, so a listing published before
-        the job wrote its file answers "absent" for it until it expires. Positive answers
-        stay cache-served; a negative costs one listing per directory per poll, and the
-        fresh listing republishes the directory for every other process.
+        again (DSProd booked 113 failed jobs as `finished: 113` in one poll). The rule is
+        the same as on HTCondor: see check_finished_jobs.
         """
-        require_fresh_negatives()
-        return True
+        return check_finished_jobs(self)
 
     def crab_poll_callback(self, poll_data):
         # The one hook the poll loop calls outside its own error handling, so the one place

@@ -1,4 +1,5 @@
 import os
+import sys
 import re
 import yaml
 import json
@@ -7,6 +8,8 @@ import law
 
 from FLAF.RunKit.envToJson import get_cmsenv
 from FLAF.RunKit.law_wlcg import WLCGFileSystem
+from FLAF.RunKit.pathCacheClient import ServerUnavailable, ensure_local_server
+from FLAF.RunKit.run_tools import on_batch_node
 from FLAF.Common.Utilities import create_processor_instances
 
 
@@ -59,6 +62,26 @@ def resolve_user_custom_path(user_custom):
         except OSError:
             pass
     return path
+
+
+_local_path_cache_server = []
+
+
+def local_path_cache_server():
+    """The socket of this user's path-cache server on this machine, started if needed, or None
+    when it cannot be used: the process then works from its own cache. Looked up once per
+    process."""
+    if not _local_path_cache_server:
+        try:
+            _local_path_cache_server.append(ensure_local_server())
+        except ServerUnavailable as e:
+            print(
+                f"Setup: no path-cache server on this machine ({e}); this process lists "
+                "every directory it looks at itself and shares nothing it learns",
+                file=sys.stderr,
+            )
+            _local_path_cache_server.append(None)
+    return _local_path_cache_server[0]
 
 
 def select_items(all_items, filters):
@@ -838,40 +861,30 @@ class Setup:
 
         if path_to_check.startswith("/"):
             return law.LocalFileSystem(base=path_to_check)
-        else:
-            cfg = self.global_params.get("WLCGFileSystem", {})
-            cache_validity = cfg.get("localPathCacheValidity", 600)
-            host = cfg.get("remotePathCacheHost", None)
-            port = cfg.get("remotePathCachePort", None)
-            # cms-flaf.cern.ch is behind the CERN firewall; CRAB workers at other
-            # sites cannot reach it. Use the in-process PathCache, seeded from the
-            # snapshot shipped at submit, with a longer TTL so many jobs do not
-            # re-stat the same remote paths.
-            on_crab_worker = bool(
-                os.environ.get("LAW_CRAB_JOB_NUMBER") or os.environ.get("CRAB_Id")
+        cfg = self.global_params.get("WLCGFileSystem", {})
+        cache_validity = cfg.get("localPathCacheValidity", 600)
+        verbose = cfg.get("verbose", 0)
+        if on_batch_node():
+            # A job reaches no cache server: it works from the snapshot its submission
+            # shipped, for its whole life, so that it does not list what the driver knew.
+            cache_validity = int(
+                cfg.get("jobPathCacheValidity", max(cache_validity * 24, 86400))
             )
-            if on_crab_worker:
-                host = None
-                port = None
-                cache_validity = int(
-                    cfg.get(
-                        "crabLocalPathCacheValidity",
-                        max(cache_validity * 24, 86400),
-                    )
-                )
-            verbose = cfg.get("verbose", 0)
             fs = WLCGFileSystem(
                 path_or_paths,
                 local_path_cache_validity_period=cache_validity,
-                path_cache_host=host,
-                path_cache_port=port,
                 verbose=verbose,
             )
-            if on_crab_worker:
-                from FLAF.RunKit.law_gfal import apply_shipped_path_cache
+            from FLAF.RunKit.law_gfal import apply_shipped_path_cache
 
-                apply_shipped_path_cache(fs)
+            apply_shipped_path_cache(fs)
             return fs
+        return WLCGFileSystem(
+            path_or_paths,
+            local_path_cache_validity_period=cache_validity,
+            path_cache_server=local_path_cache_server(),
+            verbose=verbose,
+        )
 
     def get_fs(self, fs_name, custom_paths=None):
         fs_instance = None

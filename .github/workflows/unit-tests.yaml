@@ -64,6 +64,7 @@ jobs:
           test/test_flaf_env.py
           test/test_fresh_negatives.py
           test/test_gfal_absent_vs_unreachable.py
+          test/test_local_path_cache_server.py
           test/test_path_cache.py
           test/test_remote_log_names.py
           test/test_submission_guards.py

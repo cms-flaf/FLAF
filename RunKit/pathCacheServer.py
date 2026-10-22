@@ -1,5 +1,17 @@
+"""The path-cache server of one user on one machine.
+
+It is started on demand by the first law process of the user on the machine that needs it
+(pathCacheClient.ensure_local_server) and listens on a Unix socket in a directory only that
+user can enter, so other users of a shared machine can neither read nor alter the cache. Its
+state is written to a file next to the socket and read back when it is started again, e.g.
+after the session that started it ended. Jobs never reach it: they work from the snapshot
+their submission ships.
+"""
+
 import copy
 import socket
+import signal
+import stat
 import threading
 import datetime
 import json
@@ -9,8 +21,15 @@ import multiprocessing
 import os
 import yaml
 import re
-import shutil
 from concurrent.futures import ThreadPoolExecutor
+from queue import Empty
+
+# The key law_gfal publishes after listing a directory (law_gfal.LISTING_MARKER): it implies
+# "absent" for every file of the directory not listed, so it lives as long as a negative.
+LISTING_MARKER = ".flaf_listed"
+
+# How long a client may keep a connection open without sending a request.
+CLIENT_TIMEOUT = 30
 
 MSG_UNKNOWN = 0
 MSG_FORMAT_ERROR = 1
@@ -37,7 +56,9 @@ class Logger:
         MSG_INVALIDATE: "({n_calls}) invalidate: {path} n_invalidated_entries={n_invalidated_entries} addr={addr_str}",
     }
 
-    def __init__(self):
+    def __init__(self, verbose=False):
+        # whether every request is logged, not only errors and the server's own events
+        self.verbose = verbose
         self.queue = multiprocessing.Queue()
         self.process = multiprocessing.Process(target=self._logger_process, daemon=True)
 
@@ -79,9 +100,16 @@ class Logger:
             )
 
     def _logger_process(self):
+        parent = os.getppid()
         while True:
             try:
-                entry = self.queue.get()
+                try:
+                    entry = self.queue.get(timeout=60)
+                except Empty:
+                    # a server killed outright cannot stop its logger
+                    if os.getppid() != parent:
+                        break
+                    continue
                 if entry is None:
                     break
                 message = self.get_text(entry)
@@ -92,29 +120,45 @@ class Logger:
                 pass
 
 
+def parse_seconds(value, what):
+    if isinstance(value, str):
+        value = eval(value, {}, {})
+    if not isinstance(value, (int, float)):
+        raise RuntimeError(f"{what} must be a number of seconds, got: {value}")
+    return value
+
+
 class ValidityPeriodDB:
-    def __init__(self, periods):
+    def __init__(self, periods, negative_validity=None):
         self.periods = {}
         for prefix, validity in periods.items():
             if not isinstance(prefix, str):
                 raise RuntimeError(
                     f"Validity period prefix must be a string, got: {prefix}"
                 )
-            if isinstance(validity, str):
-                validity = eval(validity, {}, {})
-            if not isinstance(validity, (int, float)):
-                raise RuntimeError(
-                    f"Validity period must be a number of seconds, got: {validity} for prefix: {prefix}"
-                )
-            self.periods[prefix] = validity
+            self.periods[prefix] = parse_seconds(
+                validity, f"Validity period for prefix {prefix}"
+            )
         if "default" not in self.periods:
             raise RuntimeError("Validity periods must include a 'default' entry")
+        # Jobs do not publish what they write, so an "absent" here is only as fresh as the
+        # last listing a driver on this machine took; it is kept for a shorter time.
+        self.negative_validity = (
+            None
+            if negative_validity is None
+            else parse_seconds(negative_validity, "negative_validity")
+        )
 
-    def get_validity(self, path):
-        for prefix, validity in self.periods.items():
+    def get_validity(self, path, exists=True):
+        validity = self.periods["default"]
+        for prefix, prefix_validity in self.periods.items():
             if path.startswith(prefix):
-                return validity
-        return self.periods["default"]
+                validity = prefix_validity
+                break
+        negative = not exists or os.path.basename(path) == LISTING_MARKER
+        if negative and self.negative_validity is not None:
+            return min(validity, self.negative_validity)
+        return validity
 
 
 def standardize_path_name(path):
@@ -145,40 +189,52 @@ class PathCache:
         self.cache_write_interval = (
             cache_write_interval if cache_file is not None else -1
         )
+        self.cache = {}
+        self.n_calls = 0
+        self.last_write_time = 0
         if cache_file is not None and os.path.exists(cache_file):
-            with open(cache_file, "r") as f:
-                data = json.load(f)
-            self.cache = {}
-            for path, entry in data["cache"].items():
-                fixed_path = standardize_path_name(path)
-                fixed_entry = {}
-                entry_valid = True
-                current_time = time.time()
-                for key, type in (("exists", bool), ("expiration_time", int)):
-                    if key not in entry:
-                        entry_valid = False
-                        break
-                    value = entry[key]
-                    if not isinstance(value, type):
-                        entry_valid = False
-                        break
-                    fixed_entry[key] = value
-                entry_valid = (
-                    entry_valid and fixed_entry["expiration_time"] >= current_time
+            try:
+                self._load(cache_file)
+            except (OSError, ValueError, KeyError, TypeError, AttributeError) as e:
+                # A cache that cannot be read is started afresh: it holds nothing that a
+                # listing cannot find again.
+                self.cache = {}
+                self.n_calls = 0
+                logger.log(
+                    f"Cache file {cache_file} could not be read ({e}); starting empty"
                 )
-                if entry_valid:
-                    self.cache[fixed_path] = fixed_entry
+        self.last_request_time = time.time()
 
-            self.n_calls = data["n_calls"]
-            self.last_write_time = data["last_write_time"]
-            self.cache_write_interval = cache_write_interval
-            logger.log(
-                f"Cache loaded from {cache_file} with {len(self.cache)} entries and n_calls={self.n_calls}"
-            )
-        else:
-            self.cache = {}
-            self.n_calls = 0
-            self.last_write_time = 0
+    def _load(self, cache_file):
+        with open(cache_file, "r") as f:
+            data = json.load(f)
+        cache = {}
+        current_time = time.time()
+        for path, entry in data["cache"].items():
+            fixed_path = standardize_path_name(path)
+            fixed_entry = {}
+            entry_valid = True
+            for key, type in (("exists", bool), ("expiration_time", int)):
+                if key not in entry:
+                    entry_valid = False
+                    break
+                value = entry[key]
+                if not isinstance(value, type):
+                    entry_valid = False
+                    break
+                fixed_entry[key] = value
+            entry_valid = entry_valid and fixed_entry["expiration_time"] >= current_time
+            if entry_valid:
+                cache[fixed_path] = fixed_entry
+        self.cache = cache
+        self.n_calls = data["n_calls"]
+        self.last_write_time = data["last_write_time"]
+        self.logger.log(
+            f"Cache loaded from {cache_file} with {len(self.cache)} entries and n_calls={self.n_calls}"
+        )
+
+    def touch(self):
+        self.last_request_time = time.time()
 
     def write(self, current_time=None, force=False, as_thread=True):
         if self.cache_file is not None:
@@ -206,14 +262,19 @@ class PathCache:
             n_calls = self.n_calls
             cache = self.cache
             last_write_time = self.last_write_time
+        # Expired entries are otherwise dropped only when they are asked for, so the state
+        # would keep everything ever learned.
+        current_time = time.time()
+        cache = {
+            path: entry
+            for path, entry in cache.items()
+            if entry["expiration_time"] >= current_time
+        }
         data = {"n_calls": n_calls, "last_write_time": last_write_time, "cache": cache}
-        tmp_file = self.cache_file + ".tmp"
-        backup_file = self.cache_file + ".bak"
+        tmp_file = f"{self.cache_file}.{threading.get_ident()}.tmp"
         with open(tmp_file, "w") as f:
-            json.dump(data, f, indent=2)
-        if os.path.exists(self.cache_file):
-            shutil.move(self.cache_file, backup_file)
-        shutil.move(tmp_file, self.cache_file)
+            json.dump(data, f)
+        os.replace(tmp_file, self.cache_file)
         self.logger.log(
             f"Cache written to {self.cache_file} with {len(cache)} entries and n_calls={n_calls}"
         )
@@ -230,7 +291,9 @@ class PathCache:
         path = standardize_path_name(path)
         with self.lock:
             current_time = time.time()
-            expiration_time = int(current_time + self.validity_db.get_validity(path))
+            expiration_time = int(
+                current_time + self.validity_db.get_validity(path, exists=exists)
+            )
             self.cache[path] = {"exists": exists, "expiration_time": expiration_time}
             # If a path exists, every ancestor directory exists too. Drop any stale
             # "does not exist" ancestor entries that would otherwise (via directory-negative
@@ -307,8 +370,11 @@ def result_to_string(result):
 
 
 def handle_client(conn, addr, cache, logger):
+    # a Unix socket's peer has no address
+    addr_str = f"{addr[0]}:{addr[1]}" if isinstance(addr, tuple) else "local"
     try:
-        addr_str = f"{addr[0]}:{addr[1]}"
+        # a client that stops talking must not keep a worker thread for ever
+        conn.settimeout(CLIENT_TIMEOUT)
         with conn:
             file = conn.makefile(mode="rwb", buffering=0)
 
@@ -316,6 +382,7 @@ def handle_client(conn, addr, cache, logger):
                 line = line.decode("utf-8").strip()
                 if not line:
                     break
+                cache.touch()
 
                 parts = line.split(" ", 2)
                 cmd = parts[0].upper()
@@ -335,13 +402,14 @@ def handle_client(conn, addr, cache, logger):
                     response = f"{result_to_string(exists)}\n"
                     file.write(response.encode("utf-8"))
                     file.flush()
-                    logger.log(
-                        MSG_GET,
-                        n_calls=n_calls,
-                        path=path,
-                        exists=exists,
-                        addr_str=addr_str,
-                    )
+                    if logger.verbose:
+                        logger.log(
+                            MSG_GET,
+                            n_calls=n_calls,
+                            path=path,
+                            exists=exists,
+                            addr_str=addr_str,
+                        )
                 elif cmd == "SET":
                     # SET <path> <0|1|u|U>
                     if len(parts) != 3:
@@ -372,7 +440,7 @@ def handle_client(conn, addr, cache, logger):
 
                     file.write(b"OK\n")
                     file.flush()
-                    if val_str.lower() == "u":
+                    if logger.verbose and val_str.lower() == "u":
                         logger.log(
                             MSG_INVALIDATE,
                             n_calls=n_calls,
@@ -380,7 +448,7 @@ def handle_client(conn, addr, cache, logger):
                             n_invalidated_entries=n_invalidated_entries,
                             addr_str=addr_str,
                         )
-                    else:
+                    elif logger.verbose:
                         logger.log(
                             MSG_SET,
                             n_calls=n_calls,
@@ -397,13 +465,42 @@ def handle_client(conn, addr, cache, logger):
         logger.log(f"Error handling client {addr_str}: {e}")
 
 
-def start_server(cfg, cache_file, n_threads):
-    host = cfg["host"]
-    port = cfg["port"]
-    max_connections = cfg["max_connections"]
-    validity_db = ValidityPeriodDB(cfg["validity_periods"])
+def _socket_inode(path):
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    return st.st_ino if stat.S_ISSOCK(st.st_mode) else None
 
-    with Logger() as logger:
+
+def _server_answers(socket_path):
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as probe:
+        probe.settimeout(5)
+        try:
+            probe.connect(socket_path)
+        except OSError:
+            return False
+    return True
+
+
+def _exit_on_signal(signum, frame):
+    # unwinds start_server, which writes the state before the process ends
+    raise SystemExit(0)
+
+
+def start_server(cfg, socket_path, cache_file, n_threads, verbose=False):
+    max_connections = cfg["max_connections"]
+    validity_db = ValidityPeriodDB(
+        cfg["validity_periods"], cfg.get("negative_validity")
+    )
+    idle_timeout = parse_seconds(cfg.get("idle_timeout", 24 * 60 * 60), "idle_timeout")
+    for signum in (signal.SIGTERM, signal.SIGHUP):
+        signal.signal(signum, _exit_on_signal)
+
+    with Logger(verbose=verbose) as logger:
+        if _server_answers(socket_path):
+            logger.log(f"A cache server already listens on {socket_path}; exiting")
+            return 0
         with PathCache(
             validity_db,
             logger,
@@ -411,27 +508,71 @@ def start_server(cfg, cache_file, n_threads):
             cache_write_interval=cfg.get("cache_write_interval", 60),
         ) as cache:
             with ThreadPoolExecutor(max_workers=n_threads) as executor:
+                bound_inode = None
+                status = 0
                 try:
-                    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                        s.bind((host, port))
+                    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+                        if _socket_inode(socket_path) is not None:
+                            # left behind by a server that did not exit cleanly
+                            os.unlink(socket_path)
+                        old_umask = os.umask(0o177)
+                        try:
+                            s.bind(socket_path)
+                        finally:
+                            os.umask(old_umask)
+                        bound_inode = _socket_inode(socket_path)
                         s.listen(max_connections)
-                        logger.log(f"Cache server listening on {host}:{port}")
+                        # wake up now and then to see whether the server is still used
+                        s.settimeout(min(60.0, idle_timeout))
+                        logger.log(
+                            f"Cache server listening on {socket_path} (pid {os.getpid()})"
+                        )
 
                         while True:
-                            conn, addr = s.accept()
+                            try:
+                                conn, addr = s.accept()
+                            except socket.timeout:
+                                idle = time.time() - cache.last_request_time
+                                if idle >= idle_timeout:
+                                    logger.log(
+                                        f"No request for {idle:.0f} s; shutting down."
+                                    )
+                                    break
+                                continue
                             executor.submit(handle_client, conn, addr, cache, logger)
                 except KeyboardInterrupt:
                     logger.log("Server shutting down due to keyboard interrupt.")
+                except SystemExit:
+                    logger.log("Server shutting down on a signal.")
                 except Exception as e:
                     logger.log(f"Server error: {e}")
+                    status = 1
+                finally:
+                    # only the socket this server bound: a later server may own the path
+                    if (
+                        bound_inode is not None
+                        and _socket_inode(socket_path) == bound_inode
+                    ):
+                        os.unlink(socket_path)
+    return status
 
 
 if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Path cache server.")
-    parser.add_argument("--cfg", required=True, type=str, help="configuration file")
+    parser.add_argument(
+        "--cfg",
+        required=False,
+        default=os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "pathCacheServerCfg.yaml"
+        ),
+        type=str,
+        help="configuration file",
+    )
+    parser.add_argument(
+        "--socket", required=True, type=str, help="Unix socket to listen on"
+    )
     parser.add_argument(
         "--cache-file", required=False, default=None, type=str, help="cache file"
     )
@@ -442,8 +583,15 @@ if __name__ == "__main__":
         type=int,
         help="number of threads for handling clients",
     )
+    parser.add_argument(
+        "--verbose", action="store_true", help="log every request, not only errors"
+    )
     args = parser.parse_args()
 
     with open(args.cfg, "r") as f:
         cfg = yaml.safe_load(f)
-    start_server(cfg, args.cache_file, args.n_threads)
+    sys.exit(
+        start_server(
+            cfg, args.socket, args.cache_file, args.n_threads, verbose=args.verbose
+        )
+    )

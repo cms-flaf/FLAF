@@ -28,6 +28,7 @@ server, the analysis configuration, the credentials and the submission itself.
 """
 
 import contextlib
+import gzip
 import io
 import itertools
 import json
@@ -35,6 +36,7 @@ import os
 import shutil
 import sys
 import tempfile
+import threading
 import types
 import unittest
 import uuid
@@ -61,12 +63,12 @@ from law.job.dashboard import NoJobDashboard  # noqa: E402
 from FLAF.run_tools import crab_watchdog  # noqa: E402
 from FLAF.run_tools import law_customizations as lc  # noqa: E402
 from FLAF.RunKit import law_gfal  # noqa: E402
+from FLAF.RunKit.grid_tools import GfalError  # noqa: E402
 from FLAF.RunKit.law_gfal import GFALFileInterface, PathCache  # noqa: E402
 from FLAF.RunKit.law_wlcg import WLCGFileSystem  # noqa: E402
 
 BASE = "davs://storage.example:1094/store/user/flaf"
-CACHE_HOST = "path-cache.example"
-CACHE_PORT = 12345
+CACHE_SERVER = "/nonexistent/path-cache/server_v1.sock"
 ERA = "Run3_2022"
 
 _data_dir = None
@@ -308,8 +310,7 @@ class Harness:
         return WLCGFileSystem(
             BASE,
             local_path_cache_validity_period=600,
-            path_cache_host=CACHE_HOST,
-            path_cache_port=CACHE_PORT,
+            path_cache_server=CACHE_SERVER,
         )
 
     def product_path(self, branch):
@@ -609,14 +610,12 @@ class TheProductsDecide(unittest.TestCase):
     def test_a_finished_job_with_no_products_is_refused_and_retried(self):
         """The 2026-09-18 incident: without the check, job 1 is booked as finished and
         written off. CRAB reports both jobs `transferring`; only job 2's branch produced
-        anything. Job 1's retry then writes its product and is accepted."""
+        anything. Job 1 is kept running for one more poll, retried when its product is
+        still missing then, and accepted once its retry writes it."""
         h = PollHarness(
             self,
-            responses=[
-                {1: "transferring", 2: "transferring"},
-                {1: "transferring", 2: "transferring"},
-            ],
-            before_query={1: lambda: h.produce(0)},
+            responses=[{1: "transferring", 2: "transferring"}] * 3,
+            before_query={2: lambda: h.produce(0)},
             acceptance=1.0,
             tolerance=0.0,
             retries=1,
@@ -627,27 +626,29 @@ class TheProductsDecide(unittest.TestCase):
         h.run()
 
         manager = h.proxy.job_manager
-        first = h.after_poll[0]
+        first, second = h.after_poll[0], h.after_poll[1]
         self.assertEqual(
             first[1][0],
-            manager.RETRY,
-            f"job 1 was not demoted in the first poll: {first}",
+            manager.RUNNING,
+            f"job 1 was not kept for another look in the first poll: {first}",
         )
-        self.assertIn("missing outputs", first[1][1])
         self.assertEqual(first[2][0], manager.FINISHED)
-        # the demoted job is handed back for resubmission, the accepted one is not
-        self.assertEqual(h.offered[0], {1: [0]})
+        self.assertEqual(h.offered[0], {1: [0]}, "job 1 was not retried a poll later")
+        self.assertEqual(second[1][0], manager.RETRY)
+        self.assertIn("missing outputs", second[1][1])
         self.assertEqual(h.proxy.job_data.attempts.get(1), 1)
         self.assertNotIn(2, h.proxy.job_data.attempts)
         # the accepted job is written off by job id; the demoted one kept it for the retry
         # and is accepted only once its product exists
         self.assertEqual(h.status(1), manager.FINISHED)
         self.assertEqual(h.status(2), manager.FINISHED)
-        self.assertEqual(h.queries, 2)
+        self.assertEqual(h.queries, 3)
 
     def test_a_poll_lists_a_directory_once_for_all_its_jobs(self):
         """The cost bound of the fresh negatives: within one poll, the listing taken for one
-        job answers every other job in that directory, the absent ones included."""
+        job answers every other job in that directory, the absent ones included (job 2 is
+        kept running for another look; the acceptance of one job of two ends the loop).
+        """
         h = PollHarness(
             self,
             responses=[{1: "transferring", 2: "transferring"}],
@@ -662,8 +663,7 @@ class TheProductsDecide(unittest.TestCase):
 
         manager = h.proxy.job_manager
         self.assertEqual(h.status(1), manager.FINISHED)
-        self.assertEqual(h.status(2), manager.FAILED)
-        self.assertIn("missing outputs", h.error(2))
+        self.assertEqual(h.status(2), manager.RUNNING)
         self.assertEqual(h.storage.listings, [h.product_dir])
 
     def test_a_record_written_since_the_last_listing_is_still_seen(self):
@@ -708,7 +708,8 @@ class TheProductsDecide(unittest.TestCase):
 
         Job 1 finishes in the first poll and job 2 only in the third. law keeps accepted
         jobs in `finished_jobs` and skips them at the top of every later iteration, so
-        branch 0's completeness is asked for exactly once.
+        branch 0's completeness is judged in one poll only: by check_finished_jobs and by
+        law's own verdict right after it.
         """
         h = PollHarness(
             self,
@@ -734,10 +735,10 @@ class TheProductsDecide(unittest.TestCase):
         self.assertEqual(h.status(2), manager.FINISHED)
         self.assertEqual(
             h.complete_calls.get(0),
-            1,
+            2,
             f"branch 0 was re-checked on every poll: {h.complete_calls}",
         )
-        self.assertEqual(h.complete_calls.get(1), 1)
+        self.assertEqual(h.complete_calls.get(1), 2)
         # once accepted, a job is no longer queried at all
         self.assertEqual(
             h.proxy.job_data.jobs[1]["job_id"], h.proxy.job_data.dummy_job_id
@@ -745,9 +746,9 @@ class TheProductsDecide(unittest.TestCase):
 
 
 class TheSharedListingTrap(unittest.TestCase):
-    """FLAF-specific: a listing published to the path-cache server before the CRAB worker
-    wrote its product says "absent" for it in every process, and the worker never corrects
-    it. The epoch bump in `crab_check_job_completeness` is what gets past it."""
+    """FLAF-specific: a listing published to the path-cache server before the worker wrote
+    its product says "absent" for it in every process, and the worker never corrects it. The
+    epoch bump in `check_finished_jobs` is what gets past it."""
 
     def stale_listing_scenario(self, lister):
         """A listing of the product directory is on the server; then the worker writes."""
@@ -793,9 +794,10 @@ class TheSharedListingTrap(unittest.TestCase):
                 self.assertTrue(other.exists(h.product_path(0)))
                 self.assertEqual(len(h.storage.listings), n_listed)
 
-    def test_clearing_only_the_local_cache_demotes_it(self):
+    def test_clearing_only_the_local_cache_refuses_it(self):
         """The trap the epoch exists for: a check that flushes the driver's in-process cache
-        instead still reads the server's stale marker, and demotes a job that did the work.
+        instead still reads the server's stale marker, and refuses a job that did the work
+        (kept for another look, and retried a poll later).
         """
 
         for lister in ("another process", "driver"):
@@ -811,8 +813,7 @@ class TheSharedListingTrap(unittest.TestCase):
                 ):
                     h.run()
 
-                self.assertEqual(h.status(1), h.proxy.job_manager.RETRY)
-                self.assertIn("missing outputs", h.error(1))
+                self.assertEqual(h.status(1), h.proxy.job_manager.RUNNING)
                 self.assertEqual(
                     h.storage.listings, [], "the stale server marker answered"
                 )
@@ -1016,19 +1017,22 @@ class TheSwitchItself(unittest.TestCase):
         self.assertTrue(h.task.crab_check_job_completeness())
         self.assertGreater(GFALFileInterface.negatives_valid_after, first_epoch)
 
-    def test_htcondor_workflows_are_unaffected(self):
-        """HTCondor jobs publish what they write to the cache server, so their workflows
-        keep law's default: no completeness check and no fresh-negatives epoch."""
+    def test_htcondor_workflows_check_completeness_too(self):
+        """No job publishes what it writes, so HTCondor's "completed" is believed only once
+        the outputs are on storage, as CRAB's FINISHED is."""
         h = Harness(self, workflow="htcondor")
         proxy = h.task.workflow_proxy
         self.assertIsInstance(proxy, lc._BundleAwareHTCondorWorkflowProxy)
-        self.assertFalse(proxy._get_task_attribute("check_job_completeness")())
-        self.assertFalse(h.task.htcondor_check_job_completeness())
         self.assertEqual(GFALFileInterface.negatives_valid_after, 0.0)
+        self.assertTrue(proxy._get_task_attribute("check_job_completeness")())
+        first_epoch = GFALFileInterface.negatives_valid_after
+        self.assertGreater(first_epoch, 0.0)
+        self.assertTrue(h.task.htcondor_check_job_completeness())
+        self.assertGreater(GFALFileInterface.negatives_valid_after, first_epoch)
 
-    def test_an_htcondor_poll_takes_the_batch_system_at_its_word(self):
-        """The same loop over HTCondor: a job reported finished is accepted as it stands,
-        without a storage round trip, and no poll moves the epoch."""
+    def test_an_htcondor_poll_checks_the_storage(self):
+        """The same loop over HTCondor: a job reported finished is accepted once a listing
+        taken in that poll shows its product, one listing per directory and poll."""
         h = PollHarness(
             self,
             responses=[
@@ -1038,22 +1042,166 @@ class TheSwitchItself(unittest.TestCase):
                 },
                 {2: law.job.base.BaseJobManager.FINISHED},
             ],
+            before_query={1: lambda: h.produce(1)},
             workflow="htcondor",
             acceptance=1.0,
             tolerance=1.0,
         )
         h.job(1, 0)
         h.job(2, 1)
+        h.produce(0)
         h.run()
 
         manager = h.proxy.job_manager
         self.assertEqual(h.queries, 2)
         self.assertEqual(h.status(1), manager.FINISHED)
         self.assertEqual(h.status(2), manager.FINISHED)
-        self.assertEqual(h.complete_calls, {}, "an HTCondor job was checked on storage")
-        self.assertEqual(h.storage.listings, [])
-        self.assertEqual(h.epochs, [0.0])
-        self.assertEqual(GFALFileInterface.negatives_valid_after, 0.0)
+        self.assertEqual(h.offered, [])
+        self.assertEqual(h.storage.listings, [h.product_dir, h.product_dir])
+        # the poll callback records the polls before the last one
+        self.assertGreater(h.epochs[0], 0.0)
+        self.assertGreater(GFALFileInterface.negatives_valid_after, h.epochs[0])
+
+
+class AnUnconfirmedFinish(unittest.TestCase):
+    """A job reported finished whose outputs are not on storage is kept running for one more
+    poll, and one whose output directory cannot be listed until it can be: storage may show
+    a new file late, and a listing that fails says nothing about the files. Both backends.
+    """
+
+    backends = {
+        "crab": ("transferring", "running"),
+        "htcondor": (
+            law.job.base.BaseJobManager.FINISHED,
+            law.job.base.BaseJobManager.RUNNING,
+        ),
+    }
+
+    def harness(self, workflow, responses, **kwargs):
+        return PollHarness(
+            self,
+            responses=responses,
+            workflow=workflow,
+            acceptance=1.0,
+            tolerance=0.0,
+            retries=1,
+            **kwargs,
+        )
+
+    def test_a_product_that_shows_up_a_poll_late_is_accepted(self):
+        for workflow, (finished, _) in self.backends.items():
+            with self.subTest(workflow=workflow):
+                h = self.harness(
+                    workflow,
+                    [{1: finished}] * 2,
+                    before_query={1: lambda: h.produce(0)},
+                )
+                h.job(1, 0)
+                h.run()
+                manager = h.proxy.job_manager
+                self.assertEqual(h.after_poll[0][1][0], manager.RUNNING)
+                self.assertEqual(h.status(1), manager.FINISHED)
+                self.assertEqual(h.offered, [], "a job that did its work was retried")
+                self.assertEqual(dict(h.proxy.job_data.attempts), {})
+                self.assertTrue(h.messages, "keeping a job running was not reported")
+
+    def test_the_last_job_keeps_the_workflow_open(self):
+        """All jobs but one are done and the last one is reported finished before its
+        product can be seen: law must not call the workflow finished on that poll."""
+        for workflow, (finished, _) in self.backends.items():
+            with self.subTest(workflow=workflow):
+                h = self.harness(
+                    workflow,
+                    [{1: finished, 2: finished}] * 2,
+                    before_query={1: lambda: h.produce(1)},
+                )
+                h.job(1, 0)
+                h.job(2, 1)
+                h.produce(0)
+                h.run()
+                manager = h.proxy.job_manager
+                self.assertEqual(h.after_poll[0][1][0], manager.FINISHED)
+                self.assertEqual(h.after_poll[0][2][0], manager.RUNNING)
+                # law ends the loop, before its poll callback, in the poll that confirms
+                # the last job, not in the one that first saw it reported finished
+                self.assertEqual(h.queries, 2, "the loop ended with a job unconfirmed")
+                self.assertEqual(len(h.after_poll), 1)
+                self.assertEqual(h.status(2), manager.FINISHED)
+                self.assertEqual(h.offered, [])
+
+    def unlistable(self, h, polls):
+        """The product directory cannot be listed in the polls numbered `polls` (0-based)."""
+        real_ls = h.storage.ls
+
+        def ls(uri, **kwargs):
+            if uri == h.product_dir and h.queries - 1 in polls:
+                h.storage.listings.append(uri)
+                raise GfalError("gfal-ls error: 110 (Connection timed out)")
+            return real_ls(uri, **kwargs)
+
+        return mock.patch.object(law_gfal, "gfal_ls_checked", ls)
+
+    def test_an_unlistable_directory_holds_the_job_until_it_answers(self):
+        for workflow, (finished, _) in self.backends.items():
+            with self.subTest(workflow=workflow):
+                h = self.harness(workflow, [{1: finished}] * 3)
+                h.job(1, 0)
+                h.produce(0)
+                with self.unlistable(h, polls=(0, 1)):
+                    h.run()
+                manager = h.proxy.job_manager
+                # the poll callback records the polls before the last one
+                self.assertEqual(
+                    [poll[1][0] for poll in h.after_poll],
+                    [manager.RUNNING, manager.RUNNING],
+                )
+                self.assertEqual(h.queries, 3)
+                self.assertEqual(h.status(1), manager.FINISHED)
+                self.assertEqual(h.offered, [], "a job that did its work was retried")
+
+    def test_a_directory_that_stays_unlistable_stops_the_run(self):
+        for workflow, (finished, _) in self.backends.items():
+            with self.subTest(workflow=workflow):
+                h = self.harness(workflow, [{1: finished}] * 3)
+                h.job(1, 0)
+                with self.unlistable(h, polls=(0, 1, 2)), mock.patch.object(
+                    lc, "MAX_UNVERIFIABLE_FINISH_MINUTES", 0.0
+                ):
+                    with self.assertRaises(RuntimeError) as caught:
+                        h.run()
+                self.assertIn("could not be listed", str(caught.exception))
+                self.assertEqual(h.offered, [])
+
+    def test_the_output_directories_are_listed_at_once(self):
+        """Six jobs over two directories finish in one poll: both directories are listed
+        together, not one after the other in law's verdict."""
+        for workflow, (finished, _) in self.backends.items():
+            with self.subTest(workflow=workflow):
+                h = self.harness(
+                    workflow,
+                    [{job: finished for job in range(1, 7)}],
+                    task_cls=ResumedProductTask,
+                )
+                for job in range(1, 7):
+                    h.job(job, job - 1)
+                    h.produce(job - 1)
+                together = threading.Barrier(2, timeout=10)
+                real_ls = h.storage.ls
+
+                def ls(uri, **kwargs):
+                    # returns only once the other directory's listing has started too
+                    together.wait()
+                    return real_ls(uri, **kwargs)
+
+                with mock.patch.object(law_gfal, "gfal_ls_checked", ls):
+                    h.run()
+                manager = h.proxy.job_manager
+                for job in range(1, 7):
+                    self.assertEqual(h.status(job), manager.FINISHED)
+                self.assertEqual(
+                    sorted(h.storage.listings),
+                    sorted({os.path.dirname(h.product_uri(b)) for b in range(6)}),
+                )
 
 
 class TestSkipTransfersIsPinned(unittest.TestCase):
@@ -1173,7 +1321,7 @@ class TheJobChecksItsRequirementsFromTheSnapshot(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             self.h.task._stage_path_cache_input(config, [[0], [1]])
         path = config.input_files["path_cache"].path
-        with open(path) as f:
+        with gzip.open(path, "rt") as f:
             shipped = {e["path"]: e["exists"] for e in json.load(f)["entries"]}
         return path, shipped, out.getvalue(), self.h.storage.listings[listed:]
 
@@ -1264,7 +1412,7 @@ class TheJobChecksItsRequirementsFromTheSnapshot(unittest.TestCase):
                     render_variables={},
                 )
             sandbox_file = c.input_files["path_cache"].path_sub_abs
-            with open(sandbox_file) as f:
+            with gzip.open(sandbox_file, "rt") as f:
                 shipped.append({e["path"] for e in json.load(f)["entries"]})
         self.assertNotIn(self.required[3], shipped[0])
         self.assertTrue(set(self.required.values()) <= shipped[1])

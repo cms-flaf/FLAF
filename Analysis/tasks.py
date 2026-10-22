@@ -1667,12 +1667,6 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     infile,
                     "--all_outFiles",
                     ",".join(local_outputs),
-                    "--globalConfig",
-                    os.path.join(
-                        self.ana_path(),
-                        self.global_param("analysis_config_area"),
-                        "global.yaml",
-                    ),
                     "--var",
                     var,
                     "--all_keys",

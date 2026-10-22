@@ -9,7 +9,12 @@ if __name__ == "__main__":
 
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
-from FLAF.Common.PlotGroups import GroupProcesses, control_regions, want_data
+from FLAF.Common.PlotGroups import (
+    GroupProcesses,
+    control_regions,
+    plot_settings,
+    want_data,
+)
 from FLAF.Common.Utilities import str_to_bool
 
 
@@ -170,7 +175,6 @@ if __name__ == "__main__":
     parser.add_argument("--all_outFiles", required=True)
     parser.add_argument("--inFile", required=True, type=str)
     parser.add_argument("--var", required=False, type=str, default="tau1_pt")
-    parser.add_argument("--globalConfig", required=True, type=str)
     parser.add_argument(
         "--all_keys", required=False, type=str, default="tauTau:inclusive:OS_Iso"
     )
@@ -234,12 +238,14 @@ if __name__ == "__main__":
         os.environ["ANALYSIS_PATH"], "config", "plot", "inputs.yaml"
     )
 
-    with open(args.globalConfig, "r") as f:
-        global_cfg_dict = yaml.safe_load(f)
+    # Global settings from the merged Setup of every era (FLAF and analysis global.yaml, era
+    # configurations, user_custom), as every other task reads them.
+    settings = plot_settings(
+        {era: era_setup.global_params for era, era_setup in setups.items()}
+    )
     # where blinded variables show data and no signal is drawn
     plot_control_regions = control_regions(
-        global_cfg_dict.get("plot_control_regions"),
-        global_cfg_dict.get(global_cfg_dict.get("custom_regions") or ""),
+        settings["plot_control_regions"], settings["regions"]
     )
 
     keys = args.all_keys.split(",")
@@ -382,7 +388,7 @@ if __name__ == "__main__":
                 dataset_process_group,
                 "Central",
                 "Central",
-                global_cfg_dict,
+                setup.global_params,
             )
             if dataset_histname not in dir_1.GetListOfKeys():
                 print(f"ERRORE: {dataset_histname} non è nelle keys")
@@ -463,9 +469,11 @@ if __name__ == "__main__":
             )
 
         hists_to_plot_binned = GroupProcesses(
-            hists_to_plot_binned, global_cfg_dict.get("plot_process_groups") or []
+            hists_to_plot_binned, settings["plot_process_groups"] or []
         )
-        scale = global_cfg_dict.get("signal_plot_scale", 1.0)
+        scale = settings["signal_plot_scale"]
+        if scale is None:
+            scale = 1.0
         plotter.plot(
             var_entry,
             hists_to_plot_binned,

@@ -6,6 +6,36 @@ and no signal is drawn (plot_control_regions)."""
 import re
 import warnings
 
+# The global settings of what a plot shows; one plot has one value of each.
+PLOT_SETTINGS = ("plot_process_groups", "plot_control_regions", "signal_plot_scale")
+
+
+def plot_settings(global_params):
+    """The plot settings (PLOT_SETTINGS, and the analysis' regions) of a plot, from the merged
+    Setup.global_params of each era it holds -- so user_custom and era configurations apply,
+    as for every other task. ``global_params``: {era: Setup.global_params}, one era, or the
+    eras of a meta-era. A setting the eras disagree on raises: one plot cannot group or blind
+    two ways."""
+    eras = list(global_params)
+    settings = {}
+    for key in PLOT_SETTINGS:
+        values = {era: global_params[era].get(key) for era in eras}
+        if any(v != values[eras[0]] for v in values.values()):
+            raise ValueError(
+                f"{key} differs between the eras of the plot, {values}: set it once, in "
+                "config/global.yaml or a user_custom, for all of them"
+            )
+        settings[key] = values[eras[0]]
+    # the regions histogrammed: custom_regions names the global list of them (QCDRegions)
+    regions = []
+    for era in eras:
+        params = global_params[era]
+        era_regions = params.get(params.get("custom_regions") or "")
+        if isinstance(era_regions, list):
+            regions += [r for r in era_regions if r not in regions]
+    settings["regions"] = regions or None
+    return settings
+
 
 def control_regions(value, regions=None):
     """global.yaml's plot_control_regions as a list of region names.

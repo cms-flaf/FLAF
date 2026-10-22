@@ -20,10 +20,12 @@ if flaf_parent not in sys.path:
     sys.path.insert(0, flaf_parent)
 
 from FLAF.Common.PlotGroups import (  # noqa: E402
+    PLOT_SETTINGS,
     GroupProcesses,
     _group_instances,
     _param_value_key,
     control_regions,
+    plot_settings,
     want_data,
 )
 
@@ -268,6 +270,44 @@ class ControlRegions(unittest.TestCase):
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             self.assertEqual(control_regions(["TT_CRR"]), ["TT_CRR"])
+
+
+class Settings(unittest.TestCase):
+    """plot_settings: what a plot shows, from the merged Setup.global_params of its eras."""
+
+    params = {
+        "plot_process_groups": [{"name": "tt", "processes": ["TT", "ttV"]}],
+        "plot_control_regions": ["TT_CR", "DY_CR"],
+        "signal_plot_scale": "bkg",
+        "custom_regions": "QCDRegions",
+        "QCDRegions": ["OS_Iso", "SR", "TT_CR", "DY_CR"],
+    }
+
+    def test_one_era(self):
+        settings = plot_settings({"Run3_2022": dict(self.params)})
+        self.assertEqual(settings["plot_control_regions"], ["TT_CR", "DY_CR"])
+        self.assertEqual(settings["signal_plot_scale"], "bkg")
+        self.assertEqual(settings["regions"], ["OS_Iso", "SR", "TT_CR", "DY_CR"])
+
+    def test_unset_settings_are_none(self):
+        settings = plot_settings({"Run3_2022": {}})
+        self.assertEqual(
+            [settings[k] for k in PLOT_SETTINGS + ("regions",)], [None] * 4
+        )
+
+    def test_the_eras_of_a_meta_era_must_agree(self):
+        eras = {"Run3_2022": dict(self.params), "Run3_2023": dict(self.params)}
+        self.assertEqual(plot_settings(eras)["signal_plot_scale"], "bkg")
+        eras["Run3_2023"]["plot_control_regions"] = ["TT_CR"]
+        with self.assertRaisesRegex(ValueError, "plot_control_regions differs"):
+            plot_settings(eras)
+
+    def test_the_regions_of_all_eras(self):
+        other = dict(self.params, QCDRegions=["SR", "W_CR"])
+        settings = plot_settings({"Run3_2022": dict(self.params), "Run3_2023": other})
+        self.assertEqual(
+            settings["regions"], ["OS_Iso", "SR", "TT_CR", "DY_CR", "W_CR"]
+        )
 
 
 if __name__ == "__main__":

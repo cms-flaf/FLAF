@@ -1,8 +1,46 @@
-"""Plot groups: processes summed into one legend entry of a plot (global.yaml's
-plot_process_groups). ROOT is not imported here -- a histogram only needs Clone, SetDirectory
-and Add -- so the logic is unit-tested without ROOT."""
+"""What HistPlotter draws, decided without ROOT so it is unit-tested in CI: plot groups,
+processes summed into one legend entry (global.yaml's plot_process_groups; a histogram only
+needs Clone, SetDirectory and Add), and the control regions, where blinded variables show data
+and no signal is drawn (plot_control_regions)."""
 
 import re
+import warnings
+
+
+def control_regions(value, regions=None):
+    """global.yaml's plot_control_regions as a list of region names.
+
+    It must be a YAML list: written without brackets (``TT_CR, DY_CR``) it is one string, and a
+    region test on a string matches substrings -- "SR" in "SR_SL_M300_CR" -- which would show
+    data in a signal region of a blinded variable. A name that is not one of the analysis'
+    `regions` (a typo leaves that region blinded) is warned about; it is not an error, since a
+    configuration can narrow the regions it runs (e.g. CI)."""
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(r, str) for r in value):
+        raise ValueError(
+            f"plot_control_regions = {value!r} must be a list of region names, "
+            "e.g. [ TT_CR, DY_CR ]"
+        )
+    if isinstance(regions, list):
+        unknown = [r for r in value if r not in regions]
+        if unknown:
+            warnings.warn(
+                f"plot_control_regions names {unknown}, which are not among the regions "
+                f"{regions}; those regions stay blinded",
+                UserWarning,
+            )
+    return list(value)
+
+
+def want_data(want, blind, region, control_regions):
+    """Whether a plot shows data: when it is wanted, unless the variable is blinded and the
+    region is not a control region. `control_regions` is the list control_regions() gives.
+    """
+    if not isinstance(control_regions, list):
+        raise TypeError(f"control_regions = {control_regions!r} must be a list")
+    return bool(want) and not (blind and region not in control_regions)
+
 
 # A ${PARAM} in a plot group's process pattern or name.
 _GROUP_PARAM = re.compile(r"\$\{(\w+)\}")

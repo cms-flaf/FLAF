@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Plot groups (global.yaml's plot_process_groups), as HistPlotter applies them.
+"""Plot groups (global.yaml's plot_process_groups) and control regions (plot_control_regions),
+as HistPlotter applies them.
 
 Processes are summed into one legend entry per group, or per set of parameter values for a
 group whose patterns name parameters: masses (GluGluToRadion_bbWW_2L_${MASS}) or couplings
@@ -11,6 +12,7 @@ giving a plot that looks right but is not.
 import os
 import sys
 import unittest
+import warnings
 
 flaf_repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 flaf_parent = os.path.dirname(flaf_repo)
@@ -21,6 +23,8 @@ from FLAF.Common.PlotGroups import (  # noqa: E402
     GroupProcesses,
     _group_instances,
     _param_value_key,
+    control_regions,
+    want_data,
 )
 
 
@@ -214,6 +218,56 @@ class Mistakes(unittest.TestCase):
         self.assertRaisesFor(
             {"name": "x", "processes": ["TT", "data"]}, "mixes", RuntimeError
         )
+
+
+class ControlRegions(unittest.TestCase):
+    """plot_control_regions: where blinded variables show data (and no signal is drawn)."""
+
+    regions = ["OS_Iso", "SR", "TT_CR", "DY_CR", "SR_SL_M300"]
+
+    def test_a_blinded_variable_shows_data_only_in_the_control_regions(self):
+        crs = control_regions(["TT_CR", "DY_CR"], self.regions)
+        for region, blind, expected in [
+            ("SR", True, False),
+            ("OS_Iso", True, False),
+            ("SR_SL_M300", True, False),
+            ("TT_CR", True, True),
+            ("DY_CR", True, True),
+            ("SR", False, True),
+            ("TT_CR", False, True),
+        ]:
+            with self.subTest(region=region, blind=blind):
+                self.assertEqual(want_data(True, blind, region, crs), expected)
+
+    def test_no_data_when_it_is_not_wanted(self):
+        crs = control_regions(["TT_CR"], self.regions)
+        for region in ("SR", "TT_CR"):
+            for blind in (True, False):
+                self.assertFalse(want_data(False, blind, region, crs))
+
+    def test_without_the_key_every_blinded_region_stays_blinded(self):
+        crs = control_regions(None, self.regions)
+        self.assertEqual(crs, [])
+        self.assertFalse(want_data(True, True, "TT_CR", crs))
+        self.assertTrue(want_data(True, False, "TT_CR", crs))
+
+    def test_a_string_is_refused(self):
+        # "SR" in "SR_SL_M300_CR" is True for a string: it would unblind the SR
+        for value in ("TT_CR, DY_CR", "SR_SL_M300_CR", {"TT_CR": 1}, ["TT_CR", 1]):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "list of region names"):
+                    control_regions(value, self.regions)
+        with self.assertRaises(TypeError):
+            want_data(True, True, "SR", "SR_SL_M300_CR")
+
+    def test_an_unknown_region_is_warned_about_and_stays_blinded(self):
+        with self.assertWarnsRegex(UserWarning, r"\['TT_CRR'\]"):
+            crs = control_regions(["TT_CRR", "DY_CR"], self.regions)
+        self.assertFalse(want_data(True, True, "TT_CR", crs))
+        # without the analysis' region list there is nothing to compare with
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            self.assertEqual(control_regions(["TT_CRR"]), ["TT_CRR"])
 
 
 if __name__ == "__main__":

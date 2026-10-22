@@ -9,7 +9,7 @@ if __name__ == "__main__":
 
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
-from FLAF.Common.PlotGroups import GroupProcesses
+from FLAF.Common.PlotGroups import GroupProcesses, control_regions, want_data
 from FLAF.Common.Utilities import str_to_bool
 
 
@@ -236,6 +236,11 @@ if __name__ == "__main__":
 
     with open(args.globalConfig, "r") as f:
         global_cfg_dict = yaml.safe_load(f)
+    # where blinded variables show data and no signal is drawn
+    plot_control_regions = control_regions(
+        global_cfg_dict.get("plot_control_regions"),
+        global_cfg_dict.get(global_cfg_dict.get("custom_regions") or ""),
+    )
 
     keys = args.all_keys.split(",")
     outFiles = args.all_outFiles.split(",")
@@ -285,9 +290,7 @@ if __name__ == "__main__":
                         if channel not in process["channels"]:
                             continue
                     # no signal overlay in the control regions
-                    if custom_region in (
-                        global_cfg_dict.get("plot_control_regions") or []
-                    ):
+                    if custom_region in plot_control_regions:
                         continue
                 all_datasets_dict[all_datasets_key] = {}
                 all_datasets_dict[all_datasets_key]["process_name"] = process_name
@@ -320,11 +323,13 @@ if __name__ == "__main__":
         var_entry = findBinEntry(hist_cfg_dict, args.var)
 
         # A blinded variable hides the data outside the control regions only. Without data
-        # the CMS label reads "Simulation" from want_data, so datasim_text keeps its scope.
-        blind_check = hist_cfg_dict[var_entry].get("blind", False)
-        want_data = args.wantData and not (
-            blind_check
-            and custom_region not in (global_cfg_dict.get("plot_control_regions") or [])
+        # PlotKit's CMS label reads "Simulation <scope>" (both backends), so datasim_text
+        # keeps just the scope.
+        show_data = want_data(
+            args.wantData,
+            hist_cfg_dict[var_entry].get("blind", False),
+            custom_region,
+            plot_control_regions,
         )
         inFile_root = ROOT.TFile.Open(args.inFile, "READ")
         dir_0 = inFile_root.Get(channel)
@@ -366,7 +371,7 @@ if __name__ == "__main__":
             dataset_plot_name = dataset_content["plot_name"]
             dataset_plot_color = dataset_content["plot_color"]
 
-            if dataset_process_group == "data" and not want_data:
+            if dataset_process_group == "data" and not show_data:
                 continue
 
             if args.uncSource != "Central":
@@ -465,7 +470,7 @@ if __name__ == "__main__":
             var_entry,
             hists_to_plot_binned,
             outFile,
-            want_data=want_data,
+            want_data=show_data,
             custom=custom1,
             scale=scale,
             total_unc=total_unc_hist,

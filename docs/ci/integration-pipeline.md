@@ -152,7 +152,8 @@ gitlab_branch: "master"            # flaf_integration branch to run
     handled differently by the two backends:
 
     - **GitLab**: an empty value or `ALL` means every era in `AVAILABLE_ERAS` of
-      `flaf_integration/.gitlab-ci.yml`; an era not in that list fails the generation.
+      `flaf_integration/.gitlab-ci.yml`; an era not in that list, or a value of spaces only, fails
+      the generation.
     - **GitHub Actions**: an explicit list is required (empty fails the generation); era names
       are not checked there.
 
@@ -213,20 +214,17 @@ flowchart TD
     (plus `--process <proc>` in the `test_dataset` jobs). A failed `law run` is retried once;
     a timeout is not.
 
-    While FLAF renames `--period` to `--era` (the multi-era change set), the job reads the flag
-    from the FLAF it checked out: `--era` when `FLAF/run_tools/law_customizations.py` defines
-    `class EraParameter`, `--period` when it has `period = luigi.Parameter()`, and the job fails
-    when it has neither. The `test_multi_era` job also gets every era of the analysis in `ERAS`;
-    it passes them all (`--era Run3_2022,Run3_2022EE,…`) when the analysis's StatInference sets
-    `allow_multi_era = True`, and the first era, as before, when it still has `meta_era`. Both
-    switches are removed again once no checkout from before the change set is tested.
+    The `test_multi_era` job runs its target once over every era of the analysis: `<era>` is then
+    the eras resolved from `<ana>_eras`, joined with commas (`--era Run3_2022,Run3_2022EE,…`). A
+    checkout from before the `--period` → `--era` rename (such as the `v2610` version branches) is
+    not supported: its first `law run` fails on the unknown `--era`.
 
 - Which task each stage runs depends on `<ana>_task`:
 
     | Target task | `test_dataset` (per era and process) | `test_era` (per era) | `test_multi_era` |
     |---|---|---|---|
     | `FLAF.Analysis.tasks.NanoAODProducerTask` (listed by the generator, but no such task exists in FLAF), `…HistTupleProducerTask` or `…HistFromNtupleProducerTask` | the target | — | — |
-    | Full name contains `Combine` or `Inference` (e.g. HH_bbWW's `StatInference.law.tasks.ResonantLimitsAndHistPlotTask`) | `HistFromNtupleProducerTask` | `HistPlotTask` | the target, once, with `--era` set to the first era (or to every era, see the era switches above) |
+    | Full name contains `Combine` or `Inference` (e.g. HH_bbWW's `StatInference.law.tasks.ResonantLimitsAndHistPlotTask`) | `HistFromNtupleProducerTask` | `HistPlotTask` | the target, once, with `--era` set to every era of the analysis, comma-separated |
     | Anything else (e.g. `FLAF.Analysis.tasks.HistPlotTask`) | `HistFromNtupleProducerTask` | the target | — |
 
     The test is a substring match on the full task name, so any task under `StatInference.`

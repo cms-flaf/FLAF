@@ -96,7 +96,8 @@ several eras still has **one workflow per stage**, whose branches are those of t
 still need work at that stage. An era whose part of a stage is complete is left out, and what its
 outputs were made from is not requested again.
 
-A **branch** always belongs to one era and is the branch a run over that era alone has — the same
+For the stages of the production and analysis chain (the classes with era branches), a
+**branch** always belongs to one era and is the branch a run over that era alone has — the same
 inputs, payload, output paths and logs. Only its number in the workflow carries the era
 (`era id × 1 000 000 + its number in the era's own map`). What belongs to the stage as a whole —
 the branch map, the requirements, the submission and the polling — spans the eras. Which tasks

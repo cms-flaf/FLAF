@@ -21,7 +21,7 @@ from law.parser import global_cmdline_values
 
 from FLAF.RunKit.run_tools import natural_sort, on_batch_node, timed_call_wrapper
 from FLAF.RunKit.kinit import update_kinit
-from FLAF.RunKit.law_gfal import require_fresh_negatives
+from FLAF.RunKit.law_gfal import list_target_directories, require_fresh_negatives
 from FLAF.run_tools.crab_sites import SiteStats, processing_sites, resolve_whitelist
 from FLAF.run_tools.crab_watchdog import (
     HEARTBEAT_DIR,
@@ -36,6 +36,9 @@ from FLAF.Common.Setup import (
     ERA_IDS,
     Setup,
     UnknownEraError,
+    check_meta_era,
+    era_groups,
+    expand_meta_era,
     known_eras,
     split_era_branch,
 )
@@ -176,20 +179,50 @@ def _known_eras(ana_path):
     return tuple(known_eras(ana_path))
 
 
+@functools.cache
+def _meta_eras(ana_path):
+    # a group is checked against the known eras when it is given as --era
+    return era_groups(ana_path)
+
+
+def _expand_meta_era(eras):
+    """The real eras a stage that does not sum runs over for `eras`: a meta-era's eras."""
+    return expand_meta_era(eras, _meta_eras(os.getenv("ANALYSIS_PATH")))
+
+
+class MetaEraError(ValueError):
+    """A meta-era beside other eras in --era."""
+
+
 class EraParameter(law.CSVParameter):
     """FLAF eras, as a sorted tuple of unique known names: `--era Run3_2022` or a comma-separated
-    list. Which classes take several is `Task.allow_multi_era`."""
+    list. Which classes take several is `Task.allow_multi_era`. A meta-era of `era_groups:`
+    (`--era Run3_22_23`) stands alone: the stages that sum its eras take it as one era of its
+    own (`Task.allow_meta_era`), every other stage runs over its eras as over the list of
+    them."""
 
     def __init__(self, **kwargs):
         super(EraParameter, self).__init__(unique=True, sort=True, min_len=1, **kwargs)
 
     def parse(self, inp):
         value = super(EraParameter, self).parse(inp)
-        eras = _known_eras(os.getenv("ANALYSIS_PATH"))
-        unknown = [era for era in value if era not in eras]
+        ana_path = os.getenv("ANALYSIS_PATH")
+        eras = _known_eras(ana_path)
+        groups = _meta_eras(ana_path)
+        unknown = [era for era in value if era not in eras and era not in groups]
         if unknown:
             raise UnknownEraError(
                 f"unknown era(s) {', '.join(unknown)}; known eras: {', '.join(eras)}"
+                + (f"; meta-eras: {', '.join(groups)}" if groups else "")
+            )
+        meta = [era for era in value if era in groups]
+        for era in meta:
+            check_meta_era(era, groups[era], eras)
+        if meta and len(value) > 1:
+            raise MetaEraError(
+                f"--era {era_csv(value)}: {meta[0]} is a meta-era, the sum of "  # noqa: era-scope
+                f"{era_csv(groups[meta[0]])}, and is run on its own; give "  # noqa: era-scope
+                "it alone, or list real eras to run them separately"
             )
         return value
 
@@ -323,6 +356,8 @@ def _reject_removed_era_flags():
         and branch not in (None, "-1")
     ):
         eras = root_cls.era.parse(args["era"])
+        if not getattr(root_cls, "allow_meta_era", False):
+            eras = _expand_meta_era(eras)
         if len(eras) > 1:
             raise ValueError(
                 f"--branch {branch} with --era {era_csv(eras)}: a branch belongs to one "
@@ -425,6 +460,10 @@ class Task(law.Task):
     #: whether the branches of this workflow carry the era: over several eras its branch map
     #: is the union of the eras' own maps, numbered by `era_branch` (needs allow_multi_era)
     era_branches = False
+    #: whether a task of this class takes a meta-era of `era_groups:` as one era of its own,
+    #: the sum of its eras, with the Setups of its sub-eras; a class that does not runs over
+    #: the meta-era's eras instead, as over the list of them (modify_param_values)
+    allow_meta_era = False
     # The removed period: a parameter only so that the parser accepts it and the run stops
     # with the rename message instead of "unrecognized arguments".
     period = luigi.OptionalParameter(  # noqa: era-rename
@@ -461,6 +500,13 @@ class Task(law.Task):
     )
 
     @classmethod
+    def modify_param_values(cls, params):
+        # before the instance exists, so that it is the very task of the list of the eras
+        if params.get("era") and not cls.allow_meta_era:
+            params["era"] = _expand_meta_era(params["era"])
+        return super(Task, cls).modify_param_values(params)
+
+    @classmethod
     def modify_param_args(cls, params, args, kwargs):
         _reject_removed_era_flags()
         if kwargs.get("period") is not None:  # noqa: era-rename
@@ -484,9 +530,9 @@ class Task(law.Task):
                 f"{self.get_task_family()} takes one era; got --era {era_csv(self.era)}"
             )
         self._setups = {}
-        for era in self.era:
+        for era in self.sub_eras:
             self.setup_for(era)
-        if len(self.era) > 1:
+        if len(self.sub_eras) > 1:
             for what, getter in self.common_settings:
                 self.common(getter, what)
         if isinstance(self, law.BaseWorkflow) and self.is_workflow():
@@ -495,11 +541,31 @@ class Task(law.Task):
         self._dataset_id_name_dict = None
         self._dataset_name_id_dict = None
 
+    @property
+    def meta_era(self):
+        """The meta-era this task is over (`--era Run3_22_23`), or None. A meta-era stands
+        alone in --era, so it is the task's one era."""
+        era = self.era[0]  # noqa: era-scope
+        return era if era in _meta_eras(os.getenv("ANALYSIS_PATH")) else None
+
+    @property
+    def sub_eras(self):
+        """The real eras whose Setups this task has: those of its meta-era, else its eras."""
+        if self.meta_era:
+            return _meta_eras(os.getenv("ANALYSIS_PATH"))[self.meta_era]
+        return self.era
+
+    def sub_era_task(self, cls, eras, **kwargs):
+        """`cls.req(self, ...)` over real `eras` (an era or a tuple of them): what a task over
+        a meta-era requires of its sub-eras."""
+        eras = (eras,) if isinstance(eras, str) else tuple(eras)
+        return cls.req(self, era=eras, **kwargs)  # noqa: era-scope
+
     def setup_for(self, era):
-        """The Setup of one of this task's eras."""
-        if era not in self.era:
+        """The Setup of one of this task's (sub-)eras."""
+        if era not in self.sub_eras:
             raise ValueError(
-                f"{self.get_task_family()}: {era} is not one of {self.era}"  # noqa: era-rename
+                f"{self.get_task_family()}: {era} is not one of {self.sub_eras}"  # noqa: era-rename
             )
         setup = self._setups.get(era)
         if setup is None:
@@ -536,6 +602,11 @@ class Task(law.Task):
 
     @property
     def setup(self):
+        if self.meta_era:
+            raise EraScopeError(
+                f"{self.get_task_family()}(era={self.meta_era}): the meta-era has no Setup of "
+                f"its own; use setup_for(<one of {era_csv(self.sub_eras)}>) or common()"
+            )
         return self.setup_for(self.only_era)
 
     def era_of(self, branch):
@@ -559,21 +630,14 @@ class Task(law.Task):
         ("fs_default", lambda setup: setup.global_params.get("fs_default")),
         ("crab", lambda setup: setup.global_params.get("crab")),
         ("runTokenServer", lambda setup: setup.global_params.get("runTokenServer")),
-        (
-            "WLCGFileSystem.remotePathCacheHost/Port",
-            lambda setup: tuple(
-                (setup.global_params.get("WLCGFileSystem") or {}).get(key)
-                for key in ("remotePathCacheHost", "remotePathCachePort")
-            ),
-        ),
     )
 
     def common(self, getter, what):
         """`getter(setup)` of a setting that holds for every era of this task: its value when
         all eras agree; raises EraDependentValueError naming `what` and each era's value when
         they do not."""
-        values = {era: getter(self.setup_for(era)) for era in self.era}
-        value = values[self.era[0]]  # noqa: era-scope
+        values = {era: getter(self.setup_for(era)) for era in self.sub_eras}
+        value = values[self.sub_eras[0]]
         if any(other != value for other in values.values()):
             raise EraDependentValueError(
                 f"{self.get_task_family()}(era={era_csv(self.era)}): {what} differs between "
@@ -624,6 +688,13 @@ class Task(law.Task):
                 for number in (start, None if stop is None else stop - 1):
                     if number is not None and number >= ERA_BRANCH_STRIDE:
                         era, local = split_era_branch(number)
+                        if len(self.era) > 1:
+                            raise BranchSelectionError(
+                                f"{family}(era={era_csv(self.era)}): branch {number} is "
+                                "in the numbering of the stages with era branches; this "
+                                "workflow has none and numbers its branches as its own map "
+                                "does over any eras"
+                            )
                         if era not in _known_eras(os.getenv("ANALYSIS_PATH")):
                             raise BranchSelectionError(
                                 f"{family}: branch {number} is beyond the "
@@ -856,35 +927,66 @@ class Task(law.Task):
         )
 
     def _stage_path_cache_input(self, config, branches):
-        """Dump the submit-process path cache and ship it with the CRAB job.
+        """Ship a snapshot of this process's path cache with the jobs of a submission round.
 
+        A job reaches no cache server: the snapshot is the only path cache of its processes.
         Before a job runs its branches, luigi checks that the outputs of their requirements
-        exist, and on a CRAB worker the snapshot is its only path cache. Local entries are
-        shipped only while still valid, so those outputs are resolved here: otherwise a job
-        lists every requirement directory itself, one gfal-ls at a time, which for a
-        HistMergerTask branch (every HistFromNtupleProducerTask branch, one directory per
-        variable each) outlasts the job's wall time.
+        exist; local entries are shipped only while still valid, so those outputs are
+        resolved here, or a job would list every requirement directory itself, one gfal-ls at
+        a time, which for a HistMergerTask branch (every HistFromNtupleProducerTask branch,
+        one directory per variable each) outlasts the job's wall time.
+
+        `branches` holds one list of branches per job of the round (CRAB, grouped HTCondor
+        submission), or the branches of the one job (HTCondor batched submission).
         """
         from law.job.base import JobInputFile
         from FLAF.RunKit.law_gfal import (
-            SHIPPED_PATH_CACHE_BASENAME,
+            SHIPPED_PATH_CACHE_PREFIX,
+            SHIPPED_PATH_CACHE_SUFFIX,
             collect_existing_target_entries,
             collect_setup_path_cache_entries,
             write_path_cache_file,
         )
 
         start = time.time()
+        branches = list(branches or [])
+        if branches and not isinstance(branches[0], (list, tuple)):
+            branches = [branches]
         requirements = {}
         for branch in sorted({b for job_branches in branches for b in job_branches}):
             for req in self.as_branch(branch).deps():
                 requirements.setdefault(req.task_id, req)
+        if any(len(job_branches) > 1 for job_branches in branches):
+            # A job of several branches runs them as a workflow (grouped_law_job_script),
+            # and luigi checks that workflow's own requirements too -- for a meta-era
+            # HistMergerTask every merged file of its eras, not only its branches'. Not the
+            # bundles: a job never requires them (_uses_bundles).
+            for req in law.util.flatten(self.workflow_requires()):
+                if not isinstance(req, BundleTask):
+                    requirements.setdefault(req.task_id, req)
         targets = [
-            t for req in requirements.values() for t in law.util.flatten(req.output())
+            t for req in requirements.values() for t in _leaf_targets(req.output())
         ]
         required, n_found = collect_existing_target_entries(targets)
-        entries = {
-            e["path"]: e["exists"] for e in collect_setup_path_cache_entries(self.setup)
-        }
+        # The jobs' own output directories, listed now unless a listing of this poll is
+        # cached: otherwise a later round would ship no listing of them (require_fresh_negatives
+        # drops earlier ones from the snapshot), and every job would list them itself -- for a
+        # HistFromNtupleProducerTask job one directory per variable.
+        list_target_directories(
+            [
+                t
+                for job_branches in branches
+                for b in job_branches
+                for t in _leaf_targets(self.as_branch(b).output())
+            ]
+        )
+        entries = {}
+        # a task over a meta-era has no Setup of its own, but those of its eras
+        for era in self.sub_eras:
+            entries.update(
+                (e["path"], e["exists"])
+                for e in collect_setup_path_cache_entries(self.setup_for(era))
+            )
         entries.update((e["path"], e["exists"]) for e in required)
         print(
             f"{self.task_family}: path-cache snapshot with {len(entries)} entries; "
@@ -894,17 +996,27 @@ class Task(law.Task):
 
         out_dir = self.local_path()
         os.makedirs(out_dir, exist_ok=True)
-        # Named after the workflow: several workflows can submit at once from one local_path().
-        stem, ext = os.path.splitext(SHIPPED_PATH_CACHE_BASENAME)
-        task_hash = self.task_id.rsplit("_", 1)[-1]
-        path = os.path.join(out_dir, f"{stem}_{task_hash}{ext}")
+        # Named after the workflow, since several workflows can submit at once from one
+        # local_path(), and after the round: law and the HTCondor upload of worker files
+        # (CERNHTCondorJobFileFactory) keep the first file of a name they have seen.
+        stem = f"{SHIPPED_PATH_CACHE_PREFIX}{self.task_id.rsplit('_', 1)[-1]}_"
+        path = os.path.join(
+            out_dir, f"{stem}{time.time_ns()}{SHIPPED_PATH_CACHE_SUFFIX}"
+        )
         write_path_cache_file(
             path, [{"path": p, "exists": exists} for p, exists in entries.items()]
         )
-        # Not shared: law builds every CRAB task of a run in one directory and would reuse the
-        # first submission's copy of a shared input for every later wave or retry.
+        # law has copied the snapshots of earlier rounds into their job directories
+        for name in os.listdir(out_dir):
+            earlier = os.path.join(out_dir, name)
+            if (
+                name.startswith(stem)
+                and name.endswith(SHIPPED_PATH_CACHE_SUFFIX)
+                and earlier != path
+            ):
+                os.remove(earlier)
         config.input_files["path_cache"] = JobInputFile(
-            path=path, copy=True, share=False, render=False, increment=True
+            path=path, copy=True, share=False, render=False, increment=False
         )
 
     # Process-local memoization of create_branch_map results, shared across task
@@ -1005,7 +1117,7 @@ class Task(law.Task):
     @property
     def cmssw_env(self):
         # the same for every era: it depends on FLAF_CMSSW_BASE and the environment alone
-        return self.setup_for(self.era[0]).cmssw_env  # noqa: era-scope
+        return self.setup_for(self.sub_eras[0]).cmssw_env
 
     @property
     def datasets(self):
@@ -1018,39 +1130,50 @@ class Task(law.Task):
     @property
     def fs_default(self):
         # one for all eras of a task (construction checks that they agree)
-        return self.setup_for(self.era[0]).get_fs("default")  # noqa: era-scope
+        return self.setup_for(self.sub_eras[0]).get_fs("default")
+
+    def era_fs(self, name):
+        """The file system `fs_<name>` of this task's era; of a meta-era, the one all its
+        sub-eras configure (construction does not check it: each stage reads its own).
+        """
+        if self.meta_era:
+            self.common(
+                lambda setup: setup.global_params.get(f"fs_{name}"), f"fs_{name}"
+            )
+            return self.setup_for(self.sub_eras[0]).get_fs(name)
+        return self.setup.get_fs(name)
 
     @property
     def fs_nanoAOD(self):
-        return self.setup.get_fs("nanoAOD")
+        return self.era_fs("nanoAOD")
 
     @property
     def fs_anaCache(self):
-        return self.setup.get_fs("anaCache")
+        return self.era_fs("anaCache")
 
     @property
     def fs_anaTuple(self):
-        return self.setup.get_fs("anaTuple")
+        return self.era_fs("anaTuple")
 
     @property
     def fs_HistTuple(self):
-        return self.setup.get_fs("HistTuple")
+        return self.era_fs("HistTuple")
 
     @property
     def fs_anaCacheTuple(self):
-        return self.setup.get_fs("anaCacheTuple")
+        return self.era_fs("anaCacheTuple")
 
     @property
     def fs_nnCacheTuple(self):
-        return self.setup.get_fs("nnCacheTuple")
+        return self.era_fs("nnCacheTuple")
 
     @property
     def fs_histograms(self):
-        return self.setup.get_fs("histograms")
+        return self.era_fs("histograms")
 
     @property
     def fs_plots(self):
-        return self.setup.get_fs("plots")
+        return self.era_fs("plots")
 
     def ana_path(self):
         return os.getenv("ANALYSIS_PATH")
@@ -1635,6 +1758,133 @@ class CERNHTCondorJobFileFactory(law.htcondor.HTCondorJobFileFactory):
                 f.write("\n".join(new_lines))
 
 
+def _leaf_targets(output):
+    """The targets of a task's output, a workflow's collection of branch outputs included."""
+    targets = []
+    for target in law.util.flatten(output):
+        if isinstance(target, law.TargetCollection):
+            targets.extend(_leaf_targets(target.targets))
+        else:
+            targets.append(target)
+    return targets
+
+
+#: how long the outputs of a job reported finished may stay unverifiable -- their directory
+#: cannot be listed -- before the run stops
+MAX_UNVERIFIABLE_FINISH_MINUTES = 30.0
+
+
+def _branch_outputs(task, branches):
+    return [t for b in branches for t in _leaf_targets(task.as_branch(b).output())]
+
+
+def _hold_unconfirmed(proxy, job_num, job_id, unlisted, now):
+    """Record that the outputs of job `job_num`, reported finished, are not confirmed on
+    storage (`unlisted`: their directory could not be listed; otherwise they are missing).
+
+    Returns whether law should be left to retry it: its outputs were missing at an earlier
+    look of this hold as well. A hold that could not look at the storage for longer than
+    MAX_UNVERIFIABLE_FINISH_MINUTES stops the run.
+    """
+    if proxy._unconfirmed_finishes is None:
+        proxy._unconfirmed_finishes = {}
+    state = proxy._unconfirmed_finishes.get(job_num)
+    # (job id, outputs seen missing, first reported finished)
+    if state is None or state[0] != job_id:
+        state = (job_id, False, now)
+    _, seen_missing, since = state
+    if unlisted:
+        if now - since > MAX_UNVERIFIABLE_FINISH_MINUTES * 60:
+            raise RuntimeError(
+                f"{proxy.task.task_family}: the outputs of job {job_num}, reported finished "
+                f"{(now - since) / 60:.0f} minutes ago, could not be checked since: their "
+                "directory cannot be listed. Nothing was resubmitted; run again once the "
+                "storage answers."
+            )
+    elif seen_missing:
+        del proxy._unconfirmed_finishes[job_num]
+        return True
+    proxy._unconfirmed_finishes[job_num] = (job_id, seen_missing or not unlisted, since)
+    return False
+
+
+def check_finished_jobs(task):
+    """The `check_job_completeness` hook of both remote workflows: a job the batch system
+    reports finished is booked finished only once its outputs are on storage.
+
+    law calls the hook once per poll iteration, after it has read the job statuses and
+    before it judges them (law/workflow/remote.py), and books a job reported FINISHED as
+    finished only if all its branches are complete, else retries it ("branch task(s)
+    incomplete due to missing outputs"). This prepares that verdict:
+
+    * every "absent" behind it rests on a listing taken from now on: no job publishes what
+      it writes, so a cached listing may predate the job's write (require_fresh_negatives);
+    * the output directories of all jobs reported finished are listed at once, several at a
+      time, rather than one after the other in law's verdict; the listings also bring what
+      the jobs wrote into the cache, for later snapshots and the other processes;
+    * a job whose outputs are not there is kept running and retried only if they are still
+      missing at the next look, since storage may show a new file late; a job whose output
+      directory cannot be listed is kept running until it can be, for at most
+      MAX_UNVERIFIABLE_FINISH_MINUTES from when it was reported finished, as a listing that
+      fails says nothing about the files.
+
+    A job kept running is counted as running by law, so the workflow cannot finish while it
+    is unconfirmed. A hold lasts while the job is reported finished: a CRAB automatic retry
+    keeps its job id, and must not inherit what an earlier attempt's hold saw.
+    """
+    require_fresh_negatives()
+    proxy = task.workflow_proxy
+    job_data = proxy.job_data
+    manager = proxy.job_manager
+    skippable = proxy._skip_jobs
+    candidates = [
+        (job_num, data)
+        for job_num, data in job_data.jobs.items()
+        if data.get("status") == manager.FINISHED
+        # an id: not booked finished in an earlier iteration (law then sets the dummy id),
+        # not skipped as complete in this one
+        and data.get("job_id") not in (None, job_data.dummy_job_id)
+        and not skippable.get(job_num)
+    ]
+    if proxy._unconfirmed_finishes:
+        current = {job_num for job_num, _ in candidates}
+        for job_num in list(proxy._unconfirmed_finishes):
+            if job_num not in current:
+                del proxy._unconfirmed_finishes[job_num]
+    if not candidates:
+        return True
+    outputs = {
+        job_num: _branch_outputs(task, data["branches"]) for job_num, data in candidates
+    }
+    unlisted = list_target_directories(
+        [t for targets in outputs.values() for t in targets]
+    )
+    if proxy._finish_reported_at is None:
+        proxy._finish_reported_at = {}
+    now = time.time()
+    held = []
+    for job_num, data in candidates:
+        job_id = data["job_id"]
+        if any(id(t) in unlisted for t in outputs[job_num]):
+            _hold_unconfirmed(proxy, job_num, job_id, True, now)
+        elif all(task.as_branch(b).complete() for b in data["branches"]):
+            state = (proxy._unconfirmed_finishes or {}).pop(job_num, None)
+            # when the batch system reported it finished, for the job durations
+            proxy._finish_reported_at[job_num] = state[2] if state else now
+            continue
+        elif _hold_unconfirmed(proxy, job_num, job_id, False, now):
+            continue
+        data["status"] = manager.RUNNING
+        held.append(job_num)
+    if held:
+        task.publish_message(
+            f"{len(held)} job(s) reported finished whose outputs are not confirmed on storage "
+            "yet (missing, or their directory cannot be listed); kept running and checked "
+            "again at the next poll"
+        )
+    return True
+
+
 class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     """
     Batch systems are typically very heterogeneous by design, and so is HTCondor. Law does not aim
@@ -1750,6 +2000,15 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         the flavours it knows about, and an analysis that keeps e.g. its environment inside
         another bundle simply has fewer of them.
         """
+        if self.meta_era:
+            # bundles are per era: a task over a meta-era ships those of each of its eras
+            return [
+                bundle
+                for era in self.sub_eras
+                for bundle in self.sub_era_task(
+                    type(self), era, branch=-1, branches=()
+                )._bundle_tasks()
+            ]
         configured = self.global_params.get("bundles", {})
         tasks = []
         for item in self.bundle_flavours:
@@ -1849,7 +2108,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
         return self._bundle_requirements()
 
     def htcondor_check_job_completeness(self):
-        return False
+        return check_finished_jobs(self)
 
     def htcondor_poll_callback(self, poll_data):
         update_kinit(verbose=0)
@@ -1879,6 +2138,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
     def htcondor_job_config(self, config, job_num, branches):
         self._apply_bootstrap_path_render_variables(config)
         self._stage_user_custom_input(config)
+        self._stage_path_cache_input(config, branches)
 
         # force to run on AlmaLinux9, https://batchdocs.web.cern.ch/local/submit.html
         config.custom_content.append(
@@ -2028,6 +2288,10 @@ class SubmissionGuards(LawProxyState):
     _resumed_attempts = None
     _lost_outputs_judged = False
     _skipping_since = None
+    # check_finished_jobs: job_num -> the hold of a job reported finished whose outputs are
+    # not confirmed on storage; job_num -> when a job it booked was first reported finished
+    _unconfirmed_finishes = None
+    _finish_reported_at = None
 
     def _snapshot_resumed_jobs(self):
         """The job data a resumed run starts from, taken before the first poll changes it."""
@@ -2106,6 +2370,21 @@ class SubmissionGuards(LawProxyState):
         finally:
             self._put_back(replaced)
 
+    def _keep_running(self, job_nums, retry_jobs):
+        """Take jobs that law demoted back out of its retry generation `retry_jobs`: as this
+        run loaded them, with their job id, running, and without the attempt law counted.
+        """
+        self._restore_resumed(job_nums)
+        for job_num in job_nums:
+            retry_jobs.pop(job_num, None)
+            self.job_data.jobs[job_num]["status"] = self.job_manager.RUNNING
+            self._job_retries[job_num] = max(self._job_retries[job_num] - 1, 0)
+        self.task.publish_message(
+            f"{len(job_nums)} job(s) reported finished whose outputs are not confirmed on "
+            "storage yet (missing, or their directory cannot be listed); kept running and "
+            "checked again at the next poll"
+        )
+
     def _too_many_lost(self, lost):
         """What is lost, in words, when the jobs `lost` are too many to resubmit; else None."""
         n_lost, n_jobs = len(lost), len(self.job_data)
@@ -2134,17 +2413,47 @@ class SubmissionGuards(LawProxyState):
         # back as "initially missing task outputs"; a branch may also be complete by its task's
         # own rule (e.g. inputs merged and replaced by markers). Only a job whose branches are
         # incomplete on a fresh look counts as lost; the others are marked skippable, so that
-        # law's submit() passes them by and its next poll books them done.
+        # law's submit() passes them by and its next poll books them done. A job reported
+        # finished by the batch system whose outputs are not confirmed is held, as
+        # check_finished_jobs holds it in every later poll -- law demotes it in this first poll
+        # before that hook is called -- unless too many came back so.
         require_fresh_negatives()
+        outputs = {
+            job_num: _branch_outputs(self.task, retry_jobs[job_num])
+            for job_num in candidates
+        }
+        unlisted = list_target_directories(
+            [t for targets in outputs.values() for t in targets]
+        )
         skip_jobs = self._skip_jobs
         lost = []
+        held = []
+        now = time.time()
         for job_num in candidates:
-            if all(self.task.as_branch(b).complete() for b in retry_jobs[job_num]):
+            data = self.job_data.jobs.get(job_num) or {}
+            is_unlisted = any(id(t) in unlisted for t in outputs[job_num])
+            # By a job the batch system still knows, not recorded as finished before. Not held
+            # with --no-poll: that run ends after this round, and the next starts the hold
+            # afresh, so it would never come to the second look.
+            reported_finished = data.get(
+                "error"
+            ) == self.missing_outputs_error and not getattr(self.task, "no_poll", False)
+            if not is_unlisted and all(
+                self.task.as_branch(b).complete() for b in retry_jobs[job_num]
+            ):
                 skip_jobs[job_num] = True
+            elif reported_finished and not _hold_unconfirmed(
+                self, job_num, data.get("job_id"), is_unlisted, now
+            ):
+                held.append(job_num)
             else:
                 lost.append(job_num)
-        too_many = self._too_many_lost(lost)
+        # a held job counts, as a lost one does: the next poll would retry it outside this
+        # brake, and a mass of them is what the brake stops
+        too_many = self._too_many_lost(lost + held)
         if not too_many:
+            if held:
+                self._keep_running(held, retry_jobs)
             return
         # law has already rewritten these jobs as retries and counted the attempt; write them
         # as they were, so that the next run finds and judges them again
@@ -2238,9 +2547,9 @@ class SubmissionGuards(LawProxyState):
     def run(self):
         # law judges which outputs exist from what it gathered while luigi scheduled the
         # workflow, through cached existence answers: a workflow scheduled before its inputs
-        # existed, or waiting for its turn, keeps that early "cannot be skipped", and a CRAB
-        # worker cannot reach the path-cache server, so an output written while no driver was
-        # polling still reads as absent there. Gather it again, with every "absent" resting on
+        # existed, or waiting for its turn, keeps that early "cannot be skipped", and no job
+        # publishes what it writes, so an output written while no driver was polling still
+        # reads as absent in the cache. Gather it again, with every "absent" resting on
         # a listing taken from here on: otherwise the first poll of a resumed run sends
         # finished branches back to the batch system.
         require_fresh_negatives()
@@ -2463,14 +2772,19 @@ class _BundleAwareHTCondorWorkflowProxy(
             status = data.get("status")
             if status == self.job_manager.RUNNING:
                 self._job_started_at.setdefault(job_num, now)
+            elif status in (self.job_manager.RETRY, self.job_manager.FAILED):
+                # the next attempt is timed from its own start
+                self._job_started_at.pop(job_num, None)
             elif status == self.job_manager.FINISHED:
                 if job_num in self._job_harvested:
                     continue
                 self._job_harvested.add(job_num)
                 started = self._job_started_at.pop(job_num, None)
+                # not including the polls it was held for while its outputs were checked
+                ended = (self._finish_reported_at or {}).pop(job_num, now)
                 branches = data.get("branches") or []
                 if started is not None and len(branches) == 1:
-                    samples.append((branches, now - started))
+                    samples.append((branches, ended - started))
         if not samples:
             return
         try:
@@ -4416,20 +4730,10 @@ process.out = cms.EndPath(process.output)
         classifying it, and it parks a payload that exited non-zero there too; with
         transfers skipped, law maps that state to FINISHED. Without this check a poll
         landing in that window writes a failed job off as finished and never queries it
-        again (DSProd booked 113 failed jobs as `finished: 113` in one poll). With it, law
-        checks the branch outputs before accepting FINISHED and demotes a job whose outputs
-        are missing to a retry; each job is checked once for the whole run.
-
-        law calls this once per poll iteration, right before it checks the jobs reported
-        finished, which is the moment to require that every "absent" answer of this
-        iteration rests on a listing taken after the status it judges. Cached answers do
-        not: a CRAB worker cannot reach the path-cache server, so a listing published before
-        the job wrote its file answers "absent" for it until it expires. Positive answers
-        stay cache-served; a negative costs one listing per directory per poll, and the
-        fresh listing republishes the directory for every other process.
+        again (DSProd booked 113 failed jobs as `finished: 113` in one poll). The rule is
+        the same as on HTCondor: see check_finished_jobs.
         """
-        require_fresh_negatives()
-        return True
+        return check_finished_jobs(self)
 
     def crab_poll_callback(self, poll_data):
         # The one hook the poll loop calls outside its own error handling, so the one place

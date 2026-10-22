@@ -655,9 +655,13 @@ class EraScope(_ScratchAnalysis):
         """The directory HTCondor job inputs are staged to without spooling."""
         task = self.two_eras(bundle=True, htcondor_spool=False, workflow="htcondor")
         config = self.job_config()
-        # bundles need a remote fs_default; what is under test is the path after them
+        # bundles need a remote fs_default, and the path-cache snapshot is written under
+        # local_path(), which raises on two eras as well: what is under test is the path
+        # after them
         with mock.patch.object(
             HelloWorldTask, "_apply_bundle_render_variables", lambda self, c: None
+        ), mock.patch.object(
+            HelloWorldTask, "_stage_path_cache_input", lambda self, c, b: None
         ):
             with self.assertRaises(lc.EraScopeError):
                 task.htcondor_job_config(config, 1, [0])
@@ -772,20 +776,14 @@ class SettingsAgreement(_ScratchAnalysis):
                 "{host: a.cern.ch, port: 1}",
                 "{host: b.cern.ch, port: 1}",
             ),
-            "WLCGFileSystem": (
-                "{remotePathCacheHost: a.cern.ch, remotePathCachePort: 1}",
-                "{remotePathCacheHost: b.cern.ch, remotePathCachePort: 1}",
-            ),
         }
         values = {
             "crab": ("T2_CH_CERN", "T2_DE_DESY"),
             "runTokenServer": ("a.cern.ch", "b.cern.ch"),
-            "WLCGFileSystem": ("a.cern.ch", "b.cern.ch"),
         }
         names = {
             "crab": "crab",
             "runTokenServer": "runTokenServer",
-            "WLCGFileSystem": "WLCGFileSystem.remotePathCacheHost/Port",
         }
         for key, (a, b) in cases.items():
             with self.subTest(key=key):
@@ -797,21 +795,6 @@ class SettingsAgreement(_ScratchAnalysis):
                 self.assert_names(caught, names[key], *values[key])
                 HelloWorldTask(version=version, era=ERA_A)
                 HelloWorldTask(version=version, era=ERA_B)
-
-    def test_a_differing_path_cache_port_alone_is_refused(self):
-        for era, port in ((ERA_A, 9100), (ERA_B, 9200)):
-            self.era_config(
-                era,
-                "WLCGFileSystem: "
-                f"{{remotePathCacheHost: a.cern.ch, remotePathCachePort: {port}}}\n",
-            )
-        with self.assertRaises(lc.EraDependentValueError) as caught:
-            HelloWorldTask(version=self.version, era=(ERA_A, ERA_B))
-        self.assert_names(
-            caught, "WLCGFileSystem.remotePathCacheHost/Port", "9100", "9200"
-        )
-        HelloWorldTask(version=self.version, era=ERA_A)
-        HelloWorldTask(version=self.version, era=ERA_B)
 
     def test_equal_settings_are_read_once(self):
         for era in (ERA_A, ERA_B):
@@ -1117,8 +1100,12 @@ class BranchSelection(_ScratchAnalysis):
     def test_without_era_branches_the_numbers_are_the_maps_own(self):
         task = EraBrMapOwner(version=self.version, era=(ERA_A, ERA_B), branches=(1,))
         self.assertEqual(task.get_branch_map(), {1: "B"})
-        with self.assertRaises(lc.BranchSelectionError):
+        with self.assertRaises(lc.BranchSelectionError) as caught:
             EraBrMapOwner(version=self.version, era=(ERA_A, ERA_B), branches=(BASE_A,))
+        # not the advice for a stage with era branches (`--era <era> --branches <local>`):
+        # this workflow's branches need all of its eras
+        self.assertIn("numbers its branches as its own map does", str(caught.exception))
+        self.assertNotIn("--branches", str(caught.exception))
 
 
 class BranchOnTheCommandLine(_ScratchAnalysis):
@@ -1728,6 +1715,120 @@ class CostProbeMaps(_ScratchAnalysis):
         self.assertNotEqual(
             branches[BASE_A].output().abspath, branches[BASE_B].output().abspath
         )
+
+
+# --------------------------------------------------------------------------------------
+# Meta-eras: a group of `era_groups:` given alone as --era, summed by HistMergerTask
+# --------------------------------------------------------------------------------------
+
+META = "Run3_Test"
+
+
+class MetaEras(_ScratchAnalysis):
+    def setUp(self):
+        super().setUp()
+        self.write(
+            os.path.join(self.ana, "config", "global.yaml"),
+            FILES["config/global.yaml"]
+            .replace("@FS@", self.fs)
+            .replace("    variables: []", "    variables: [ v1, v2 ]", 1)
+            + f"era_groups:\n  {META}: [ {ERA_B}, {ERA_A} ]\n",
+        )
+
+    def test_a_meta_era_is_one_era_with_the_setups_of_its_eras(self):
+        task = analysis.HistMergerTask(version=self.version, era=META)
+        self.assertEqual(task.era, (META,))
+        self.assertEqual(task.only_era, META)
+        self.assertEqual(task.meta_era, META)
+        self.assertEqual(task.sub_eras, (ERA_A, ERA_B))
+        self.assertEqual(task.setup_for(ERA_B).era, ERA_B)
+        with self.assertRaises(lc.EraScopeError):
+            task.setup
+
+    def test_a_meta_era_beside_another_era_is_refused(self):
+        for era in (f"{META},{ERA_A}", f"{META},{ERA_C}"):
+            with self.subTest(era=era):
+                with self.assertRaises(lc.MetaEraError) as caught:
+                    analysis.HistMergerTask(version=self.version, era=era)
+                self.assertIn("is run on its own", str(caught.exception))
+
+    def test_a_stage_that_does_not_sum_runs_over_its_eras(self):
+        for cls in (
+            ana_prod.InputFileTask,
+            ana_prod.AnaTupleMergeTask,
+            analysis.HistFromNtupleProducerTask,
+        ):
+            with self.subTest(cls=cls.__name__):
+                task = cls(version=self.version, era=META)
+                self.assertEqual(task.era, (ERA_A, ERA_B))
+                self.assertIsNone(task.meta_era)
+                self.assertIs(task, cls(version=self.version, era=f"{ERA_A},{ERA_B}"))
+
+    def test_on_the_command_line_too(self):
+        task = self.from_command_line(
+            "AnaTupleMergeTask", "--version", self.version, "--era", META
+        )
+        self.assertEqual(task.era, (ERA_A, ERA_B))
+        merger = self.from_command_line(
+            "HistMergerTask", "--version", self.version, "--era", META
+        )
+        self.assertEqual(merger.era, (META,))
+
+    def test_the_sum_requires_the_merges_of_its_eras(self):
+        task = analysis.HistMergerTask(version=self.version, era=META, workflow="local")
+        merge = task.stage_workflow_requires()["HistMergerTask"]
+        self.assertIsInstance(merge, analysis.HistMergerTask)
+        self.assertEqual(merge.era, (ERA_A, ERA_B))
+        self.assertIsNone(merge.meta_era)
+
+    def test_the_sum_reads_the_merged_files_of_its_eras(self):
+        # no AnaTuple merge plan exists here: neither the map of the sum nor what a branch of it
+        # reads may need one
+        task = analysis.HistMergerTask(version=self.version, era=META, workflow="local")
+        branch_map = task.create_branch_map()
+        self.assertEqual([data[0] for data in branch_map.values()], ["v1", "v2"])
+        branch = analysis.HistMergerTask(
+            version=self.version, era=META, workflow="local", branch=1
+        )
+        reqs = branch.requires()
+        self.assertEqual(sorted(reqs), [ERA_A, ERA_B])
+        for era, req in reqs.items():
+            self.assertIsInstance(req, analysis.MergedHistsTask)
+            self.assertEqual(req.era, (era,))
+            self.assertTrue(
+                req.output().path.endswith(f"Hists_merged/{era}/v2/v2.root")
+            )
+        self.assertTrue(
+            branch.output().path.endswith(f"Hists_merged/{META}/v2/v2.root")
+        )
+
+    def test_its_outputs_belong_to_the_meta_era(self):
+        task = analysis.HistMergerTask(version=self.version, era=META, workflow="local")
+        self.assertEqual(task.store_parts(), (self.version, "HistMergerTask", META))
+        self.assertEqual(
+            task.era_fs("HistTuple"), task.setup_for(ERA_A).get_fs("HistTuple")
+        )
+
+    def test_a_list_of_eras_stays_separate(self):
+        task = analysis.HistMergerTask(version=self.version, era=f"{ERA_A},{ERA_B}")
+        self.assertIsNone(task.meta_era)
+        self.assertEqual(task.sub_eras, (ERA_A, ERA_B))
+
+    def test_its_jobs_get_the_path_cache_of_its_eras(self):
+        """Both backends ship a path-cache snapshot with every submission round, gathered
+        from the Setups of the task's eras: a meta-era has none of its own (`setup` raises),
+        which a stager reading `self.setup` hit on the first CRAB submission."""
+        task = analysis.HistMergerTask(version=self.version, era=META, workflow="crab")
+        for branches in ([[0], [1]], [0, 1]):
+            with self.subTest(branches=branches):
+                config = mock.Mock(input_files={})
+                with mock.patch("builtins.print"):
+                    task._stage_path_cache_input(config, branches)
+                shipped = config.input_files["path_cache"]
+                self.assertTrue(os.path.isfile(shipped.path))
+                self.assertTrue(
+                    shipped.path.startswith(task.local_path()), shipped.path
+                )
 
 
 if __name__ == "__main__":

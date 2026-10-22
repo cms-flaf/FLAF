@@ -61,8 +61,9 @@ law index --verbose
 
 ## Writing code for several eras
 
-A task over several eras (`--era A,B`) is one workflow whose branches each belong to one era
-([Eras](concepts/eras.md#running-several-eras)). The base class `Task` in
+A stage over several eras (`--era A,B`) is one workflow whose branches each belong to one era
+([Eras](concepts/eras.md#running-several-eras)); the second model, a workflow without era
+branches, is described below. The base class `Task` in
 `FLAF/run_tools/law_customizations.py` keeps the two scopes apart, and a task class follows these
 rules:
 
@@ -90,6 +91,16 @@ rules:
 - **Build the branch map through `cached_branch_map`**: `create_branch_map` returns
   `self.cached_branch_map(self._build_branch_map)`, and the union over the eras is made from the
   single-era maps.
+- **A workflow over several eras without era branches** (`allow_multi_era` only; StatInference's
+  card stages are the example) keeps law's own branches, and every branch task keeps all the eras
+  of the run, so branch-level code reads an era's values through `setup_for(era)` and run-wide ones
+  through `common()`. FLAF's `store_parts()` and `remote_log_dir_target()` are per era and refuse
+  several: override both so that the job file and the logs do not depend on `--era` (a later run
+  over more eras then resumes the same jobs). Build its map without `cached_branch_map`, which
+  refuses several eras without era branches, and keep anything that must refuse an era set out of
+  `__init__`: FLAF constructs the workflow over each single era for its luigi resource tokens.
+  Bundles (and with them CRAB) read per-era configuration and are not available to such a
+  workflow. `test/test_era_jobs.py` (`EraCardWorkflow`) guards this shape.
 - **Name eras in requirements only through `with_eras(eras, branches)`**, which derives this stage
   over other eras and hands on the per-task values (`--tasks-per-job`, `--max-runtime`,
   `--n-cpus`, `--crab-memory`). `run_tools/check_era_rename.py` reports an `era` keyword in

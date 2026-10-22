@@ -28,8 +28,7 @@ class WLCGFileSystem(RemoteFileSystem):
         self,
         base,
         local_path_cache_validity_period=600,
-        path_cache_host=None,
-        path_cache_port=None,
+        path_cache_server=None,
         verbose=0,
     ):
         if base == "rucio":
@@ -41,8 +40,7 @@ class WLCGFileSystem(RemoteFileSystem):
             file_interface = GFALFileInterface(
                 base_pfns,
                 local_path_cache_validity_period=local_path_cache_validity_period,
-                path_cache_host=path_cache_host,
-                path_cache_port=path_cache_port,
+                path_cache_server=path_cache_server,
                 verbose=verbose,
             )
         super(WLCGFileSystem, self).__init__(file_interface)

@@ -17,7 +17,7 @@ also provides built-in options for status and cleanup.
 | Option | Default | Meaning |
 |---|---|---|
 | `--version` | *(required)* | Label that namespaces this run's outputs. Different versions never collide. |
-| `--era` | *(required)* | The [era](../concepts/eras.md), e.g. `Run3_2022`, or several separated by commas (`Run3_2022,Run3_2022EE`): one run over all of them, with one workflow per stage; see [Running several eras](../concepts/eras.md#running-several-eras) and [below](#several-eras-era-and-branches). A task that does not support several eras refuses them with `<Task> takes one era`. |
+| `--era` | *(required)* | The [era](../concepts/eras.md), e.g. `Run3_2022`, or several separated by commas (`Run3_2022,Run3_2022EE`): one run over all of them, with one workflow per stage; see [Running several eras](../concepts/eras.md#running-several-eras) and [below](#several-eras-era-and-branches). A task that does not support several eras refuses them with `<Task> takes one era`. Or a meta-era of `era_groups:`, given alone (`Run3_22_23`): `HistMergerTask` sums its eras and `HistPlotTask` plots the sum, every other stage runs over its eras; see [Meta-eras](../concepts/eras.md#meta-eras). |
 | `--workflow` | `htcondor` | `local` (this machine), `htcondor` (CERN batch), or `crab` (WLCG). Without the option LAW picks the first workflow a task declares, which for FLAF tasks is HTCondor — so always pass it. `InputFileTask` and `AnaTupleFileListTask` always run locally. See [HTCondor](htcondor.md) and [CRAB](crab.md). |
 | `--branches` | *(all)* | Which branches of the launched task to run, e.g. `0`, `0,2`, `5:8` (a `start:end` range excludes its end, so this is 5, 6, 7). Upstream tasks are then asked only for the branches these need — once their branch maps exist; on a from-scratch run the upstream stages that define the branch map are required in full. The selection is kept also when it is given before the task's branch map exists. Over several eras the numbers carry the era, see [below](#several-eras-era-and-branches). |
 | `--test` | `-1` | AnaTuple production only: keep just the **first input file of every dataset** and process at most N events of it (`-1` = everything). See the warning below. |
@@ -52,7 +52,9 @@ law run FLAF.Analysis.tasks.HistMergerTask --version v1 --era Run3_2022,Run3_202
   and stays inside one era. Once an era's branch map exists, at least one of its numbers must be a
   branch of that map: a run over one era would take a selection naming none of its branches as the
   whole map, which a run over several eras refuses.
-- `--branch` is refused over several eras: use `--era <era> --branch <its number in that era>`.
+- `--branch` is refused over several eras for the stages with era branches: use
+  `--era <era> --branch <its number in that era>`. A `StatInference` card workflow takes
+  `--branch <card number>` over several eras.
 - A run over one era refuses the numbers of a run over several eras (1 000 000 and above): with the
   decoded form when the number belongs to a configured era, as beyond the numbers of one era
   otherwise. See

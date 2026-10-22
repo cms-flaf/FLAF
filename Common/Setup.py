@@ -1,4 +1,5 @@
 import os
+import sys
 import re
 import yaml
 import json
@@ -7,6 +8,8 @@ import law
 
 from FLAF.RunKit.envToJson import get_cmsenv
 from FLAF.RunKit.law_wlcg import WLCGFileSystem
+from FLAF.RunKit.pathCacheClient import ServerUnavailable, checked_server_address
+from FLAF.RunKit.run_tools import on_batch_node
 from FLAF.Common.Utilities import create_processor_instances
 
 
@@ -59,6 +62,27 @@ def resolve_user_custom_path(user_custom):
         except OSError:
             pass
     return path
+
+
+_local_path_cache_server = []
+
+
+def local_path_cache_server():
+    """The socket of this user's path-cache server on this machine, or None when its
+    directory is not private to this user: anyone could then put a socket there, so the
+    process works from its own cache. Checked once per process; the process's cache starts
+    the server when it does not answer, and works alone while it cannot."""
+    if not _local_path_cache_server:
+        try:
+            _local_path_cache_server.append(checked_server_address())
+        except ServerUnavailable as e:
+            print(
+                f"Setup: the path-cache server is not used ({e}); this process lists every "
+                "directory it looks at itself and shares nothing it learns",
+                file=sys.stderr,
+            )
+            _local_path_cache_server.append(None)
+    return _local_path_cache_server[0]
 
 
 def select_items(all_items, filters):
@@ -378,6 +402,56 @@ def known_eras(ana_path):
         if match and match.group(1) == name:
             eras.append(name)
     return eras
+
+
+def era_groups(ana_path):
+    """{meta-era: its eras, sorted} as the `era_groups:` of FLAF's and the analysis's
+    global.yaml list them. A meta-era is the sum of its eras: it has no configuration of its
+    own, and only the stages that sum (HistMergerTask) and those reading the sum take it.
+    Without an analysis path there is no configuration, and so no meta-era.
+    """
+    groups = {}
+    if not ana_path:
+        return groups
+    for path in (
+        os.path.join(ana_path, "FLAF", "config", "global.yaml"),
+        os.path.join(ana_path, "config", "global.yaml"),
+    ):
+        if os.path.isfile(path):
+            with open(path) as f:
+                groups.update((yaml.safe_load(f) or {}).get("era_groups") or {})
+    return {name: tuple(sorted(set(members or ()))) for name, members in groups.items()}
+
+
+def expand_meta_era(eras, groups):
+    """The eras `eras` stand for: a meta-era of `groups` given alone stands for its eras,
+    anything else for itself."""
+    eras = tuple(eras)
+    if len(eras) == 1 and eras[0] in groups:
+        return groups[eras[0]]
+    return eras
+
+
+def check_meta_era(name, members, eras):
+    """Raise unless meta-era `name` is the sum of known `eras` and not itself an era."""
+    if name in eras:
+        raise ValueError(f"era_groups: {name} is an era, not a group of eras")
+    unknown = [era for era in members if era not in eras]
+    if unknown or not members:
+        raise UnknownEraError(
+            f"era_groups: {name} lists unknown eras {unknown or list(members)}; known "
+            f"eras: {', '.join(eras)}"
+        )
+
+
+def meta_eras(ana_path):
+    """era_groups(), each group checked against the known eras."""
+    groups = era_groups(ana_path)
+    if groups:
+        eras = known_eras(ana_path)
+        for name, members in groups.items():
+            check_meta_era(name, members, eras)
+    return groups
 
 
 class Setup:
@@ -788,40 +862,35 @@ class Setup:
 
         if path_to_check.startswith("/"):
             return law.LocalFileSystem(base=path_to_check)
-        else:
-            cfg = self.global_params.get("WLCGFileSystem", {})
-            cache_validity = cfg.get("localPathCacheValidity", 600)
-            host = cfg.get("remotePathCacheHost", None)
-            port = cfg.get("remotePathCachePort", None)
-            # cms-flaf.cern.ch is behind the CERN firewall; CRAB workers at other
-            # sites cannot reach it. Use the in-process PathCache, seeded from the
-            # snapshot shipped at submit, with a longer TTL so many jobs do not
-            # re-stat the same remote paths.
-            on_crab_worker = bool(
-                os.environ.get("LAW_CRAB_JOB_NUMBER") or os.environ.get("CRAB_Id")
+        cfg = self.global_params.get("WLCGFileSystem", {})
+        if "crabLocalPathCacheValidity" in cfg:
+            raise RuntimeError(
+                "WLCGFileSystem.crabLocalPathCacheValidity is now jobPathCacheValidity: it "
+                "applies to the jobs of both batch backends. Rename the key."
             )
-            if on_crab_worker:
-                host = None
-                port = None
-                cache_validity = int(
-                    cfg.get(
-                        "crabLocalPathCacheValidity",
-                        max(cache_validity * 24, 86400),
-                    )
-                )
-            verbose = cfg.get("verbose", 0)
+        cache_validity = cfg.get("localPathCacheValidity", 600)
+        verbose = cfg.get("verbose", 0)
+        if on_batch_node():
+            # A job reaches no cache server: it works from the snapshot its submission
+            # shipped, for its whole life, so that it does not list what the driver knew.
+            cache_validity = int(
+                cfg.get("jobPathCacheValidity", max(cache_validity * 24, 86400))
+            )
             fs = WLCGFileSystem(
                 path_or_paths,
                 local_path_cache_validity_period=cache_validity,
-                path_cache_host=host,
-                path_cache_port=port,
                 verbose=verbose,
             )
-            if on_crab_worker:
-                from FLAF.RunKit.law_gfal import apply_shipped_path_cache
+            from FLAF.RunKit.law_gfal import apply_shipped_path_cache
 
-                apply_shipped_path_cache(fs)
+            apply_shipped_path_cache(fs)
             return fs
+        return WLCGFileSystem(
+            path_or_paths,
+            local_path_cache_validity_period=cache_validity,
+            path_cache_server=local_path_cache_server(),
+            verbose=verbose,
+        )
 
     def get_fs(self, fs_name, custom_paths=None):
         fs_instance = None

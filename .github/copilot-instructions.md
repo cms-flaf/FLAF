@@ -103,7 +103,15 @@ Each of these has caused a production incident. They are ordered by how much dam
   only be inferred from a *valid listing marker*. Never add a path that concludes "the directory
   is known to exist, the file is not in what we have, therefore it is absent" — that reported
   2260 of 11066 existing outputs as missing in production.
-- The cache is two-level (in-process + a shared server). A change that makes every job do its own
+- The cache is two-level (in-process + one per-user, per-machine server on a Unix socket,
+  `/tmp/flaf-path-cache-<uid>/server_v1.sock`, started on demand by `ensure_local_server`; the
+  central `cms-flaf.cern.ch:5000` server is gone). Jobs (HTCondor and CRAB) never contact a
+  server: they read the snapshot their submission shipped. An "absent" and a listing marker live
+  10 min on the server (`negative_validity`), an "exists" 24 h. A server address must come from
+  `checked_server_address` (the directory private to the user), and only a same-uid peer is
+  believed (`_check_peer`, SO_PEERCRED): another user on the node could otherwise answer every
+  question with "exists". A server-learned listing marker is never kept locally (`RemotePathCache._keep`).
+  A change that makes every job do its own
   `gfal-ls` will work in a test and DDoS the storage in production. Reviews should ask what a
   change costs at 10k concurrent jobs.
 - **Freshly written remote files can be invisible for seconds.** Code that writes and then
@@ -120,13 +128,18 @@ Each of these has caused a production incident. They are ordered by how much dam
   must never exist while partial, and an existing good file must not be removed before the
   replacement is complete, and no "absent" may be published for the target during the upload.
   Orphaned `.flaf-tmp-*` files match no output pattern but take quota.
-- A CRAB worker cannot reach the path-cache server, so a driver that believes an "absent" from a
-  cached listing reads files the workers wrote as missing; the CRAB completeness check and the
-  start of every batch workflow run, CRAB and HTCondor (where law judges which outputs exist),
-  take fresh listings
+- Jobs publish nothing to the path cache, so a driver that believes an "absent" from a
+  cached listing reads files the jobs wrote as missing. On both backends the driver never trusts
+  the batch system's "finished": every poll lists the output directories of the jobs reported
+  finished (every "absent" resting on that poll's listing; a missing output is retried only after
+  one more poll, an unlistable directory is tolerated for at most 30 minutes after the job was
+  reported finished, then the run stops; `check_finished_jobs`, and `_stop_on_mass_lost_outputs`
+  for the first poll of a resumed run, where law demotes before the hook),
+  and the start of every batch workflow takes fresh listings
   first (`require_fresh_negatives`, and the existing-branch memos law filled while scheduling are
   dropped).
-- The submit-time snapshot is a CRAB worker's only path cache, and luigi checks every requirement
+- The submit-time snapshot (`path_cache_<taskhash>_<time_ns>.json.gz`, every round, HTCondor and
+  CRAB) is a job's only path cache, and luigi checks every requirement
   of a job's branches before running them: `_stage_path_cache_input` must ship each existing
   output of those requirements whatever the age of the driver's own entries (only "exists",
   never an absent for them). A job that has to list them itself pays one `gfal-ls` per directory
@@ -216,7 +229,7 @@ Each of these has caused a production incident. They are ordered by how much dam
     `EraDependentValueError` and `BranchSelectionError` must not subclass `AttributeError`, which
     `getattr(task, name, default)` and `hasattr` would swallow. A setting a run reads once for all its
     eras goes through `common(getter, what)`, which raises when the eras disagree (`fs_default`,
-    `crab`, `runTokenServer`, the path-cache host and port, `anaTuple_scheduling`,
+    `crab`, `runTokenServer`, `anaTuple_scheduling`,
     `use_cmssw_env_AnaTupleProduction`, a producer's `n_cpus`/`max_runtime`/`crab_memory`/`save_as`/
     `cmssw_env`); a new run-wide reader without it silently takes one era's value.
   - **A stage's requirements live in `stage_workflow_requires()`; `workflow_requires()` is the
@@ -235,6 +248,13 @@ Each of these has caused a production incident. They are ordered by how much dam
     per era, and `parallel_jobs` and the refused/failed-submission stops are run-wide. Two
     instances of a stage sharing an era never run at once (the luigi resource
     `flaf_jobs:<job-file directory>`).
+  - **A second model: `allow_multi_era` without `era_branches`** (StatInference's card stages,
+    guarded by `EraCardWorkflow` in `test/test_era_jobs.py`): law's own branches, every branch task
+    over all eras of the run, `store_parts()`/`remote_log_dir_target()` overridden without the era,
+    the map built without `cached_branch_map`, the plain (not the merged) proxy, one job file and one
+    luigi token. FLAF code must not build the map of, or ask completeness of, the `single(era)`
+    instances such a workflow is constructed into for its resource tokens: their maps may refuse an
+    era set (a card needs all of its eras).
   - **The merge, HistTuple and AnalysisCache producers check the `period` column of every valid
     event against their era** (`Utilities.book_era_check`/`check_era`) and must keep doing it.
 - **Names that stay `period` on purpose:** the AnaTuple column `period` (per-event C++ `Period`), the
@@ -442,7 +462,7 @@ config loading (`Common/Setup.py`, `config/`) is therefore not checked, and is w
 
 ## Repository facts
 
-Verified 2026-10-18; re-check before relying on any of it.
+Verified 2026-10-22; re-check before relying on any of it.
 
 | | |
 |---|---|

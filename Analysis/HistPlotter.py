@@ -208,12 +208,19 @@ if __name__ == "__main__":
         os.environ["ANALYSIS_PATH"], "config", "plot/histograms.yaml"
     )
 
-    setup = Setup.Setup(
-        args.ana_path,
-        args.era,
-        args.LAWrunVersion,
-        user_custom_file=args.user_custom,
-    )
+    # The Setup of each era of the plotted file: a meta-era of `era_groups:` is the sum of
+    # its eras, whose datasets and uncertainty sources need not be the same.
+    eras = Setup.meta_eras(args.ana_path).get(args.era, (args.era,))
+    setups = {
+        era: Setup.Setup(
+            args.ana_path,
+            era,
+            args.LAWrunVersion,
+            user_custom_file=args.user_custom,
+        )
+        for era in eras
+    }
+    setup = setups[eras[0]]
 
     #### config opening ####
     with open(hist_cfg, "r") as f:
@@ -257,14 +264,18 @@ if __name__ == "__main__":
                 "plot_color": "kGray+2",
             }
 
-        for dataset_name in setup.datasets.keys():
-            base_process_name = setup.datasets[dataset_name]["process_name"]
-            process_group = setup.datasets[dataset_name]["process_group"]
+        for era_setup, dataset_name in (
+            (era_setup, dataset_name)
+            for era_setup in setups.values()
+            for dataset_name in era_setup.datasets.keys()
+        ):
+            base_process_name = era_setup.datasets[dataset_name]["process_name"]
+            process_group = era_setup.datasets[dataset_name]["process_group"]
             if process_group == "data":
                 continue
 
-            process_name = setup.base_processes[base_process_name]["parent_process"]
-            process = setup.parent_processes[process_name]
+            process_name = era_setup.base_processes[base_process_name]["parent_process"]
+            process = era_setup.parent_processes[process_name]
             all_datasets_key = process_name
 
             if process.get("to_plot", True):
@@ -424,7 +435,15 @@ if __name__ == "__main__":
             total_unc_hist = GetTotalUncertaintyHist(
                 dir_1,
                 bkg_hists,
-                GetUncNames(setup, setup.global_params, args.era),
+                # every era's sources: one decorrelated between the eras is a source of
+                # its own in each, keyed by its histogram-name template
+                {
+                    template: template
+                    for era, era_setup in setups.items()
+                    for template in GetUncNames(
+                        era_setup, era_setup.global_params, era
+                    ).values()
+                },
                 list(setup.global_params["scales"]),
                 apply_binning,
             )

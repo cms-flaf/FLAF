@@ -172,6 +172,10 @@ class FakeBranchTask:
         self.workflow = workflow
         self.branch = branch
 
+    def output(self):
+        # what the brake lists before it asks complete(): a local file, never listed
+        return law.LocalFileTarget(self.workflow.output_path(self.branch))
+
     def complete(self):
         self.workflow.events.append(("complete", self.branch))
         return os.path.exists(self.workflow.output_path(self.branch)) or os.path.exists(

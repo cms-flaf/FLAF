@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Per-era submission state of a FLAF remote workflow over several eras.
 
-A workflow over several eras (`--era A,B`) runs one poll loop, but every era's jobs live in
-the job file a run over that era alone reads and writes, and every era's jobs are laid out,
-built and submitted by a proxy of that era's own workflow. What is proven here:
+A workflow with era branches over several eras (`--era A,B`) runs one poll loop, but every
+era's jobs live in the job file a run over that era alone reads and writes, and every era's jobs
+are laid out, built and submitted by a proxy of that era's own workflow. What is proven here:
 
 - EraJobFiles: each era's file is the single-era file (path, name, local job and branch
   numbers, its own tasks_per_job, byte-identical JSON); load() merges with the era-id shift;
@@ -32,6 +32,11 @@ built and submitted by a proxy of that era's own workflow. What is proven here:
 - Cross-run compatibility (I22): drivers killed with os._exit and restarted over other era
   sets, on HTCondor and CRAB fakes, submit for each era exactly what the single-era run in the
   same state submits.
+- A workflow over several eras without era branches (StatInference's card stages), through
+  luigi's worker: the plain proxy, law's own branch numbers, its requirements and its branch
+  tasks and jobs over every era of the run, no map built on a single-era instance, one job file,
+  one luigi token and one remote log directory (given its own store_parts and
+  remote_log_dir_target).
 
 Every invariant has a negative control: a mutation of the implementation under which the test
 fails (see the report of the change set). Only what a unit-test runner lacks is faked: the batch
@@ -44,6 +49,7 @@ import contextlib
 import datetime
 import fcntl
 import glob
+import gzip
 import importlib.util
 import json
 import os
@@ -95,6 +101,7 @@ _replaced = {
 }
 sys.modules.update({name: mock.MagicMock() for name in _replaced})
 try:
+    from FLAF.Common import Setup as setup_module
     from FLAF.Common.Setup import ERA_BRANCH_STRIDE, ERA_IDS, Setup
     from FLAF.run_tools import law_customizations as lc
 finally:
@@ -185,13 +192,23 @@ def setUpModule():
     # a driver here is never a batch job, and has no grid proxy
     for name in ("LAW_CRAB_JOB_NUMBER", "LAW_JOB_HOME", "X509_USER_PROXY", "CRAB_Id"):
         os.environ.pop(name, None)
+    # The drivers run as processes of their own (_CrossRuns) share a path-cache server, as
+    # on a submit machine: one of this module's (short: a socket path holds 107 bytes).
+    os.environ["FLAF_PATH_CACHE_DIR"] = os.path.join(
+        tempfile.mkdtemp(prefix="fpc", dir="/tmp"), "cache"
+    )
 
 
 def tearDownModule():
     root = os.environ.get("ERA_JOBS_ROOT")
+    server_dir = os.environ.get("FLAF_PATH_CACHE_DIR")
     _module_env.stop()
     if root:
         shutil.rmtree(root, ignore_errors=True)
+    if server_dir:
+        # the server outlives the drivers that started it, by design
+        subprocess.run(["pkill", "-KILL", "-f", "--", f"--socket {server_dir}/"])
+        shutil.rmtree(os.path.dirname(server_dir), ignore_errors=True)
 
 
 # --------------------------------------------------------------------------------------------
@@ -745,6 +762,65 @@ class EraJobsTokenCache(EraJobsTokenUp):
         )
 
 
+class EraCardsInput(lc.Task, law.LocalWorkflow):
+    """What EraCardsUp's cards read: a local workflow over the same eras without era branches."""
+
+    allow_multi_era = True
+
+    def create_branch_map(self):
+        return {0: "input"}
+
+    def store_parts(self):
+        return (self.version, self.__class__.__name__)
+
+    def output(self):
+        return law.LocalFileTarget(
+            out_path(self.version, self.task_family, lc.era_csv(self.era), self.branch)
+        )
+
+    def run(self):
+        self.output().dump("input", formatter="text")
+
+
+class EraCardsUp(_JobFileDirs, lc.Task, lc.HTCondorWorkflow, law.LocalWorkflow):
+    """Shaped like StatInference's card stages: a remote workflow over several eras without era
+    branches (one branch per card a configuration lists, each reading several eras), whose job
+    state and logs are keyed on the version alone. As a card needs all of its eras, the map is
+    refused over fewer, so nothing may build it on a single-era instance."""
+
+    allow_multi_era = True
+    poll_interval = lc.copy_param(lc.HTCondorWorkflow.poll_interval, 0.0002)
+
+    def create_branch_map(self):
+        missing = {A, B} - set(self.era)
+        if missing:
+            raise ValueError(f"the cards need {', '.join(sorted(missing))} in --era")
+        return {0: "card_0", 1: "card_1"}
+
+    def stage_workflow_requires(self):
+        reqs = super().stage_workflow_requires()
+        reqs["cards_input"] = EraCardsInput.req(self, branches=())
+        return reqs
+
+    def requires(self):
+        return EraCardsInput.req(self, branch=0)
+
+    def store_parts(self):
+        return (self.version, self.__class__.__name__)
+
+    def remote_log_dir_target(self):
+        return self.remote_dir_target(self.version, "logs", self.__class__.__name__)
+
+    def output(self):
+        # where the fake batch system writes a job's outputs: under its --era value
+        return law.LocalFileTarget(
+            out_path(self.version, self.task_family, lc.era_csv(self.era), self.branch)
+        )
+
+    def run(self):
+        raise AssertionError("the jobs run on the fake batch system")
+
+
 # --------------------------------------------------------------------------------------------
 # helpers: one process per driver, as luigi has it
 # --------------------------------------------------------------------------------------------
@@ -894,7 +970,7 @@ class Render:
             }
         files = c.input_files
         if "path_cache" in files:
-            with open(files["path_cache"].path_sub_abs) as f:
+            with gzip.open(files["path_cache"].path_sub_abs, "rt") as f:
                 summary["path_cache"] = sorted(
                     (e["path"], e["exists"]) for e in json.load(f)["entries"]
                 )
@@ -969,6 +1045,12 @@ class _Case(unittest.TestCase):
             mock.patch.object(GFALFileInterface, "negatives_valid_after", 0.0)
         )
         stack.enter_context(mock.patch.object(lc, "_era_cli_checked", False))
+        # each driver run here is a process of its own: none shares a path-cache server
+        stack.enter_context(
+            mock.patch.object(
+                setup_module, "local_path_cache_server", return_value=None
+            )
+        )
         self.addCleanup(wipe, self.version)
 
     @contextlib.contextmanager
@@ -1594,6 +1676,17 @@ class _EveryJobIsTheSingleEraJob:
                     self.assertEqual(summary["era_note"], era)
                     self.check_backend(era, summary)
 
+    def check_snapshot(self, era, summary):
+        # the job finds its requirements in the snapshot: those of its era, nothing else
+        paths = [path for path, _ in summary["path_cache"]]
+        self.assertTrue(paths)
+        prefix = f"{BASE}/{self.version}/src/"
+        self.assertEqual(
+            {p[len(prefix) :].split("/")[0] for p in paths if p.startswith(prefix)},
+            {era},
+        )
+        self.assertTrue(all(p.startswith(prefix) for p in paths), paths)
+
 
 class HTCondorEveryJobIsTheSingleEraJob(_EveryJobIsTheSingleEraJob, _Case):
     backend = "htcondor"
@@ -1607,6 +1700,7 @@ class HTCondorEveryJobIsTheSingleEraJob(_EveryJobIsTheSingleEraJob, _Case):
         self.assertEqual(
             summary["worker_files"], f"{BASE}/{self.version}/worker_files/{era}"
         )
+        self.check_snapshot(era, summary)
 
 
 class CrabEveryJobIsTheSingleEraJob(_EveryJobIsTheSingleEraJob, _Case):
@@ -1622,15 +1716,7 @@ class CrabEveryJobIsTheSingleEraJob(_EveryJobIsTheSingleEraJob, _Case):
                 "request_prefix": f"{self.family}_{self.version}_{era}",
             },
         )
-        # the job finds its requirements in the snapshot: those of its era, nothing else
-        paths = [path for path, _ in summary["path_cache"]]
-        self.assertTrue(paths)
-        prefix = f"{BASE}/{self.version}/src/"
-        self.assertEqual(
-            {p[len(prefix) :].split("/")[0] for p in paths if p.startswith(prefix)},
-            {era},
-        )
-        self.assertTrue(all(p.startswith(prefix) for p in paths), paths)
+        self.check_snapshot(era, summary)
 
     def test_the_job_as_it_runs_on_a_crab_worker(self):
         """What a CRAB job builds from its command line, with LAW_CRAB_JOB_NUMBER set: the
@@ -2856,6 +2942,85 @@ class HTCondorCrossRuns(_CrossRuns, _Case):
 
 class CrabCrossRuns(_CrossRuns, _Case):
     workflow = "crab"
+
+
+# --------------------------------------------------------------------------------------------
+# a workflow over several eras without era branches (StatInference's card stages)
+# --------------------------------------------------------------------------------------------
+
+
+class EraCardWorkflow(_Case):
+    """One workflow whose branches each read several eras: law's own branches, its requirements
+    over all eras of the run, no single-era map built, every job over all eras, one job file,
+    one luigi token and one log directory per version."""
+
+    def test_one_workflow_with_law_branches(self):
+        with self.cli((A, B), family="EraCardsUp") as task:
+            self.assertIs(
+                type(task.workflow_proxy), lc._BundleAwareHTCondorWorkflowProxy
+            )
+            self.assertEqual(task.get_branch_map(), {0: "card_0", 1: "card_1"})
+            branch_tasks = task.get_branch_tasks()
+            self.assertEqual(sorted(branch_tasks), [0, 1])
+            for branch, branch_task in branch_tasks.items():
+                self.assertEqual(branch_task.era, (A, B))
+                self.assertEqual(branch_task.branch, branch)
+            directory = data_path(self.version, "EraCardsUp")
+            self.assertEqual(task.htcondor_output_directory().abspath, directory)
+            self.assertEqual(task.process_resources(), {f"flaf_jobs:{directory}": 1})
+
+    def test_requirements_over_all_eras(self):
+        with self.cli((A, B), family="EraCardsUp") as task:
+            reqs = task.workflow_requires()
+            # no bundles: the stage ships none
+            self.assertEqual(list(reqs), ["cards_input"])
+            self.assertEqual(reqs["cards_input"].era, (A, B))
+            self.assertEqual(
+                reqs["cards_input"].task_id,
+                EraCardsInput.req(task, branches=()).task_id,
+            )
+
+    def test_jobs_run_over_every_era(self):
+        """Through luigi's worker, which asks for the requirements, the completeness and the
+        resources before it runs the workflow (inside the command line, which law's job
+        command reads)."""
+        render = Render()
+        with render.recording(), self.cli((A, B), family="EraCardsUp") as task:
+            self.assertTrue(
+                luigi.build([task], local_scheduler=True, log_level="ERROR")
+            )
+        directory = data_path(self.version, "EraCardsUp")
+        self.assertEqual(
+            [n for n in os.listdir(directory) if n.startswith("htcondor_jobs")],
+            ["htcondor_jobs_0To2.json"],
+        )
+        self.assertEqual(
+            [
+                n
+                for n in os.listdir(directory)
+                if os.path.isdir(os.path.join(directory, n))
+            ],
+            [],
+        )
+        logs = f"{BASE}/{self.version}/logs/EraCardsUp/"
+        jobs = load_json(os.path.join(directory, "htcondor_jobs_0To2.json"))["jobs"]
+        self.assertTrue(jobs)
+        for job in jobs.values():
+            self.assertTrue(job["extra"]["log"].startswith(logs), job["extra"]["log"])
+        self.assertTrue(render.files)
+        branches = []
+        for summary in render.files:
+            self.assertEqual(summary["eras"], [f"{A},{B}"])
+            self.assertEqual(summary["log_remote_base_url"], logs.rstrip("/"))
+            branches += [b for job in summary["jobs"] for b in job["branches"]]
+        self.assertEqual(sorted(branches), [0, 1])
+        self.assertEqual(
+            self.submissions(), Counter({(f"{A},{B}", 0): 1, (f"{A},{B}", 1): 1})
+        )
+        # the requirement ran over both eras
+        self.assertTrue(
+            os.path.exists(out_path(self.version, "EraCardsInput", f"{A},{B}", 0))
+        )
 
 
 if __name__ == "__main__":

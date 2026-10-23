@@ -25,6 +25,7 @@ from FLAF.Common.PlotGroups import (  # noqa: E402
     _group_instances,
     _param_value_key,
     control_regions,
+    drop_empty_entries,
     plot_settings,
     want_data,
     want_signals,
@@ -32,7 +33,14 @@ from FLAF.Common.PlotGroups import (  # noqa: E402
 
 
 class Hist:
-    """The part of a ROOT TH1 that GroupProcesses uses: bin contents and their errors."""
+    """The part of a ROOT TH1 that GroupProcesses and drop_empty_entries use: bin contents
+    (the cells, under- and overflow taken as included) and their errors."""
+
+    def GetNcells(self):
+        return len(self.values)
+
+    def GetBinContent(self, i):
+        return self.values[i]
 
     def __init__(self, values, errors=None, name=""):
         self.values = list(values)
@@ -237,6 +245,41 @@ class Mistakes(unittest.TestCase):
         self.assertRaisesFor(
             {"name": "x", "processes": ["TT", "data"]}, "mixes", RuntimeError
         )
+
+
+class EmptyEntries(unittest.TestCase):
+    """drop_empty_entries: an entry without events is not drawn, a group keeps its name."""
+
+    groups = [{"name": "tt + ttV", "processes": ["TT", "ttV"]}]
+
+    def drawn(self, hists):
+        return {
+            key: (entry[1], entry[0].values)
+            for key, entry in drop_empty_entries(
+                GroupProcesses(hists, self.groups)
+            ).items()
+        }
+
+    def test_an_empty_member_leaves_the_group_and_its_name(self):
+        drawn = self.drawn({"TT": entry("backgrounds"), "ttV": entry("backgrounds", 0)})
+        self.assertEqual(drawn, {"TT+ttV": ("tt + ttV", [1.0, 2.0])})
+
+    def test_an_empty_group_or_process_is_not_drawn(self):
+        hists = {
+            "TT": entry("backgrounds", 0),
+            "ttV": entry("backgrounds", 0),
+            "DY": entry("backgrounds"),
+            "VV": entry("backgrounds", 0),
+            "S_400": entry("signals", 0),
+        }
+        self.assertEqual(list(self.drawn(hists)), ["DY"])
+
+    def test_cancelling_bins_are_not_empty(self):
+        hists = {"W": (Hist([1.0, -1.0]), "W", "kRed", "backgrounds")}
+        self.assertEqual(list(self.drawn(hists)), ["W"])
+
+    def test_data_without_events_is_drawn(self):
+        self.assertEqual(list(self.drawn({"data": entry("data", 0)})), ["data"])
 
 
 class ControlRegions(unittest.TestCase):

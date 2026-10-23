@@ -302,9 +302,15 @@ must agree on them.
   backgrounds or all signals; processes no
   group takes are plotted as before, after the groups, and a process an earlier group took is
   not taken again. Without the key nothing is grouped. A group must have a `name` and a list of
-  `processes`, every process naming the same parameters as the `name` does, none listed twice;
-  a histogram matched by two processes of one group, or a group mixing backgrounds, signals and
-  data, is an error.
+  `processes`, every process naming the same parameters as the `name` does, none listed twice,
+  and no keys but `name`, `processes` and `color`; a histogram matched by two processes of one
+  group, or a group mixing backgrounds, signals and data, is an error.
+
+A process without events in a channel, region and category has an empty histogram there: as a
+member of a group it leaves the group's name as it is (`t#bar{t} + t#bar{t}V` stays so when
+`ttV` is empty), and an entry, grouped or not, whose every bin is empty is not drawn and gets no
+legend entry. Data is always drawn. A selected process whose histogram is absent from the merged
+file is an error naming the histogram and the directory: the merge is incomplete.
 
 ```yaml
 plot_control_regions: [ TT_CR, DY_CR ]

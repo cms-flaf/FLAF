@@ -12,6 +12,7 @@ from FLAF.Common.HistHelper import *
 from FLAF.Common.PlotGroups import (
     GroupProcesses,
     control_regions,
+    drop_empty_entries,
     plot_settings,
     want_data,
     want_signals,
@@ -402,12 +403,20 @@ if __name__ == "__main__":
                 "Central",
                 setup.global_params,
             )
+            # A process without events still has its (empty) histogram, so an absent one
+            # is an incomplete merge, not an empty process: drawing the rest would give a
+            # plot -- and a group's legend entry -- that looks complete but is not.
+            where = f"{args.inFile}:{channel}/{custom_region}/{category}"
             if dataset_histname not in dir_1.GetListOfKeys():
-                print(f"ERRORE: {dataset_histname} non è nelle keys")
-                continue
+                process = (
+                    ""
+                    if dataset_histname == dataset_process_name
+                    else f" (process {dataset_process_name})"
+                )
+                raise RuntimeError(f"{dataset_histname}{process} is not in {where}")
             obj = dir_1.Get(dataset_histname)
             if not obj.IsA().InheritsFrom(ROOT.TH1.Class()):
-                print(f"ERRORE: {dataset_histname} non è un istogramma")
+                raise RuntimeError(f"{dataset_histname} in {where} is not a histogram")
             obj.SetDirectory(0)
 
             if dataset_process_name in hists_to_plot_unbinned.keys():
@@ -480,8 +489,8 @@ if __name__ == "__main__":
                 apply_binning,
             )
 
-        hists_to_plot_binned = GroupProcesses(
-            hists_to_plot_binned, settings["plot_process_groups"] or []
+        hists_to_plot_binned = drop_empty_entries(
+            GroupProcesses(hists_to_plot_binned, settings["plot_process_groups"] or [])
         )
         scale = settings["signal_plot_scale"]
         if scale is None:

@@ -240,3 +240,17 @@ def GroupProcesses(hists, groups):
             used.update(members)
     grouped.update((k, v) for k, v in hists.items() if k not in used)
     return grouped
+
+
+def drop_empty_entries(hists):
+    """The entries of `hists` (as GroupProcesses gives them) that are drawn: a background or
+    signal entry whose every bin, under- and overflow included, is zero has nothing to show
+    and gets neither a slice nor a legend entry. A group of which only some members are
+    empty is drawn under its own name -- tt + ttV stays tt + ttV when ttV has no events.
+    Data is always kept: no events observed is a measurement."""
+    return {
+        key: entry
+        for key, entry in hists.items()
+        if entry[3] == "data"
+        or any(entry[0].GetBinContent(i) != 0 for i in range(entry[0].GetNcells()))
+    }

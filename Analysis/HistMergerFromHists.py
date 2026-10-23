@@ -171,9 +171,6 @@ if __name__ == "__main__":
     global_cfg_dict = setup.global_params
     unc_cfg_dict = setup.weights_config
 
-    elr_cfg = global_cfg_dict.get("ELReweighter_variables", {})
-    store_elr_vars = elr_cfg.get("store_ELReweighter_vars", False)
-
     analysis_import = global_cfg_dict["analysis_import"]
     analysis = importlib.import_module(f"{analysis_import}")
     estimateQCD = global_cfg_dict.get("plot_wantQCD", False)
@@ -259,7 +256,6 @@ if __name__ == "__main__":
     # print(dataset_cfg_dict)
 
     all_hists_dict = {}
-    elr_tree_sources = {}
     all_datasets = args.dataset_names.split(",")
     for dataset_name, inFile_path in zip(all_datasets, args.inFiles):
         if not os.path.exists(inFile_path):
@@ -289,14 +285,6 @@ if __name__ == "__main__":
                 unc_sources,
                 data_process_name,
             )
-            if store_elr_vars:
-                all_trees_in_file = get_all_trees_recursive(inFile)
-                bucket = elr_tree_sources.setdefault(dataset_name, {})
-                for key_tuple, tree_map in all_trees_in_file.items():
-                    if "ELReweighter_vars" in tree_map:
-                        bucket.setdefault(key_tuple, []).append(
-                            (inFile_path, "/".join(key_tuple) + "/ELReweighter_vars")
-                        )
     alias_data_variations(all_hists_dict, data_process_name, unc_sources)
 
     # here there should be the custom applications - e.g. GetBTagWeightDict, AddQCDInHistDict, etc.
@@ -341,28 +329,8 @@ if __name__ == "__main__":
     all_unc_dict = unc_cfg_dict["norm"].copy()
     all_unc_dict.update(unc_cfg_dict["shape"])
 
-    if elr_tree_sources:
-        import uproot
-
-        with uproot.recreate(args.outFile) as uproot_out:
-            for dataset_name, by_key in elr_tree_sources.items():
-                for key_tuple, sources in by_key.items():
-                    out_path = (
-                        "/".join(key_tuple)
-                        + f"/ELReweighter_vars/{dataset_name}/ELReweighter_vars"
-                    )
-                    for file_path, internal_path in sources:
-                        with uproot.open(f"{file_path}:{internal_path}") as src_tree:
-                            for arrays in src_tree.iterate():
-                                if out_path in uproot_out:
-                                    uproot_out[out_path].extend(arrays)
-                                else:
-                                    uproot_out[out_path] = arrays
-
     # 209 = LZMA level 9, the standard compression for merged histogram files
-    outFile = ROOT.TFile(
-        args.outFile, "UPDATE" if elr_tree_sources else "RECREATE", "", 209
-    )
+    outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)
     for dataset_type in all_hists_dict.keys():
         for key in all_hists_dict[dataset_type].keys():
             key_dir, (uncName, uncScale) = key

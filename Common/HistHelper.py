@@ -56,24 +56,6 @@ def get_all_items_recursive(root_dir, path=()):
     return items_dict
 
 
-def get_all_trees_recursive(root_dir, path=()):
-    items_dict = {}
-    local_items = {}
-
-    for key in root_dir.GetListOfKeys():
-        obj = key.ReadObj()
-
-        if obj.InheritsFrom("TDirectory"):
-            items_dict.update(get_all_trees_recursive(obj, path + (key.GetName(),)))
-        elif obj.InheritsFrom("TTree"):
-            local_items[key.GetName()] = obj
-
-    if local_items:
-        items_dict[path] = local_items
-
-    return items_dict
-
-
 def load_all_items(file_path):
     inFile = ROOT.TFile.Open(file_path, "READ")
     if not inFile or inFile.IsZombie():

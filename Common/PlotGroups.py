@@ -26,11 +26,14 @@ def plot_settings(global_params):
                 "config/global.yaml or a user_custom, for all of them"
             )
         settings[key] = values[eras[0]]
-    # the regions histogrammed: custom_regions names the global list of them (QCDRegions)
+    # the regions histogrammed: custom_regions names the global list of them (QCDRegions),
+    # or a mapping of region to cut (H_mumu), which counts by its keys as HistPlotTask does
     regions = []
     for era in eras:
         params = global_params[era]
         era_regions = params.get(params.get("custom_regions") or "")
+        if isinstance(era_regions, dict):
+            era_regions = list(era_regions)
         if isinstance(era_regions, list):
             regions += [r for r in era_regions if r not in regions]
     settings["regions"] = regions or None
@@ -82,8 +85,12 @@ def want_data(want, blind, region, control_regions):
     return bool(want) and not (blind and region not in control_regions)
 
 
-# A ${PARAM} in a plot group's process pattern or name.
+# A ${PARAM} in a plot group's process pattern or name, and a ${...} of any content, to
+# refuse one that is not a parameter name.
 _GROUP_PARAM = re.compile(r"\$\{(\w+)\}")
+_GROUP_BRACES = re.compile(r"\$\{([^}]*)\}")
+# The keys a plot group may have.
+_GROUP_KEYS = ("name", "processes", "color")
 # A parameter value: 400, 1p74, m0p758, 1.5, M-400, ... -- word characters, '.' and '-'.
 _GROUP_VALUE = r"[\w.\-]+?"
 # A number as written in a value: plain (400, 1.5, -2) or in the CMS form (1p74, m0p758).
@@ -104,8 +111,9 @@ def _param_value_key(value):
 def _check_group(group):
     """The parameters of a plot group, in the order its first process pattern names them,
     after checking the group: a name and a non-empty list of distinct process names, all of
-    which name the same parameters, as the name does. A mistake raises a ValueError naming the
-    group instead of giving a plot that looks right but is not."""
+    which name the same parameters, as the name does, and no key but name, processes and
+    color. A mistake raises a ValueError naming the group instead of giving a plot that looks
+    right but is not."""
     name = group.get("name") if isinstance(group, dict) else None
     processes = group.get("processes") if isinstance(group, dict) else None
     if (
@@ -117,6 +125,25 @@ def _check_group(group):
         raise ValueError(
             f"plot_process_groups entry {group!r} needs a name and a list of process "
             "names, e.g. {name: Diboson, processes: [ VV, VVV ]}"
+        )
+    unknown = sorted(set(group) - set(_GROUP_KEYS))
+    if unknown:
+        raise ValueError(
+            f"plot group {name!r} has the unknown keys {unknown}; a group takes "
+            f"{list(_GROUP_KEYS)}"
+        )
+    bad = sorted(
+        {
+            "${" + p + "}"
+            for text in [name] + processes
+            for p in _GROUP_BRACES.findall(text)
+            if not p.isidentifier()
+        }
+    )
+    if bad:
+        raise ValueError(
+            f"plot group {name!r}: {', '.join(bad)} is not a parameter; a parameter is a "
+            "name of letters, digits and _ not starting with a digit, e.g. ${MASS}"
         )
     duplicates = sorted({p for p in processes if processes.count(p) > 1})
     if duplicates:

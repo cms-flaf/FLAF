@@ -195,6 +195,13 @@ if __name__ == "__main__":
     parser.add_argument("--LAWrunVersion", required=True, type=str)
     parser.add_argument("--user-custom", type=str, default=None)
     parser.add_argument(
+        "--customisations",
+        type=str,
+        default="",
+        help="the task's --customisations (key=value;...), applied to the Setup as in "
+        "every task",
+    )
+    parser.add_argument(
         "--compute_unc_histograms",
         required=False,
         action="store_true",
@@ -223,6 +230,7 @@ if __name__ == "__main__":
             era,
             args.LAWrunVersion,
             user_custom_file=args.user_custom,
+            customisations=args.customisations,
         )
         for era in eras
     }
@@ -240,7 +248,7 @@ if __name__ == "__main__":
     )
 
     # Global settings from the merged Setup of every era (FLAF and analysis global.yaml, era
-    # configurations, user_custom), as every other task reads them.
+    # configurations, user_custom, --customisations), as every other task reads them.
     settings = plot_settings(
         {era: era_setup.global_params for era, era_setup in setups.items()}
     )

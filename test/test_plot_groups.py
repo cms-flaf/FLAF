@@ -214,6 +214,22 @@ class Mistakes(unittest.TestCase):
             "parameters of its processes",
         )
 
+    def test_an_unknown_key_raises(self):
+        for key in ("colour", "procesess"):
+            with self.subTest(key=key):
+                self.assertRaisesFor(
+                    {"name": "tt", "processes": ["TT", "ttV"], key: "kRed"},
+                    rf"'tt' has the unknown keys \['{key}'\]",
+                )
+
+    def test_a_parameter_must_be_a_name(self):
+        for param in ("1", "M-X", ""):
+            with self.subTest(param=param):
+                self.assertRaisesFor(
+                    {"name": f"S ${{{param}}}", "processes": [f"S_${{{param}}}"]},
+                    r"plot group 'S .*': .* is not a parameter",
+                )
+
     def test_backgrounds_signals_and_data_do_not_mix(self):
         self.assertRaisesFor(
             {"name": "x", "processes": ["TT", "S_400"]}, "mixes", RuntimeError
@@ -318,6 +334,17 @@ class Settings(unittest.TestCase):
         eras["Run3_2023"]["plot_control_regions"] = ["TT_CR"]
         with self.assertRaisesRegex(ValueError, "plot_control_regions differs"):
             plot_settings(eras)
+
+    def test_regions_given_as_a_mapping_count_by_their_names(self):
+        params = dict(
+            self.params,
+            custom_regions="MuMuMassRegions",
+            MuMuMassRegions={"Z_sideband": "m > 70", "Signal_Fit": "m > 110"},
+        )
+        settings = plot_settings({"Run2_2018": params})
+        self.assertEqual(settings["regions"], ["Z_sideband", "Signal_Fit"])
+        with self.assertWarnsRegex(UserWarning, r"\['Z_sidebnd'\]"):
+            control_regions(["Z_sidebnd"], settings["regions"])
 
     def test_the_regions_of_all_eras(self):
         other = dict(self.params, QCDRegions=["SR", "W_CR"])

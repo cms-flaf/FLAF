@@ -278,7 +278,8 @@ the standalone `python -m PlotKit.cli` entry point.
 
 Two optional `global.yaml` keys shape what is drawn. They, and `signal_plot_scale`, are read from
 the merged configuration of each era, as every task reads its settings: `config/global.yaml`, the
-era's `config/<era>/global.yaml` and the `--user-custom` file all apply. For a meta-era the eras
+era's `config/<era>/global.yaml`, the `--user-custom` file and the task's `--customisations` all
+apply. For a meta-era the eras
 must agree on them.
 
 - **`plot_control_regions`** (list of custom regions, e.g. `[ TT_CR, DY_CR ]`): no signal is

@@ -1667,12 +1667,6 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     infile,
                     "--all_outFiles",
                     ",".join(local_outputs),
-                    "--globalConfig",
-                    os.path.join(
-                        self.ana_path(),
-                        self.global_param("analysis_config_area"),
-                        "global.yaml",
-                    ),
                     "--var",
                     var,
                     "--all_keys",
@@ -1698,6 +1692,8 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     cmd += ["--rebin", "true"]
                 if self.user_custom:
                     cmd += ["--user-custom", self.user_custom]
+                if self.customisations:
+                    cmd += ["--customisations", self.customisations]
                 if compute_unc_histograms:
                     cmd.append("--compute_unc_histograms")
                 ps_call(cmd, verbose=1)

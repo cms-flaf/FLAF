@@ -962,6 +962,8 @@ class Setup:
             ]:
                 if var in os.environ:
                     self.cmssw_env_[var] = os.environ[var]
+            # as env.sh sets for flaf_env: this environment starts empty
+            self.cmssw_env_["TF_ENABLE_ONEDNN_OPTS"] = "0"
             # scram runtime (inside get_cmsenv) may still emit the submit-host AFS
             # CMSSW_BASE when ProjectRename failed on a CRAB worker. Force the
             # relocated release path so CMSSW-dependent models / includeLibTool resolve

@@ -236,6 +236,10 @@ load_flaf_env() {
   [ -z "$LAW_CONFIG_FILE" ] && export LAW_CONFIG_FILE="$ANALYSIS_PATH/config/law.cfg"
   [ -z "$ANALYSIS_DATA_PATH" ] && export ANALYSIS_DATA_PATH="$ANALYSIS_PATH/data"
   [ -z "$X509_USER_PROXY" ] && export X509_USER_PROXY="$ANALYSIS_DATA_PATH/voms.proxy"
+  # TensorFlow turns its oneDNN kernels on by itself only on CPUs with AVX512_VNNI, AVX_VNNI,
+  # AVX512_BF16 or AMX, so NN outputs would depend on the batch node; the CMSSW environment of
+  # the tasks (Setup.cmssw_env) and cmsEnv set the same.
+  export TF_ENABLE_ONEDNN_OPTS=0
 
   if [[ ! -d "$ANALYSIS_DATA_PATH" ]]; then
     run_cmd mkdir -p "$ANALYSIS_DATA_PATH"
@@ -399,7 +403,7 @@ load_flaf_env() {
   fi
   set -- "${current_args[@]}"
   #export PATH="$ANALYSIS_SOFT_PATH/bin:$PATH"
-  alias cmsEnv="env -i HOME=$HOME ANALYSIS_PATH=$ANALYSIS_PATH ANALYSIS_DATA_PATH=$ANALYSIS_DATA_PATH X509_USER_PROXY=$X509_USER_PROXY FLAF_CMSSW_BASE=$FLAF_CMSSW_BASE FLAF_CMSSW_ARCH=$FLAF_CMSSW_ARCH $FLAF_PATH/cmsEnv.sh"
+  alias cmsEnv="env -i HOME=$HOME ANALYSIS_PATH=$ANALYSIS_PATH ANALYSIS_DATA_PATH=$ANALYSIS_DATA_PATH X509_USER_PROXY=$X509_USER_PROXY FLAF_CMSSW_BASE=$FLAF_CMSSW_BASE FLAF_CMSSW_ARCH=$FLAF_CMSSW_ARCH TF_ENABLE_ONEDNN_OPTS=$TF_ENABLE_ONEDNN_OPTS $FLAF_PATH/cmsEnv.sh"
 
   ulimit -n 4096
 }

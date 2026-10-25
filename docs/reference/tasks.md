@@ -224,7 +224,9 @@ on the variables of the active histTuple flavour; also for an `is_global` produc
 correction names as its `normCacheProducer` (through `AnalysisCacheAggregationTask` when the
 producer also sets `needs_aggregation`). A producer's `dependencies` run first, and its
 `n_cpus`, `max_runtime` (default 2 h), `crab_memory` (CRAB memory in MB, [default](../workflow/crab.md#resources) the most CRAB grants for the cores; it overrides `--AnalysisCacheTask-crab-memory`), `save_as` (file type, default `root`) and `cmssw_env`
-(run inside CMSSW) come from its `payload_producers` entry.
+(run inside CMSSW) come from its `payload_producers` entry. A producer that runs an ONNX model
+creates its sessions with `FLAF.Common.OnnxSession`, so that its outputs do not depend on the core
+count of the node ([NN outputs and the CPU of the node](../concepts/environment.md#nn-outputs-and-the-cpu-of-the-node)).
 
 - **Parameter:** `--producer-to-run` (which payload producer to run; required).
 - **Caveat:** on a cold cache this can be **time-consuming** (≈ 1 h per branch). Reuse it across

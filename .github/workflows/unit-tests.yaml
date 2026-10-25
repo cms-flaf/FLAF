@@ -62,6 +62,7 @@ jobs:
           test/test_era_parameter.py
           test/test_era_process_state.py
           test/test_era_requires.py
+          test/test_eos_lock.py
           test/test_flaf_env.py
           test/test_fresh_negatives.py
           test/test_gfal_absent_vs_unreachable.py

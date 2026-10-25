@@ -208,3 +208,103 @@ workflow that starts to run gathers its existing outputs again on fresh listings
 When testing, point `fs_default` at *your own* area (and use a personal `--version`) so you never
 write into a shared production path. The CI does the inverse — it points `fs_default` at the local
 runner so a test never touches real storage at all.
+
+## Locking a finished production
+
+FNAL EOS keeps no backup and no recycle bin: a deleted file is gone. In a group area such as
+`/store/user/lpcflaf` every member may delete and overwrite every file, and a re-run with the same
+`--version`, a `--remove-output` reaching a central production through `--ana-version`, or a stray
+`eos rm -r` can destroy a finished production. `run_tools/eos_lock.py` makes a finished folder
+read-only:
+
+```bash
+python3 FLAF/run_tools/eos_lock.py status /eos/uscms/store/user/lpcflaf/HH_bbWW/v2610/AnaTuples/Run3_2022
+python3 FLAF/run_tools/eos_lock.py lock   /eos/uscms/store/user/lpcflaf/HH_bbWW/v2610/AnaTuples/Run3_2022           # the plan
+python3 FLAF/run_tools/eos_lock.py lock   /eos/uscms/store/user/lpcflaf/HH_bbWW/v2610/AnaTuples/Run3_2022 --apply   # the lock
+python3 FLAF/run_tools/eos_lock.py unlock /eos/uscms/store/user/lpcflaf/HH_bbWW/v2610/AnaTuples/Run3_2022 --apply
+```
+
+The folder is given as an EOS path on `--mgm` (default `root://cmseos.fnal.gov`) or as a
+`root://host//eos/...` URL. Without `--apply` nothing is changed. The script needs the `eos`, `xrdfs`
+and `xrdcp` clients (lxplus, cmslpc) and a valid grid proxy; it uses only the Python standard
+library.
+
+**What a locked folder is.** Every directory and file belongs to the user who locked it, every
+directory has mode `0555` and `sys.acl="g:5063:rx,u:<locker>:A,z:i"` (`--admin <uid>`, repeatable,
+adds users allowed to change the ACL). `z:i` makes each directory immutable for everybody, its owner
+included: over xrootd, davs and the eos CLI no file can be created, overwritten, updated, deleted or
+renamed and no directory created or removed, while reading is unaffected. A job that writes into a
+locked folder fails with `directory immutable` (xrootd) or `HTTP 403 : Permission refused` (davs).
+
+**Why the lock takes ownership.** The owner of a directory may always change its ACL, and the owner
+of a file may give that file an ACL of its own, so a folder that still belongs to its producer can be
+unlocked by one command. A member cannot `chown` the files of other members (that takes a `c` rule
+in the directory's ACL, which the lpcflaf template does not give), but the lpcflaf member ACL lets a
+member create, rename and delete in directories of other members. The script therefore
+
+- copies a file of another owner next to itself (third-party copy, size and adler32 checked) and
+  renames the copy onto the original, after checking the original once more;
+- rebuilds a directory of another owner: a new directory next to it receives copies of all its
+  files, the original is moved into the new one, the new one is renamed into its place (the *swap*),
+  and the subdirectories of the original are moved over before it is removed. Nothing is removed
+  from the parent, where a `!d` rule (such as `g:5063:rx!d!u`) forbids removing another member's
+  directory even to the parent's owner. The rebuilt directory keeps the original's attributes
+  (`sys.forced.*`, ...) except `sys.acl` (the lock sets it), `sys.eos.btime` (its own creation time),
+  `sys.owner.auth`, `sys.eval.useracl` and `user.acl` (left out, as they would hand rights to
+  somebody else).
+
+An original is deleted only once a copy with the same size and checksum is in place. A file found
+changed between its copy and its replacement is not replaced and stops the lock; in a rebuilt
+directory, the copy made before the change stays at the path and the changed original is kept in
+`<directory>/.flaf-lock-old`, which the lock then refuses to remove. Copying costs transfer time
+and, while one directory is rebuilt, quota for its files. The plan printed without `--apply` lists
+the files and volume to copy, the extra quota needed at a time, the directories to rebuild (about
+20 s each from lxplus, plus their copies) and the largest swap.
+
+**Before locking.** The script refuses a folder in which an upload may still run (a `.flaf-tmp-*`,
+`.dsprod-tmp-*` or EOS atomic-upload file, or a file modified in the last `--min-age` minutes, 60
+by default), a folder with symlinks, a folder below a locked one or below a lock that is running,
+a folder containing a running lock of a subfolder, a directory whose `sys.owner.auth` would hand what
+the lock creates to another user, and directories whose ACL does not let the caller rebuild them.
+Lock the units that have stopped changing — a dataset's anaTuples, an era of plans once it is final
+— rather than a whole version: the parents stay open, so new datasets can still be added next to
+locked ones. One run handles at most about 50 000 directories or files (the limit of a non-admin
+`eos find`); lock larger folders by subfolder. The script needs Python 3.9 or later (the system
+Python of lxplus and cmslpc).
+
+**Interrupting a lock is safe.** Every file stays at its path with its content while the lock runs,
+and a job that has a file open keeps reading it to the end even when the lock replaces it. The one
+exception is a swap. Between its two renames the directory itself, files included, is missing from
+its path for about two requests, longer while the storage does not answer; then its subdirectories
+are missing until they are moved back, 16 at a time (200 subdirectories took 10 s from lxplus). Ctrl-C, Ctrl-Z, SIGTERM and SIGHUP never stop
+the lock inside a swap: it completes the swap and stops right after it, or before the next one,
+with every file in place and exit code 3 (an ignored SIGHUP, as under `nohup`, stays ignored). A
+swap whose requests fail is retried as a whole for a few minutes, at once if a stop was requested;
+if the storage does not answer by then, the lock stops with an error that says where the missing
+entries are (`<directory>/.flaf-lock-old`, or the whole directory in
+`<directory>.flaf-lock-new/.flaf-lock-old`), and the next run puts them back before anything else.
+Only a hard kill (SIGKILL, a crashed node) inside a swap leaves paths missing without that message.
+While a lock runs and after it stops, the directories it has reached accept no writes from other
+members; the ACL changes never affect reading.
+
+**Keep the session open while a lock runs.** Ending an lxplus session (logging out, a dropped
+connection) sends SIGTERM to the lock and to the copies and renames it runs, and kills whatever is
+left 90 s later. The lock then completes a swap under way and stops; the copies under way are lost
+(the lock exits with code 1 rather than 3) and the next run redoes them. A swap that has not
+completed when the session is killed leaves its subdirectories, or the whole directory, in the
+places named above until the next run. Run `status` afterwards: it reports an interrupted lock and a
+marker left by a killed one.
+
+**Resuming.** An interrupted lock leaves `*.flaf-lock-new`, `.flaf-lock-old` or `*.flaf-lock-tmp`
+entries, and after a hard kill the `<folder>.flaf-lock-running` marker. Remove the marker once no lock
+runs (copies the killed run started may still be running; they cannot harm a rerun, which checks
+every copy), and run the same command again, as the same user: it first puts back any path a swap
+left missing, then resumes where it stopped. If an original was deleted while the lock was
+interrupted, the rerun stops instead of promoting a copy it cannot verify, and names the copy to look
+at. If something else took the path of a directory during its swap, the lock stops and leaves the
+original in `<directory>.flaf-lock-new/.flaf-lock-old` to be resolved by hand.
+
+**What it does not stop.** Renaming the folder's open parent moves the locked folder as a whole; an
+empty locked directory can still be removed together with its open parent; the owner (or an `A`
+holder) can unlock it deliberately, and root can do anything. Never edit a locked folder's ACL with
+`eos acl` — it silently drops `z:i` — and never remove it with `eos attr rm sys.acl`; use `unlock`.

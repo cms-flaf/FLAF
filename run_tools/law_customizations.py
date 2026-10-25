@@ -251,6 +251,11 @@ class BranchSelectionError(ValueError):
     """A --branches selection outside the numbering of the workflow it is given to."""
 
 
+class SameFamilyReqError(ValueError):
+    """`X.req(inst)` with `inst` of X's own task family that does not say whether the
+    parameters in exclude_params_req are handed on."""
+
+
 def _branch_items(param, branches):
     """(start, stop) of each element of a --branches value: stop exclusive, None for an open
     edge."""
@@ -390,8 +395,28 @@ class Task(law.Task):
             Task._get_params_cache[cls] = cached
         return cached
 
+    _skip_task_excludes_kwargs = frozenset(
+        ("_skip_task_excludes", "_skip_task_excludes_get", "_skip_task_excludes_set")
+    )
+
     @classmethod
     def req(cls, inst, **kwargs):
+        # law applies exclude_params_req whatever the two families are, so a same-family req()
+        # would silently take the class defaults instead of the per-task values the source
+        # holds (--max-runtime 9 on the command line) and, n_cpus being significant, could make
+        # a second task for the same outputs. The caller has to say which of the two it means.
+        if (
+            cls.get_task_family() == inst.get_task_family()
+            and Task._skip_task_excludes_kwargs.isdisjoint(kwargs)
+        ):
+            raise SameFamilyReqError(
+                f"{cls.get_task_family()}.req() from a task of the same family drops the "
+                "per-task parameters the source holds (exclude_params_req: --max-runtime, "
+                "--n-cpus, --tasks-per-job, --crab-memory). For the same task, pass "
+                "_skip_task_excludes=True or use req_branch/req_workflow/as_branch/"
+                "as_workflow; for a separate task that keeps its own per-task defaults, "
+                "pass _skip_task_excludes=False"
+            )
         # Law control kwargs (prefixed with "_", e.g. _exclude/_prefer_cli) change which
         # parameters are copied; defer those rare calls to law's full implementation.
         if any(key.startswith("_") for key in kwargs):
@@ -2006,7 +2031,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
                 bundle
                 for era in self.sub_eras
                 for bundle in self.sub_era_task(
-                    type(self), era, branch=-1, branches=()
+                    type(self), era, branch=-1, branches=(), _skip_task_excludes=False
                 )._bundle_tasks()
             ]
         configured = self.global_params.get("bundles", {})

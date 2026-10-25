@@ -83,6 +83,12 @@ default, or the value given for it with `--<Task>-n-cpus` / `--<Task>-max-runtim
 requiring task pins it, as most FLAF production tasks do for what they require (they pass the
 dependency's own default explicitly, which wins over the prefixed option).
 
+Code that derives a task of its own family (`X.req(task)` with `task` an `X`) has to say which
+of the two it means, or FLAF's `Task.req` refuses the call: `_skip_task_excludes=True` for the
+same task, which keeps the values given to `task` (`--tasks-per-job`, `--max-runtime`,
+`--n-cpus`, `--crab-memory`; law's `req_branch`, `req_workflow`, `as_branch` and `as_workflow`
+pass it already), `_skip_task_excludes=False` for a separate task that takes its own defaults.
+
 ## CRAB options (on every workflow task)
 
 | Option | Default | Meaning |

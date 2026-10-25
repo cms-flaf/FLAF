@@ -107,6 +107,10 @@ rules:
   `X.req(...)`, `req_params`, `req_branch` or `req_workflow` outside `with_eras`, and `self.era[...]`
   in a task class outside `only_era`; a deliberate exception carries `# noqa: era-scope` on the
   line (the rename findings use `# noqa: era-rename`).
+- **Deriving a task of the task's own family states what it is**: `X.req(task)` with `task` an `X`
+  passes `_skip_task_excludes=True` for the same task or `_skip_task_excludes=False` for a separate
+  one with its own defaults; `Task.req` refuses it otherwise
+  ([HTCondor options](workflow/arguments.md#htcondor-options-on-every-workflow-task)).
 - **A producer that reads AnaTuples checks the era of their events:** `Utilities.book_era_check(df, era)`
   before the event loop and `Utilities.check_era(count, era, what)` after it, as `AnaTupleMergeTask`,
   `HistTupleProducerTask` and `AnalysisCacheTask` do.

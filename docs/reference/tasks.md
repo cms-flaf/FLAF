@@ -309,8 +309,10 @@ must agree on them.
 A process without events in a channel, region and category has an empty histogram there: as a
 member of a group it leaves the group's name as it is (`t#bar{t} + t#bar{t}V` stays so when
 `ttV` is empty), and an entry, grouped or not, whose every bin is empty is not drawn and gets no
-legend entry. Data is always drawn. A selected process whose histogram is absent from the merged
-file is an error naming the histogram and the directory: the merge is incomplete.
+legend entry. Data is drawn whenever it has a histogram, empty or not. A selected process without
+a histogram in that directory at all (no events there, e.g. data in a channel its primary
+dataset does not feed) counts as empty, with a warning naming the histogram and the directory.
+An object that is not a histogram is an error.
 
 ```yaml
 plot_control_regions: [ TT_CR, DY_CR ]

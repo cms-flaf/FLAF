@@ -403,9 +403,10 @@ if __name__ == "__main__":
                 "Central",
                 setup.global_params,
             )
-            # A process without events still has its (empty) histogram, so an absent one
-            # is an incomplete merge, not an empty process: drawing the rest would give a
-            # plot -- and a group's legend entry -- that looks complete but is not.
+            # A process without events in this channel, region and category may have no
+            # histogram at all (e.g. data in a channel its primary dataset does not feed), so
+            # an absent one counts as empty: said, and drawn as nothing -- a group keeps its
+            # name, and an entry left with nothing is not drawn (drop_empty_entries).
             where = f"{args.inFile}:{channel}/{custom_region}/{category}"
             if dataset_histname not in dir_1.GetListOfKeys():
                 process = (
@@ -413,7 +414,12 @@ if __name__ == "__main__":
                     if dataset_histname == dataset_process_name
                     else f" (process {dataset_process_name})"
                 )
-                raise RuntimeError(f"{dataset_histname}{process} is not in {where}")
+                print(
+                    f"WARNING: {dataset_histname}{process} is not in {where}; "
+                    "drawn as empty",
+                    file=sys.stderr,
+                )
+                continue
             obj = dir_1.Get(dataset_histname)
             if not obj.IsA().InheritsFrom(ROOT.TH1.Class()):
                 raise RuntimeError(f"{dataset_histname} in {where} is not a histogram")

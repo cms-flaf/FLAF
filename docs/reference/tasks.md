@@ -262,6 +262,22 @@ per variable, skipping variables configured with `plot_task: false`).
   `<version>/Plots/<meta-era>/…`, with the processes and uncertainty sources of every era of the
   group and the labels of `config/plot/<meta-era>.yaml`. See
   [Meta-eras](../concepts/eras.md#meta-eras).
+- **Blinding** (per variable, in `config/plot/histograms.yaml`): `blind: true` shows no data on
+  the plots of the variable. `blind_ranges` hides the data points inside windows of its x axis,
+  in the plot and in the ratio panel, in every region, control regions included: one window
+  `[lo, hi]` or a list of them, `[[lo, hi], ...]`, with numbers `lo < hi`. A bin is hidden when it overlaps a window by more
+  than a point — partly overlapping bins included, while a bin that ends at `lo` or starts at
+  `hi` is shown — and so is a bin into which the rebinning (`x_rebin`) or the overflow merge
+  moves events of a stored bin that overlaps a window. `blind_ranges` is for 1D variables only.
+  Any other key starting with `blind` (in any letter case) on a variable, and any such key in
+  `data_hist` of `cms_stacked.yaml` or `<era>.yaml`, is an error, so that a key no code reads
+  cannot pass for blinding.
+
+  ```yaml
+  m_mumu(_.*)?:
+    x_bins: "1500|0:300"
+    blind_ranges: [ 115, 135 ]          # or [ [ 115, 120 ], [ 130, 135 ] ]
+  ```
 
 Plot styling comes from the analysis `config/plot/*.yaml` files (`cms_stacked.yaml`,
 `histograms.yaml`, `<era>.yaml`) — unchanged from the legacy renderer. Signal overlays are scaled by

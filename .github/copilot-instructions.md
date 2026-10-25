@@ -392,6 +392,13 @@ Each of these has caused a production incident. They are ordered by how much dam
   lists; analysis code should decide by that entry, not by substrings of process names. Within the
   groups the model reaches, a process may belong to one group only. The `parent_process` key on a
   base process is different: the model process after expansion, which histograms are merged under.
+- Plot blinding (`Common/PlotBlinding.py`, applied by `Analysis/HistPlotter.py`): a variable's
+  `histograms.yaml` entry takes `blind` and `blind_ranges` only; any other key starting with
+  `blind`, and a blinding key in the page-level `data_hist`, raises. A `blind_ranges` window hides
+  (NaN content and error) every data bin it overlaps and every bin the rebinning or the overflow
+  merge fills from a stored bin it overlaps, in every region, control regions included. A change
+  that lifts a window in some region, or draws a hidden bin as a marker at zero, shows blinded
+  data.
 
 ## Testing expectations
 

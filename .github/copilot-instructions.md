@@ -345,6 +345,10 @@ Each of these has caused a production incident. They are ordered by how much dam
 - **Producers must not write bare-relative temp files.** CWD is shared between branches under
   `law --workers`, so two branches race on the same name. Write under the job's working
   directory.
+- **Every `hadd -j` passes `-d` with a fresh directory of that merge alone**
+  (`RunKit.run_tools.hadd_parallel` does). Without `-d`, hadd writes its partial files
+  (`partial<i>_<TUUID>.root`) to the shared temporary directory, where two concurrent merges have
+  drawn the same TUUID and swapped content (FLAF#361).
 
 ### Shifted-tree array counters (`AnaProd/FuseAnaTuples.py`)
 

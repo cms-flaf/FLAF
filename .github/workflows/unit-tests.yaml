@@ -44,6 +44,7 @@ jobs:
           python -m pytest -q
           test/test_anatuple_cost_model.py
           test/test_atomic_publish.py
+          test/test_bundle_jobs.py
           test/test_crab_credentials.py
           test/test_crab_failure_reporting.py
           test/test_crab_hardening.py

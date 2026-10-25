@@ -7,6 +7,7 @@ marker differs on the submitting machine only, and exports that identity, after 
 that packs flaf_env is named. The CI workflows install the versions the script pins.
 """
 
+import base64
 import glob
 import hashlib
 import importlib.util
@@ -16,6 +17,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tarfile
 import tempfile
 import textwrap
 import types
@@ -944,7 +946,8 @@ class ANonBundleJobNeverRebuilds(unittest.TestCase):
     """bootstrap.sh's non-bundle branch, rendered and sourced as law's job script does it, with
     the real env.sh: such a job sets no FLAF_NO_INSTALL, so only LAW_JOB_HOME tells env.sh that it
     runs on a batch node, where an environment of another script must not be removed and built
-    again under the jobs that run from it."""
+    again under the jobs that run from it. env.sh's stop does not end the job's shell: the
+    bootstrap fails, so that law can still stage the job's log out."""
 
     def test_the_job_stops_and_leaves_the_environment(self):
         tmp = tempfile.mkdtemp(prefix="flaf_bootstrap_env_")
@@ -1006,13 +1009,256 @@ class ANonBundleJobNeverRebuilds(unittest.TestCase):
             env=env,
             cwd=job_home,
         )
-        self.assertNotIn("bootstrap returned", proc.stdout)
-        self.assertNotEqual(proc.returncode, 0)
-        self.assertIn(
-            "Source env.sh on the submitting machine", proc.stdout, proc.stderr
-        )
+        self.assertRegex(proc.stdout, r"bootstrap returned [1-9]", proc.stderr)
+        self.assertIn("Source env.sh on the submitting machine", proc.stdout)
         self.assertTrue(os.path.exists(os.path.join(env_path, "sentinel")))
         self.assertFalse(os.path.exists(build_log))
+
+
+#: an analysis env.sh, in the shape of the three analyses': whatever FLAF/env.sh does, sourcing it
+#: returns the status of its last line
+_ANALYSIS_ENV_SH = """action() {
+    local this_file="$( [ ! -z "$ZSH_VERSION" ] && echo "${(%):-%x}" || echo "${BASH_SOURCE[0]}" )"
+    local this_dir="$( cd "$( dirname "$this_file" )" && pwd )"
+    local this_file_path="$this_dir/$(basename $this_file)"
+    export ANALYSIS_PATH="$this_dir"
+    [ -z "$FLAF_PATH" ] && export FLAF_PATH="$ANALYSIS_PATH/FLAF"
+    source "$FLAF_PATH/env.sh" "$this_file_path" "$@"
+}
+
+action "$@"
+unset -f action
+"""
+
+#: gfal-copy as bootstrap.sh calls it (`gfal-copy -f <url> file://<path>`), for file:// URLs
+_FAKE_GFAL_COPY = """#!/bin/bash
+cp "${2#file://}" "${3#file://}"
+"""
+
+#: an environment's activate script, putting its bin/ (with the fake law below) on PATH
+_FAKE_ACTIVATE = """export PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd ):$PATH"
+"""
+
+#: law as the job script calls it: `law location`, and `law run` for the task, which succeeds
+_FAKE_LAW = """#!/bin/bash
+case "$1" in
+    location) dirname "$0" ;;
+    run) echo "fake law $*" ;;
+esac
+"""
+
+#: a stand-in for run_tools/stageout_logs.sh, recording the job exit code law hands it
+_FAKE_STAGEOUT = """#!/bin/bash
+echo "$1" >> "$STAGEOUT_LOG"
+"""
+
+
+#: law's `log_file` per backend: the HTCondor wrapper renders the job script with an empty one
+#: (law contrib/htcondor/htcondor_wrapper.sh), so law_job runs in the job's own shell; on CRAB it is
+#: `stdall.txt` (transfer_logs), and law_job runs in a pipeline into `tee`, where `$$` in env.sh
+#: names the shell around it (law job/law_job.sh, start_law_job)
+_LOG_FILES = {"htcondor": "", "crab": "stdall.txt"}
+
+
+class ABundleJobStoppedInEnvShStagesItsLog(unittest.TestCase):
+    """law's job script (FLAF's grouped variant), rendered as each backend's wrapper renders it
+    and run under `env -i` with bootstrap.sh, a stand-in stageout file, and bundles packed from the
+    real FLAF/env.sh and run_tools/mk_flaf_env.sh with an analysis env.sh. When env.sh refuses
+    (no flaf_env in the bundles, or a CMSSW area it may not install) the job must still end
+    through law's bootstrap-failure path (exit code 20) and run the stageout file, which uploads
+    its log -- with remote logs, the only copy (the sandbox log goes to /dev/null)."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="flaf_bundle_job_")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.bin = self.make_dir("bin")
+        self.script("bin/gfal-copy", _FAKE_GFAL_COPY)
+        self.stageout = self.script("stageout_logs.sh", _FAKE_STAGEOUT)
+        self.stageout_log = os.path.join(self.tmp, "stageout.log")
+
+        core = self.make_dir("core")
+        with open(os.path.join(core, "env.sh"), "w") as f:
+            f.write(_ANALYSIS_ENV_SH)
+        os.makedirs(os.path.join(core, "FLAF", "run_tools"))
+        for parts in (("env.sh",), ("run_tools", "mk_flaf_env.sh")):
+            shutil.copy2(
+                os.path.join(flaf_repo, *parts), os.path.join(core, "FLAF", *parts)
+            )
+        with open(os.path.join(flaf_repo, "run_tools", "mk_flaf_env.sh"), "rb") as f:
+            identity = f"{_LCG}_{_ARCH}_{hashlib.sha256(f.read()).hexdigest()[:12]}"
+        soft = self.make_dir("soft_bundle")
+        env_bin = os.path.join(soft, "soft", "flaf_env", "bin")
+        os.makedirs(env_bin)
+        open(os.path.join(soft, "soft", "flaf_env", f".{identity}"), "w").close()
+        self.script(os.path.join(env_bin, "activate"), _FAKE_ACTIVATE)
+        self.script(os.path.join(env_bin, "law"), _FAKE_LAW)
+        # a CMSSW area without its `.installed` marker, which a bundle job may not build
+        cmssw = self.make_dir("cmssw_bundle")
+        os.makedirs(os.path.join(cmssw, "soft", "CMSSW_16_0_6", "src"))
+        self.bundles = {
+            flavour: self.pack(source, f"{flavour}.tar.bz2")
+            for flavour, source in (("core", core), ("soft", soft), ("cmssw", cmssw))
+        }
+
+        data = mock.patch.dict(
+            os.environ, {"ANALYSIS_DATA_PATH": self.make_dir("data")}
+        )
+        data.start()
+        self.addCleanup(data.stop)
+        with open(lc.grouped_law_job_script()) as f:
+            self.job_script_template = f.read()
+
+    def make_dir(self, name):
+        path = os.path.join(self.tmp, name)
+        os.makedirs(path)
+        return path
+
+    def script(self, name, content):
+        path = os.path.join(self.tmp, name)
+        with open(path, "w") as f:
+            f.write(content)
+        os.chmod(path, 0o755)
+        return path
+
+    def pack(self, source, name):
+        path = os.path.join(self.tmp, name)
+        with tarfile.open(path, "w:bz2") as tar:
+            for entry in sorted(os.listdir(source)):
+                tar.add(os.path.join(source, entry), arcname=entry)
+        return path
+
+    @staticmethod
+    def render(template, values):
+        # as law renders job inputs: an unknown variable becomes empty
+        return re.sub(r"\{\{(\w+)\}\}", lambda m: values.get(m.group(1), ""), template)
+
+    def run_job(self, flavours, log_file, sigint_ignored=False, stale_sentinel=False):
+        bootstrap = self.script(
+            "bootstrap.sh",
+            self.render(
+                _read("bootstrap.sh"),
+                {
+                    "analysis_path": "NONE",
+                    "bundle_list": " ".join(
+                        f"{flavour}:file://{self.bundles[flavour]}"
+                        for flavour in flavours
+                    ),
+                    "rucio_account": "flaf_test",
+                },
+            ),
+        )
+        job = self.script(
+            "job.sh",
+            self.render(
+                self.job_script_template,
+                {
+                    "bootstrap_file": bootstrap,
+                    "stageout_file": self.stageout,
+                    "log_file": log_file,
+                },
+            ),
+        )
+        if os.path.exists(self.stageout_log):
+            os.remove(self.stageout_log)
+        init_dir = tempfile.mkdtemp(dir=self.tmp)
+        b64 = lambda text: base64.b64encode(text.encode()).decode()
+        env = [
+            f"PATH={self.bin}:/usr/bin:/bin",
+            f"HOME={self.tmp}",
+            f"STAGEOUT_LOG={self.stageout_log}",
+        ]
+        if stale_sentinel:
+            # as a job that inherited the environment of a shell that had sourced env.sh
+            env.append("FLAF_ENV_LOADED=1")
+        proc = subprocess.run(
+            ["env", "-i", *env, "bash", job]
+            + ["FLAF.test.hello_world_task", "HelloWorldTask"]
+            + [b64("--version v1"), b64("0"), "1", "no", b64("")],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            cwd=init_dir,
+            preexec_fn=_ignore_sigint if sigint_ignored else None,
+        )
+        stageouts = []
+        if os.path.exists(self.stageout_log):
+            with open(self.stageout_log) as f:
+                stageouts = f.read().split()
+        if log_file:
+            # the job's own log file, where law's tee writes it
+            self.assertTrue(os.path.isfile(os.path.join(init_dir, log_file)))
+        return proc, proc.stdout + proc.stderr, stageouts
+
+    def assert_bootstrap_failed(self, flavours, message, **kwargs):
+        for backend, log_file in _LOG_FILES.items():
+            with self.subTest(backend=backend, **kwargs):
+                proc, output, stageouts = self.run_job(flavours, log_file, **kwargs)
+                self.assertIn(message, output, output)
+                self.assertIn("bootstrap file failed", output)
+                self.assertNotIn("fake law run", output)
+                self.assertEqual(proc.returncode, 20, output)
+                self.assertEqual(stageouts, ["20"], output)
+
+    def test_without_flaf_env(self):
+        self.assert_bootstrap_failed(["core"], "was not built by the current")
+
+    def test_without_flaf_env_and_a_stale_sentinel(self):
+        self.assert_bootstrap_failed(
+            ["core"], "was not built by the current", stale_sentinel=True
+        )
+
+    def test_a_cmssw_area_it_may_not_install(self):
+        self.assert_bootstrap_failed(
+            ["core", "soft", "cmssw"], "not found and FLAF_NO_INSTALL=1"
+        )
+
+    def test_with_sigint_ignored(self):
+        for flavours, message in (
+            (["core"], "was not built by the current"),
+            (["core", "soft", "cmssw"], "not found and FLAF_NO_INSTALL=1"),
+        ):
+            self.assert_bootstrap_failed(flavours, message, sigint_ignored=True)
+
+    def test_with_flaf_env_the_job_runs_the_task(self):
+        for backend, log_file in _LOG_FILES.items():
+            for sigint_ignored in (False, True):
+                with self.subTest(backend=backend, sigint_ignored=sigint_ignored):
+                    proc, output, stageouts = self.run_job(
+                        ["core", "soft"], log_file, sigint_ignored=sigint_ignored
+                    )
+                    self.assertNotIn("bootstrap file failed", output)
+                    self.assertIn(
+                        "fake law run FLAF.test.hello_world_task.HelloWorldTask", output
+                    )
+                    self.assertEqual(proc.returncode, 0, output)
+                    self.assertEqual(stageouts, ["0"], output)
+
+    def test_a_bootstrap_that_succeeds_leaves_sigint_alone(self):
+        """The signal is caught while env.sh is sourced only: a trap left behind would carry a
+        job's shell past an interrupt during the task itself."""
+        self.run_job(["core", "soft"], "")
+        job_home = self.make_dir("job_home")
+        proc = subprocess.run(
+            [
+                "env",
+                "-i",
+                f"PATH={self.bin}:/usr/bin:/bin",
+                f"HOME={self.tmp}",
+                f"LAW_JOB_HOME={job_home}",
+                f"LAW_JOB_INIT_DIR={job_home}",
+                "bash",
+                "-c",
+                f'source "{self.tmp}/bootstrap.sh" ""\n'
+                'echo "bootstrap returned $?"\n'
+                'echo "sigint trap: [$(trap -p INT)] loaded: $FLAF_ENV_LOADED"\n',
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            cwd=job_home,
+        )
+        self.assertIn("bootstrap returned 0", proc.stdout, proc.stdout + proc.stderr)
+        self.assertIn("sigint trap: [] loaded: 1", proc.stdout)
 
 
 class FakeBundleTask(lc.BundleTask):

@@ -32,7 +32,10 @@ submitted: source it again there and resubmit. `ERROR: cannot identify the FLAF 
 answer, for example), and nothing was removed or built; source `env.sh` again once the storage
 answers. When it says `… is listed in … but not seen as a directory` and persists, something that
 is no reachable directory (a file, a broken link) sits at `soft/flaf_env`: move it away by hand. See
-[The environment](concepts/environment.md#what-envsh-sets-up).
+[The environment](concepts/environment.md#what-envsh-sets-up). Such a job fails its bootstrap, on
+HTCondor and on CRAB alike, as does one whose `env.sh` refused anything else (a CMSSW area without
+its `.installed` marker in a bundle, for example): law reports `bootstrap file failed` and exit code
+20, the job runs no task, and its log, with the message, is staged as any other.
 
 ## `unknown era(s) …; known eras: …` / `the configuration says era: …`
 `--era` names one era, and the known eras are the directories `FLAF/config/<era>/` whose

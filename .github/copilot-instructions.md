@@ -96,6 +96,22 @@ Each of these has caused a production incident. They are ordered by how much dam
   `data/<version>/<Task>/<era>` directory that nothing requires; do not silence that warning.
 - Bundles preserve symlinks inside a packed directory verbatim. An absolute symlink into AFS
   therefore still sends every job back to AFS — which is what the bundle exists to avoid.
+- **A task that ships bundles must ship `flaf_env`.** `_bundle_tasks` raises at submission when
+  none of its flavours packs `$FLAF_ENVIRONMENT_PATH` (`BundleTask.packs_environment`): the job
+  sources `env.sh` from the bundles, and `env.sh` refuses without the environment.
+- **A job's bootstrap fails unless `env.sh` exported `FLAF_ENV_LOADED=1`.** `env.sh` stops with
+  `kill -INT $$`. On HTCondor law runs the job in that very shell, which the signal would kill
+  before the log stageout, so `bootstrap.sh` traps SIGINT while it sources `env.sh`, and only then
+  (a trap left set would carry the job past an interrupt of the task). On CRAB law runs the job
+  in a pipeline into `tee`, `$$` names the shell around it, and `env.sh` goes on. Neither the
+  signal nor the status of `source` (the analysis `env.sh` returns 0 whatever `FLAF/env.sh` did)
+  tells a refusal there: `load_flaf_env` clears the sentinel first and exports it only when
+  nothing refused, so every refusal path, `install()` included, must mark the load as refused.
+- **Worker files are keyed on their content.** Without spooling, `_stage_and_update_jdl` uploads
+  each job input to `worker_files/<era>/<sha256[:12]>/<name>` and trusts an existing copy. law
+  names a copied input after a hash of its *source path* (`job/base.py`,
+  `postfix_file(add_hash=True)`), not its content, so a key on the name alone hands jobs another
+  task's or older code's files.
 
 ### Remote storage (`RunKit/law_gfal.py`)
 

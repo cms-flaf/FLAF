@@ -137,6 +137,8 @@ bundles:
   core:
     patterns: [ "config/{{era}}" ]
     hashed: true
+  soft:
+    patterns: [ "soft/flaf_env" ]
 crab:
   whitelist: [ T2_CH_CERN ]
   watchdog:
@@ -176,7 +178,8 @@ def make_scratch_analysis(root):
         "ANALYSIS_PATH": ana,
         "ANALYSIS_DATA_PATH": os.path.join(root, "data"),
         "FLAF_PATH": flaf_repo,
-        "FLAF_ENVIRONMENT_PATH": os.path.join(root, "no_env"),
+        "FLAF_ENVIRONMENT_PATH": os.path.join(ana, "soft", "flaf_env"),
+        "FLAF_ENVIRONMENT_ID": "LCG_X_ARCH_Y_0123456789ab",
         "LAW_JOB_FILE_DIR": os.path.join(root, "job_files"),
     }
 
@@ -579,8 +582,11 @@ class EraJobsUp(
     allow_multi_era = True
     era_branches = True
     poll_interval = lc.copy_param(lc.HTCondorWorkflow.poll_interval, 0.0002)
-    # no bundle is configured under this name: the scenario drivers need none built
+    # bundle jobs, but no bundle to build: the scenario drivers run on a faked storage
     bundle_flavours = ["scenario"]
+
+    def _bundle_tasks(self):
+        return []
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
@@ -652,7 +658,8 @@ class EraJobsRenderUp(EraJobsUp):
     between the jobs it builds, written with era-specific content to an era-less path.
     """
 
-    bundle_flavours = ["core"]
+    bundle_flavours = ["core", "soft"]
+    _bundle_tasks = lc.HTCondorWorkflow._bundle_tasks
     # not spooled: the worker files are shipped through the storage, under the era's path
     htcondor_spool = lc.copy_param(lc.HTCondorWorkflow.htcondor_spool, False)
 

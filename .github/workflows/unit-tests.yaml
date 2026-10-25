@@ -43,6 +43,7 @@ jobs:
         run: >-
           python -m pytest -q
           test/test_anatuple_cost_model.py
+          test/test_anatuple_plan_reuse.py
           test/test_atomic_publish.py
           test/test_crab_credentials.py
           test/test_crab_failure_reporting.py

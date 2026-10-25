@@ -66,6 +66,13 @@ Each of these has caused a production incident. They are ordered by how much dam
   decorates with the *parent's* `workflow_condition.output` mutates the shared object and
   corrupts the parent task. It must `.copy()` first. Review the **parent** task too — the damage
   shows up there, not in the subclass being changed.
+- **Whether the AnaTuple merge plans are available is decided by `anaTuple_plans_ready`
+  (`AnaProd/tasks.py`) alone.** It copies an existing production's plans into `data/` when they
+  are on `fs_anaTuple`. Every dynamic workflow condition from `AnaTupleMergeTask` down and every
+  choice between narrow and whole-era requirements asks it; a direct
+  `AnaTupleFileListTask.req(...).complete()` there disagrees with it in a new checkout
+  (placeholder maps, whole-era requirements, `InputFileTask` under bundles; issue #352).
+  `test/test_anatuple_plan_reuse.py` scans for one.
 - **law fixes the "already exists" branch set when luigi schedules a remote workflow**, before
   its requirements run. A workflow whose own requirement creates its outputs will resubmit
   everything. Clearing `_existing_branches`/`_skip_jobs` at the top of `run()` is the fix; both

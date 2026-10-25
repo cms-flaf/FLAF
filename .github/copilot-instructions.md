@@ -147,6 +147,23 @@ Each of these has caused a production incident. They are ordered by how much dam
   The snapshot differs per submission, so its job input is not `share=True`: law builds every CRAB
   task of a run in one directory and reuses an existing shared input there (`skip_existing`).
 
+### Locking finished productions (`run_tools/eos_lock.py`)
+
+- A lock is `z:i` on **every** directory plus mode `0555`, with everything owned by the locker.
+  Never put `!d` in a lock ACL (it lets a file's owner move the file out, even with `i`), never
+  edit a locked ACL with `eos acl` (it drops `z:i` silently), and set the mode before `z:i`
+  (`chmod` is refused below an immutable parent).
+- An original is deleted only once a copy with the same size and adler32 is in place; an entry
+  whose content changed while the lock ran is never deleted, and a copy is renamed into place only
+  after it was verified against an original that still exists. A directory of another member is
+  never removed from a directory carrying `!d`: EOS refuses that even to the parent's owner, so the
+  original is moved into the rebuilt directory (which gets the caller's ACL first) and removed there.
+- Every original file stays at its path while the lock runs, except inside the swap of a rebuilt
+  directory: that step has no safe point (signals only set a flag, checked between directories
+  and files), is retried as a whole from a fresh look, and is the first thing a rerun finishes. Every intermediate state must be
+  resumable by a rerun: `test/test_eos_lock.py` kills the lock after each operation, and a new
+  operation must keep that test green.
+
 ### CRAB backend (`run_tools/law_customizations.py`, `run_tools/crab_sites.py`, `run_tools/crab_watchdog.py`)
 
 - **CRAB gives the whitelist precedence over the blacklist.** Excluded sites (configured blacklist
@@ -466,7 +483,7 @@ Verified 2026-10-22; re-check before relying on any of it.
 
 | | |
 |---|---|
-| Layout | `AnaProd/` (anaTuple production tasks), `Analysis/` (histogram/plot tasks), `Common/` (`Setup.py`, utilities), `Processors/` (stitching), `RunKit/` (vendored grid/job tools), `run_tools/` (`law_customizations.py`), `config/`, `include/` (C++ headers), `test/`, `docs/` |
+| Layout | `AnaProd/` (anaTuple production tasks), `Analysis/` (histogram/plot tasks), `Common/` (`Setup.py`, utilities), `Processors/` (stitching), `RunKit/` (vendored grid/job tools), `run_tools/` (`law_customizations.py`, CRAB helpers, `eos_lock.py`), `config/`, `include/` (C++ headers), `test/`, `docs/` |
 | Submodule | `PlotKit` only. **`RunKit` is vendored**, not a submodule; imports are `from FLAF.RunKit.<module> import …` |
 | Datasets | `config/<era>/datasets.yaml` for Run 3. Run 2 eras still use the older `samples.yaml` |
 | Eras | `Run3_2022`, `Run3_2022EE`, `Run3_2023`, `Run3_2023BPix`, `Run3_2024`, `Run3_2025`, `Run3_2026`; Run 2 legacy. `--era` takes several for the stage classes; ids 5 (`Run3_2022`) … 11 (`Run3_2026`), branch number over several eras `era id × 1 000 000 + local` |

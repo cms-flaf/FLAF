@@ -19,6 +19,7 @@ is pinned at the end, in place of DSProd's failure-budget tests.
 """
 
 import contextlib
+import importlib.util
 import itertools
 import os
 import shutil
@@ -35,12 +36,12 @@ flaf_parent = os.path.dirname(flaf_repo)
 if flaf_parent not in sys.path:
     sys.path.insert(0, flaf_parent)
 
-try:
-    import ROOT  # noqa: F401
-except ImportError:
-    # FLAF.Common imports ROOT at module level; nothing exercised here uses it, and the
-    # unit-test runner has none
-    sys.modules["ROOT"] = mock.MagicMock()
+# FLAF.Common imports ROOT at module level; nothing exercised here uses it, and the unit-test
+# runner has none. The stand-in serves the import only: test modules share one process, and a
+# later one must still get the real ROOT or fail to import it.
+_root_stand_in = None
+if "ROOT" not in sys.modules and importlib.util.find_spec("ROOT") is None:
+    _root_stand_in = sys.modules["ROOT"] = mock.MagicMock()
 
 import law  # noqa: E402
 import law.workflow.base  # noqa: E402
@@ -49,6 +50,9 @@ from law.job.dashboard import NoJobDashboard  # noqa: E402
 
 import FLAF.run_tools.law_customizations as lc  # noqa: E402
 from FLAF.RunKit.law_gfal import GFALFileInterface  # noqa: E402
+
+if _root_stand_in is not None and sys.modules.get("ROOT") is _root_stand_in:
+    del sys.modules["ROOT"]
 
 #: the production the numbers in the module docstring come from
 N_BRANCHES = 4800

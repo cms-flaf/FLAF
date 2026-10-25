@@ -37,8 +37,10 @@ Each of these has caused a production incident. They are ordered by how much dam
 ### law semantics
 
 - **Package versions are pinned in `run_tools/mk_flaf_env.sh`.** Every package it installs is
-  pinned (`==`, or a commit archive URL), law included; `env.sh` names no package and probes no
-  version, and nothing checks a version at import. `env.sh` identifies `flaf_env` by the LCG
+  pinned (`==`, or a commit archive URL), law included; `env.sh` names no package of `flaf_env`
+  and probes no version, and nothing checks a version at import. (It does check that the system
+  `/usr/bin/python3` imports `gfal2`, to set `GFAL_PYTHONBIN` for the system `gfal-*` commands,
+  outside law jobs only.) `env.sh` identifies `flaf_env` by the LCG
   release and a hash of that script (`FLAF_ENVIRONMENT_ID`, also its marker
   `.<FLAF_ENVIRONMENT_ID>`), so a pin change rebuilds it on the next `source env.sh` on the
   submitting machine; inside a law job (`LAW_JOB_HOME` set, non-bundle HTCondor jobs included) or

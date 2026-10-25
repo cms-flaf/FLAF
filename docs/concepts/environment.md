@@ -33,6 +33,12 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
    written again at the same time, so edits made to it by hand do not survive a version change.
 4. **Sets up grid access** — points `X509_USER_PROXY` at `data/voms.proxy` (unless it is already
    set) and initialises Rucio, pinned to the version in `FLAF_RUCIO_VERSION` (default `39.2.0`).
+   It also sets `GFAL_PYTHONBIN=/usr/bin/python3` (unless already set), so that the system
+   `gfal-*` commands (`gfal-ls`, `gfal-copy`, …) work in the shell: they look for a python that
+   has the gfal2 bindings, which the one of `flaf_env` does not have, and otherwise fail with
+   `/usr/bin/python: No such file or directory`. Where `/usr/bin/python3` cannot import them
+   either, `env.sh` prints a warning instead. Inside a law batch job it does neither; FLAF runs its
+   own `gfal-*` calls with an environment of their own.
 5. **Defines the `cmsEnv` helper** (see below).
 
 !!! note "First source is slow, the rest are fast"

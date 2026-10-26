@@ -583,8 +583,7 @@ class HistFromNtupleProducerTask(
     allow_multi_era = True
     era_branches = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 10.0)
-    # single-threaded producer (see nMT below), so one core
-    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
+    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     variables = luigi.Parameter(default="")
     # Number of input ntuple files processed per job. LAW branches stay split by
     # files. If the booked-histogram count (variables x selections x unc/scale,

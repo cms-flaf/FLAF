@@ -3,8 +3,8 @@
 
 HistFromNtupleProducer asks it once per booked histogram, so the answer is cached per
 (config, variable): the cache must return what the regex scan returns, keep configs apart, and
-not cache a failure. ROOT and numpy are not needed (HistHelper only imports them, mocked here
-when absent, as on the CI runner).
+not cache a failure. ROOT and numpy are not needed (HistHelper only uses them at import, mocked
+here; the CI runner has neither).
 """
 
 import os
@@ -17,13 +17,11 @@ flaf_parent = os.path.dirname(flaf_repo)
 if flaf_parent not in sys.path:
     sys.path.insert(0, flaf_parent)
 os.environ.setdefault("ANALYSIS_PATH", flaf_parent)
-sys.modules.setdefault("ROOT", mock.MagicMock())
-try:
-    import numpy  # noqa: F401
-except ImportError:
-    sys.modules["numpy"] = mock.MagicMock()
 
-import FLAF.Common.HistHelper as HistHelper  # noqa: E402
+# Stand-ins only for this import, whatever other test modules left in sys.modules (a bare
+# ROOT module has no gROOT), and removed afterwards so that they do not leak into them.
+with mock.patch.dict(sys.modules, {"ROOT": mock.MagicMock(), "numpy": mock.MagicMock()}):
+    import FLAF.Common.HistHelper as HistHelper
 
 CONFIG = {
     "DeepHME_mass": {"x_bins": "78|0:1"},

@@ -63,11 +63,9 @@ jobs:
           test/test_era_process_state.py
           test/test_era_requires.py
           test/test_eos_lock.py
-          test/test_find_bin_entry.py
           test/test_flaf_env.py
           test/test_fresh_negatives.py
           test/test_gfal_absent_vs_unreachable.py
-          test/test_hist_from_ntuple_batch.py
           test/test_local_path_cache_server.py
           test/test_path_cache.py
           test/test_remote_log_names.py

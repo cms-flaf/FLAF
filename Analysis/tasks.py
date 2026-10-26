@@ -583,7 +583,8 @@ class HistFromNtupleProducerTask(
     allow_multi_era = True
     era_branches = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 10.0)
-    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
+    # single-threaded producer (see nMT below), so one core
+    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     variables = luigi.Parameter(default="")
     # Number of input ntuple files processed per job. LAW branches stay split by
     # files. If the booked-histogram count (variables x selections x unc/scale,
@@ -762,7 +763,10 @@ class HistFromNtupleProducerTask(
         HistFromNtupleProducer = os.path.join(
             self._flaf_root(), "Analysis", "HistProducerFromNTuple.py"
         )
-        nMT = self.n_cpus * 2 if self.effective_workflow in ("htcondor", "crab") else 8
+        # Single-threaded: the event loop is a small part of the job and each job's input
+        # is a few files, while every thread holds its own copy of every booked histogram
+        # (more memory, so more passes for the large 2D variables).
+        nMT = 1
 
         # Determine which variables still need to be produced for this (dataset, chunk).
         outputs = self.output()

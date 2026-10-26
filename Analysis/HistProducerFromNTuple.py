@@ -208,7 +208,12 @@ if __name__ == "__main__":
     )
     parser.add_argument("--furtherCut", type=str, default=None)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
-    parser.add_argument("--nMT", type=int, default=8)
+    parser.add_argument(
+        "--nMT",
+        type=int,
+        default=1,
+        help="Threads of the event loop; 1 (default) runs without implicit MT.",
+    )
     parser.add_argument("--user-custom", type=str, default=None)
     parser.add_argument(
         "--max-hists",
@@ -230,7 +235,8 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    ROOT.EnableImplicitMT(args.nMT)
+    if args.nMT > 1:
+        ROOT.EnableImplicitMT(args.nMT)
 
     start = time.time()
 

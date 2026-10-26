@@ -170,9 +170,10 @@ chunk of input files and fills every active variable, one output file per variab
 their files into chunks.
 
 If the number of histograms booked in one RDataFrame pass — variables × selections ×
-(Central + every Up/Down) — exceeds `hist_from_ntuple_max_hists` (default `4000`), the
+(Central + every Up/Down) — exceeds `hist_from_ntuple_max_hists` (default `30000`), the
 producer repeats the event loop in batches instead of holding every histogram at once.
-That keeps CI (8 GiB) from running out of memory when uncertainties are on. Set the
+Every pass costs a full graph build and event loop, so the count is kept high: memory is bounded
+by the cell budget below, not by the count. Set the
 threshold in `global.yaml` / `user_custom.yaml`, or pass `--max-hists` to the producer
 (`0` disables batching). LAW branches stay file-chunks; batching is inside the job.
 

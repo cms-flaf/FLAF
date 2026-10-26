@@ -40,6 +40,17 @@ def find_keys(inFiles_list):
     return sorted(unique_keys)
 
 
+ROOT.gInterpreter.Declare("""
+    // Copy the first n cells (contents and errors) of src into dst, as the per-bin loop did.
+    void copyHistCells(const TH1& src, TH1& dst, int n) {
+        for (int i = 0; i < n; ++i) {
+            dst.SetBinContent(i, src.GetBinContent(i));
+            dst.SetBinError(i, src.GetBinError(i));
+        }
+    }
+    """)
+
+
 def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
     model, unit_hist, rdf = hist_list[0]
     if verbose > 0:
@@ -56,21 +67,13 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
         if hasattr(unit_hist, "GetNbins")
         else unit_hist.GetNcells()
     )
-    for i in range(0, N_bins):
-        bin_content = unit_hist.GetBinContent(i)
-        bin_error = unit_hist.GetBinError(i)
-        merged_hist.SetBinContent(i, bin_content)
-        merged_hist.SetBinError(i, bin_error)
+    ROOT.copyHistCells(unit_hist.GetValue(), merged_hist, N_bins)
 
     nentries = unit_hist.GetEntries()
     if len(hist_list) > 1:
         for model, unit_hist in hist_list[1:]:
             hist = model.GetHistogram()
-            for i in range(0, N_bins):
-                bin_content = unit_hist.GetBinContent(i)
-                bin_error = unit_hist.GetBinError(i)
-                hist.SetBinContent(i, bin_content)
-                hist.SetBinError(i, bin_error)
+            ROOT.copyHistCells(unit_hist.GetValue(), hist, N_bins)
             nentries += unit_hist.GetEntries()
             merged_hist.Add(hist)
 
@@ -213,7 +216,7 @@ if __name__ == "__main__":
         default=None,
         help="Max histograms booked in one RDataFrame pass, counting every "
         "(variable, selection, unc, scale) including Up/Down. "
-        "0 disables batching. Default: hist_from_ntuple_max_hists from config, else 4000.",
+        "0 disables batching. Default: hist_from_ntuple_max_hists from config, else 30000.",
     )
     parser.add_argument(
         "--max-hist-memory-mb",
@@ -332,7 +335,9 @@ if __name__ == "__main__":
         if args.max_hists is not None:
             max_hists = args.max_hists
         else:
-            max_hists = int(setup.global_params.get("hist_from_ntuple_max_hists", 4000))
+            max_hists = int(
+                setup.global_params.get("hist_from_ntuple_max_hists", 30000)
+            )
         if args.max_hist_memory_mb is not None:
             max_memory_mb = args.max_hist_memory_mb
         else:

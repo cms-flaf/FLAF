@@ -15,10 +15,19 @@ ROOT.gROOT.ProcessLine(f".include {os.environ['ANALYSIS_PATH']}")
 ROOT.gROOT.ProcessLine(f'#include "FLAF/include/HistHelper.h"')
 
 
+_bin_entry_cache = {}
+
+
 def findBinEntry(hist_cfg_dict, var_name):
     """
     Match variable name against regex-based histogram config entries.
+
+    The answer for a (config, variable) pair is cached: the producers ask it for the same
+    variable once per booked histogram, and every miss runs one regex per config entry.
     """
+    key = (id(hist_cfg_dict), var_name)
+    if key in _bin_entry_cache:
+        return _bin_entry_cache[key]
 
     matches = []
 
@@ -32,6 +41,7 @@ def findBinEntry(hist_cfg_dict, var_name):
     if len(matches) > 1:
         raise RuntimeError(f"Ambiguous histogram config for '{var_name}': {matches}")
 
+    _bin_entry_cache[key] = matches[0]
     return matches[0]
 
 

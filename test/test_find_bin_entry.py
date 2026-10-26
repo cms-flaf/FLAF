@@ -20,7 +20,9 @@ os.environ.setdefault("ANALYSIS_PATH", flaf_parent)
 
 # Stand-ins only for this import, whatever other test modules left in sys.modules (a bare
 # ROOT module has no gROOT), and removed afterwards so that they do not leak into them.
-with mock.patch.dict(sys.modules, {"ROOT": mock.MagicMock(), "numpy": mock.MagicMock()}):
+with mock.patch.dict(
+    sys.modules, {"ROOT": mock.MagicMock(), "numpy": mock.MagicMock()}
+):
     import FLAF.Common.HistHelper as HistHelper
 
 CONFIG = {

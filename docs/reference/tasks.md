@@ -176,6 +176,14 @@ That keeps CI (8 GiB) from running out of memory when uncertainties are on. Set 
 threshold in `global.yaml` / `user_custom.yaml`, or pass `--max-hists` to the producer
 (`0` disables batching). LAW branches stay file-chunks; batching is inside the job.
 
+A count does not bound memory by itself: RDataFrame keeps one copy of every booked histogram
+per thread (`--nMT`, `2 × n_cpus` on HTCondor/CRAB), and a 2D histogram can have a hundred
+times the cells of a 1D one. A batch therefore also stays within
+`hist_from_ntuple_max_hist_memory_mb` (default `1500`), counted as cells × 16 B ×
+(`nMT` + 1): large 2D/3D variables get smaller batches, 1D ones are not affected. Pass
+`--max-hist-memory-mb` to the producer to override it (`0` disables it). Each batch's line in
+the log gives its histograms, cells and estimated memory.
+
 - **Parameters:** `--variables` (string; restrict which variables), `--n-files-per-job` (int,
   default `20`; input files processed per branch).
 

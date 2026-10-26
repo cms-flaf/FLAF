@@ -129,7 +129,8 @@ law run FLAF.Analysis.tasks.HistTupleProducerTask --era $ERA --version $VER --wo
 `HistFromNtupleProducerTask` fills **histograms** of the requested variables from the histTuples —
 **one branch per (dataset, file-chunk)**, including the Up/Down variations when
 `compute_unc_histograms` is on. If the booked histogram count (with Up/Down) exceeds
-`hist_from_ntuple_max_hists`, the producer fills them in batches. `HistMergerTask` then merges the
+`hist_from_ntuple_max_hists`, or their memory (cells × threads) exceeds
+`hist_from_ntuple_max_hist_memory_mb`, the producer fills them in batches. `HistMergerTask` then merges the
 pieces of each variable into one file with the histograms per process — **one branch per
 variable** — ready for plotting and fitting.
 

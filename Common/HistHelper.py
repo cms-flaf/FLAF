@@ -46,8 +46,12 @@ def get_all_items_recursive(root_dir, path=()):
             items_dict.update(get_all_items_recursive(obj, path + (key.GetName(),)))
         elif obj.InheritsFrom("TH1"):
             # owned here, not by the file: closing a file that owns ~20k histograms takes
-            # minutes, and would delete the ones returned
+            # minutes, and would delete the ones returned. Owned by Python, so a histogram is
+            # freed once nothing refers to it: a merge that only Add()s an input into its
+            # running sum would otherwise keep every input histogram until the job ends
+            # (all ~170k of a variable; 7-12 GB for the 2D DNN_m*_vs_HME).
             obj.SetDirectory(0)
+            ROOT.SetOwnership(obj, True)
             local_items[key.GetName()] = obj
 
     if local_items:

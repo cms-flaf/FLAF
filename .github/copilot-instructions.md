@@ -147,6 +147,23 @@ Each of these has caused a production incident. They are ordered by how much dam
   The snapshot differs per submission, so its job input is not `share=True`: law builds every CRAB
   task of a run in one directory and reuses an existing shared input there (`skip_existing`).
 
+### Locking finished productions (`run_tools/eos_lock.py`)
+
+- A lock is `z:i` on **every** directory plus mode `0555`, with everything owned by the locker.
+  Never put `!d` in a lock ACL (it lets a file's owner move the file out, even with `i`), never
+  edit a locked ACL with `eos acl` (it drops `z:i` silently), and set the mode before `z:i`
+  (`chmod` is refused below an immutable parent).
+- An original is deleted only once a copy with the same size and adler32 is in place; an entry
+  whose content changed while the lock ran is never deleted, and a copy is renamed into place only
+  after it was verified against an original that still exists. A directory of another member is
+  never removed from a directory carrying `!d`: EOS refuses that even to the parent's owner, so the
+  original is moved into the rebuilt directory (which gets the caller's ACL first) and removed there.
+- Every original file stays at its path while the lock runs, except inside the swap of a rebuilt
+  directory: that step has no safe point (signals only set a flag, checked between directories
+  and files), is retried as a whole from a fresh look, and is the first thing a rerun finishes. Every intermediate state must be
+  resumable by a rerun: `test/test_eos_lock.py` kills the lock after each operation, and a new
+  operation must keep that test green.
+
 ### CRAB backend (`run_tools/law_customizations.py`, `run_tools/crab_sites.py`, `run_tools/crab_watchdog.py`)
 
 - **CRAB gives the whitelist precedence over the blacklist.** Excluded sites (configured blacklist
@@ -389,12 +406,18 @@ matching — that is how the path-cache suite went red for a whole merge cycle.
 Note what CI actually runs from `test/`: `test_setup_loading.py` (via `test-setup-loading`, on
 analysis PRs only), the config checkers `checkCrossSections.py`,
 `checkDatasetConfigConsistency.py` and `checkDatasetNaming.py` (on FLAF PRs that change those
-config files), and, through `unit-tests.yaml` on every FLAF PR and push to `main`, the pure-Python
-suites that need neither ROOT nor CVMFS nor a grid proxy (the CRAB backend, path cache and
-remote-storage suites), plus `run_tools/check_era_rename.py` over FLAF's own files (no leftover of the
-`period` → `era` rename). The other suites (`test_*.py` that need ROOT or CVMFS) are not run
-anywhere, so a broken one is not caught automatically. A new suite of the first kind must be added
-to the list in `unit-tests.yaml`, or it is not run either.
+config files), and, through `unit-tests.yaml` on every FLAF PR and push to `main`, every
+`test/**/test_*.py` that pytest collects except the tests marked `needs_root`, `needs_cvmfs` or
+`needs_proxy`, plus `run_tools/check_era_rename.py` over FLAF's own files (no leftover of the
+`period` → `era` rename). `test/conftest.py` defines the markers and the collection rules (its
+`collect_ignore` lists the scripts named `test_*.py`); the analyses load it from their pinned FLAF
+when they run their own `test/` through the same workflow. The marked tests are not run anywhere,
+so a broken one is not caught automatically. A new test needs no workflow change; one that needs
+ROOT, CVMFS or a grid proxy must carry the marker (module-wide `pytestmark` when the module cannot
+be imported without it), or it fails the job; a test that reaches ROOT only through an import
+(`FLAF.Common.Utilities`) takes a withdrawn stand-in instead and runs in CI. All test modules share one process: a stand-in for a
+missing module (an empty `ROOT`) must be removed from `sys.modules` after the import it serves;
+`test/conftest.py` stops the run on a module that leaves one for ROOT.
 
 ## Documentation must ship with the change
 
@@ -441,7 +464,7 @@ separate PR; say so in the review rather than assuming it will be noticed.
 ## Already enforced by CI — do not comment on these
 
 `formatting-check` (black, yamllint, clang-format, and in FLAF `flake8 --select=F821,F811` over
-the whole package), `unit-tests` (the pure-Python suites in `test/`, the `period` → `era` leftover check and the era-scope rules of `check_era_rename.py`), `repo-sanity-checks` (binary
+the whole package), `unit-tests` (every test in `test/` not marked `needs_root`/`needs_cvmfs`/`needs_proxy`, the `period` → `era` leftover check and the era-scope rules of `check_era_rename.py`), `repo-sanity-checks` (binary
 files, repo size), `ds-consistency-check`, `cross-section-check`. Formatting, indentation, quote
 style and trailing whitespace are settled by tooling; comments about them are pure noise.
 
@@ -466,11 +489,11 @@ Verified 2026-10-22; re-check before relying on any of it.
 
 | | |
 |---|---|
-| Layout | `AnaProd/` (anaTuple production tasks), `Analysis/` (histogram/plot tasks), `Common/` (`Setup.py`, utilities), `Processors/` (stitching), `RunKit/` (vendored grid/job tools), `run_tools/` (`law_customizations.py`), `config/`, `include/` (C++ headers), `test/`, `docs/` |
+| Layout | `AnaProd/` (anaTuple production tasks), `Analysis/` (histogram/plot tasks), `Common/` (`Setup.py`, utilities), `Processors/` (stitching), `RunKit/` (vendored grid/job tools), `run_tools/` (`law_customizations.py`, CRAB helpers, `eos_lock.py`), `config/`, `include/` (C++ headers), `test/`, `docs/` |
 | Submodule | `PlotKit` only. **`RunKit` is vendored**, not a submodule; imports are `from FLAF.RunKit.<module> import …` |
 | Datasets | `config/<era>/datasets.yaml` for Run 3. Run 2 eras still use the older `samples.yaml` |
 | Eras | `Run3_2022`, `Run3_2022EE`, `Run3_2023`, `Run3_2023BPix`, `Run3_2024`, `Run3_2025`, `Run3_2026`; Run 2 legacy. `--era` takes several for the stage classes; ids 5 (`Run3_2022`) … 11 (`Run3_2026`), branch number over several eras `era id × 1 000 000 + local` |
-| Workflows | `formatting-check`, `unit-tests`, `repo-sanity-checks`, `ds-consistency-check`, `cross-section-check`, `test-setup-loading`, `test-era-dimension` (reusable: an analysis calls it with its eras), `deploy-docs`, `integration-test`, `trigger-flaf-integration` |
+| Workflows | `formatting-check`, `unit-tests` (also reusable: each analysis runs its own `test/` through it, against its pinned FLAF), `repo-sanity-checks`, `ds-consistency-check`, `cross-section-check`, `test-setup-loading`, `test-era-dimension` (reusable: an analysis calls it with its eras), `deploy-docs`, `integration-test`, `trigger-flaf-integration` |
 | Integration test | Triggered by `@cms-flaf-bot please test`. Its configuration (process lists, eras, versions) lives in **`cms-flaf/FLAF_ci`**, not in this repo |
 | Docs | `docs/`, built with `mkdocs build --strict`; see the documentation section above |
 | Package pins | `run_tools/mk_flaf_env.sh` (law `0.1.21`, luigi `3.8.1`, pip `26.2.1`, …); the CI workflows install the same versions |

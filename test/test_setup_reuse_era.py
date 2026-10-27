@@ -8,6 +8,7 @@ block with `<<: *anchor`. Setup also reads the global.yaml of the era named in
 has to see the top-level layers too, or the alias is undefined there.
 """
 
+import importlib.util
 import os
 import sys
 import tempfile
@@ -19,9 +20,17 @@ flaf_parent = os.path.dirname(flaf_repo)
 if flaf_parent not in sys.path:
     sys.path.insert(0, flaf_parent)
 
-sys.modules["ROOT"] = mock.MagicMock()
+# FLAF.Common.Utilities (imported through Setup) imports ROOT at module level, which nothing here
+# touches. Where ROOT is missing, a stand-in serves the import only and is withdrawn again: test
+# modules share one process, and a later one must still get the real ROOT or fail to import it.
+_root_stand_in = None
+if "ROOT" not in sys.modules and importlib.util.find_spec("ROOT") is None:
+    _root_stand_in = sys.modules["ROOT"] = mock.MagicMock()
 
-from FLAF.Common.Setup import Setup
+from FLAF.Common.Setup import Setup  # noqa: E402
+
+if _root_stand_in is not None and sys.modules.get("ROOT") is _root_stand_in:
+    del sys.modules["ROOT"]
 
 FILES = {
     "config/global.yaml": """

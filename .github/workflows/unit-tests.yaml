@@ -5,6 +5,8 @@ on:
     branches: [ "main" ]
   push:
     branches: [ "main" ]
+  # The analyses run their own test/ through this workflow (.github/workflows/unit-tests.yaml).
+  workflow_call:
 
 permissions:
   contents: read
@@ -17,6 +19,19 @@ jobs:
       # named after the repository.
       - uses: actions/checkout@v4
 
+      # An analysis's tests import FLAF at the commit the analysis pins, and the pytest plugin
+      # (FLAF's test/conftest.py) comes from there too. The other submodules are left out: the
+      # runner could not use them (Corrections imports ROOT) or not fetch them (inference is on
+      # CERN GitLab).
+      - name: Check out the pinned FLAF
+        id: flaf
+        run: |
+          if git config -f .gitmodules --get submodule.FLAF.path > /dev/null; then
+            git config --global url."https://github.com/".insteadOf "git@github.com:"
+            git submodule update --init FLAF
+            echo "plugin=-p FLAF.test.conftest" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -25,7 +40,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install pip==26.2.1
-          pip install pyyaml luigi==3.8.1 law==0.1.21 pytest
+          pip install pyyaml luigi==3.8.1 law==0.1.21 pytest==9.0.3
 
       # env.sh is sourced from bash and from zsh, and test_flaf_env.py runs it in both; the runner
       # has no zsh, and under CI a missing zsh fails those cases.
@@ -34,50 +49,34 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y zsh
 
-      # Only the suites that need neither ROOT nor CVMFS nor a grid proxy; the CRAB and
-      # remote-storage mechanics they cover run on a batch node only, where nothing else
-      # would catch a regression before a production does. Named explicitly: other files in
-      # test/ need ROOT, and `unittest discover -s test` would resolve `test.<module>` to
-      # CPython's own `test` package.
+      # Every test/**/test_*.py. A test that needs ROOT, /cvmfs or a grid proxy declares a marker
+      # (FLAF's test/conftest.py), and those are deselected here; the end of the log lists every
+      # deselected file and every test file that ran no test. An analysis without a test the
+      # runner can run passes with a notice: it has none until it adds one. In FLAF, which has
+      # tests, a missing test/ or no test run (pytest exit code 5) can only mean that the
+      # collection broke, and the step fails. PLUGIN is set only where FLAF is a submodule.
       - name: Run the unit tests
-        run: >-
-          python -m pytest -q
-          test/test_anatuple_cost_model.py
-          test/test_atomic_publish.py
-          test/test_bundle_jobs.py
-          test/test_crab_credentials.py
-          test/test_crab_failure_reporting.py
-          test/test_crab_hardening.py
-          test/test_crab_job_completeness.py
-          test/test_crab_refused_submission.py
-          test/test_crab_resources.py
-          test/test_crab_sites.py
-          test/test_crab_stageout_placeholder.py
-          test/test_crab_watchdog.py
-          test/test_crab_watchdog_integration.py
-          test/test_crab_wave_gate.py
-          test/test_check_era_rename.py
-          test/test_ci_generate_matrix.py
-          test/test_era_branches.py
-          test/test_era_jobs.py
-          test/test_era_parameter.py
-          test/test_era_process_state.py
-          test/test_era_requires.py
-          test/test_eos_lock.py
-          test/test_flaf_env.py
-          test/test_fresh_negatives.py
-          test/test_gfal_absent_vs_unreachable.py
-          test/test_local_path_cache_server.py
-          test/test_path_cache.py
-          test/test_plot_groups.py
-          test/test_remote_log_names.py
-          test/test_submission_guards.py
-          test/test_voms_proxy_info.py
+        env:
+          PLUGIN: ${{ steps.flaf.outputs.plugin }}
+        run: |
+          if [ -n "${PLUGIN}" ] && [ ! -d test ]; then
+            echo "::notice::No test/ directory in ${GITHUB_REPOSITORY}: no unit test to run."
+            exit 0
+          fi
+          rc=0
+          python -m pytest -q -ra --strict-markers ${PLUGIN} \
+            -m "not needs_root and not needs_cvmfs and not needs_proxy" test || rc=$?
+          if [ -n "${PLUGIN}" ] && [ "${rc}" -eq 5 ]; then
+            echo "::notice::No unit test ran in ${GITHUB_REPOSITORY}: test/ has none that the runner can run."
+            exit 0
+          fi
+          exit "${rc}"
 
       # The period -> era rename (multi-era change set): no leftover in FLAF's own files. The
       # path-cache server's periods are cache validity times, and two tests spell the old names
-      # on purpose.
+      # on purpose. The analyses run their own check in repo-sanity-checks.
       - name: No leftover of the period -> era rename
+        if: ${{ github.repository == 'cms-flaf/FLAF' }}
         run: >-
           python3 run_tools/check_era_rename.py --repo .
           --exclude 'RunKit/pathCacheServer.py'

@@ -8,6 +8,8 @@ import os
 import sys
 import unittest
 
+import pytest
+
 # Parent of the FLAF repo so `import FLAF.Common...` resolves.
 flaf_repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 flaf_parent = os.path.dirname(flaf_repo)
@@ -61,6 +63,7 @@ class TestSharedMcSplit(unittest.TestCase):
         self.assertEqual(n25, 17)
         self.assertEqual(n26, 4)
 
+    @pytest.mark.needs_root
     def test_expression_filters_like_python(self):
         # ROOT >= 6.38 refuses a Filter expression that does not evaluate to bool
         import ROOT

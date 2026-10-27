@@ -109,3 +109,18 @@ runs:
           -e GITHUB_RUN_ID \
           kandrosov/flaf:latest \
           bash ".github/scripts/ci/${CI_SCRIPT}"
+
+    # The container runs as root, and a task that fails keeps its job home, a mkdtemp
+    # directory (mode 0700) under <analysis>/data/CI: the artifact upload, which runs as the
+    # runner user, cannot list it and fails with EACCES, so a failed job left no artifact.
+    - name: Make the outputs readable for the artifact upload
+      if: ${{ always() }}
+      shell: bash
+      env:
+        ANALYSIS_NAME: ${{ inputs.analysis }}
+      run: |
+        for dir in "${FLAF_CI_HOST_DIR}/output" "${FLAF_CI_HOST_DIR}/${ANALYSIS_NAME}/data/CI"; do
+          if [ -d "${dir}" ]; then
+            sudo chmod -R a+rX "${dir}"
+          fi
+        done

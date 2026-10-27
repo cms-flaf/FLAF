@@ -376,6 +376,7 @@ if __name__ == "__main__":
     if signal_tree_sources:
         import uproot
 
+        created_tree_paths = set()
         with uproot.recreate(args.outFile) as uproot_out:
             for dataset_type, bucket in signal_tree_sources.items():
                 for (key_dir, unc_scale), sources in bucket.items():
@@ -389,10 +390,11 @@ if __name__ == "__main__":
                     for file_path, internal_path in sources:
                         with uproot.open(f"{file_path}:{internal_path}") as src_tree:
                             for arrays in src_tree.iterate():
-                                if out_tree_path in uproot_out:
+                                if out_tree_path in created_tree_paths:
                                     uproot_out[out_tree_path].extend(arrays)
                                 else:
                                     uproot_out[out_tree_path] = arrays
+                                    created_tree_paths.add(out_tree_path)
                     hist = all_signal_hist_dict.get(dataset_type, {}).get(
                         (key_dir, unc_scale)
                     )

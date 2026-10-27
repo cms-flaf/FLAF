@@ -411,6 +411,7 @@ def SumEraFiles(in_paths, out_path, scales):
     if signal_tree_dir_paths:
         import uproot
 
+        created_tree_paths = set()
         with uproot.recreate(out_path) as uproot_out:
             for dir_path in signal_tree_dir_paths:
                 tree_maps = [era.get(dir_path, {}) for era in signal_tree_eras]
@@ -436,10 +437,11 @@ def SumEraFiles(in_paths, out_path, scales):
                         internal_path = out_tree_path_base + tree.GetName()
                         with uproot.open(f"{path}:{internal_path}") as src_tree:
                             for arrays in src_tree.iterate():
-                                if out_tree_path in uproot_out:
+                                if out_tree_path in created_tree_paths:
                                     uproot_out[out_tree_path].extend(arrays)
                                 else:
                                     uproot_out[out_tree_path] = arrays
+                                    created_tree_paths.add(out_tree_path)
                     if contributing_trees:
                         hists = [unwrap_hist_from_tree(t) for t in contributing_trees]
                         total = hists[0].Clone(name)

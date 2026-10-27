@@ -8,6 +8,7 @@ jobs silently work on the wrong one.
 """
 
 import contextlib
+import importlib.util
 import io
 import os
 import shutil
@@ -21,8 +22,19 @@ flaf_parent = os.path.dirname(flaf_repo)
 if flaf_parent not in sys.path:
     sys.path.insert(0, flaf_parent)
 
-from FLAF.run_tools import law_customizations
-from FLAF.run_tools.law_customizations import BundleTask
+# law_customizations imports FLAF.Common.Setup, whose Utilities imports ROOT at module level;
+# nothing tested here touches it. Where ROOT is missing, a stand-in serves the import only and is
+# withdrawn again: test modules share one process, and a later one must still get the real ROOT
+# or fail to import it.
+_root_stand_in = None
+if "ROOT" not in sys.modules and importlib.util.find_spec("ROOT") is None:
+    _root_stand_in = sys.modules["ROOT"] = mock.MagicMock()
+
+from FLAF.run_tools import law_customizations  # noqa: E402
+from FLAF.run_tools.law_customizations import BundleTask  # noqa: E402
+
+if _root_stand_in is not None and sys.modules.get("ROOT") is _root_stand_in:
+    del sys.modules["ROOT"]
 
 BUNDLES = {
     "core": {"hashed": True, "patterns": ["config", "AnaProd"]},

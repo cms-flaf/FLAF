@@ -292,7 +292,12 @@ tests.
   virtualenv and the CMSSW/SCRAM areas record their own location and cannot be relocated.
 - `fs_default` from `ci_custom.yaml` points at the GitLab job directory, so the test script passes
   a generated `--user-custom` overlay that redirects the CI output area into the shared build
-  volume; each stage uploads `output/` and `data/CI` as artifacts for the next one.
+  volume; each stage uploads `output/` and `data/CI` as artifacts for the next one, also from a
+  failed job, for debugging (the container writes them as root, so the job first makes them
+  readable for the upload).
+- A stage starts only when the one before it passed, for all analyses together: GitHub reports one
+  result per job over all of its matrix legs, so one failed `test-dataset` leg skips every
+  `test-era` and `test-multi-era` job, of every analysis.
 - The final comment is a plain `passed`/`failed` line linking the Actions run, without the list of
   tested revisions.
 

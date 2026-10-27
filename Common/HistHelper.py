@@ -23,11 +23,14 @@ def findBinEntry(hist_cfg_dict, var_name):
     Match variable name against regex-based histogram config entries.
 
     The answer for a (config, variable) pair is cached: the producers ask it for the same
-    variable once per booked histogram, and every miss runs one regex per config entry.
+    variable once per booked histogram, and every miss runs one regex per config entry. An entry
+    holds its config, so that config's id cannot be reused by another one, and a hit is only
+    taken for that very config.
     """
     key = (id(hist_cfg_dict), var_name)
-    if key in _bin_entry_cache:
-        return _bin_entry_cache[key]
+    cached = _bin_entry_cache.get(key)
+    if cached is not None and cached[0] is hist_cfg_dict:
+        return cached[1]
 
     matches = []
 
@@ -41,7 +44,7 @@ def findBinEntry(hist_cfg_dict, var_name):
     if len(matches) > 1:
         raise RuntimeError(f"Ambiguous histogram config for '{var_name}': {matches}")
 
-    _bin_entry_cache[key] = matches[0]
+    _bin_entry_cache[key] = (hist_cfg_dict, matches[0])
     return matches[0]
 
 

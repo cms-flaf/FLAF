@@ -263,6 +263,12 @@ if __name__ == "__main__":
     unc_cfg_dict = setup.weights_config
     analysis_import = setup.global_params["analysis_import"]
     analysis = importlib.import_module(f"{analysis_import}")
+    # HistFiller is filled from the event loop and is not thread-safe.
+    if ROOT.IsImplicitMTEnabled():
+        print(
+            "Implicit MT was enabled; disabling it: the histograms are filled single-threaded"
+        )
+        ROOT.DisableImplicitMT()
 
     treeName = setup.global_params["treeName"]
     all_infiles = [fileName for fileName in args.inputFiles]

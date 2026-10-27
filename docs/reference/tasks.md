@@ -265,7 +265,8 @@ per variable, skipping variables configured with `plot_task: false`).
   group and the labels of `config/plot/<meta-era>.yaml`. See
   [Meta-eras](../concepts/eras.md#meta-eras).
 - **Blinding** (per variable, in `config/plot/histograms.yaml`): `blind: true` shows no data on
-  the plots of the variable. `blind_ranges` hides the data points inside windows of its x axis,
+  the plots of the variable outside the `plot_control_regions` (below). `blind_ranges` hides
+  the data points inside windows of its x axis,
   in the plot and in the ratio panel, in every region, control regions included: one window
   `[lo, hi]` or a list of them, `[[lo, hi], ...]`, with numbers `lo < hi`. A bin is hidden when it overlaps a window by more
   than a point — partly overlapping bins included, while a bin that ends at `lo` or starts at

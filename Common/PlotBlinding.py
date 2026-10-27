@@ -2,7 +2,8 @@
 
 A variable's entry in config/plot/histograms.yaml takes two blinding keys:
 
-- ``blind: true``: no data on the plots of the variable;
+- ``blind: true``: no data on the plots of the variable outside the control regions
+  (``plot_control_regions`` in global.yaml);
 - ``blind_ranges``: no data point inside windows of the x axis, given as one window ``[lo, hi]``
   or a list of windows ``[[lo, hi], ...]``, in every region.
 

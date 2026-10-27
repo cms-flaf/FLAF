@@ -125,6 +125,7 @@ def resolve_unc_scale(name, var_input, unc_sources):
                 return (unc_source, scale)
     return None
 
+
 def load_all_items(file_path):
     inFile = ROOT.TFile.Open(file_path, "READ")
     if not inFile or inFile.IsZombie():
@@ -440,9 +441,7 @@ def SumEraFiles(in_paths, out_path, scales):
                                 else:
                                     uproot_out[out_tree_path] = arrays
                     if contributing_trees:
-                        hists = [
-                            unwrap_hist_from_tree(t) for t in contributing_trees
-                        ]
+                        hists = [unwrap_hist_from_tree(t) for t in contributing_trees]
                         total = hists[0].Clone(name)
                         total.SetDirectory(0)
                         for h in hists[1:]:

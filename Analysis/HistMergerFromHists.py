@@ -83,7 +83,10 @@ def alias_data_variations(all_hist_dict, data_type, unc_sources):
             for key_tuple, hist in central.items():
                 data_hists.setdefault((key_tuple, (unc_source, scale)), hist)
 
-def resolve_merged_hist_name(dataset_type, uncName, uncScale, unc_sources, all_unc_dict):
+
+def resolve_merged_hist_name(
+    dataset_type, uncName, uncScale, unc_sources, all_unc_dict
+):
     """Derive the merged output's histogram/tree name for one (dataset_type, uncName,
     uncScale) combination, or None if that combination should be skipped -- the exact
     naming and skip rules the histogram-writing loop uses, factored out so the
@@ -101,6 +104,7 @@ def resolve_merged_hist_name(dataset_type, uncName, uncScale, unc_sources, all_u
         if uncScale != "Central":
             return None
     return hist_name
+
 
 def GetBTagWeightDict(
     var, all_hists_dict, categories, boosted_categories, boosted_variables

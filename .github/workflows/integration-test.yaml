@@ -212,9 +212,12 @@ jobs:
           if-no-files-found: ignore
           retention-days: 1
 
+  # Only after every era job passed: test-era is skipped when a test-dataset leg fails, and a
+  # multi-era job started anyway finds no era outputs and rebuilds every era from NanoAOD until
+  # its timeout.
   test-multi-era:
     needs: [ prepare-matrix, build, test-era ]
-    if: ${{ always() && !contains(needs.build.result, 'failure') && !contains(needs.build.result, 'cancelled') && !contains(needs.test-era.result, 'failure') && !contains(needs.test-era.result, 'cancelled') && needs.prepare-matrix.outputs.has_multi_eras == 'true' }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.test-era.result == 'success' && needs.prepare-matrix.outputs.has_multi_eras == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
     strategy:

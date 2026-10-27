@@ -23,6 +23,7 @@ Ported in part from DSProd `test/test_site_stats_harvest.py` and `test/test_watc
 """
 
 import datetime
+import importlib.util
 import os
 import sys
 import tempfile
@@ -36,11 +37,12 @@ if flaf_parent not in sys.path:
     sys.path.insert(0, flaf_parent)
 
 # law_customizations imports FLAF.Common.Setup, which imports ROOT at module level; the CI
-# unit-test environment has no ROOT, and nothing exercised here touches it.
-try:
-    import ROOT  # noqa: F401
-except ImportError:
-    sys.modules["ROOT"] = mock.MagicMock()
+# unit-test environment has no ROOT, and nothing exercised here touches it. The stand-in serves
+# the import only: test modules share one process, and a later one must still get the real ROOT
+# or fail to import it.
+_root_stand_in = None
+if "ROOT" not in sys.modules and importlib.util.find_spec("ROOT") is None:
+    _root_stand_in = sys.modules["ROOT"] = mock.MagicMock()
 
 import law  # noqa: E402
 import luigi  # noqa: E402
@@ -54,6 +56,9 @@ from FLAF.run_tools.crab_watchdog import (  # noqa: E402
     StallWatchdog,
     watchdog_config,
 )
+
+if _root_stand_in is not None and sys.modules.get("ROOT") is _root_stand_in:
+    del sys.modules["ROOT"]
 
 WD = "FLAF.run_tools.crab_watchdog"
 TASK = "261008_120000:kandroso_crab_WatchdogUp_v1_P_0123abcd"

@@ -586,9 +586,8 @@ class HistFromNtupleProducerTask(
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     variables = luigi.Parameter(default="")
     # Number of input ntuple files processed per job. LAW branches stay split by
-    # files. If the booked-histogram count (variables x selections x unc/scale,
-    # including Up/Down) exceeds hist_from_ntuple_max_hists, the producer repeats
-    # the event loop in batches inside the same job.
+    # files. The producer fills each tree in one event loop, or in several if its
+    # histograms exceed hist_from_ntuple_max_hist_memory_mb.
     n_files_per_job = luigi.IntParameter(default=20)
 
     @property
@@ -762,9 +761,7 @@ class HistFromNtupleProducerTask(
         HistFromNtupleProducer = os.path.join(
             self._flaf_root(), "Analysis", "HistProducerFromNTuple.py"
         )
-        # Single-threaded: the event loop is a small part of the job and each job's input
-        # is a few files, while every thread holds its own copy of every booked histogram
-        # (more memory, so more passes for the large 2D variables).
+        # The producer fills its histograms single-threaded (include/HistFiller.h).
         nMT = 1
 
         # Determine which variables still need to be produced for this (dataset, chunk).
@@ -828,9 +825,6 @@ class HistFromNtupleProducerTask(
                 cmd.extend(["--customisations", self.customisations])
             if self.user_custom:
                 cmd.extend(["--user-custom", self.user_custom])
-            max_hists = self.global_params.get("hist_from_ntuple_max_hists")
-            if max_hists is not None:
-                cmd.extend(["--max-hists", str(int(max_hists))])
             cmd.extend(local_inputs)
             ps_call(cmd, verbose=1)
 

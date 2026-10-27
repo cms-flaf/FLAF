@@ -169,21 +169,19 @@ chunk of input files and fills every active variable, one output file per variab
 `<version>/Hists_split/<era>/<variable>/<dataset>/`. Large datasets are parallelized by splitting
 their files into chunks.
 
-If the number of histograms booked in one RDataFrame pass — variables × selections ×
-(Central + every Up/Down) — exceeds `hist_from_ntuple_max_hists` (default `30000`), the
-producer repeats the event loop in batches instead of holding every histogram at once.
-Every pass costs a full graph build and event loop, so the count is kept high: memory is bounded
-by the cell budget below, not by the count. Set the
-threshold in `global.yaml` / `user_custom.yaml`, or pass `--max-hists` to the producer
-(`0` disables batching). LAW branches stay file-chunks; batching is inside the job.
+Every tree (the central one and each shape variation) is read in **one event loop** that fills
+all its histograms, every selection × (Central or Up/Down) × variable
+([`include/HistFiller.h`](https://github.com/cms-flaf/FLAF/blob/main/include/HistFiller.h)): each
+event's selections are evaluated once, and its weights are added to the histograms of the
+selections it passes. The histograms are the ones a separate RDataFrame histogram per selection,
+weight and variable would fill, bit for bit. Filling is single-threaded.
 
-A count does not bound memory by itself: RDataFrame keeps one copy of every booked histogram
-per thread (`--nMT`; the task runs the producer single-threaded, `nMT = 1`), and a 2D
-histogram can have a hundred times the cells of a 1D one. A batch therefore also stays within
-`hist_from_ntuple_max_hist_memory_mb` (default `1500`), counted as cells × 16 B ×
-(`nMT` + 1): large 2D/3D variables get smaller batches, 1D ones are not affected. Pass
-`--max-hist-memory-mb` to the producer to override it (`0` disables it). Each batch's line in
-the log gives its histograms, cells and estimated memory.
+The histograms of one loop are held as cells × 16 B. If a tree's histograms exceed
+`hist_from_ntuple_max_hist_memory_mb` (default `1500`), its variables are split over several
+loops, and a variable that alone exceeds it over its weights; in practice the 1D variables of a
+tree share one loop and large 2D/3D variables get their own. Pass `--max-hist-memory-mb` to the
+producer to override it (`0` disables it). Each loop's line in the log gives its histograms,
+cells and time.
 
 - **Parameters:** `--variables` (string; restrict which variables), `--n-files-per-job` (int,
   default `20`; input files processed per branch).

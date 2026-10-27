@@ -178,7 +178,7 @@ threshold in `global.yaml` / `user_custom.yaml`, or pass `--max-hists` to the pr
 (`0` disables batching). LAW branches stay file-chunks; batching is inside the job.
 
 A count does not bound memory by itself: RDataFrame keeps one copy of every booked histogram
-per thread (`--nMT`; the task runs the producer single-threaded, `nMT = 1`), and a 2D
+per thread (`--nMT`; the task runs one thread per requested core, `nMT = n_cpus`), and a 2D
 histogram can have a hundred times the cells of a 1D one. A batch therefore also stays within
 `hist_from_ntuple_max_hist_memory_mb` (default `1500`), counted as cells × 16 B ×
 (`nMT` + 1): large 2D/3D variables get smaller batches, 1D ones are not affected. Pass

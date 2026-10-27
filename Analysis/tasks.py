@@ -762,10 +762,11 @@ class HistFromNtupleProducerTask(
         HistFromNtupleProducer = os.path.join(
             self._flaf_root(), "Analysis", "HistProducerFromNTuple.py"
         )
-        # Single-threaded: the event loop is a small part of the job and each job's input
-        # is a few files, while every thread holds its own copy of every booked histogram
-        # (more memory, so more passes for the large 2D variables).
-        nMT = 1
+        # One thread per requested core. More (the former 2 x n_cpus) only oversubscribes the
+        # slot, and every thread holds its own copy of every booked histogram (more memory, so
+        # more passes for the large 2D variables); on a 20-file, 126-variable bbWW job 2
+        # threads took 74 min against 100 min for 1.
+        nMT = self.n_cpus
 
         # Determine which variables still need to be produced for this (dataset, chunk).
         outputs = self.output()

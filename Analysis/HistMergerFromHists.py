@@ -49,17 +49,11 @@ def fill_hists(
     single pass. Data has no per-uncertainty variations: only its nominal histogram is
     accumulated here; alias_data_variations() links it under the varied keys afterwards
     (QCD estimation looks data up per (unc, scale))."""
-    target_keys = {var_input: ("Central", "Central")}
-    if dataset_type != data_type:
-        for unc_source in unc_sources:
-            if unc_source == "Central":
-                continue
-            for scale in ["Up", "Down"]:
-                target_keys[f"{var_input}_{unc_source}_{scale}"] = (unc_source, scale)
+    effective_unc_sources = unc_sources if dataset_type != data_type else []
     hists = all_hist_dict.setdefault(dataset_type, {})
     for key_tuple, hist_map in items_dict.items():
         for var, var_hist in hist_map.items():
-            unc_scale = target_keys.get(var)
+            unc_scale = resolve_unc_scale(var, var_input, effective_unc_sources)
             if unc_scale is None:
                 continue
             final_key = (key_tuple, unc_scale)
@@ -89,6 +83,24 @@ def alias_data_variations(all_hist_dict, data_type, unc_sources):
             for key_tuple, hist in central.items():
                 data_hists.setdefault((key_tuple, (unc_source, scale)), hist)
 
+def resolve_merged_hist_name(dataset_type, uncName, uncScale, unc_sources, all_unc_dict):
+    """Derive the merged output's histogram/tree name for one (dataset_type, uncName,
+    uncScale) combination, or None if that combination should be skipped -- the exact
+    naming and skip rules the histogram-writing loop uses, factored out so the
+    signal-tree writing pass agrees on the same name for the same key."""
+    if uncName not in unc_sources:
+        return None
+    hist_name = dataset_type
+    if uncName != "Central":
+        if dataset_type == "data":
+            return None
+        if uncScale == "Central":
+            return None
+        hist_name += f"""_{all_unc_dict[uncName]["name"].format(uncScale)}"""
+    else:
+        if uncScale != "Central":
+            return None
+    return hist_name
 
 def GetBTagWeightDict(
     var, all_hists_dict, categories, boosted_categories, boosted_variables
@@ -256,6 +268,8 @@ if __name__ == "__main__":
     # print(dataset_cfg_dict)
 
     all_hists_dict = {}
+    all_signal_hist_dict = {}
+    signal_tree_sources = {}
     all_datasets = args.dataset_names.split(",")
     for dataset_name, inFile_path in zip(all_datasets, args.inFiles):
         if not os.path.exists(inFile_path):
@@ -285,6 +299,26 @@ if __name__ == "__main__":
                 unc_sources,
                 data_process_name,
             )
+
+            signal_trees_in_file = get_all_signal_trees_recursive(inFile)
+            for key_tuple, tree_map in signal_trees_in_file.items():
+                for name, tree_obj in tree_map.items():
+                    unc_scale = resolve_unc_scale(name, args.var, unc_sources)
+                    if unc_scale is None:
+                        continue
+                    bucket = signal_tree_sources.setdefault(dataset_type, {})
+                    bucket.setdefault((key_tuple, unc_scale), []).append(
+                        (inFile_path, "/".join(key_tuple) + "/Trees/" + name)
+                    )
+                    hist = unwrap_hist_from_tree(tree_obj)
+                    fill_hists(
+                        {key_tuple: {name: hist}},
+                        all_signal_hist_dict,
+                        dataset_type,
+                        args.var,
+                        unc_sources,
+                        data_process_name,
+                    )
     alias_data_variations(all_hists_dict, data_process_name, unc_sources)
 
     # here there should be the custom applications - e.g. GetBTagWeightDict, AddQCDInHistDict, etc.
@@ -329,25 +363,52 @@ if __name__ == "__main__":
     all_unc_dict = unc_cfg_dict["norm"].copy()
     all_unc_dict.update(unc_cfg_dict["shape"])
 
+    # Signal Trees/<hist_name>: concatenate every contributing chunk's rows first
+    # (uproot needs to create the file fresh), reusing the exact same hist_name
+    # derivation the plain-histogram loop below uses, so both agree on the name for
+    # the same (dataset_type, uncName, uncScale). Sum each one's embedded histogram
+    # along the way and hold the result for the attach pass after that loop.
+    signal_merged_hists = {}  # (key_dir, hist_name) -> TH1
+    if signal_tree_sources:
+        import uproot
+
+        with uproot.recreate(args.outFile) as uproot_out:
+            for dataset_type, bucket in signal_tree_sources.items():
+                for (key_dir, unc_scale), sources in bucket.items():
+                    uncName, uncScale = unc_scale
+                    hist_name = resolve_merged_hist_name(
+                        dataset_type, uncName, uncScale, unc_sources, all_unc_dict
+                    )
+                    if hist_name is None:
+                        continue
+                    out_tree_path = "/".join(key_dir) + "/Trees/" + hist_name
+                    for file_path, internal_path in sources:
+                        with uproot.open(f"{file_path}:{internal_path}") as src_tree:
+                            for arrays in src_tree.iterate():
+                                if out_tree_path in uproot_out:
+                                    uproot_out[out_tree_path].extend(arrays)
+                                else:
+                                    uproot_out[out_tree_path] = arrays
+                    hist = all_signal_hist_dict.get(dataset_type, {}).get(
+                        (key_dir, unc_scale)
+                    )
+                    if hist is not None:
+                        signal_merged_hists[(key_dir, hist_name)] = hist
+
     # 209 = LZMA level 9, the standard compression for merged histogram files
-    outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)
+    outFile = ROOT.TFile(
+        args.outFile, "UPDATE" if signal_tree_sources else "RECREATE", "", 209
+    )
     for dataset_type in all_hists_dict.keys():
         for key in all_hists_dict[dataset_type].keys():
             key_dir, (uncName, uncScale) = key
             # here there can be some custom requirements - e.g. regions / categories to not merge, datasets to ignore
             hist = all_hists_dict[dataset_type][key]
-            hist_name = dataset_type
-            if uncName not in unc_sources:
+            hist_name = resolve_merged_hist_name(
+                dataset_type, uncName, uncScale, unc_sources, all_unc_dict
+            )
+            if hist_name is None:
                 continue
-            if uncName != "Central":
-                if dataset_type == "data":
-                    continue
-                if uncScale == "Central":
-                    continue
-                hist_name += f"""_{all_unc_dict[uncName]["name"].format(uncScale)}"""
-            else:
-                if uncScale != "Central":
-                    continue
 
             dir_name = "/".join(key_dir)
             dir_ptr = Utilities.mkdir(outFile, dir_name)
@@ -355,6 +416,16 @@ if __name__ == "__main__":
             hist.SetName(hist_name)
             dir_ptr.WriteTObject(hist, hist_name, "Overwrite")
     outFile.Close()
+
+    if signal_merged_hists:
+        outFile = ROOT.TFile(args.outFile, "UPDATE", "", 209)
+        for (key_dir, hist_name), hist in signal_merged_hists.items():
+            tree_path = "/".join(key_dir) + "/Trees/" + hist_name
+            tree = outFile.Get(tree_path)
+            wrap_hist_in_tree(hist, hist_name, base_tree=tree)
+            tree.Write("", ROOT.TObject.kOverwrite)
+        outFile.Close()
+
     executionTime = time.time() - startTime
 
     print("Execution time in seconds: " + str(executionTime))

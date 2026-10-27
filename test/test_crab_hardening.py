@@ -38,9 +38,11 @@ if flaf_parent not in sys.path:
 
 # law_customizations reaches ROOT only at import time (FLAF.Common.Setup -> Utilities) and
 # nothing tested here calls into it; the unit-test runner has no ROOT, so an empty module
-# stands in for it there.
+# stands in for it there, for the import only: test modules share one process, and a later one
+# must still get the real ROOT or fail to import it.
+_root_stand_in = None
 if "ROOT" not in sys.modules and importlib.util.find_spec("ROOT") is None:
-    sys.modules["ROOT"] = types.ModuleType("ROOT")
+    _root_stand_in = sys.modules["ROOT"] = types.ModuleType("ROOT")
 
 import law
 import law.workflow.remote
@@ -48,6 +50,9 @@ import law.workflow.remote
 from FLAF.run_tools import law_customizations as lc
 from FLAF.run_tools.crab_sites import SiteStats, processing_sites, resolve_whitelist
 from FLAF.RunKit import grid_helper_tasks
+
+if _root_stand_in is not None and sys.modules.get("ROOT") is _root_stand_in:
+    del sys.modules["ROOT"]
 
 #: `_CRAB_DEFAULT_PARALLEL_JOBS`, and the default `refill_fraction` 0.2 of it: a wave
 #: needs 1000 jobs

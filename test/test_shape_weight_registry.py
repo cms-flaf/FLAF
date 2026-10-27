@@ -6,11 +6,16 @@ retains a spurious factor of one over that other producer's central weight. Whil
 pileup was the only non-central shape source that could not show up, because the only
 non-central keys belonged to pileup itself.
 
-No ROOT needed -- this is pure bookkeeping.
+Pure bookkeeping, but Corrections imports ROOT through FLAF.Common.Utilities: run inside an
+analysis environment (source env.sh).
 """
 
 import os
 import sys
+
+import pytest
+
+pytestmark = pytest.mark.needs_root
 
 sys.path.append(os.environ.get("ANALYSIS_PATH", os.getcwd()))
 

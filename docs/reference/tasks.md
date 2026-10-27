@@ -258,17 +258,76 @@ Produces the final **plots** via the [PlotKit](https://github.com/cms-flaf/PlotK
 per variable, skipping variables configured with `plot_task: false`).
 
 - **Parameter:** `--variables` (string; restrict which variables).
+- **`plot_wantSignals`** (`global.yaml` or `--customisations`, default `true`): `false` draws no
+  signal on any plot. Signals are never drawn in the `plot_control_regions` (below).
 - **Meta-era** (`--era Run3_22_23`): plots the sum `HistMergerTask` makes over the meta-era, into
   `<version>/Plots/<meta-era>/…`, with the processes and uncertainty sources of every era of the
   group and the labels of `config/plot/<meta-era>.yaml`. See
   [Meta-eras](../concepts/eras.md#meta-eras).
 
 Plot styling comes from the analysis `config/plot/*.yaml` files (`cms_stacked.yaml`,
-`histograms.yaml`, `<era>.yaml`) — unchanged from the legacy renderer. Signal overlays are scaled by
+`histograms.yaml`, `<era>.yaml`), read as the legacy renderer read them. The CMS label line draws
+`scope_text` (e.g. "CMS Preliminary"), as "Simulation \<scope\>" when a plot shows no data, and
+is drawn smaller when it would run into the luminosity; the optional style settings are listed in
+the PlotKit README. Signal overlays are scaled by
 `signal_plot_scale` in `global.yaml`: a fixed factor (e.g. `100`) **or** `bkg` to normalise each
 signal's integral to the summed background (shape comparison; the legend then reads
-`… (norm. to bkg)`). PlotKit can also render outside FLAF; see its README for the standalone
-`python -m PlotKit.cli` entry point.
+`… (norm. to bkg)`, or a single `sgn_hist.norm_legend_note` entry; see the PlotKit README for this
+and the other optional style settings). PlotKit can also render outside FLAF; see its README for
+the standalone `python -m PlotKit.cli` entry point.
+
+Two optional `global.yaml` keys shape what is drawn. They, and `signal_plot_scale`, are read from
+the merged configuration of each era, as every task reads its settings: `config/global.yaml`, the
+era's `config/<era>/global.yaml`, the `--user-custom` file and the task's `--customisations` all
+apply. For a meta-era the eras
+must agree on them.
+
+- **`plot_control_regions`** (list of custom regions, e.g. `[ TT_CR, DY_CR ]`): no signal is
+  overlaid in these regions, and their data is shown even for variables with `blind: true` in
+  `histograms.yaml` (a blinded variable hides the data in the other regions only). Data is shown
+  only where it is plotted at all: `plot_wantData_<var>: false` in `global.yaml` or the task's
+  `--customisations` (default `true`) removes it from every plot of `<var>`. The value must be a YAML list: written without brackets
+  it is one string, which is an error. A name that is not one of the analysis' regions (the list
+  `custom_regions` names, e.g. `QCDRegions`) is warned about, and that region stays blinded.
+- **`plot_process_groups`** (list of `{name, processes, color}`): sums processes into one legend
+  entry each. Background groups are stacked in list order from the bottom; signal groups become one
+  curve each. A process may carry parameters: a mass, `GluGluToRadion_bbWW_2L_${MASS}`, or
+  couplings, `GluGluToHHto2B2Tau_${kl}_${kt}_${c2}`. The group then makes one entry per set of
+  values found, with each `${…}` in `name` replaced by its value. Entries come in increasing
+  order, the parameters compared in the order the pattern names them: numbers by value, written
+  plainly or in the CMS form (`1p74` = 1.74, `m0p758` = −0.758), then any other value as text.
+  A value is made of letters, digits, `_`, `.` and `-`. `color` defaults to the colour of the
+  group's first process present in that plot (its channel, region and era); a `color` given for a
+  group with parameters applies to every one of its entries. A group's processes are all
+  backgrounds or all signals; processes no
+  group takes are plotted as before, after the groups, and a process an earlier group took is
+  not taken again. Without the key nothing is grouped. A group must have a `name` and a list of
+  `processes`, every process naming the same parameters as the `name` does, none listed twice,
+  and no keys but `name`, `processes` and `color`; a histogram matched by two processes of one
+  group, or a group mixing backgrounds, signals and data, is an error.
+
+A process without events in a channel, region and category has an empty histogram there: as a
+member of a group it leaves the group's name as it is (`t#bar{t} + t#bar{t}V` stays so when
+`ttV` is empty), and an entry, grouped or not, whose every bin is empty is not drawn and gets no
+legend entry. Data is drawn whenever it has a histogram, empty or not. A selected process without
+a histogram in that directory at all (no events there, e.g. data in a channel its primary
+dataset does not feed) counts as empty, with a warning naming the histogram and the directory.
+An object that is not a histogram is an error.
+
+```yaml
+plot_control_regions: [ TT_CR, DY_CR ]
+plot_process_groups:
+  - { name: "Single top", processes: [ ST ] }
+  - { name: "t#bar{t} + t#bar{t}V", processes: [ TT, ttV ] }
+  - name: "X #rightarrow HH M_{X} = ${MASS} GeV"
+    processes: [ "GluGluToRadion_bbWW_2L_${MASS}", "GluGluToRadion_bbWW_1L_${MASS}" ]
+```
+
+A per-process `signal_plot_scale` dict is keyed by the plotted entry, so with signal groups it must
+name the group entry: the members present in the plot, joined with `+` in the order of the
+group's `processes` (e.g. `GluGluToRadion_bbWW_2L_400+GluGluToRadion_bbWW_1L_400`), or the single
+member's name when only one is present. An entry the dict does not name is drawn unscaled
+(factor 1), without a warning.
 
 ## Statistical-inference tasks
 

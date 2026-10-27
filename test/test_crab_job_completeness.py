@@ -29,6 +29,7 @@ server, the analysis configuration, the credentials and the submission itself.
 
 import contextlib
 import gzip
+import importlib.util
 import io
 import itertools
 import json
@@ -50,11 +51,11 @@ if flaf_parent not in sys.path:
     sys.path.insert(0, flaf_parent)
 
 # FLAF.Common.Setup imports ROOT at module level; nothing here touches it, and the unit-test
-# workflow has no ROOT.
-try:
-    import ROOT  # noqa: F401
-except ImportError:
-    sys.modules["ROOT"] = mock.MagicMock()
+# workflow has no ROOT. The stand-in serves the import only: test modules share one process, and
+# a later one must still get the real ROOT or fail to import it.
+_root_stand_in = None
+if "ROOT" not in sys.modules and importlib.util.find_spec("ROOT") is None:
+    _root_stand_in = sys.modules["ROOT"] = mock.MagicMock()
 
 import law  # noqa: E402
 import law.contrib.cms.job  # noqa: E402
@@ -67,6 +68,9 @@ from FLAF.RunKit import law_gfal  # noqa: E402
 from FLAF.RunKit.grid_tools import GfalError  # noqa: E402
 from FLAF.RunKit.law_gfal import GFALFileInterface, PathCache  # noqa: E402
 from FLAF.RunKit.law_wlcg import WLCGFileSystem  # noqa: E402
+
+if _root_stand_in is not None and sys.modules.get("ROOT") is _root_stand_in:
+    del sys.modules["ROOT"]
 
 BASE = "davs://storage.example:1094/store/user/flaf"
 CACHE_SERVER = "/nonexistent/path-cache/server_v1.sock"

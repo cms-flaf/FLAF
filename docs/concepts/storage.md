@@ -58,7 +58,7 @@ by the era (paths below are relative to `<version>/`):
 | `Plots/<era>/<variable>/…` | `HistPlotTask` | `fs_plots` |
 | `bundles/<era>/` | `BundleTask` (`<flavour>.tar.bz2`, `<flavour>_<hash>.tar.bz2` for a flavour with `hashed: true`, `<flavour>_<FLAF_ENVIRONMENT_ID>.tar.bz2` for the one that packs `flaf_env`) | `fs_default` |
 | `logs/<Task>/<era>/` | job logs staged by remote jobs (only for a remote `fs_default`) | `fs_default` |
-| `worker_files/<era>/` | input files of bundle HTCondor jobs, uploaded at submission — only when `htcondor_spool` (on by default) is turned off | `fs_default` |
+| `worker_files/<era>/<hash>/` | input files of bundle HTCondor jobs, uploaded at submission — only when `htcondor_spool` (on by default) is turned off; one directory per file content (`<hash>`: the first 12 hex digits of its SHA-256), the file under its own name | `fs_default` |
 
 A run over [several eras](eras.md#running-several-eras) writes the same paths: every product above
 that carries an era sits where a run over that era alone puts it, so no path holds the set of

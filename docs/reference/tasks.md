@@ -121,6 +121,17 @@ local `data/` area, where `AnaTupleMergeTask` reads it to build its branch map (
 analysis tasks' branch maps are built in turn). Both are pulled
 in automatically; you rarely call them directly.
 
+The same copy is made without running `AnaTupleFileListTask` when a checkout reuses an existing
+production (`--anaTuple-version`/`--ana-version` with `fs_anaTuple` at its storage, see
+[Per-task version overrides](../workflow/arguments.md#per-task-version-overrides)): as soon as a
+task built from the plans is scheduled or its status printed, the plans missing from `data/` are
+copied there, several at a time, if all of that version's plans exist on `fs_anaTuple`. So the
+first `--print-status` in a new checkout writes into `data/` once. If they do not all exist,
+nothing is copied and the downstream tasks require the whole upstream chain. Batch jobs never
+copy; they read the plans from the `AnaTupleFileList` bundle or the shared data area. A copy goes
+through a temporary file beside its output, renamed onto it, so an interrupted copy never leaves a
+partial plan that counts as complete.
+
 ### `AnaTupleMergeTask`
 Merges per-file anaTuples according to the merge plan. **One branch per merge-plan item**; each
 writes one or more files of about `nEventsPerFile` events, `anaTuple_<N>.root` under
@@ -224,7 +235,9 @@ on the variables of the active histTuple flavour; also for an `is_global` produc
 correction names as its `normCacheProducer` (through `AnalysisCacheAggregationTask` when the
 producer also sets `needs_aggregation`). A producer's `dependencies` run first, and its
 `n_cpus`, `max_runtime` (default 2 h), `crab_memory` (CRAB memory in MB, [default](../workflow/crab.md#resources) the most CRAB grants for the cores; it overrides `--AnalysisCacheTask-crab-memory`), `save_as` (file type, default `root`) and `cmssw_env`
-(run inside CMSSW) come from its `payload_producers` entry.
+(run inside CMSSW) come from its `payload_producers` entry. A producer that runs an ONNX model
+creates its sessions with `FLAF.Common.OnnxSession`, so that its outputs do not depend on the core
+count of the node ([NN outputs and the CPU of the node](../concepts/environment.md#nn-outputs-and-the-cpu-of-the-node)).
 
 - **Parameter:** `--producer-to-run` (which payload producer to run; required).
 - **Caveat:** on a cold cache this can be **time-consuming** (≈ 1 h per branch). Reuse it across

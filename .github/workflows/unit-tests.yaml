@@ -40,7 +40,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install pip==26.2.1
-          pip install pyyaml luigi==3.8.1 law==0.1.21 pytest==9.0.3
+          pip install pyyaml luigi==3.8.1 law==0.1.21 pytest==9.0.3 onnx==1.21.0 onnxruntime==1.25.0
 
       # env.sh is sourced from bash and from zsh, and test_flaf_env.py runs it in both; the runner
       # has no zsh, and under CI a missing zsh fails those cases.

@@ -20,7 +20,7 @@ class HelloWorldTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 0.5)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 1)
     poll_interval = copy_param(HTCondorWorkflow.poll_interval, 1)
-    bundle_flavours = ["core"]
+    bundle_flavours = ["core", "soft"]
     force_fail = luigi.BoolParameter(
         default=False,
         significant=False,

@@ -3,6 +3,7 @@ import sys
 import os
 import math
 import shutil
+import tempfile
 from FLAF.RunKit.run_tools import ps_call
 
 if __name__ == "__main__":
@@ -25,11 +26,13 @@ if __name__ == "__main__":
     # 1 list files :
 
     all_files = [fileName for fileName in args.inputFile]
-    hadd_str = f"hadd -f209 -j 6 -n 0 {args.outFile} "
-    hadd_str += " ".join(f for f in all_files)
-    print(len(all_files))
-    print(hadd_str)
-    if len(all_files) > 1:
-        ps_call([hadd_str], True)
-    else:
-        shutil.copy(all_files[0], args.outFile)
+    # partial files of hadd -j in a directory of this merge alone, see hadd_parallel
+    with tempfile.TemporaryDirectory(prefix="hadd_") as hadd_dir:
+        hadd_str = f"hadd -f209 -j 6 -n 0 -d {hadd_dir} {args.outFile} "
+        hadd_str += " ".join(f for f in all_files)
+        print(len(all_files))
+        print(hadd_str)
+        if len(all_files) > 1:
+            ps_call([hadd_str], True)
+        else:
+            shutil.copy(all_files[0], args.outFile)

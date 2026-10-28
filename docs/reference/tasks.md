@@ -121,6 +121,17 @@ local `data/` area, where `AnaTupleMergeTask` reads it to build its branch map (
 analysis tasks' branch maps are built in turn). Both are pulled
 in automatically; you rarely call them directly.
 
+The same copy is made without running `AnaTupleFileListTask` when a checkout reuses an existing
+production (`--anaTuple-version`/`--ana-version` with `fs_anaTuple` at its storage, see
+[Per-task version overrides](../workflow/arguments.md#per-task-version-overrides)): as soon as a
+task built from the plans is scheduled or its status printed, the plans missing from `data/` are
+copied there, several at a time, if all of that version's plans exist on `fs_anaTuple`. So the
+first `--print-status` in a new checkout writes into `data/` once. If they do not all exist,
+nothing is copied and the downstream tasks require the whole upstream chain. Batch jobs never
+copy; they read the plans from the `AnaTupleFileList` bundle or the shared data area. A copy goes
+through a temporary file beside its output, renamed onto it, so an interrupted copy never leaves a
+partial plan that counts as complete.
+
 ### `AnaTupleMergeTask`
 Merges per-file anaTuples according to the merge plan. **One branch per merge-plan item**; each
 writes one or more files of about `nEventsPerFile` events, `anaTuple_<N>.root` under

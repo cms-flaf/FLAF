@@ -367,44 +367,25 @@ if __name__ == "__main__":
     all_unc_dict = unc_cfg_dict["norm"].copy()
     all_unc_dict.update(unc_cfg_dict["shape"])
 
-    # Signal Trees/<hist_name>: concatenate every contributing chunk's rows first
-    # (uproot needs to create the file fresh), reusing the exact same hist_name
-    # derivation the plain-histogram loop below uses, so both agree on the name for
-    # the same (dataset_type, uncName, uncScale). Sum each one's embedded histogram
-    # along the way and hold the result for the attach pass after that loop.
-    signal_merged_hists = {}  # (key_dir, hist_name) -> TH1
-    if signal_tree_sources:
-        import uproot
-
-        created_tree_paths = set()
-        with uproot.recreate(args.outFile) as uproot_out:
-            for dataset_type, bucket in signal_tree_sources.items():
-                for (key_dir, unc_scale), sources in bucket.items():
-                    uncName, uncScale = unc_scale
-                    hist_name = resolve_merged_hist_name(
-                        dataset_type, uncName, uncScale, unc_sources, all_unc_dict
-                    )
-                    if hist_name is None:
-                        continue
-                    out_tree_path = "/".join(key_dir) + "/Trees/" + hist_name
-                    for file_path, internal_path in sources:
-                        with uproot.open(f"{file_path}:{internal_path}") as src_tree:
-                            for arrays in src_tree.iterate():
-                                if out_tree_path in created_tree_paths:
-                                    uproot_out[out_tree_path].extend(arrays)
-                                else:
-                                    uproot_out[out_tree_path] = arrays
-                                    created_tree_paths.add(out_tree_path)
-                    hist = all_signal_hist_dict.get(dataset_type, {}).get(
-                        (key_dir, unc_scale)
-                    )
-                    if hist is not None:
-                        signal_merged_hists[(key_dir, hist_name)] = hist
+    # Signal Trees/<hist_name>: for each (dataset_type, key_dir, unc_scale) group,
+    # the sources list holds every contributing chunk's own in-file tree (all sharing
+    # the exact same in-file name, since they all came from the same producer
+    # var/unc/scale combo). Resolve the merged hist_name the same way the plain-
+    # histogram loop below does, so both agree on the name for the same
+    # (dataset_type, uncName, uncScale).
+    signal_tree_groups = []  # (key_dir, hist_name, [file_path, ...], dataset_type, unc_scale)
+    for dataset_type, bucket in signal_tree_sources.items():
+        for (key_dir, unc_scale), sources in bucket.items():
+            uncName, uncScale = unc_scale
+            hist_name = resolve_merged_hist_name(
+                dataset_type, uncName, uncScale, unc_sources, all_unc_dict
+            )
+            if hist_name is None:
+                continue
+            signal_tree_groups.append((key_dir, hist_name, sources, dataset_type, unc_scale))
 
     # 209 = LZMA level 9, the standard compression for merged histogram files
-    outFile = ROOT.TFile(
-        args.outFile, "UPDATE" if signal_tree_sources else "RECREATE", "", 209
-    )
+    outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)
     for dataset_type in all_hists_dict.keys():
         for key in all_hists_dict[dataset_type].keys():
             key_dir, (uncName, uncScale) = key
@@ -421,16 +402,26 @@ if __name__ == "__main__":
             hist.SetTitle(hist_name)
             hist.SetName(hist_name)
             dir_ptr.WriteTObject(hist, hist_name, "Overwrite")
-    outFile.Close()
 
-    if signal_merged_hists:
-        outFile = ROOT.TFile(args.outFile, "UPDATE", "", 209)
-        for (key_dir, hist_name), hist in signal_merged_hists.items():
-            tree_path = "/".join(key_dir) + "/Trees/" + hist_name
-            tree = outFile.Get(tree_path)
-            wrap_hist_in_tree(hist, hist_name, base_tree=tree)
-            tree.Write("", ROOT.TObject.kOverwrite)
-        outFile.Close()
+    # Concatenate each group's rows via a pure-ROOT TChain (not uproot): mixing an
+    # uproot-written tree with a same-process PyROOT re-read of it crashes (streamer/
+    # class-resolution mismatch inside TDirectoryFile::Get) -- TChain avoids this by
+    # never involving uproot at all, matching the producer's own CloneTree approach.
+    for key_dir, hist_name, sources, dataset_type, unc_scale in signal_tree_groups:
+        chain = ROOT.TChain(sources[0][1])
+        for file_path, _ in sources:
+            chain.Add(file_path)
+        tree_dir = Utilities.mkdir(outFile, "/".join(key_dir) + "/Trees")
+        tree_dir.cd()
+        cloned_tree = chain.CloneTree(-1, "fast")
+        cloned_tree.SetName(hist_name)
+        cloned_tree.SetTitle(hist_name)
+        hist = all_signal_hist_dict.get(dataset_type, {}).get((key_dir, unc_scale))
+        if hist is not None:
+            wrap_hist_in_tree(hist, hist_name, base_tree=cloned_tree)
+        tree_dir.WriteTObject(cloned_tree, hist_name, "Overwrite")
+
+    outFile.Close()
 
     executionTime = time.time() - startTime
 

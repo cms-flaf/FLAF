@@ -65,10 +65,14 @@ def wrap_hist_in_tree(hist, name, base_tree=None):
     the tree, so the histogram rides through the tree's Write/Read cycle without
     becoming a branch. If ``base_tree`` is given (e.g. a cloned Snapshot tree already
     holding real rows), it is reused and renamed; otherwise a fresh empty tree is
-    created."""
+    created. ``base_tree``'s UserInfo is cleared first: CloneTree()/MergeTrees() carry
+    the source tree's existing UserInfo along, so without this, merging a tree an
+    earlier stage already wrapped would leave both the old and new histogram embedded
+    instead of just the current one."""
     tree = base_tree if base_tree is not None else ROOT.TTree(name, name)
     tree.SetName(name)
     tree.SetTitle(name)
+    tree.GetUserInfo().Clear()
     hist_clone = hist.Clone()
     hist_clone.SetName(name)
     hist_clone.SetTitle(name)
@@ -78,9 +82,14 @@ def wrap_hist_in_tree(hist, name, base_tree=None):
 
 
 def unwrap_hist_from_tree(tree):
-    """Return the histogram clone embedded in ``tree.GetUserInfo()`` (see
-    ``wrap_hist_in_tree``), detached from any file."""
-    hist = tree.GetUserInfo().At(0)
+    """Return an independent clone of the histogram embedded in
+    ``tree.GetUserInfo()`` (see ``wrap_hist_in_tree``). Must clone, not return the
+    UserInfo entry directly: TTree owns that TList and deletes its contents when
+    the tree itself is destroyed (e.g. when the source TFile closes), so holding
+    onto the raw entry past that point is a dangling pointer -- SetDirectory(0)
+    does not protect against this (it only affects TDirectory's separate
+    auto-registration, not TList ownership)."""
+    hist = tree.GetUserInfo().At(0).Clone()
     hist.SetDirectory(0)
     return hist
 
@@ -399,61 +408,40 @@ def SumEraFiles(in_paths, out_path, scales):
     eras = [get_all_items_recursive(in_file) for in_file in in_files]
     signal_tree_eras = [get_all_signal_trees_recursive(in_file) for in_file in in_files]
 
-    # Signal Trees/<name>: concatenate rows across eras first, since uproot needs to
-    # create the file fresh; sum each name's embedded histogram along the way and
-    # hold the result for the attach pass after the plain-histogram loop below. The
-    # plain-histogram loop reopens in "UPDATE" mode when this ran, so it appends
-    # rather than wiping what was just written -- same ordering the merger uses.
+    # Signal Trees/<name>: resolve, for each dir_path/name, which eras' trees contribute
+    # (an era lacking a variation falls back to its own central tree, same rule as the
+    # plain-histogram loop below) and their already-summed embedded histogram. Done
+    # before the output file exists -- this only reads the still-open input files.
+    signal_tree_groups = []  # (dir_path, name, [TTree, ...], summed_hist)
     signal_tree_dir_paths = list(
         dict.fromkeys(path for era in signal_tree_eras for path in era)
     )
-    merged_signal_hists = {}  # (dir_path, name) -> TH1
-    if signal_tree_dir_paths:
-        import uproot
-
-        created_tree_paths = set()
-        with uproot.recreate(out_path) as uproot_out:
-            for dir_path in signal_tree_dir_paths:
-                tree_maps = [era.get(dir_path, {}) for era in signal_tree_eras]
-                names = list(dict.fromkeys(name for tm in tree_maps for name in tm))
-                centrals = [n for n in names if not n.endswith(tuple(scales))]
-                out_tree_path_base = "/".join(dir_path) + "/Trees/"
-                for name in names:
-                    # the process of a variation: the longest central name it extends
-                    process = None
-                    if name not in centrals:
-                        process = max(
-                            (c for c in centrals if name.startswith(c + "_")),
-                            key=len,
-                            default=None,
-                        )
-                    out_tree_path = out_tree_path_base + name
-                    contributing_trees = []
-                    for path, tm in zip(in_paths, tree_maps):
-                        tree = tm.get(name, tm.get(process))
-                        if tree is None:
-                            continue
-                        contributing_trees.append(tree)
-                        internal_path = out_tree_path_base + tree.GetName()
-                        with uproot.open(f"{path}:{internal_path}") as src_tree:
-                            for arrays in src_tree.iterate():
-                                if out_tree_path in created_tree_paths:
-                                    uproot_out[out_tree_path].extend(arrays)
-                                else:
-                                    uproot_out[out_tree_path] = arrays
-                                    created_tree_paths.add(out_tree_path)
-                    if contributing_trees:
-                        hists = [unwrap_hist_from_tree(t) for t in contributing_trees]
-                        total = hists[0].Clone(name)
-                        total.SetDirectory(0)
-                        for h in hists[1:]:
-                            total.Add(h)
-                        merged_signal_hists[(dir_path, name)] = total
+    for dir_path in signal_tree_dir_paths:
+        tree_maps = [era.get(dir_path, {}) for era in signal_tree_eras]
+        names = list(dict.fromkeys(name for tm in tree_maps for name in tm))
+        centrals = [n for n in names if not n.endswith(tuple(scales))]
+        for name in names:
+            # the process of a variation: the longest central name it extends
+            process = None
+            if name not in centrals:
+                process = max(
+                    (c for c in centrals if name.startswith(c + "_")),
+                    key=len,
+                    default=None,
+                )
+            contributing_trees = [tm.get(name, tm.get(process)) for tm in tree_maps]
+            contributing_trees = [t for t in contributing_trees if t is not None]
+            if not contributing_trees:
+                continue
+            hists = [unwrap_hist_from_tree(t) for t in contributing_trees]
+            total_hist = hists[0].Clone(name)
+            total_hist.SetDirectory(0)
+            for h in hists[1:]:
+                total_hist.Add(h)
+            signal_tree_groups.append((dir_path, name, contributing_trees, total_hist))
 
     # 209 = LZMA level 9, as the merged files of one era
-    out_file = ROOT.TFile(
-        out_path, "UPDATE" if signal_tree_dir_paths else "RECREATE", "", 209
-    )
+    out_file = ROOT.TFile(out_path, "RECREATE", "", 209)
     for dir_path in dict.fromkeys(path for era in eras for path in era):
         hists = [era.get(dir_path, {}) for era in eras]
         names = list(dict.fromkeys(name for era_hists in hists for name in era_hists))
@@ -475,16 +463,27 @@ def SumEraFiles(in_paths, out_path, scales):
             for part in parts[1:]:
                 total.Add(part)
             out_dir.WriteTObject(total, name, "Overwrite")
+
+    # Concatenate each group's rows via pure ROOT 
+    # A single contributing tree is just cloned; several are combined
+    # via TTree::MergeTrees, which merges already-open TTree objects directly and
+    # doesn't care that they may have different in-file names (an era using a
+    # variation's central-fallback tree).
+    for dir_path, name, contributing_trees, total_hist in signal_tree_groups:
+        tree_dir = mkdir_recursive(out_file, "/".join(dir_path) + "/Trees")
+        tree_dir.cd()
+        if len(contributing_trees) == 1:
+            merged_tree = contributing_trees[0].CloneTree(-1, "fast")
+        else:
+            tlist = ROOT.TList()
+            for t in contributing_trees:
+                tlist.Add(t)
+            merged_tree = ROOT.TTree.MergeTrees(tlist)
+        merged_tree.SetName(name)
+        merged_tree.SetTitle(name)
+        wrap_hist_in_tree(total_hist, name, base_tree=merged_tree)
+        tree_dir.WriteTObject(merged_tree, name, "Overwrite")
+
     out_file.Close()
-
-    if merged_signal_hists:
-        out_file = ROOT.TFile(out_path, "UPDATE", "", 209)
-        for (dir_path, name), hist in merged_signal_hists.items():
-            tree_path = "/".join(dir_path) + "/Trees/" + name
-            tree = out_file.Get(tree_path)
-            wrap_hist_in_tree(hist, name, base_tree=tree)
-            tree.Write("", ROOT.TObject.kOverwrite)
-        out_file.Close()
-
     for in_file in in_files:
         in_file.Close()

@@ -864,6 +864,96 @@ class TheMarkerFollowsACompleteBuild(_EnvShCase):
                     self.assertEqual(self.markers(), [])
 
 
+def _gfal_block_of_env_sh():
+    """The part of env.sh's load_flaf_env that gives the system gfal-* commands a python."""
+    content = _read("env.sh")
+    start = content.index('  set -- "${current_args[@]}"\n')
+    end = content.index('  #export PATH="$ANALYSIS_SOFT_PATH/bin:$PATH"', start)
+    return content[start:end].split("\n", 1)[1]
+
+
+class TheSystemGfalCommandsGetAPython(unittest.TestCase):
+    """The system gfal-* commands run on GFAL_PYTHONBIN, else on the first python of PATH that
+    imports gfal2 (flaf_env's does not), else on /usr/bin/python, which EL9 does not install
+    (FLAF#355). env.sh's lines, run with a stand-in for /usr/bin/python3."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="flaf_env_gfal_")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.python = os.path.join(self.tmp, "python3")
+        self.calls = os.path.join(self.tmp, "calls.log")
+
+    def run_block(self, shell, imports_gfal2, **env_vars):
+        with open(self.python, "w") as f:
+            f.write(
+                f'#!/bin/bash\necho "$*" >> "{self.calls}"\n'
+                f"exit {0 if imports_gfal2 else 1}\n"
+            )
+        os.chmod(self.python, 0o755)
+        if os.path.exists(self.calls):
+            os.remove(self.calls)
+        block = _gfal_block_of_env_sh()
+        self.assertIn("/usr/bin/python3 -c 'import gfal2, gfal2_util'", block)
+        script = (
+            f"block() {{\n{block.replace('/usr/bin/python3', self.python)}\n}}\n"
+            "block\n"
+            'echo "GFAL_PYTHONBIN=$(printenv GFAL_PYTHONBIN)"\n'
+        )
+        env = dict(os.environ)
+        for name in ("LAW_JOB_HOME", "GFAL_PYTHONBIN"):
+            env.pop(name, None)
+        env.update(env_vars)
+        proc = subprocess.run(
+            [shell, "-c", script], capture_output=True, text=True, timeout=60, env=env
+        )
+        self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
+        calls = []
+        if os.path.exists(self.calls):
+            with open(self.calls) as f:
+                calls = f.read().splitlines()
+        return proc, calls
+
+    def test_a_python_that_imports_gfal2_is_exported(self):
+        for shell in _SHELLS:
+            with self.subTest(shell):
+                proc, calls = self.run_block(shell, imports_gfal2=True)
+                self.assertIn(f"GFAL_PYTHONBIN={self.python}\n", proc.stdout)
+                self.assertEqual(proc.stderr, "")
+                self.assertEqual(calls, ["-c import gfal2, gfal2_util"])
+
+    def test_without_one_it_warns(self):
+        for shell in _SHELLS:
+            with self.subTest(shell):
+                proc, calls = self.run_block(shell, imports_gfal2=False)
+                self.assertIn("GFAL_PYTHONBIN=\n", proc.stdout)
+                self.assertIn("Warning:", proc.stderr)
+                self.assertIn("gfal-* commands", proc.stderr)
+                self.assertEqual(len(calls), 1)
+
+    def test_a_value_already_set_is_kept(self):
+        for shell in _SHELLS:
+            for imports_gfal2 in (True, False):
+                with self.subTest(shell=shell, imports_gfal2=imports_gfal2):
+                    proc, calls = self.run_block(
+                        shell, imports_gfal2, GFAL_PYTHONBIN="/opt/python"
+                    )
+                    self.assertIn("GFAL_PYTHONBIN=/opt/python\n", proc.stdout)
+                    self.assertEqual(proc.stderr, "")
+                    self.assertEqual(calls, [])
+
+    def test_a_law_batch_job_is_left_alone(self):
+        """FLAF's own gfal calls set their environment, so a job neither probes nor warns."""
+        for shell in _SHELLS:
+            for imports_gfal2 in (True, False):
+                with self.subTest(shell=shell, imports_gfal2=imports_gfal2):
+                    proc, calls = self.run_block(
+                        shell, imports_gfal2, LAW_JOB_HOME=self.tmp
+                    )
+                    self.assertIn("GFAL_PYTHONBIN=\n", proc.stdout)
+                    self.assertEqual(proc.stderr, "")
+                    self.assertEqual(calls, [])
+
+
 class EnvShKnowsNoPackage(unittest.TestCase):
     """Which packages flaf_env holds, and at which versions, is the installation script's
     business alone: env.sh neither names nor probes any of them."""

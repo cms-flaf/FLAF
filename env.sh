@@ -406,6 +406,16 @@ load_flaf_env() {
     source /cvmfs/cms.cern.ch/rucio/setup-py3.sh &> /dev/null
   fi
   set -- "${current_args[@]}"
+  # The system gfal-* commands run on the first python of PATH that imports gfal2 -- flaf_env's
+  # does not -- and else on /usr/bin/python, which EL9 does not install. FLAF runs them with an
+  # environment of its own, so a law batch job needs nothing here.
+  if [[ -z "$LAW_JOB_HOME" && -z "$GFAL_PYTHONBIN" ]]; then
+    if /usr/bin/python3 -c 'import gfal2, gfal2_util' &> /dev/null; then
+      export GFAL_PYTHONBIN=/usr/bin/python3
+    else
+      echo "Warning: /usr/bin/python3 cannot import gfal2 and gfal2_util, so the system gfal-* commands (gfal-ls, gfal-copy, ...) will not work in this shell; set GFAL_PYTHONBIN to a python that can." >&2
+    fi
+  fi
   #export PATH="$ANALYSIS_SOFT_PATH/bin:$PATH"
   alias cmsEnv="env -i HOME=$HOME ANALYSIS_PATH=$ANALYSIS_PATH ANALYSIS_DATA_PATH=$ANALYSIS_DATA_PATH X509_USER_PROXY=$X509_USER_PROXY FLAF_CMSSW_BASE=$FLAF_CMSSW_BASE FLAF_CMSSW_ARCH=$FLAF_CMSSW_ARCH $FLAF_PATH/cmsEnv.sh"
 

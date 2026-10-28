@@ -37,8 +37,10 @@ Each of these has caused a production incident. They are ordered by how much dam
 ### law semantics
 
 - **Package versions are pinned in `run_tools/mk_flaf_env.sh`.** Every package it installs is
-  pinned (`==`, or a commit archive URL), law included; `env.sh` names no package and probes no
-  version, and nothing checks a version at import. `env.sh` identifies `flaf_env` by the LCG
+  pinned (`==`, or a commit archive URL), law included; `env.sh` names no package of `flaf_env`
+  and probes no version, and nothing checks a version at import. (It does check that the system
+  `/usr/bin/python3` imports `gfal2`, to set `GFAL_PYTHONBIN` for the system `gfal-*` commands,
+  outside law jobs only.) `env.sh` identifies `flaf_env` by the LCG
   release and a hash of that script (`FLAF_ENVIRONMENT_ID`, also its marker
   `.<FLAF_ENVIRONMENT_ID>`), so a pin change rebuilds it on the next `source env.sh` on the
   submitting machine; inside a law job (`LAW_JOB_HOME` set, non-bundle HTCondor jobs included) or
@@ -366,6 +368,10 @@ Each of these has caused a production incident. They are ordered by how much dam
 - **Producers must not write bare-relative temp files.** CWD is shared between branches under
   `law --workers`, so two branches race on the same name. Write under the job's working
   directory.
+- **Every `hadd -j` passes `-d` with a fresh directory of that merge alone**
+  (`RunKit.run_tools.hadd_parallel` does). Without `-d`, hadd writes its partial files
+  (`partial<i>_<TUUID>.root`) to the shared temporary directory, where two concurrent merges have
+  drawn the same TUUID and swapped content (FLAF#361).
 
 ### Shifted-tree array counters (`AnaProd/FuseAnaTuples.py`)
 

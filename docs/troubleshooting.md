@@ -213,7 +213,11 @@ after a listing becomes visible when that listing expires. Jobs never contact a 
 [HTCondor → Submission safeguards](workflow/htcondor.md#submission-safeguards)).
 
 If a status check still disagrees with what you see on the storage element, list the directory
-yourself (`gfal-ls`) to establish the truth, and drop the cached entries for that subtree:
+yourself (`gfal-ls`) to establish the truth. In the FLAF environment the system `gfal-*` commands
+rely on the `GFAL_PYTHONBIN` that `env.sh` sets
+([The environment](concepts/environment.md#what-envsh-sets-up)): without it they fail with
+`/usr/bin/python: No such file or directory` (exit status 127), which says nothing about the path,
+and `env.sh` warns when it cannot set it. Then drop the cached entries for that subtree:
 
 ```sh
 python3 $FLAF_PATH/RunKit/pathCacheClient.py \

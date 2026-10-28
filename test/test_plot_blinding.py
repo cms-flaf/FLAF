@@ -9,6 +9,7 @@ RenderedPlotTest the real PlotKit rendering of both panels, where ROOT or PlotKi
 imported.
 """
 
+import importlib.util
 import math
 import os
 import sys
@@ -400,6 +401,9 @@ class RootRebinTest(unittest.TestCase):
 try:
     import FLAF.PlotKit.Plotter as Plotter
 except ImportError:
+    Plotter = None
+# the backend whose markers the test reads; PlotKit imports it only when it draws
+if importlib.util.find_spec("matplotlib") is None:
     Plotter = None
 
 

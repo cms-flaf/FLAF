@@ -373,7 +373,9 @@ if __name__ == "__main__":
     # var/unc/scale combo). Resolve the merged hist_name the same way the plain-
     # histogram loop below does, so both agree on the name for the same
     # (dataset_type, uncName, uncScale).
-    signal_tree_groups = []  # (key_dir, hist_name, [file_path, ...], dataset_type, unc_scale)
+    signal_tree_groups = (
+        []
+    )  # (key_dir, hist_name, [file_path, ...], dataset_type, unc_scale)
     for dataset_type, bucket in signal_tree_sources.items():
         for (key_dir, unc_scale), sources in bucket.items():
             uncName, uncScale = unc_scale
@@ -382,7 +384,9 @@ if __name__ == "__main__":
             )
             if hist_name is None:
                 continue
-            signal_tree_groups.append((key_dir, hist_name, sources, dataset_type, unc_scale))
+            signal_tree_groups.append(
+                (key_dir, hist_name, sources, dataset_type, unc_scale)
+            )
 
     # 209 = LZMA level 9, the standard compression for merged histogram files
     outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)

@@ -478,7 +478,7 @@ def SumEraFiles(in_paths, out_path, scales):
                 total.Add(part)
             out_dir.WriteTObject(total, name, "Overwrite")
 
-    # Concatenate each group's rows via pure ROOT 
+    # Concatenate each group's rows via pure ROOT
     # A single contributing tree is just cloned; several are combined
     # via TTree::MergeTrees, which merges already-open TTree objects directly and
     # doesn't care that they may have different in-file names (an era using a

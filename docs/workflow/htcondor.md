@@ -166,6 +166,20 @@ are on (AnaTuple production, for example, adds `cmssw` when it runs in CMSSW). B
 remote `fs_default`. For most work the non-bundle default is correct; use `--bundle` when AFS is
 not available on the target pool.
 
+One of the flavours a task ships must pack `flaf_env` (`$FLAF_ENVIRONMENT_PATH`; the `soft`
+flavour in the analyses), since the job sources `env.sh` from the unpacked bundles and `env.sh`
+refuses to run without the environment. A submission whose flavours do not pack it is refused
+before any job is sent: `<Task>: none of the bundle flavours it ships ['core'] packs flaf_env (…)`.
+The same holds on CRAB, which always uses bundles.
+
+Without spooling (`--bundle --htcondor-spool False`), the job's input files (law's job script and
+wrapper, the rendered `bootstrap.sh` and `stageout_logs.sh`, a `--user-custom` file, the path-cache
+snapshot) are uploaded at submission to `<version>/worker_files/<era>/<hash>/` on `fs_default`, one
+directory per file content (the first 12 hex digits of its SHA-256), each file under its own name,
+and the job file points HTCondor at those copies. A submission of another task, or one after an
+edit, thus never hands its jobs the files of an earlier one, and queued jobs keep theirs. Nothing
+removes these copies.
+
 The `patterns` of a flavour (in the analysis `global.yaml`) can use `{era}` and `{version}`. The former
 `{period}` is refused with `… use {period}, which was renamed to {era}`; the bundle URI
 (`<version>/bundles/<era>/`) is unchanged. Bundles stay per era in a run over several eras: it
@@ -304,7 +318,8 @@ These apply to both batch backends (HTCondor and [CRAB](crab.md)).
   requirements resolved at submit time and the jobs' own output directories listed then, so a job
   lists neither its requirements' directories nor its own output directories itself (details:
   [CRAB → Caveats](crab.md#caveats)). Without spooling (`--bundle --htcondor-spool False`) each
-  round uploads its snapshot to `worker_files/` under its own name; nothing removes earlier ones.
+  round uploads its snapshot to `worker_files/<era>/<hash>/` under its own name; nothing removes
+  earlier ones.
 - **A job does not rebuild upstream products.** In a batch job, `AnaTupleFileTask`,
   `AnaTupleMergeTask`, `AnalysisCacheTask`, `HistTupleProducerTask`,
   `HistFromNtupleProducerTask` and `HistMergerTask` refuse to run as an inline requirement of a

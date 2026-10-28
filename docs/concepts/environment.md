@@ -102,6 +102,7 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
 | `X509_USER_PROXY` | Your VOMS proxy (default `data/voms.proxy`; a value set before sourcing is kept). |
 | `LAW_HOME` / `LAW_CONFIG_FILE` | LAW's home (`.law`) and config (`config/law.cfg`). |
 | `FLAF_NO_INSTALL` | When `1`, `env.sh` refuses to build or change anything (a `flaf_env` without the marker of the current `run_tools/mk_flaf_env.sh` included) and skips CMSSW/Combine entirely if no CMSSW area is present. Set by the bootstrap of bundle jobs, which have a CMSSW area only when the `cmssw` flavour is shipped. |
+| `FLAF_ENV_LOADED` | Set to `1` by `env.sh` at the end of a load in which nothing refused, and cleared when a load starts. A batch job's bootstrap requires it: a job whose `env.sh` refused fails its bootstrap (law exit code 20) with its log staged, on HTCondor and on CRAB alike. |
 
 ## `cmsEnv`: running inside CMSSW
 

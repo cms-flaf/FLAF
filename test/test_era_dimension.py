@@ -165,6 +165,8 @@ def test_era_dimension(eras):
     try:
         os.environ["ANALYSIS_PATH"] = ana_path
         os.environ["ANALYSIS_DATA_PATH"] = os.path.join(tmp, "data")
+        # as env.sh sets it: a bundle workflow checks that one of its bundles packs it
+        os.environ["FLAF_ENVIRONMENT_PATH"] = os.path.join(ana_path, "soft", "flaf_env")
         user_custom = local_storage_user_custom(tmp, setups[eras[0]])
         for label, cls, extra in stages(lc, setups[eras[0]]):
             problems += check_stage(lc, label, cls, extra, eras, user_custom)

@@ -17,7 +17,7 @@ def resolve_user_custom_path(user_custom):
     """Resolve --user-custom on the submit host or a remote worker.
 
     Absolute submit-host paths are missing on CRAB/HTCondor bundle workers.
-    Jobs stage the file as a job input; law renames it with a content-hash
+    Jobs stage the file as a job input; law renames it with a source-path hash
     suffix (``name_<hash>.yaml``). Search common job dirs for the basename or
     a hashed variant. Returns an absolute path when a file is found.
     """

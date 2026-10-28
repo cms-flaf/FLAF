@@ -169,11 +169,11 @@ else:
 
 
 def parse_reported_log_paths(output):
-    # every "log: <path>" of the failure report
+    # every "log: <path>" of the failure report, where law separates the fields with ", "
     paths = []
     for line in output.splitlines():
         if "log:" in line.lower():
-            m = re.search(r"log:\s*(\S+)", line, re.IGNORECASE)
+            m = re.search(r"log:\s*([^\s,]+)", line, re.IGNORECASE)
             if m:
                 paths.append(m.group(1))
     return paths

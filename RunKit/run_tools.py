@@ -261,6 +261,20 @@ def on_batch_node():
     return bool(os.getenv("LAW_JOB_HOME"))
 
 
+def hadd_parallel(output_file, input_files, verbose=1):
+    """Merge `input_files` into `output_file` with `hadd -j`, one process per CPU.
+
+    hadd names its partial files `partial<i>_<TUUID>.root` in its working directory, by default
+    the system temporary directory, where two merges started in the same second have drawn the
+    same TUUID and merged each other's inputs. Each merge therefore gets a directory of its own.
+    """
+    with tempfile.TemporaryDirectory(prefix="hadd_") as work_dir:
+        # without a number, hadd -j runs in one process since ROOT 6.38
+        cmd = ["hadd", "-j", str(os.cpu_count()), "-d", work_dir, "-ff", output_file]
+        cmd.extend(input_files)
+        ps_call(cmd, verbose=verbose)
+
+
 def check_root_file_integrity(file_name, tmp_file=None, verbose=1):
     if tmp_file is None:
         tmp_file_desc, tmp_file = tempfile.mkstemp()

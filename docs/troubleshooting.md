@@ -32,7 +32,10 @@ submitted: source it again there and resubmit. `ERROR: cannot identify the FLAF 
 answer, for example), and nothing was removed or built; source `env.sh` again once the storage
 answers. When it says `… is listed in … but not seen as a directory` and persists, something that
 is no reachable directory (a file, a broken link) sits at `soft/flaf_env`: move it away by hand. See
-[The environment](concepts/environment.md#what-envsh-sets-up).
+[The environment](concepts/environment.md#what-envsh-sets-up). Such a job fails its bootstrap, on
+HTCondor and on CRAB alike, as does one whose `env.sh` refused anything else (a CMSSW area without
+its `.installed` marker in a bundle, for example): law reports `bootstrap file failed` and exit code
+20, the job runs no task, and its log, with the message, is staged as any other.
 
 ## `unknown era(s) …; known eras: …` / `the configuration says era: …`
 `--era` names one era, and the known eras are the directories `FLAF/config/<era>/` whose
@@ -210,7 +213,11 @@ after a listing becomes visible when that listing expires. Jobs never contact a 
 [HTCondor → Submission safeguards](workflow/htcondor.md#submission-safeguards)).
 
 If a status check still disagrees with what you see on the storage element, list the directory
-yourself (`gfal-ls`) to establish the truth, and drop the cached entries for that subtree:
+yourself (`gfal-ls`) to establish the truth. In the FLAF environment the system `gfal-*` commands
+rely on the `GFAL_PYTHONBIN` that `env.sh` sets
+([The environment](concepts/environment.md#what-envsh-sets-up)): without it they fail with
+`/usr/bin/python: No such file or directory` (exit status 127), which says nothing about the path,
+and `env.sh` warns when it cannot set it. Then drop the cached entries for that subtree:
 
 ```sh
 python3 $FLAF_PATH/RunKit/pathCacheClient.py \

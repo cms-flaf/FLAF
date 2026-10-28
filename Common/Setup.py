@@ -17,7 +17,7 @@ def resolve_user_custom_path(user_custom):
     """Resolve --user-custom on the submit host or a remote worker.
 
     Absolute submit-host paths are missing on CRAB/HTCondor bundle workers.
-    Jobs stage the file as a job input; law renames it with a content-hash
+    Jobs stage the file as a job input; law renames it with a source-path hash
     suffix (``name_<hash>.yaml``). Search common job dirs for the basename or
     a hashed variant. Returns an absolute path when a file is found.
     """
@@ -962,6 +962,8 @@ class Setup:
             ]:
                 if var in os.environ:
                     self.cmssw_env_[var] = os.environ[var]
+            # as env.sh sets for flaf_env: this environment starts empty
+            self.cmssw_env_["TF_ENABLE_ONEDNN_OPTS"] = "0"
             # scram runtime (inside get_cmsenv) may still emit the submit-host AFS
             # CMSSW_BASE when ProjectRename failed on a CRAB worker. Force the
             # relocated release path so CMSSW-dependent models / includeLibTool resolve

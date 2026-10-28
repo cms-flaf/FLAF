@@ -37,8 +37,10 @@ Each of these has caused a production incident. They are ordered by how much dam
 ### law semantics
 
 - **Package versions are pinned in `run_tools/mk_flaf_env.sh`.** Every package it installs is
-  pinned (`==`, or a commit archive URL), law included; `env.sh` names no package and probes no
-  version, and nothing checks a version at import. `env.sh` identifies `flaf_env` by the LCG
+  pinned (`==`, or a commit archive URL), law included; `env.sh` names no package of `flaf_env`
+  and probes no version, and nothing checks a version at import. (It does check that the system
+  `/usr/bin/python3` imports `gfal2`, to set `GFAL_PYTHONBIN` for the system `gfal-*` commands,
+  outside law jobs only.) `env.sh` identifies `flaf_env` by the LCG
   release and a hash of that script (`FLAF_ENVIRONMENT_ID`, also its marker
   `.<FLAF_ENVIRONMENT_ID>`), so a pin change rebuilds it on the next `source env.sh` on the
   submitting machine; inside a law job (`LAW_JOB_HOME` set, non-bundle HTCondor jobs included) or
@@ -75,6 +77,13 @@ Each of these has caused a production incident. They are ordered by how much dam
   decorates with the *parent's* `workflow_condition.output` mutates the shared object and
   corrupts the parent task. It must `.copy()` first. Review the **parent** task too — the damage
   shows up there, not in the subclass being changed.
+- **Whether the AnaTuple merge plans are available is decided by `anaTuple_plans_ready`
+  (`AnaProd/tasks.py`) alone.** It copies an existing production's plans into `data/` when they
+  are on `fs_anaTuple`. Every dynamic workflow condition from `AnaTupleMergeTask` down and every
+  choice between narrow and whole-era requirements asks it; a direct
+  `AnaTupleFileListTask.req(...).complete()` there disagrees with it in a new checkout
+  (placeholder maps, whole-era requirements, `InputFileTask` under bundles; issue #352).
+  `test/test_anatuple_plan_reuse.py` scans for one.
 - **law fixes the "already exists" branch set when luigi schedules a remote workflow**, before
   its requirements run. A workflow whose own requirement creates its outputs will resubmit
   everything. Clearing `_existing_branches`/`_skip_jobs` at the top of `run()` is the fix; both
@@ -105,6 +114,22 @@ Each of these has caused a production incident. They are ordered by how much dam
   `data/<version>/<Task>/<era>` directory that nothing requires; do not silence that warning.
 - Bundles preserve symlinks inside a packed directory verbatim. An absolute symlink into AFS
   therefore still sends every job back to AFS — which is what the bundle exists to avoid.
+- **A task that ships bundles must ship `flaf_env`.** `_bundle_tasks` raises at submission when
+  none of its flavours packs `$FLAF_ENVIRONMENT_PATH` (`BundleTask.packs_environment`): the job
+  sources `env.sh` from the bundles, and `env.sh` refuses without the environment.
+- **A job's bootstrap fails unless `env.sh` exported `FLAF_ENV_LOADED=1`.** `env.sh` stops with
+  `kill -INT $$`. On HTCondor law runs the job in that very shell, which the signal would kill
+  before the log stageout, so `bootstrap.sh` traps SIGINT while it sources `env.sh`, and only then
+  (a trap left set would carry the job past an interrupt of the task). On CRAB law runs the job
+  in a pipeline into `tee`, `$$` names the shell around it, and `env.sh` goes on. Neither the
+  signal nor the status of `source` (the analysis `env.sh` returns 0 whatever `FLAF/env.sh` did)
+  tells a refusal there: `load_flaf_env` clears the sentinel first and exports it only when
+  nothing refused, so every refusal path, `install()` included, must mark the load as refused.
+- **Worker files are keyed on their content.** Without spooling, `_stage_and_update_jdl` uploads
+  each job input to `worker_files/<era>/<sha256[:12]>/<name>` and trusts an existing copy. law
+  names a copied input after a hash of its *source path* (`job/base.py`,
+  `postfix_file(add_hash=True)`), not its content, so a key on the name alone hands jobs another
+  task's or older code's files.
 
 ### Remote storage (`RunKit/law_gfal.py`)
 
@@ -352,6 +377,10 @@ Each of these has caused a production incident. They are ordered by how much dam
 - **Producers must not write bare-relative temp files.** CWD is shared between branches under
   `law --workers`, so two branches race on the same name. Write under the job's working
   directory.
+- **Every `hadd -j` passes `-d` with a fresh directory of that merge alone**
+  (`RunKit.run_tools.hadd_parallel` does). Without `-d`, hadd writes its partial files
+  (`partial<i>_<TUUID>.root`) to the shared temporary directory, where two concurrent merges have
+  drawn the same TUUID and swapped content (FLAF#361).
 
 ### Shifted-tree array counters (`AnaProd/FuseAnaTuples.py`)
 
@@ -369,6 +398,28 @@ Each of these has caused a production incident. They are ordered by how much dam
 - **Write trees with `Common/TupleHelpers.writeTree` (or an explicit `mktree`), never
   `file[name] = arrays`.** Since uproot 5.7 (LCG_110a) that assignment writes an RNTuple, which
   TChain, tree friends and the anaTuple readers do not accept.
+
+### NN inference (`env.sh`, `Common/Setup.py`, `Common/OnnxSession.py`)
+
+- **`TF_ENABLE_ONEDNN_OPTS=0` everywhere TensorFlow runs.** TensorFlow turns its oneDNN kernels on
+  by itself on CPUs with AVX512_VNNI/AVX_VNNI/AVX512_BF16/AMX only, which makes HHbtag and DNN
+  outputs depend on the batch node (cms-flaf/FLAF#357). `env.sh` exports it, and every environment
+  built from an empty one must set it too: `Setup.cmssw_env` and the `cmsEnv` alias do. A new
+  `env -i`/whitelist environment that can run TensorFlow without it is a regression.
+- **ONNX Runtime sessions are created through `FLAF.Common.OnnxSession`** (`make_session`, or
+  `session_options()` handed to code that creates its own sessions, as DeepHME's
+  `session_options`): one intra-op and one inter-op thread. A bare `ort.InferenceSession` with the
+  default options sizes its pool by the host's physical cores and gives outputs that depend on it.
+- What no setting of these builds removes is accepted and documented
+  (`docs/concepts/environment.md`), not a defect of a change: ONNX Runtime's AVX2 vs AVX-512 kernels
+  (`x86_64-v3` vs `x86_64-v4` nodes), TensorFlow's Intel vs AMD results from Eigen's
+  `rsqrtps`/`rcpps`-based `Rsqrt` and reciprocal, and, in `flaf_env`, TensorFlow's AVX-512-dependent
+  matrix products (oneDNN `sgemm` inside Eigen contractions).
+- **A TensorFlow thread pool sized by the host is a reproducibility defect, as for ONNX Runtime:**
+  the number of intra-op threads changes the outputs, and a fixed number removes that
+  (`TF_NUM_INTRAOP_THREADS`/`TF_NUM_INTEROP_THREADS` or `tf.config.threading`). `env.sh` does not set
+  it; the HH→bb̄ττ DNN in `flaf_env` still runs with the default pool (a follow-up of
+  cms-flaf/FLAF#357), so new TensorFlow inference code should fix its thread count.
 
 ## Configuration invariants
 
@@ -494,7 +545,7 @@ config loading (`Common/Setup.py`, `config/`) is therefore not checked, and is w
 
 ## Repository facts
 
-Verified 2026-10-22; re-check before relying on any of it.
+Verified 2026-10-25; re-check before relying on any of it.
 
 | | |
 |---|---|
@@ -505,4 +556,4 @@ Verified 2026-10-22; re-check before relying on any of it.
 | Workflows | `formatting-check`, `unit-tests` (also reusable: each analysis runs its own `test/` through it, against its pinned FLAF), `repo-sanity-checks`, `ds-consistency-check`, `cross-section-check`, `test-setup-loading`, `test-era-dimension` (reusable: an analysis calls it with its eras), `deploy-docs`, `integration-test`, `trigger-flaf-integration` |
 | Integration test | Triggered by `@cms-flaf-bot please test`. Its configuration (process lists, eras, versions) lives in **`cms-flaf/FLAF_ci`**, not in this repo |
 | Docs | `docs/`, built with `mkdocs build --strict`; see the documentation section above |
-| Package pins | `run_tools/mk_flaf_env.sh` (law `0.1.21`, luigi `3.8.1`, pip `26.2.1`, …); the CI workflows install the same versions |
+| Package pins | `run_tools/mk_flaf_env.sh` (law `0.1.21`, luigi `3.8.1`, pip `26.2.1`, …); the CI workflows install the same versions, and `unit-tests` also the `onnx`/`onnxruntime` of the LCG release |

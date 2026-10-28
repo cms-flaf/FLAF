@@ -193,6 +193,27 @@ points at the central storage, see the warning below), while the histTuples are 
 `my_dev`. This is the key to fast, parallel development: many people can share one upstream
 production without recomputing it.
 
+!!! note "First use of a production in a checkout: its merge plans are copied into `data/`"
+    The branch maps of `AnaTupleMergeTask` and of every analysis task after it are built from a
+    copy of the production's merge plans in your checkout's data area,
+    `$ANALYSIS_DATA_PATH/<anaTuple version>/AnaTupleFileListTask/<era>/` (see
+    [`AnaTupleFileListTask`](../reference/tasks.md#anatuplefilelistbuildertask-anatuplefilelisttask)).
+    A checkout that has not used the production yet has no such copy. If the production's own plans
+    are all on `fs_anaTuple` (its `AnaTupleFileListBuilderTask` is complete), the first command
+    that builds one of these tasks copies them there, `--print-status` and `--print-deps`
+    included: it prints `Copying <N> AnaTuple merge plans of version <v> ...`. The plans are
+    copied 16 at a time; the time depends on the storage and its protocol: for the 315 plans of
+    an HH_bbWW era read from FNAL on lxplus it took about 70 s over davs (the
+    `T3_US_FNALLPC:/store/...` form) and about 110 s over xrootd (`root://cmseos.fnal.gov//...`).
+    Later commands read the copy. Batch jobs never copy: they find the plans in the
+    `AnaTupleFileList` bundle or in the shared data area of the submission.
+
+    If the plans are not all on `fs_anaTuple` (for example because it does not point at the
+    production's storage), nothing is copied and the run requires the whole upstream chain, as for
+    a new production. Until the plans exist, `--print-status` cannot judge the upstream tasks (it
+    shows `TargetCollection(len=1)`, law's placeholder), and `--branches` does not narrow what is
+    required upstream.
+
 ### Shortcuts for the whole upstream
 
 Listing every `--<Task>-version` is tedious. The base task exposes three shortcuts that set the

@@ -6,6 +6,8 @@ run_cmd() {
   if (( $RESULT != 0 )); then
     echo "Error while running '$@'"
     kill -INT $$
+    # the signal does not stop a shell that ignores it, nor one that sourced this file in a subshell
+    return $RESULT
   fi
 }
 
@@ -231,14 +233,22 @@ install_inference() {
 }
 
 load_flaf_env() {
+  # Exported at the end, once nothing has refused: a batch job's bootstrap.sh checks it, because
+  # there `kill -INT $$` may stop nothing (law runs the job in a pipeline when it keeps a log file).
+  unset FLAF_ENV_LOADED
+  local flaf_env_refused=0
 
   [ -z "$LAW_HOME" ] && export LAW_HOME="$ANALYSIS_PATH/.law"
   [ -z "$LAW_CONFIG_FILE" ] && export LAW_CONFIG_FILE="$ANALYSIS_PATH/config/law.cfg"
   [ -z "$ANALYSIS_DATA_PATH" ] && export ANALYSIS_DATA_PATH="$ANALYSIS_PATH/data"
   [ -z "$X509_USER_PROXY" ] && export X509_USER_PROXY="$ANALYSIS_DATA_PATH/voms.proxy"
+  # TensorFlow turns its oneDNN kernels on by itself only on CPUs with AVX512_VNNI, AVX_VNNI,
+  # AVX512_BF16 or AMX, so NN outputs would depend on the batch node; the CMSSW environment of
+  # the tasks (Setup.cmssw_env) and cmsEnv set the same.
+  export TF_ENABLE_ONEDNN_OPTS=0
 
   if [[ ! -d "$ANALYSIS_DATA_PATH" ]]; then
-    run_cmd mkdir -p "$ANALYSIS_DATA_PATH"
+    run_cmd mkdir -p "$ANALYSIS_DATA_PATH" || flaf_env_refused=1
   fi
 
   local FLAF_LCG_VERSION="LCG_110a"
@@ -337,12 +347,13 @@ load_flaf_env() {
   # When FLAF_NO_INSTALL=1 (bundle mode) skip CMSSW/combine/inference entirely if
   # CMSSW is not present in the bundle; tasks that need it declare the cmssw bundle flavour.
   if [[ "${FLAF_NO_INSTALL:-0}" == "0" ]] || [[ -d "$FLAF_CMSSW_BASE" ]]; then
-    install_cmssw "$env_file" $node_os $target_os $FLAF_CMSSW_ARCH $FLAF_CMSSW_VERSION $FLAF_COMBINE_VERSION
+    install_cmssw "$env_file" $node_os $target_os $FLAF_CMSSW_ARCH $FLAF_CMSSW_VERSION $FLAF_COMBINE_VERSION \
+      || flaf_env_refused=1
     if [ "$FLAF_COMBINE_VERSION" != "none" ]; then
       # The same combine version is built in the CMSSW area (CombineHarvester, tasks run in CMSSW,
       # bundle jobs) and on its own against the ROOT of flaf_env (dhi); both follow its changes.
       install_cmssw_combine "$env_file" $node_os $target_os $FLAF_CMSSW_ARCH $FLAF_CMSSW_VERSION \
-        $FLAF_COMBINE_VERSION
+        $FLAF_COMBINE_VERSION || flaf_env_refused=1
       local cmb_os_version=9
       local cmb_os_prefix=$(get_os_prefix $cmb_os_version)
       local cmb_os=$cmb_os_prefix$cmb_os_version
@@ -353,13 +364,14 @@ load_flaf_env() {
       if [[ "${FLAF_NO_INSTALL:-0}" == "0" ]] || [[ -d "$FLAF_COMBINE_PATH" ]]; then
         install_combine "$env_file" $node_os $cmb_os "$FLAF_COMBINE_PATH" "$FLAF_COMBINE_VERSION" \
           "$FLAF_PATH/run_tools/combine_root638_clipping.patch" \
-          "$FLAF_COMBINE_PATH/build/.installed_${FLAF_COMBINE_VERSION}_${FLAF_LCG_VERSION}_${FLAF_LCG_ARCH}"
+          "$FLAF_COMBINE_PATH/build/.installed_${FLAF_COMBINE_VERSION}_${FLAF_LCG_VERSION}_${FLAF_LCG_ARCH}" \
+          || flaf_env_refused=1
         export PATH="$FLAF_COMBINE_PATH/build/bin:$PATH"
         export LD_LIBRARY_PATH="$FLAF_COMBINE_PATH/build/lib:$LD_LIBRARY_PATH"
         export PYTHONPATH="$FLAF_COMBINE_PATH/build/python:$PYTHONPATH"
       fi
       if [ -d "$HH_INFERENCE_PATH" ]; then
-        install_inference "$env_file" $node_os $cmb_os $FLAF_COMBINE_VERSION
+        install_inference "$env_file" $node_os $cmb_os $FLAF_COMBINE_VERSION || flaf_env_refused=1
         export PYTHONPATH="$HH_INFERENCE_PATH:$PYTHONPATH"
         source $HH_INFERENCE_PATH/.setups/flaf.sh
       fi
@@ -398,10 +410,23 @@ load_flaf_env() {
     source /cvmfs/cms.cern.ch/rucio/setup-py3.sh &> /dev/null
   fi
   set -- "${current_args[@]}"
+  # The system gfal-* commands run on the first python of PATH that imports gfal2 -- flaf_env's
+  # does not -- and else on /usr/bin/python, which EL9 does not install. FLAF runs them with an
+  # environment of its own, so a law batch job needs nothing here.
+  if [[ -z "$LAW_JOB_HOME" && -z "$GFAL_PYTHONBIN" ]]; then
+    if /usr/bin/python3 -c 'import gfal2, gfal2_util' &> /dev/null; then
+      export GFAL_PYTHONBIN=/usr/bin/python3
+    else
+      echo "Warning: /usr/bin/python3 cannot import gfal2 and gfal2_util, so the system gfal-* commands (gfal-ls, gfal-copy, ...) will not work in this shell; set GFAL_PYTHONBIN to a python that can." >&2
+    fi
+  fi
   #export PATH="$ANALYSIS_SOFT_PATH/bin:$PATH"
-  alias cmsEnv="env -i HOME=$HOME ANALYSIS_PATH=$ANALYSIS_PATH ANALYSIS_DATA_PATH=$ANALYSIS_DATA_PATH X509_USER_PROXY=$X509_USER_PROXY FLAF_CMSSW_BASE=$FLAF_CMSSW_BASE FLAF_CMSSW_ARCH=$FLAF_CMSSW_ARCH $FLAF_PATH/cmsEnv.sh"
+  alias cmsEnv="env -i HOME=$HOME ANALYSIS_PATH=$ANALYSIS_PATH ANALYSIS_DATA_PATH=$ANALYSIS_DATA_PATH X509_USER_PROXY=$X509_USER_PROXY FLAF_CMSSW_BASE=$FLAF_CMSSW_BASE FLAF_CMSSW_ARCH=$FLAF_CMSSW_ARCH TF_ENABLE_ONEDNN_OPTS=$TF_ENABLE_ONEDNN_OPTS $FLAF_PATH/cmsEnv.sh"
 
   ulimit -n 4096
+  if (( ! flaf_env_refused )); then
+    export FLAF_ENV_LOADED=1
+  fi
 }
 
 source_env_fn() {

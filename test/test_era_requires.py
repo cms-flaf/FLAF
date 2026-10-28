@@ -171,7 +171,7 @@ corrections:
     normCacheProducer: P2
 bundles:
   core: {}
-  soft: {}
+  soft: { patterns: [ soft/flaf_env ] }
   inputFileList: {}
   AnaTupleFileList: {}
 """,
@@ -226,6 +226,11 @@ def make_analysis(tmp):
             os.path.join(ana, path), text.replace("{store}", os.path.join(tmp, "store"))
         )
     return ana
+
+
+def environment_path(ana):
+    """flaf_env of the scratch analysis, which its soft flavour packs, as in the analyses."""
+    return os.path.join(ana, "soft", "flaf_env")
 
 
 def write_input_lists(version, era):
@@ -331,6 +336,9 @@ def write_fixture(path):
     try:
         os.environ["ANALYSIS_PATH"] = make_analysis(tmp)
         os.environ["ANALYSIS_DATA_PATH"] = os.path.join(tmp, "data")
+        os.environ["FLAF_ENVIRONMENT_PATH"] = environment_path(
+            os.environ["ANALYSIS_PATH"]
+        )
         sys.modules["FLAF.Common.HistHelper"] = _hist_helper
         clear_process_caches()
         fixture = {phase: one_era_requirements(phase) for phase in PHASE_VERSIONS}
@@ -576,6 +584,7 @@ class _Scratch(unittest.TestCase):
             {
                 "ANALYSIS_PATH": self.ana,
                 "ANALYSIS_DATA_PATH": os.path.join(self.tmp, "data"),
+                "FLAF_ENVIRONMENT_PATH": environment_path(self.ana),
             },
         )
         env.start()
@@ -643,7 +652,7 @@ class CardShapedProbe(lc.Task, lc.HTCondorWorkflow, law.LocalWorkflow):
     """StatInference's CreateDatacardsTask shape: its own workflow_requires() on top of
     FLAF's, which carries the bundles."""
 
-    bundle_flavours = ["core"]
+    bundle_flavours = ["core", "soft"]
 
     def create_branch_map(self):
         return {0: "card"}
@@ -663,7 +672,7 @@ class CardShapedProbe(lc.Task, lc.HTCondorWorkflow, law.LocalWorkflow):
 class CrabCardShapedProbe(
     lc.Task, lc.HTCondorWorkflow, lc.CrabWorkflow, law.LocalWorkflow
 ):
-    bundle_flavours = ["core"]
+    bundle_flavours = ["core", "soft"]
     allow_multi_era = True
 
     def create_branch_map(self):
@@ -689,7 +698,8 @@ class ExternalOverridesKeepTheirBundles(_Scratch):
         reqs = task.workflow_requires()
         self.assertIn("hists", reqs)
         self.assertEqual(
-            [(b.flavour, b.era) for b in reqs["bundles"]], [("core", (ERA_A,))]
+            [(b.flavour, b.era) for b in reqs["bundles"]],
+            [("core", (ERA_A,)), ("soft", (ERA_A,))],
         )
 
     def test_htcondor_with_bundles(self):
@@ -703,7 +713,8 @@ class ExternalOverridesKeepTheirBundles(_Scratch):
         task = CrabCardShapedProbe(version=self.version, era=ERA_A, workflow="crab")
         self.assert_bundles(task)
         self.assertEqual(
-            [b.flavour for b in task.crab_workflow_requires()["bundles"]], ["core"]
+            [b.flavour for b in task.crab_workflow_requires()["bundles"]],
+            ["core", "soft"],
         )
 
     def test_crab_with_bundles_on_htcondor(self):
@@ -1507,7 +1518,7 @@ class TheRequirementPathOverTwoEras(_TwoEras):
                 )
                 self.assertEqual(
                     sorted(b.era for b in both.workflow_requires()["bundles"]),
-                    [(ERA_A,), (ERA_B,)],
+                    [(ERA_A,), (ERA_A,), (ERA_B,), (ERA_B,)],
                 )
         done = HelloWorldTask(version=self.version, era=ERA_A, branch=0)
         write(done.output().abspath, "hello")
@@ -1519,10 +1530,12 @@ class TheRequirementPathOverTwoEras(_TwoEras):
                 )
                 self.assertEqual(
                     [(b.flavour, b.era) for b in root.workflow_requires()["bundles"]],
-                    [("core", (ERA_B,))],
+                    [("core", (ERA_B,)), ("soft", (ERA_B,))],
                 )
                 proxy_reqs = root.workflow_proxy.requires()
-                self.assertEqual([b.era for b in proxy_reqs["bundles"]], [(ERA_B,)])
+                self.assertEqual(
+                    [b.era for b in proxy_reqs["bundles"]], [(ERA_B,), (ERA_B,)]
+                )
 
 
 class SchedulingIsTheUnionOfTheEras(_Scratch):

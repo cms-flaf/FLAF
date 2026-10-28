@@ -1729,8 +1729,18 @@ class MetaEras(_ScratchAnalysis):
             .replace("@FS@", self.fs)
             .replace("    variables: []", "    variables: [ v1, v2 ]", 1)
             + f"era_groups:\n  {META}: [ {ERA_B}, {ERA_A} ]\n"
-            + "bundles:\n  core: {}\n  soft: {}\n  AnaTupleFileList: {}\n",
+            # what a bundle job (CRAB) needs to load the environment
+            + "bundles:\n  core: {}\n  soft: { patterns: [ soft/flaf_env ] }\n  AnaTupleFileList: {}\n",
         )
+        env = mock.patch.dict(
+            os.environ,
+            {
+                "FLAF_ENVIRONMENT_PATH": os.path.join(self.ana, "soft", "flaf_env"),
+                "FLAF_ENVIRONMENT_ID": "LCG_X_ARCH_Y_0123456789ab",
+            },
+        )
+        env.start()
+        self.addCleanup(env.stop)
 
     def test_a_meta_era_is_one_era_with_the_setups_of_its_eras(self):
         task = analysis.HistMergerTask(version=self.version, era=META)

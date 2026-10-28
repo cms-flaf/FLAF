@@ -94,23 +94,37 @@ def unwrap_hist_from_tree(tree):
     return hist
 
 
+def _key_inherits_from(key, base_class_name):
+    """Whether a TKey's stored class inherits from ``base_class_name``, checked via
+    TClass's class hierarchy from the key's class-name metadata -- without calling
+    TKey::ReadObj(), which would deserialize the (possibly large) object just to
+    inspect its type."""
+    cls = ROOT.TClass.GetClass(key.GetClassName())
+    return bool(cls) and cls.InheritsFrom(base_class_name)
+
+
 def get_all_signal_trees_recursive(root_dir, path=()):
     """Collect every TTree directly inside a directory literally named ``"Trees"``
     anywhere under ``root_dir``, keyed by the channel/region/category path leading to
     it (with the ``"Trees"`` segment itself stripped). Only ever looks one level
     inside a ``Trees`` directory -- this feature's trees live there and nowhere
-    else, so there is no need for a fully generic tree walker."""
+    else, so there is no need for a fully generic tree walker. Every non-directory
+    key (the overwhelming majority -- every plain histogram leaf) is skipped via its
+    class-name metadata alone, never deserialized with ReadObj(): this function runs
+    unconditionally on every merged file regardless of whether any analysis is even
+    using this feature, so it must not pay the cost of reading every histogram just
+    to discover it isn't a directory."""
     items_dict = {}
     for key in root_dir.GetListOfKeys():
-        obj = key.ReadObj()
-        if not obj.InheritsFrom("TDirectory"):
+        if not _key_inherits_from(key, "TDirectory"):
             continue
+        obj = key.ReadObj()
         if key.GetName() == "Trees":
             local_items = {}
             for tree_key in obj.GetListOfKeys():
-                tree_obj = tree_key.ReadObj()
-                if tree_obj.InheritsFrom("TTree"):
-                    local_items[tree_key.GetName()] = tree_obj
+                if not _key_inherits_from(tree_key, "TTree"):
+                    continue
+                local_items[tree_key.GetName()] = tree_key.ReadObj()
             if local_items:
                 items_dict[path] = local_items
         else:

@@ -9,6 +9,7 @@ if __name__ == "__main__":
 
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
+import FLAF.Common.PlotBlinding as PlotBlinding
 from FLAF.Common.PlotGroups import (
     GroupProcesses,
     control_regions,
@@ -244,6 +245,9 @@ if __name__ == "__main__":
         page_cfg_dict = yaml.safe_load(f)
     with open(page_cfg_custom, "r") as f:
         page_cfg_custom_dict = yaml.safe_load(f)
+    PlotBlinding.check_data_style(
+        {page_cfg: page_cfg_dict, page_cfg_custom: page_cfg_custom_dict}
+    )
     inputs_cfg = os.path.join(
         os.environ["ANALYSIS_PATH"], "config", "plot", "inputs.yaml"
     )
@@ -340,6 +344,9 @@ if __name__ == "__main__":
             "scope_text": "",
         }
         var_entry = findBinEntry(hist_cfg_dict, args.var)
+        blind_windows = PlotBlinding.blind_windows(
+            args.var, var_entry, hist_cfg_dict[var_entry]
+        )
 
         # A blinded variable hides the data outside the control regions only. Without data
         # PlotKit's CMS label reads "Simulation <scope>" (both backends), so datasim_text
@@ -464,6 +471,13 @@ if __name__ == "__main__":
                 plot_color,
                 dataset_process_group,
             )
+            if dataset_process_group == "data":
+                PlotBlinding.blind_data(
+                    hists_to_plot_binned[hist_key][0],
+                    hist_unbinned,
+                    blind_windows,
+                    apply_binning,
+                )
 
         # Full (stat + syst) uncertainty on the background stack, from the up/down
         # variations stored alongside the central histograms.

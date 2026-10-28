@@ -237,9 +237,7 @@ def write_input_lists(version, era):
     """The InputFileTask lists of `era`, where InputFileTask writes them."""
     ref = ana_prod.InputFileTask(version=version, era=era)
     for dataset_id, dataset_name in ref.iter_datasets():
-        target = ana_prod.InputFileTask.req(
-            ref, branch=dataset_id, branches=()
-        ).output()
+        target = ref.req_branch(dataset_id).output()
         write(
             target.abspath,
             json.dumps({"input_files": INPUT_FILES[(era, dataset_name)]}),
@@ -250,9 +248,7 @@ def write_merge_plans(version, era):
     """The AnaTupleFileListTask outputs (merge plans) of `era`."""
     ref = ana_prod.AnaTupleFileListTask(version=version, era=era)
     for branch, (dataset_name, _) in ref.get_branch_map().items():
-        target = ana_prod.AnaTupleFileListTask.req(
-            ref, branch=branch, branches=()
-        ).output()
+        target = ref.req_branch(branch).output()
         plan = []
         n_out = 0
         for inputs, n_outputs, n_events in MERGE_PLANS[(era, dataset_name)]:
@@ -800,6 +796,14 @@ class LiftKeepsEveryRequirement(_TwoEras):
             sorted(b.era[0] for b in lifted["bundles"]), [ERA_A] * 3 + [ERA_B] * 3
         )
 
+    def test_a_branch_requires_the_cache_of_its_dependency(self):
+        self.met(ERA_A)
+        branch = analysis.AnalysisCacheTask(
+            version=self.version, era=ERA_A, producer_to_run="P2", workflow="local"
+        ).req_branch(1)
+        dependency = branch.requires()["anaCaches"]["P1"]
+        self.assertEqual((dependency.producer_to_run, dependency.branch), ("P1", 1))
+
     def test_a_body_with_branch_tasks_a_list_and_a_workflow(self):
         root = self.root(analysis.AnalysisCacheTask, producer_to_run="P2")
         merge = {
@@ -849,7 +853,11 @@ class LiftKeepsEveryRequirement(_TwoEras):
         # Run3_2022's requirement covers its whole map, and over one era it is kept as it is
         self.assertEqual(
             set(merges[0].get_branch_map()),
-            set(merges[0].req(merges[0], branches=()).get_branch_map()),
+            set(
+                merges[0]
+                .req(merges[0], branches=(), _skip_task_excludes=True)
+                .get_branch_map()
+            ),
         )
         single_b = root.single(ERA_B).stage_workflow_requires()["anaTuple"]
         self.assertEqual(
@@ -857,7 +865,11 @@ class LiftKeepsEveryRequirement(_TwoEras):
         )
         self.assertLess(
             len(numbers(single_b.branches)),
-            len(single_b.req(single_b, branches=()).get_branch_map()),
+            len(
+                single_b.req(
+                    single_b, branches=(), _skip_task_excludes=True
+                ).get_branch_map()
+            ),
         )
 
     def test_different_parameters_stay_apart(self):

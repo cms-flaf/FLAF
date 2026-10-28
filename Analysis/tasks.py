@@ -890,7 +890,7 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         if self.meta_era:
             # the merged histograms of its eras: one workflow over them, with era branches
             reqs["HistMergerTask"] = self.sub_era_task(
-                HistMergerTask, self.sub_eras, branches=()
+                HistMergerTask, self.sub_eras, branches=(), _skip_task_excludes=False
             )
             return reqs
         branch_map = self.create_branch_map()
@@ -1202,6 +1202,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                     branches=(),
                     customisations=self.customisations,
                     producer_to_run=producer_name,
+                    _skip_task_excludes=False,
                 )
                 for producer_name in list(producer_requires_set)
                 if producer_name is not None
@@ -1238,6 +1239,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                         branches=(),
                         customisations=self.customisations,
                         producer_to_run=dependency,
+                        _skip_task_excludes=False,
                     )
                     for br_idx, _ in self.branch_map.items()
                 }
@@ -1266,6 +1268,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                 anaCaches[dependency] = AnalysisCacheTask.req(
                     self,
                     producer_to_run=dependency,
+                    _skip_task_excludes=False,
                 )
         requirements["anaCaches"] = anaCaches
 

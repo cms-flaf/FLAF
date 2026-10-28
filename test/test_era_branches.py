@@ -378,11 +378,7 @@ class _ScratchAnalysis(unittest.TestCase):
     def write_input_lists(self, era, version=None, file_info=None):
         ref = ana_prod.InputFileTask(version=version or self.version, era=era)
         for dataset_id, dataset_name in ref.iter_datasets():
-            path = (
-                ana_prod.InputFileTask.req(ref, branch=dataset_id, branches=())
-                .output()
-                .abspath
-            )
+            path = ref.req_branch(dataset_id).output().abspath
             files = INPUT_FILES[(era, dataset_name)]
             content = {"input_files": files}
             if file_info is not None:
@@ -1734,7 +1730,7 @@ class MetaEras(_ScratchAnalysis):
             .replace("    variables: []", "    variables: [ v1, v2 ]", 1)
             + f"era_groups:\n  {META}: [ {ERA_B}, {ERA_A} ]\n"
             # what a bundle job (CRAB) needs to load the environment
-            + "bundles:\n  soft: { patterns: [ soft/flaf_env ] }\n",
+            + "bundles:\n  core: {}\n  soft: { patterns: [ soft/flaf_env ] }\n  AnaTupleFileList: {}\n",
         )
         env = mock.patch.dict(
             os.environ,
@@ -1791,6 +1787,21 @@ class MetaEras(_ScratchAnalysis):
         self.assertIsInstance(merge, analysis.HistMergerTask)
         self.assertEqual(merge.era, (ERA_A, ERA_B))
         self.assertIsNone(merge.meta_era)
+
+    def test_the_sum_with_bundles_ships_those_of_its_eras(self):
+        task = analysis.HistMergerTask(
+            version=self.version, era=META, workflow="htcondor", bundle=True
+        )
+        reqs = task.workflow_requires()
+        self.assertEqual(reqs["HistMergerTask"].era, (ERA_A, ERA_B))
+        self.assertEqual(
+            sorted((b.flavour, b.era) for b in reqs["bundles"]),
+            [
+                (flavour, (era,))
+                for flavour in ("AnaTupleFileList", "core", "soft")
+                for era in (ERA_A, ERA_B)
+            ],
+        )
 
     def test_the_sum_reads_the_merged_files_of_its_eras(self):
         # no AnaTuple merge plan exists here: neither the map of the sum nor what a branch of it

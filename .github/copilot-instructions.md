@@ -64,6 +64,15 @@ Each of these has caused a production incident. They are ordered by how much dam
   **insignificant** carrier parameter (`upstream_workflow` in `AnaProd/tasks.py`) that is
   forwarded explicitly. It has to be a real `luigi.Parameter`, not an attribute, or branch and
   workflow fall out of sync. Flag any new `req()` that forwards `workflow` implicitly.
+- **A `req()` within one task family passes `_skip_task_excludes`.** law drops the per-task
+  resources of `exclude_params_req` (`tasks_per_job`, `max_runtime`, `n_cpus`, `crab_memory`)
+  whatever the two families are, so a plain `X.req(x)` with `x` an `X` would take the class
+  defaults and, `n_cpus` being significant, could become a second task for the same outputs.
+  `Task.req` raises `SameFamilyReqError` unless the call passes `_skip_task_excludes=True` (the
+  same task) or `=False` (a separate task with its own defaults, e.g. the `AnalysisCacheTask` of a
+  dependency producer). Flag a helper that derives a task from whatever task it is handed
+  (`sub_era_task`, `_anaTuple_outputs`, `InputFileTask.WF_complete`) where it can be handed one of
+  its target's own family.
 - **`@law.dynamic_workflow_condition` objects are shared with subclasses.** A subclass that
   decorates with the *parent's* `workflow_condition.output` mutates the shared object and
   corrupts the parent task. It must `.copy()` first. Review the **parent** task too — the damage

@@ -390,6 +390,28 @@ Each of these has caused a production incident. They are ordered by how much dam
   `file[name] = arrays`.** Since uproot 5.7 (LCG_110a) that assignment writes an RNTuple, which
   TChain, tree friends and the anaTuple readers do not accept.
 
+### NN inference (`env.sh`, `Common/Setup.py`, `Common/OnnxSession.py`)
+
+- **`TF_ENABLE_ONEDNN_OPTS=0` everywhere TensorFlow runs.** TensorFlow turns its oneDNN kernels on
+  by itself on CPUs with AVX512_VNNI/AVX_VNNI/AVX512_BF16/AMX only, which makes HHbtag and DNN
+  outputs depend on the batch node (cms-flaf/FLAF#357). `env.sh` exports it, and every environment
+  built from an empty one must set it too: `Setup.cmssw_env` and the `cmsEnv` alias do. A new
+  `env -i`/whitelist environment that can run TensorFlow without it is a regression.
+- **ONNX Runtime sessions are created through `FLAF.Common.OnnxSession`** (`make_session`, or
+  `session_options()` handed to code that creates its own sessions, as DeepHME's
+  `session_options`): one intra-op and one inter-op thread. A bare `ort.InferenceSession` with the
+  default options sizes its pool by the host's physical cores and gives outputs that depend on it.
+- What no setting of these builds removes is accepted and documented
+  (`docs/concepts/environment.md`), not a defect of a change: ONNX Runtime's AVX2 vs AVX-512 kernels
+  (`x86_64-v3` vs `x86_64-v4` nodes), TensorFlow's Intel vs AMD results from Eigen's
+  `rsqrtps`/`rcpps`-based `Rsqrt` and reciprocal, and, in `flaf_env`, TensorFlow's AVX-512-dependent
+  matrix products (oneDNN `sgemm` inside Eigen contractions).
+- **A TensorFlow thread pool sized by the host is a reproducibility defect, as for ONNX Runtime:**
+  the number of intra-op threads changes the outputs, and a fixed number removes that
+  (`TF_NUM_INTRAOP_THREADS`/`TF_NUM_INTEROP_THREADS` or `tf.config.threading`). `env.sh` does not set
+  it; the HH→bb̄ττ DNN in `flaf_env` still runs with the default pool (a follow-up of
+  cms-flaf/FLAF#357), so new TensorFlow inference code should fix its thread count.
+
 ## Configuration invariants
 
 - `config_path_order` layers four directories (`FLAF/config`, `FLAF/config/<era>`, `config`,
@@ -514,7 +536,7 @@ config loading (`Common/Setup.py`, `config/`) is therefore not checked, and is w
 
 ## Repository facts
 
-Verified 2026-10-22; re-check before relying on any of it.
+Verified 2026-10-25; re-check before relying on any of it.
 
 | | |
 |---|---|
@@ -525,4 +547,4 @@ Verified 2026-10-22; re-check before relying on any of it.
 | Workflows | `formatting-check`, `unit-tests` (also reusable: each analysis runs its own `test/` through it, against its pinned FLAF), `repo-sanity-checks`, `ds-consistency-check`, `cross-section-check`, `test-setup-loading`, `test-era-dimension` (reusable: an analysis calls it with its eras), `deploy-docs`, `integration-test`, `trigger-flaf-integration` |
 | Integration test | Triggered by `@cms-flaf-bot please test`. Its configuration (process lists, eras, versions) lives in **`cms-flaf/FLAF_ci`**, not in this repo |
 | Docs | `docs/`, built with `mkdocs build --strict`; see the documentation section above |
-| Package pins | `run_tools/mk_flaf_env.sh` (law `0.1.21`, luigi `3.8.1`, pip `26.2.1`, …); the CI workflows install the same versions |
+| Package pins | `run_tools/mk_flaf_env.sh` (law `0.1.21`, luigi `3.8.1`, pip `26.2.1`, …); the CI workflows install the same versions, and `unit-tests` also the `onnx`/`onnxruntime` of the LCG release |

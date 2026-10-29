@@ -2,9 +2,8 @@
 """The histograms that TupleHelpers.copyFileContent (AnaProd's merge and fuse steps) and
 skim_tree.copy_histograms read must be freed.
 
-TKey::ReadObj and TH1::Clone give the histogram to the input file, so PyROOT does not own it,
-and SetDirectory(0) alone left it owned by nobody: every input histogram stayed allocated until
-the job ended. The live histograms are counted with ROOT's object table, which counts only the
+PyROOT does not own what TKey::ReadObj and TH1::Clone return, and SetDirectory(0) alone left
+the histogram owned by nobody: every input histogram stayed allocated until the job ended. The live histograms are counted with ROOT's object table, which counts only the
 objects made after it is switched on, so the calls run in a child process that switches it on
 first; the pytest process is left as it is.
 

@@ -4,7 +4,8 @@
 
 A hidden bin has NaN as content and error. The ROOT-free tests use a stand-in for ROOT's TH1
 and for HistPlotter's rebinning (each stored bin goes to the plotted bin that holds its centre,
-as TH1::Rebin does); RootRebinTest runs the real TH1 and HistHelper.RebinHisto, and
+as TH1::Rebin does); RootRebinTest runs the real TH1 and HistHelper.RebinHisto,
+RootIndicatorOwnershipTest checks that blind_data frees its real TH1 indicator, and
 RenderedPlotTest the real PlotKit rendering of both panels, where ROOT or PlotKit can be
 imported.
 """
@@ -15,6 +16,8 @@ import os
 import sys
 import tempfile
 import unittest
+
+import pytest
 
 flaf_repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 flaf_parent = os.path.dirname(flaf_repo)
@@ -398,11 +401,12 @@ class RootRebinTest(unittest.TestCase):
         self.assertEqual(plotted.GetBinContent(36), 4)
 
 
+@pytest.mark.needs_root
 @unittest.skipIf(ROOT is None, "needs ROOT")
 class RootIndicatorOwnershipTest(unittest.TestCase):
-    """blind_data's indicator histogram must be freed after the call. HistPlotter calls it with
-    the merged input file open, so Clone() gives the copy to that file and PyROOT does not own
-    it; SetDirectory(0) alone left it owned by nobody, one histogram leaked per blinded plot.
+    """blind_data's indicator histogram must be freed after the call. PyROOT does not own what
+    Clone() returns, so SetDirectory(0) alone left it owned by nobody, one histogram leaked per
+    blinded plot. The tests run with an input file open, as HistPlotter calls blind_data.
     """
 
     def setUp(self):

@@ -15,6 +15,8 @@ import tempfile
 import unittest
 import warnings
 
+import pytest
+
 flaf_repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 flaf_parent = os.path.dirname(flaf_repo)
 if flaf_parent not in sys.path:
@@ -404,11 +406,12 @@ except ImportError:
     ROOT = None
 
 
+@pytest.mark.needs_root
 @unittest.skipIf(ROOT is None, "needs ROOT")
 class RootOwnership(unittest.TestCase):
-    """The group totals must be freed after the plot. HistPlotter groups with the merged input
-    file open, so Clone() gives each total to that file and PyROOT does not own it;
-    SetDirectory(0) alone left it owned by nobody, one histogram leaked per group and plot.
+    """The group totals must be freed after the plot. PyROOT does not own what Clone() returns,
+    so SetDirectory(0) alone left each total owned by nobody, one histogram leaked per group and
+    plot. The tests run with an input file open, as HistPlotter calls GroupProcesses.
     """
 
     def setUp(self):

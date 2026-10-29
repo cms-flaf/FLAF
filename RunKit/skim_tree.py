@@ -256,8 +256,8 @@ def copy_histograms(
                 else:
                     hist_copy = hist.Clone()
                     hist_copy.SetDirectory(0)
-                    # Clone() gives the copy to the input file, so PyROOT does not own it;
-                    # detached, it would be owned by nobody, never freed
+                    # PyROOT does not own what Clone() returns; detached, the copy would be
+                    # owned by nobody, never freed
                     ROOT.SetOwnership(hist_copy, True)
                     hists[hist_name] = hist_copy
         if input_file:

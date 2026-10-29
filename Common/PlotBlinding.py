@@ -120,8 +120,8 @@ def blind_data(hist, stored, windows, rebin):
         return []
     indicator = stored.Clone(f"{stored.GetName()}_blind_indicator")
     indicator.SetDirectory(0)
-    # Clone() gives the copy to the current directory (in HistPlotter the open input file),
-    # so PyROOT does not own it, and SetDirectory(0) leaves it owned by nobody, never freed.
+    # PyROOT does not own what Clone() returns and SetDirectory(0) does not give it ownership,
+    # so the detached indicator would be owned by nobody, never freed.
     # This is ROOT.SetOwnership(indicator, True) without importing ROOT.
     indicator.__python_owns__ = True
     indicator.Reset()

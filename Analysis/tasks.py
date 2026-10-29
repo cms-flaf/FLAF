@@ -584,9 +584,9 @@ class HistFromNtupleProducerTask(
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     variables = luigi.Parameter(default="")
     # Number of input ntuple files processed per job. LAW branches stay split by
-    # files. If the booked-histogram count (variables x selections x unc/scale,
-    # including Up/Down) exceeds hist_from_ntuple_max_hists, the producer repeats
-    # the event loop in batches inside the same job.
+    # files. If the booked histograms exceed hist_from_ntuple_max_hists or
+    # hist_from_ntuple_max_hist_memory_mb, the producer repeats the event loop in
+    # batches inside the same job.
     n_files_per_job = luigi.IntParameter(default=20)
 
     @property
@@ -753,7 +753,11 @@ class HistFromNtupleProducerTask(
         HistFromNtupleProducer = os.path.join(
             self._flaf_root(), "Analysis", "HistProducerFromNTuple.py"
         )
-        nMT = self.n_cpus * 2 if self.effective_workflow in ("htcondor", "crab") else 8
+        # On HTCondor/CRAB one thread per requested core. More (the former 2 x n_cpus) only
+        # oversubscribes the slot, and every thread holds its own copy of every booked
+        # histogram (more memory, so more passes for the large 2D variables); on a 20-file,
+        # 126-variable bbWW job 2 threads took 74 min against 100 min for 1. Local runs keep 8.
+        nMT = self.n_cpus if self.effective_workflow in ("htcondor", "crab") else 8
 
         # Determine which variables still need to be produced for this (dataset, chunk).
         outputs = self.output()

@@ -181,11 +181,22 @@ chunk of input files and fills every active variable, one output file per variab
 their files into chunks.
 
 If the number of histograms booked in one RDataFrame pass — variables × selections ×
-(Central + every Up/Down) — exceeds `hist_from_ntuple_max_hists` (default `4000`), the
+(Central + every Up/Down) — exceeds `hist_from_ntuple_max_hists` (default `30000`), the
 producer repeats the event loop in batches instead of holding every histogram at once.
-That keeps CI (8 GiB) from running out of memory when uncertainties are on. Set the
-threshold in `global.yaml` / `user_custom.yaml`, or pass `--max-hists` to the producer
-(`0` disables batching). LAW branches stay file-chunks; batching is inside the job.
+Every pass costs a full graph build and event loop, so the count is kept high: memory is bounded
+by the memory budget below. Set the threshold in `global.yaml` / `user_custom.yaml`, or pass
+`--max-hists` to the producer (`0` removes the count cap; a single pass needs both caps at `0`).
+LAW branches stay file-chunks; batching is inside the job.
+
+A count does not bound memory by itself: RDataFrame keeps one copy of every booked histogram
+per thread slot (`--nMT`; on HTCondor/CRAB the task runs one thread per requested core,
+`nMT = n_cpus`, and 8 locally), and a 2D histogram can have a hundred times the cells of a 1D
+one. A batch therefore also stays within `hist_from_ntuple_max_hist_memory_mb` (default
+`1500`), counted per histogram as a fixed ~6 kB (the booked action) plus cells × 16 B for each
+thread slot. Variables are packed largest first, so large 2D/3D variables share passes with the
+1D ones; a variable that alone exceeds the budget is split over its selections and Up/Down.
+Pass `--max-hist-memory-mb` to the producer to override it (`0` disables it). Each batch's line
+in the log gives its histograms, cells and estimated memory.
 
 - **Parameters:** `--variables` (string; restrict which variables), `--n-files-per-job` (int,
   default `20`; input files processed per branch).

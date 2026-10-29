@@ -230,6 +230,10 @@ def GroupProcesses(hists, groups):
             key = "+".join(members)
             total = hists[members[0]][0].Clone(key)
             total.SetDirectory(0)
+            # PyROOT does not own what Clone() returns and SetDirectory(0) does not give it
+            # ownership, so the detached total would be owned by nobody, never freed.
+            # This is ROOT.SetOwnership(total, True) without importing ROOT.
+            total.__python_owns__ = True
             for p in members[1:]:
                 total.Add(hists[p][0])
             name = group["name"]

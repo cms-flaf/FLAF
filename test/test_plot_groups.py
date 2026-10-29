@@ -11,6 +11,7 @@ giving a plot that looks right but is not.
 
 import os
 import sys
+import tempfile
 import unittest
 import warnings
 
@@ -395,6 +396,66 @@ class Settings(unittest.TestCase):
         self.assertEqual(
             settings["regions"], ["OS_Iso", "SR", "TT_CR", "DY_CR", "W_CR"]
         )
+
+
+try:
+    import ROOT  # noqa: F401
+except ImportError:
+    ROOT = None
+
+
+@unittest.skipIf(ROOT is None, "needs ROOT")
+class RootOwnership(unittest.TestCase):
+    """The group totals must be freed after the plot. HistPlotter groups with the merged input
+    file open, so Clone() gives each total to that file and PyROOT does not own it;
+    SetDirectory(0) alone left it owned by nobody, one histogram leaked per group and plot.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        path = os.path.join(self.tmp.name, "merged.root")
+        ROOT.TFile(path, "RECREATE").Close()
+        # the current directory while GroupProcesses runs, as in HistPlotter
+        self.in_file = ROOT.TFile.Open(path, "READ")
+
+    def tearDown(self):
+        self.in_file.Close()
+        self.tmp.cleanup()
+
+    def hist(self, name, value):
+        """A histogram as HistPlotter's _detached leaves it: in no directory, owned by
+        Python."""
+        hist = ROOT.TH1D(name, "", 2, 0.0, 2.0)
+        hist.SetDirectory(0)
+        ROOT.SetOwnership(hist, True)
+        hist.SetBinContent(1, value)
+        return hist
+
+    def test_fixture_reproduces_the_leak_condition(self):
+        clone = self.hist("probe", 1.0).Clone("clone")
+        self.assertTrue(clone.GetDirectory())
+        self.assertFalse(clone.__python_owns__)
+        clone.SetDirectory(0)
+        ROOT.SetOwnership(clone, True)
+
+    def test_group_totals_are_owned_by_python(self):
+        hists = {
+            p: (self.hist(p, value), p, "kBlack", "backgrounds")
+            for p, value in (("TT", 10.0), ("ttV", 1.0), ("W", 5.0))
+        }
+        groups = [
+            {"name": "tt", "processes": ["TT", "ttV"]},
+            {"name": "W", "processes": ["W"]},
+        ]
+        grouped = GroupProcesses(hists, groups)
+        self.assertEqual(grouped["TT+ttV"][0].GetBinContent(1), 11.0)
+        for key in ("TT+ttV", "W"):
+            total = grouped[key][0]
+            self.assertTrue(
+                total.__python_owns__,
+                f"the total {key} is not owned by Python, so it outlives the plot",
+            )
+            self.assertFalse(total.GetDirectory())
 
 
 if __name__ == "__main__":

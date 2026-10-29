@@ -230,6 +230,10 @@ def GroupProcesses(hists, groups):
             key = "+".join(members)
             total = hists[members[0]][0].Clone(key)
             total.SetDirectory(0)
+            # Clone() gives the copy to the current directory (in HistPlotter the open input
+            # file), so PyROOT does not own it, and SetDirectory(0) leaves it owned by nobody,
+            # never freed. This is ROOT.SetOwnership(total, True) without importing ROOT.
+            total.__python_owns__ = True
             for p in members[1:]:
                 total.Add(hists[p][0])
             name = group["name"]

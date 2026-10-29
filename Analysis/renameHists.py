@@ -320,6 +320,9 @@ for channel in channels:
             # key_hist = dir_1.Get(key_name)
             obj = key_hist.ReadObj()
             obj.SetDirectory(0)
+            # ReadObj() leaves it to the input file, so PyROOT does not own it; detached and
+            # not owned, every histogram of the file stayed allocated until the end
+            ROOT.SetOwnership(obj, True)
             dirStruct = (channel, cat)
             dir_name = "/".join(dirStruct)
             dir_ptr = Utilities.mkdir(outFile, dir_name)

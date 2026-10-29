@@ -249,6 +249,9 @@ def copyFileContent(
             if is_hist:
                 obj = key.ReadObj()
                 obj.SetDirectory(ROOT.nullptr)
+                # ReadObj() gives the histogram to the input file, so PyROOT does not own it,
+                # and detached it was owned by nobody: every input histogram was never freed
+                ROOT.SetOwnership(obj, True)
                 if out_path in histograms:
                     histograms[out_path].Add(obj)
                 else:

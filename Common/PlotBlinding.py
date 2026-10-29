@@ -120,6 +120,10 @@ def blind_data(hist, stored, windows, rebin):
         return []
     indicator = stored.Clone(f"{stored.GetName()}_blind_indicator")
     indicator.SetDirectory(0)
+    # Clone() gives the copy to the current directory (in HistPlotter the open input file),
+    # so PyROOT does not own it, and SetDirectory(0) leaves it owned by nobody, never freed.
+    # This is ROOT.SetOwnership(indicator, True) without importing ROOT.
+    indicator.__python_owns__ = True
     indicator.Reset()
     # with -inf and +inf added, the index of a bin is its ROOT number, 0 being the underflow
     flow_edges = [-math.inf] + _edges(stored) + [math.inf]

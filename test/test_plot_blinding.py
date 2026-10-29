@@ -398,6 +398,72 @@ class RootRebinTest(unittest.TestCase):
         self.assertEqual(plotted.GetBinContent(36), 4)
 
 
+@unittest.skipIf(ROOT is None, "needs ROOT")
+class RootIndicatorOwnershipTest(unittest.TestCase):
+    """blind_data's indicator histogram must be freed after the call. HistPlotter calls it with
+    the merged input file open, so Clone() gives the copy to that file and PyROOT does not own
+    it; SetDirectory(0) alone left it owned by nobody, one histogram leaked per blinded plot.
+    """
+
+    def setUp(self):
+        import array
+
+        self.array = array
+        self.tmp = tempfile.TemporaryDirectory()
+        path = os.path.join(self.tmp.name, "merged.root")
+        ROOT.TFile(path, "RECREATE").Close()
+        # the current directory while blind_data runs, as in HistPlotter
+        self.in_file = ROOT.TFile.Open(path, "READ")
+
+    def tearDown(self):
+        self.in_file.Close()
+        self.tmp.cleanup()
+
+    def stored(self):
+        """A data histogram as HistPlotter's _detached leaves it: in no directory, owned by
+        Python."""
+        hist = ROOT.TH1D("data", "", len(EDGES) - 1, self.array.array("d", EDGES))
+        hist.SetDirectory(0)
+        ROOT.SetOwnership(hist, True)
+        for i, value in enumerate(VALUES, start=1):
+            hist.SetBinContent(i, value)
+        return hist
+
+    def detached_rebin(self, hist, name):
+        """HistPlotter's apply_binning with x_rebin: a new histogram, detached."""
+        new_edges = [100, 110, 120, 130, 140, 150]
+        new = hist.Rebin(len(new_edges) - 1, name, self.array.array("d", new_edges))
+        new.SetDirectory(0)
+        ROOT.SetOwnership(new, True)
+        return new
+
+    def test_fixture_reproduces_the_leak_condition(self):
+        clone = self.stored().Clone("probe")
+        self.assertTrue(clone.GetDirectory())
+        self.assertFalse(clone.__python_owns__)
+        clone.SetDirectory(0)
+        ROOT.SetOwnership(clone, True)
+
+    def test_indicator_is_owned_by_python(self):
+        for name, rebin in (("no x_rebin", no_rebin), ("x_rebin", self.detached_rebin)):
+            with self.subTest(rebin=name):
+                indicators = []
+
+                def recording_rebin(hist, key):
+                    indicators.append(hist)
+                    return rebin(hist, key)
+
+                stored = self.stored()
+                plotted = rebin(stored, "data")
+                blind_data(plotted, stored, [(115, 135)], recording_rebin)
+                (indicator,) = indicators
+                self.assertTrue(
+                    indicator.__python_owns__,
+                    "the indicator is not owned by Python, so it outlives the call",
+                )
+                self.assertFalse(indicator.GetDirectory())
+
+
 try:
     import FLAF.PlotKit.Plotter as Plotter
 except ImportError:

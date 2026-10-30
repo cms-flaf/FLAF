@@ -1,4 +1,5 @@
 import law
+import math
 import os
 import contextlib
 import luigi
@@ -566,15 +567,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
             shutil.rmtree(job_home)
 
 
-def _chunk_evenly(items, n):
-    """Split ``items`` into ``n`` roughly-equal, contiguous chunks. Order doesn't matter
-    for merge correctness -- only that parallel lists (e.g. dataset names and their
-    localized file paths) are split at the same indices."""
-    n = max(1, min(n, len(items)))
-    k, m = divmod(len(items), n)
-    return [items[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n)]
-
-
 def _split_merged_marker(split_target):
     # The per-chunk ``.merged`` marker written next to a HistFromNtupleProducer split histogram
     # when HistMergerTask removes it after merging (issue #229). Placed beside the split so it is
@@ -888,28 +880,6 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     variables = luigi.Parameter(default="")
-    # Insignificant: it only splits the work across subprocesses, the merged output is the
-    # same for any value, so it must not enter the task id (or the ids of what requires it).
-    n_merge_batches = luigi.IntParameter(
-        default=0,
-        significant=False,
-        description="Split one variable's dataset list into this many parallel "
-        "MergerProducer subprocesses (reduced into the final output via SumEraFiles) "
-        "instead of merging all datasets sequentially in one process. 0 (default): one "
-        "batch per allocated core, n_cpus.",
-    )
-
-    @property
-    def merge_batches(self):
-        # each batch is its own MergerProducer subprocess: one per allocated core by default,
-        # so they run in parallel instead of contending for fewer cores
-        if self.n_merge_batches > 0:
-            return self.n_merge_batches
-        if self.is_branch():
-            resources = self._branch_signal_tree_resources(self.branch)
-            if resources:
-                return resources[0]
-        return self.n_cpus
 
     @property
     def bundle_flavours(self):
@@ -921,17 +891,17 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         return _active_variables(self.setup, self.variables)
 
     def _branch_signal_tree_resources(self, branch):
-        """(cpus, memory MB) for a branch that carries signal Trees/, or None.
+        """{"memory_mb", "max_runtime_h"} for a branch that carries signal Trees/, or None.
 
-        Only such a branch (signal_tree_hists_ELReweighter) needs more than n_cpus and the
-        memory the site derives from it: its per-event rows, unlike binned histograms,
-        scale with the events. The resources are requested in the job file and used by run(),
-        not taken from n_cpus, so the task id stays that of every other variable.
+        Only such a branch (signal_tree_hists_ELReweighter) needs more memory and wall
+        time than the defaults: its per-event rows, unlike binned histograms, scale with the
+        events. Each value is taken from the config if set there (merger_request_memory_mb,
+        merger_max_runtime_hours); unset ones keep the defaults. They go into the job file
+        only, not into task parameters, so the task id stays that of every other variable.
         """
         var_name, _br_indices, datasets = self.branch_map[branch]
         cfg = self.global_params.get("signal_tree_hists_ELReweighter") or {}
-        request_mb = cfg.get("merger_request_memory_mb")
-        if not (request_mb and cfg.get("store_signal_trees")) or not datasets:
+        if not cfg.get("store_signal_trees") or not datasets:
             return None
         if var_name not in cfg.get("vars_to_store", []):
             return None
@@ -940,7 +910,12 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
             for ds in datasets
         ):
             return None
-        return int(cfg.get("merger_n_cpus", 4)), int(request_mb)
+        resources = {}
+        if cfg.get("merger_request_memory_mb"):
+            resources["memory_mb"] = int(cfg["merger_request_memory_mb"])
+        if cfg.get("merger_max_runtime_hours"):
+            resources["max_runtime_h"] = float(cfg["merger_max_runtime_hours"])
+        return resources or None
 
     def htcondor_job_config(self, config, job_num, branches):
         config = super().htcondor_job_config(config, job_num, branches)
@@ -954,17 +929,25 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         resources = [
             r for r in map(self._branch_signal_tree_resources, flat) if r is not None
         ]
-        if resources:
-            n_cpus = max(self.n_cpus, max(c for c, _ in resources))
+        memory_mb = max(
+            (r["memory_mb"] for r in resources if "memory_mb" in r), default=None
+        )
+        runtime_h = max(
+            (r["max_runtime_h"] for r in resources if "max_runtime_h" in r),
+            default=None,
+        )
+        if runtime_h and runtime_h > self.max_runtime:
+            # replaces the +MaxRuntime the base set from max_runtime, same encoding
             config.custom_content[:] = [
                 (key, value)
                 for key, value in config.custom_content
-                if key != "RequestCpus"
+                if key != "+MaxRuntime"
             ]
-            config.custom_content.append(("RequestCpus", n_cpus))
             config.custom_content.append(
-                ("RequestMemory", max(m for _, m in resources))
+                ("+MaxRuntime", int(math.floor(runtime_h * 3600)) - 1)
             )
+        if memory_mb:
+            config.custom_content.append(("RequestMemory", memory_mb))
         return config
 
     def stage_workflow_requires(self):
@@ -1148,67 +1131,30 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                 stack.callback(file_stack.close)
                 all_datasets.append(dataset_name)
                 local_inputs.append(abspath)
+            dataset_names = ",".join(smpl for smpl in all_datasets)
             with self.output().localize("w") as outFile:
-
-                def _merger_cmd(out_path, batch_datasets, batch_inputs):
-                    cmd = [
-                        "python3",
-                        MergerProducer,
-                        "--outFile",
-                        out_path,
-                        "--var",
-                        var_name,
-                        "--dataset_names",
-                        ",".join(batch_datasets),
-                        "--uncSources",
-                        ",".join(uncNames),
-                        "--channels",
-                        channels,
-                        "--era",
-                        self.only_era,
-                        "--LAWrunVersion",
-                        self.version,
-                    ]
-                    if self.user_custom:
-                        cmd.extend(["--user-custom", self.user_custom])
-                    cmd.extend(batch_inputs)
-                    return cmd
-
-                dataset_batches = _chunk_evenly(all_datasets, self.merge_batches)
-                input_batches = _chunk_evenly(local_inputs, self.merge_batches)
-                if len(dataset_batches) <= 1:
-                    ps_call(
-                        _merger_cmd(outFile.abspath, all_datasets, local_inputs),
-                        verbose=1,
-                    )
-                else:
-                    # Splitting the dataset list across parallel subprocesses cuts wall
-                    # time on this I/O- and deserialization-heavy merge without touching
-                    # the task graph: each batch produces its own partial merged file,
-                    # independently correct (same structure as a normal merge, just over
-                    # fewer input datasets), and SumEraFiles -- already used to sum
-                    # per-era merged files bin-by-bin -- reduces them into the final
-                    # output exactly the same way.
-                    from FLAF.Common.HistHelper import SumEraFiles
-
-                    batch_out_dir = os.path.dirname(outFile.abspath)
-                    batch_outputs = [
-                        os.path.join(batch_out_dir, f"{var_name}_batch{i}.root")
-                        for i in range(len(dataset_batches))
-                    ]
-                    batch_cmds = [
-                        _merger_cmd(batch_path, batch_ds, batch_in)
-                        for batch_path, batch_ds, batch_in in zip(
-                            batch_outputs, dataset_batches, input_batches
-                        )
-                    ]
-                    with ThreadPoolExecutor(max_workers=len(batch_cmds)) as executor:
-                        list(executor.map(lambda c: ps_call(c, verbose=1), batch_cmds))
-                    scales = list(self.global_params["scales"])
-                    SumEraFiles(batch_outputs, outFile.abspath, scales)
-                    for batch_path in batch_outputs:
-                        if os.path.exists(batch_path):
-                            os.remove(batch_path)
+                MergerProducer_cmd = [
+                    "python3",
+                    MergerProducer,
+                    "--outFile",
+                    outFile.abspath,
+                    "--var",
+                    var_name,
+                    "--dataset_names",
+                    dataset_names,
+                    "--uncSources",
+                    ",".join(uncNames),
+                    "--channels",
+                    channels,
+                    "--era",
+                    self.only_era,
+                    "--LAWrunVersion",
+                    self.version,
+                ]
+                if self.user_custom:
+                    MergerProducer_cmd.extend(["--user-custom", self.user_custom])
+                MergerProducer_cmd.extend(local_inputs)
+                ps_call(MergerProducer_cmd, verbose=1)
 
         # The merged output is now written; the per-chunk split inputs for this variable are no
         # longer needed. When enabled (issue #229), remove them to save space, leaving a small

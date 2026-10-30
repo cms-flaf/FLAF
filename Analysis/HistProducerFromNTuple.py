@@ -131,64 +131,6 @@ def _make_save_fn(key_tuple, outFile, model, unit_hist, rdf, var, unc, scale):
     return save_fn
 
 
-def BuildSignalTreeExtraSnapshots(
-    key_filter_dict,
-    further_cuts,
-    all_trees,
-    treeName,
-    uncs_to_compute,
-    unc_cfg_dict,
-    extra_vars,
-    tmp_dir,
-):
-    """Snapshot ``extra_vars`` once per selection key for Central, reused for every
-    norm-type systematic (they share Central's tree and selection, so there is
-    nothing to re-derive), and once more per shape-type systematic (which filters a
-    genuinely different tree, e.g. ``Events__JES__Up``) -- mirroring
-    ``BuildAllHistActions``'s own ``rdf_base`` choice exactly, so the same
-    ``(unc, scale)`` resolves to the same source tree in both places.
-
-    Returns ``{(uncName, uncScale): {key_tuple: (tmp_path, tmp_name, snap)}}``;
-    ``("Central", "Central")`` and every norm-type entry share the exact same inner
-    dict object.
-    """
-    cut_names = list(further_cuts.keys()) if further_cuts else [None]
-    col_vec = Utilities.ListToVector(list(extra_vars))
-    opts = ROOT.RDF.RSnapshotOptions()
-    opts.fLazy = True
-
-    def _snapshot_base(rdf_base, bucket_name):
-        snap_info = {}
-        for key, filter_base in key_filter_dict.items():
-            for further_cut_name in cut_names:
-                filt = (
-                    f"{filter_base} && {further_cut_name}"
-                    if further_cut_name
-                    else filter_base
-                )
-                key_tuple = key + (further_cut_name,) if further_cut_name else key
-                rdf_filtered = rdf_base.Filter(filt)
-                tmp_name = f"sigtree_{bucket_name}_" + "_".join(key_tuple)
-                tmp_path = os.path.join(tmp_dir, f"{tmp_name}.root")
-                snap = rdf_filtered.Snapshot(tmp_name, tmp_path, col_vec, opts)
-                snap_info[key_tuple] = (tmp_path, tmp_name, snap)
-        return snap_info
-
-    central_snap_info = _snapshot_base(all_trees[treeName], "central")
-    by_unc_scale = {("Central", "Central"): central_snap_info}
-    for unc, scales in uncs_to_compute.items():
-        if unc == "Central":
-            continue
-        is_shift_unc = unc in unc_cfg_dict["shape"].keys()
-        for scale in scales:
-            if is_shift_unc:
-                rdf_base = all_trees[f"Events__{unc}__{scale}"]
-                by_unc_scale[(unc, scale)] = _snapshot_base(rdf_base, f"{unc}_{scale}")
-            else:
-                by_unc_scale[(unc, scale)] = central_snap_info
-    return by_unc_scale
-
-
 def BuildAllHistActions(
     uncs_to_compute,
     unc_cfg_dict,
@@ -248,6 +190,71 @@ def BuildAllHistActions(
                             )
                         )
     return save_fns
+
+
+def BookSignalTreeSnapshots(
+    uncs_to_compute,
+    unc_cfg_dict,
+    all_trees,
+    key_filter_dict,
+    further_cuts,
+    treeName,
+    columns,
+    tmp_dir,
+):
+    """Book one lazy Snapshot per tree the histograms read -- the central one and each
+    shape-varied one -- so that it runs in their event loop.
+
+    It keeps the events that pass any selection key, with ``columns``, a boolean
+    ``sel__<channel>__<region>__<category>[__<further cut>]`` per key holding the filter of
+    its histograms and, in the central tree, the weight of every norm variation: each
+    histogram can be rebuilt from these rows. Returns ``{variation: (tmp_path, snapshot)}``
+    with ``variation`` ``"Central"`` or ``"<unc>_<scale>"``.
+    """
+    cut_names = list(further_cuts.keys()) if further_cuts else [None]
+    sel_columns = {}
+    for key, filter_to_apply_base in key_filter_dict.items():
+        for further_cut_name in cut_names:
+            key_tuple = key + (further_cut_name,) if further_cut_name else key
+            sel_columns["sel__" + "__".join(key_tuple)] = (
+                f"{filter_to_apply_base} && {further_cut_name}"
+                if further_cut_name
+                else filter_to_apply_base
+            )
+    sources = {"Central": (treeName, [])}
+    for unc, scales in uncs_to_compute.items():
+        if unc == "Central":
+            continue
+        for scale in scales:
+            if unc in unc_cfg_dict["shape"].keys():
+                sources[f"{unc}_{scale}"] = (f"Events__{unc}__{scale}", [])
+            else:
+                sources["Central"][1].append(f"weight_{unc}_{scale}")
+    opts = ROOT.RDF.RSnapshotOptions()
+    opts.fLazy = True
+    snapshots = {}
+    for variation, (tree_name, weight_columns) in sources.items():
+        rdf = all_trees[tree_name]
+        available = set(str(c) for c in rdf.GetColumnNames())
+        missing = [c for c in columns if c not in available]
+        if missing:
+            raise ValueError(
+                f"signal_tree_hists_ELReweighter: column(s) {missing} not present in "
+                f"HistTuple tree {tree_name!r}."
+            )
+        for sel_column, filter_to_apply in sel_columns.items():
+            rdf = rdf.Define(sel_column, filter_to_apply)
+        rdf = rdf.Filter(" || ".join(sel_columns))
+        tmp_path = os.path.join(tmp_dir, f"{variation}.root")
+        snapshot_columns = list(dict.fromkeys(columns + weight_columns))
+        snapshot_columns += list(sel_columns)
+        snapshots[variation] = (
+            tmp_path,
+            rdf.Snapshot(
+                "Events", tmp_path, Utilities.ListToVector(snapshot_columns), opts
+            ),
+        )
+    return snapshots
 
 
 if __name__ == "__main__":
@@ -320,14 +327,10 @@ if __name__ == "__main__":
 
     hist_cfg_dict = setup.hists
 
-    signal_tree_cfg = setup.global_params.get("signal_tree_hists_ELReweighter", {})
-    store_signal_trees = signal_tree_cfg.get("store_signal_trees", False)
-    signal_tree_vars = set(signal_tree_cfg.get("vars_to_store", []))
-    signal_extra_vars = list(signal_tree_cfg.get("extra_vars_to_store", []))
+    signal_tree_cfg = setup.global_params.get("signal_tree_hists_ELReweighter") or {}
     is_signal = (
         setup.datasets.get(args.dataset_name, {}).get("process_group") == "signals"
     )
-    write_signal_ELR_trees = bool(store_signal_trees and is_signal and signal_tree_vars)
 
     channels = (
         args.channels.split(",")
@@ -379,30 +382,6 @@ if __name__ == "__main__":
                 }
             )
     print(uncs_to_compute)
-
-    if write_signal_ELR_trees and signal_extra_vars:
-        central_cols = set(str(c) for c in all_trees[treeName].GetColumnNames())
-        missing = [v for v in signal_extra_vars if v not in central_cols]
-        if missing:
-            raise ValueError(
-                f"signal_tree_hists_ELReweighter.extra_vars_to_store references "
-                f"column(s) {missing} not present in HistTuple tree {treeName!r}."
-            )
-        for unc, scales in uncs_to_compute.items():
-            if unc == "Central" or unc not in unc_cfg_dict["shape"]:
-                continue
-            for scale in scales:
-                shift_tree_name = f"Events__{unc}__{scale}"
-                shift_cols = set(
-                    str(c) for c in all_trees[shift_tree_name].GetColumnNames()
-                )
-                missing_shift = [v for v in signal_extra_vars if v not in shift_cols]
-                if missing_shift:
-                    raise ValueError(
-                        f"signal_tree_hists_ELReweighter.extra_vars_to_store "
-                        f"references column(s) {missing_shift} not present in "
-                        f"{shift_tree_name!r}."
-                    )
 
     vars_to_process = [v.strip() for v in args.vars.split(",") if v.strip()]
     os.makedirs(args.outDir, exist_ok=True)
@@ -477,19 +456,37 @@ if __name__ == "__main__":
             f"{n_slots} thread slot(s) → {len(batches)} batch(es)"
         )
 
-        signal_extra_snap_info = {}
-        if write_signal_ELR_trees and signal_extra_vars:
-            signal_tmp_dir = os.path.join(args.outDir, "signal_tree_tmp")
-            os.makedirs(signal_tmp_dir, exist_ok=True)
-            signal_extra_snap_info = BuildSignalTreeExtraSnapshots(
-                key_filter_dict,
-                further_cuts,
-                all_trees,
-                treeName,
+        signal_tree_vars = [
+            var
+            for var in signal_tree_cfg.get("vars_to_store", [])
+            if var in vars_to_process
+        ]
+        signal_tree_snapshots = {}
+        signal_tree_tmp_created = False
+        if signal_tree_cfg.get("store_signal_trees") and is_signal and signal_tree_vars:
+            # each observable as its histograms are filled (<v>_bin) and, when the
+            # HistTuple flavour keeps it at full resolution, its value
+            central_columns = set(str(c) for c in all_trees[treeName].GetColumnNames())
+            signal_tree_columns = list(signal_tree_cfg.get("extra_vars_to_store", []))
+            signal_tree_columns.append("weight_Central")
+            for var in signal_tree_vars:
+                var_entry = HistHelper.findBinEntry(hist_cfg_dict, var)
+                for v in hist_cfg_dict[var_entry].get("var_list") or [var]:
+                    signal_tree_columns.append(f"{v}_bin")
+                    if v in central_columns:
+                        signal_tree_columns.append(v)
+            signal_tree_tmp_dir = os.path.join(args.outDir, "signal_tree_tmp")
+            signal_tree_tmp_created = not os.path.isdir(signal_tree_tmp_dir)
+            os.makedirs(signal_tree_tmp_dir, exist_ok=True)
+            signal_tree_snapshots = BookSignalTreeSnapshots(
                 uncs_to_compute,
                 unc_cfg_dict,
-                signal_extra_vars,
-                signal_tmp_dir,
+                all_trees,
+                key_filter_dict,
+                further_cuts,
+                treeName,
+                list(dict.fromkeys(signal_tree_columns)),
+                signal_tree_tmp_dir,
             )
 
         for batch_idx, (b_uncs, b_keys, b_cuts, b_vars) in enumerate(batches, start=1):
@@ -520,74 +517,21 @@ if __name__ == "__main__":
                 fn()
             del save_fns
 
-        if write_signal_ELR_trees and signal_extra_vars:
-            cut_names = list(further_cuts.keys()) if further_cuts else [None]
-            key_tuples_full = []
-            for key in key_filter_dict.keys():
-                for further_cut_name in cut_names:
-                    key_tuple = key + (further_cut_name,) if further_cut_name else key
-                    key_tuples_full.append(key_tuple)
-
-            signal_vars_present = signal_tree_vars & set(vars_to_process)
-            # Loop key_tuple (category) outermost and close every snapshot file opened
-            # for it before moving to the next one, instead of holding one handle open
-            # per (var, unc_scale, key_tuple) for the whole run -- with many categories
-            # and systematics that quickly exceeds the process's open-file limit.
-            # Cache by tmp_path (not unc_scale): Central and every norm-type systematic
-            # share the exact same underlying snapshot file for a given key_tuple, so
-            # this also avoids opening that one shared file once per systematic.
-            for key_tuple_full in key_tuples_full:
-                dir_name = "/".join(key_tuple_full)
-                open_by_path = {}  # tmp_path -> (TFile, TTree)
-                for var in signal_vars_present:
-                    _, out_root_file = var_tmp_files[var]
-                    cat_dir = out_root_file.GetDirectory(dir_name)
-                    if not cat_dir:
-                        continue
-                    tree_dir = Utilities.mkdir(out_root_file, dir_name + "/Trees")
-                    for key in cat_dir.GetListOfKeys():
-                        # The "Trees" subdirectory we just created is itself a key in
-                        # cat_dir now; ReadObj() on a directory key that's still empty
-                        # on disk corrupts later writes into it when the file closes
-                        # -- skip it by name before ever reading it, not just by type.
-                        if key.GetName() == "Trees":
-                            continue
-                        hist = key.ReadObj()
-                        if not hist.InheritsFrom("TH1"):
-                            continue
-                        hist.SetDirectory(0)
-                        hist_key_name = key.GetName()
-                        unc_scale = HistHelper.resolve_unc_scale(
-                            hist_key_name, var, uncs_to_compute.keys()
-                        ) or ("Central", "Central")
-                        bucket = signal_extra_snap_info.get(unc_scale)
-                        if bucket is None or key_tuple_full not in bucket:
-                            continue
-                        tmp_path, tmp_name, _snap = bucket[key_tuple_full]
-                        if tmp_path not in open_by_path:
-                            src_file = ROOT.TFile.Open(tmp_path, "READ")
-                            open_by_path[tmp_path] = (src_file, src_file.Get(tmp_name))
-                        _, src_tree = open_by_path[tmp_path]
-                        # TFile.Open() above (on cache miss) leaves gDirectory pointed
-                        # at that read-only snapshot file; CloneTree() writes into
-                        # whatever directory is "current", so cd() into the writable
-                        # output directory immediately before cloning, every time.
-                        tree_dir.cd()
-                        cloned_tree = src_tree.CloneTree(-1, "fast")
-                        tree = HistHelper.wrap_hist_in_tree(
-                            hist, hist_key_name, base_tree=cloned_tree
-                        )
-                        tree_dir.WriteTObject(tree, hist_key_name, "Overwrite")
-                for src_file, _ in open_by_path.values():
-                    src_file.Close()
-
-            seen_tmp_paths = set()
-            for bucket in signal_extra_snap_info.values():
-                for tmp_path, _tmp_name, _snap in bucket.values():
-                    if tmp_path not in seen_tmp_paths:
-                        seen_tmp_paths.add(tmp_path)
-                        if os.path.exists(tmp_path):
-                            os.remove(tmp_path)
+        for variation, (tmp_path, snapshot) in signal_tree_snapshots.items():
+            snapshot.GetValue()
+            tmp_file = ROOT.TFile.Open(tmp_path, "READ")
+            for var in signal_tree_vars:
+                _, out_root_file = var_tmp_files[var]
+                HistHelper.concat_trees(
+                    Utilities.mkdir(out_root_file, HistHelper.SIGNAL_TREES_DIR),
+                    variation,
+                    [tmp_file.Get("Events")],
+                )
+            tmp_file.Close()
+            os.remove(tmp_path)
+        signal_tree_snapshots.clear()
+        if signal_tree_tmp_created:
+            os.rmdir(signal_tree_tmp_dir)
 
         for var in vars_to_process:
             _, out_root_file = var_tmp_files[var]

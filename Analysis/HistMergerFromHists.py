@@ -247,6 +247,7 @@ if __name__ == "__main__":
     dataset_cfg_dict = setup.datasets
     data_process_name = "data"
     data_processes = setup.phys_model.processes(process_type="data")
+    background_processes = setup.phys_model.processes(process_type="backgrounds")
     if len(data_processes) > 0:
         data_base_processes = setup.phys_model.base_processes(data_processes[0])
         data_process_name = data_base_processes[0]
@@ -266,7 +267,6 @@ if __name__ == "__main__":
 
         base_process_name = dataset_cfg_dict[dataset_name]["process_name"]
         dataset_type = setup.base_processes[base_process_name]["parent_process"]
-        print(dataset_type)
         if dataset_type not in all_hists_dict.keys():
             all_hists_dict[dataset_type] = {}
 
@@ -325,10 +325,64 @@ if __name__ == "__main__":
                 data_process_name=data_processes,
                 wantNegativeContributions=False,
             )
+    ## ============================================================
+    ## BBWW FAKE ESTIMATION
+    ## ============================================================
+    fake_estimation_cfg = {}
+    if analysis_import == "Analysis.hh_bbww":
+        fake_estimation_cfg = global_cfg_dict.get("fake_estimation", {})
+    # Default: fake estimation is disabled
+    if fake_estimation_cfg.get("enabled", False):
+        fake_method = fake_estimation_cfg.get("method")
+        if fake_method is None:
+            raise ValueError(
+                "Fake estimation is enabled, but no method is configured. "
+                "Please set 'fake_estimation.method' in the global configuration."
+            )
 
+        from Analysis.Fakes_estimation import (
+            AddFakesInHistDict_BBWW,
+            AddFakesInHistDict_BBWW_TransferFactor,
+        )
+
+        print(f"[Fakes] Using method: {fake_method}")
+
+        if fake_method == "fake_factor":
+
+            AddFakesInHistDict_BBWW(
+                args.var,
+                all_hists_dict,
+                channels,
+                all_categories,
+                unc_sources,
+                list(all_hists_dict.keys()),
+                scales,
+                data_process_name=data_processes,
+            )
+
+        elif fake_method == "transfer_factor":
+
+            for unc_source in unc_sources:
+                print(f"[Fakes] Processing uncertainty: {unc_source}")
+
+                AddFakesInHistDict_BBWW_TransferFactor(
+                    args.var,
+                    all_hists_dict,
+                    channels,
+                    all_categories,
+                    unc_source,
+                    background_processes,
+                    scales,
+                    data_process_name=data_processes,
+                )
+
+        else:
+            raise ValueError(
+                f"Unknown fake estimation method '{fake_method}'. "
+                "Supported methods are 'fake_factor' and 'transfer_factor'."
+            )
     all_unc_dict = unc_cfg_dict["norm"].copy()
     all_unc_dict.update(unc_cfg_dict["shape"])
-
     # 209 = LZMA level 9, the standard compression for merged histogram files
     outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)
     for dataset_type in all_hists_dict.keys():
@@ -355,6 +409,8 @@ if __name__ == "__main__":
             hist.SetName(hist_name)
             dir_ptr.WriteTObject(hist, hist_name, "Overwrite")
     outFile.Close()
+    print(f"[OUTPUT] Closed output file: {os.path.abspath(args.outFile)}")
+    print(f"[OUTPUT] Exists after close: {os.path.exists(args.outFile)}")
     executionTime = time.time() - startTime
 
     print("Execution time in seconds: " + str(executionTime))

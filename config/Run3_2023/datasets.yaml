@@ -1017,13 +1017,13 @@ DYto2L_MLL_10to50_madgraphMLM:
 
 ############## ggZH ##############
 ggZH_Hto2B_Zto2L:
-  crossSection: ZH_Hbb_Zll
+  crossSection: ggZH_Hbb_Zll
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
   nanoAOD:
     v12: /ggZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23NanoAODv12-130X_mcRun3_2023_realistic_v14-v3/NANOAODSIM
 ggZH_Hto2B_Zto2Q:
-  crossSection: ZH_Hbb_Zqq
+  crossSection: ggZH_Hbb_Zqq
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer23MiniAODv4-130X_mcRun3_2023_realistic_v14-v3/MINIAODSIM
   nanoAOD:

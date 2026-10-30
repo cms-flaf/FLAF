@@ -909,25 +909,25 @@ GluGlutoContinto2Zto4Tau:
     v12: /GluGlutoContinto2Zto4Tau_TuneCP5_13p6TeV_mcfm-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
 
 ggZH_Hto2B_Zto2L:
-  crossSection: ZH_Hbb_Zll
+  crossSection: ggZH_Hbb_Zll
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
   nanoAOD:
     v12: /ggZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
 ggZH_Hto2B_Zto2L_ext1:
-  crossSection: ZH_Hbb_Zll
+  crossSection: ggZH_Hbb_Zll
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6_ext1-v3/MINIAODSIM
   nanoAOD:
     v12: /ggZH_Hto2B_Zto2L_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6_ext1-v3/NANOAODSIM
 ggZH_Hto2B_Zto2Q:
-  crossSection: ZH_Hbb_Zqq
+  crossSection: ggZH_Hbb_Zqq
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6-v2/MINIAODSIM
   nanoAOD:
     v12: /ggZH_Hto2B_Zto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EENanoAODv12-130X_mcRun3_2022_realistic_postEE_v6-v2/NANOAODSIM
 ggZH_Hto2B_Zto2Q_ext1:
-  crossSection: ZH_Hbb_Zqq
+  crossSection: ggZH_Hbb_Zqq
   generator: powheg
   miniAOD: /ggZH_Hto2B_Zto2Q_M-125_TuneCP5_13p6TeV_powheg-pythia8/Run3Summer22EEMiniAODv4-130X_mcRun3_2022_realistic_postEE_v6_ext1-v3/MINIAODSIM
   nanoAOD:

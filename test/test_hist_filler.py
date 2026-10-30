@@ -12,6 +12,10 @@ import os
 import sys
 import unittest
 
+import pytest
+
+pytestmark = pytest.mark.needs_root
+
 flaf_repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 import ROOT  # noqa: E402

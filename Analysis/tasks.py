@@ -16,6 +16,7 @@ from FLAF.run_tools.law_customizations import (
 from FLAF.AnaProd.tasks import (
     AnaTupleFileListTask,
     AnaTupleMergeTask,
+    anaTuple_plans_ready,
 )
 from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 
@@ -134,10 +135,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
 
     def stage_workflow_requires(self):
         reqs = super().stage_workflow_requires()
-        merge_organization_complete = AnaTupleFileListTask.req(
-            self,
-            branches=(),
-        ).complete()
+        merge_organization_complete = _anaTuple_plans_ready(self)
         if not merge_organization_complete:
             req_dict = {
                 "AnaTupleFileListTask": AnaTupleFileListTask.req(
@@ -320,7 +318,7 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
-        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
+        return _anaTuple_plans_ready(self)
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
@@ -612,10 +610,7 @@ class HistFromNtupleProducerTask(
 
     def stage_workflow_requires(self):
         reqs = super().stage_workflow_requires()
-        merge_organization_complete = AnaTupleFileListTask.req(
-            self,
-            branches=(),
-        ).complete()
+        merge_organization_complete = _anaTuple_plans_ready(self)
         if not merge_organization_complete:
             reqs["AnaTupleFileListTask"] = AnaTupleFileListTask.req(
                 self,
@@ -654,11 +649,7 @@ class HistFromNtupleProducerTask(
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
-        return AnaTupleFileListTask.req(
-            self,
-            branch=-1,
-            branches=(),
-        ).complete()
+        return _anaTuple_plans_ready(self)
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
@@ -848,15 +839,12 @@ def _anaTuple_file_list(task, **kwargs):
 
 
 def _anaTuple_plans_ready(task):
-    """Whether the AnaTuple merge plans of `task`'s era(s) exist: the condition of the
-    branch maps built from them. A meta-era's maps are built from the configuration
-    alone, so they have none."""
+    """Whether the AnaTuple merge plans of `task`'s era(s) are available
+    (anaTuple_plans_ready): the condition of the branch maps built from them. A meta-era's
+    maps are built from the configuration alone, so they have none."""
     if task.meta_era:
         return True
-    return all(
-        file_list.complete()
-        for file_list in _anaTuple_file_list(task, branch=-1, branches=())
-    )
+    return anaTuple_plans_ready(task)
 
 
 class MergedHistsTask(Task, law.ExternalTask):
@@ -899,14 +887,11 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         if self.meta_era:
             # the merged histograms of its eras: one workflow over them, with era branches
             reqs["HistMergerTask"] = self.sub_era_task(
-                HistMergerTask, self.sub_eras, branches=()
+                HistMergerTask, self.sub_eras, branches=(), _skip_task_excludes=False
             )
             return reqs
         branch_map = self.create_branch_map()
-        merge_organization_complete = AnaTupleFileListTask.req(
-            self,
-            branches=(),
-        ).complete()
+        merge_organization_complete = _anaTuple_plans_ready(self)
         if not merge_organization_complete:
             reqs["AnaTupleFileListTask"] = AnaTupleFileListTask.req(
                 self,
@@ -1184,10 +1169,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
 
     def stage_workflow_requires(self):
         reqs = super().stage_workflow_requires()
-        merge_organization_complete = AnaTupleFileListTask.req(
-            self,
-            branches=(),
-        ).complete()
+        merge_organization_complete = _anaTuple_plans_ready(self)
         if not merge_organization_complete:
             req_dict = {
                 "AnaTupleFileListTask": AnaTupleFileListTask.req(
@@ -1217,6 +1199,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                     branches=(),
                     customisations=self.customisations,
                     producer_to_run=producer_name,
+                    _skip_task_excludes=False,
                 )
                 for producer_name in list(producer_requires_set)
                 if producer_name is not None
@@ -1253,6 +1236,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                         branches=(),
                         customisations=self.customisations,
                         producer_to_run=dependency,
+                        _skip_task_excludes=False,
                     )
                     for br_idx, _ in self.branch_map.items()
                 }
@@ -1281,6 +1265,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                 anaCaches[dependency] = AnalysisCacheTask.req(
                     self,
                     producer_to_run=dependency,
+                    _skip_task_excludes=False,
                 )
         requirements["anaCaches"] = anaCaches
 
@@ -1288,11 +1273,7 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
-        return AnaTupleFileListTask.req(
-            self,
-            branch=-1,
-            branches=(),
-        ).complete()
+        return _anaTuple_plans_ready(self)
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):
@@ -1664,12 +1645,6 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     infile,
                     "--all_outFiles",
                     ",".join(local_outputs),
-                    "--globalConfig",
-                    os.path.join(
-                        self.ana_path(),
-                        self.global_param("analysis_config_area"),
-                        "global.yaml",
-                    ),
                     "--var",
                     var,
                     "--all_keys",
@@ -1695,6 +1670,8 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                     cmd += ["--rebin", "true"]
                 if self.user_custom:
                     cmd += ["--user-custom", self.user_custom]
+                if self.customisations:
+                    cmd += ["--customisations", self.customisations]
                 if compute_unc_histograms:
                     cmd.append("--compute_unc_histograms")
                 ps_call(cmd, verbose=1)
@@ -1722,18 +1699,11 @@ class AnalysisCacheAggregationTask(
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
-        return AnaTupleFileListTask.req(
-            self,
-            branch=-1,
-            branches=(),
-        ).complete()
+        return _anaTuple_plans_ready(self)
 
     def stage_workflow_requires(self):
         reqs = super().stage_workflow_requires()
-        merge_organization_complete = AnaTupleFileListTask.req(
-            self,
-            branches=(),
-        ).complete()
+        merge_organization_complete = _anaTuple_plans_ready(self)
         payload_producers = self.global_params["payload_producers"]
         if not merge_organization_complete:
             reqs["AnaTupleFileListTask"] = AnaTupleFileListTask.req(

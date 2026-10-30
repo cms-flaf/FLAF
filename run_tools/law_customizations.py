@@ -251,6 +251,11 @@ class BranchSelectionError(ValueError):
     """A --branches selection outside the numbering of the workflow it is given to."""
 
 
+class SameFamilyReqError(ValueError):
+    """`X.req(inst)` with `inst` of X's own task family that does not say whether the
+    parameters in exclude_params_req are handed on."""
+
+
 def _branch_items(param, branches):
     """(start, stop) of each element of a --branches value: stop exclusive, None for an open
     edge."""
@@ -390,8 +395,28 @@ class Task(law.Task):
             Task._get_params_cache[cls] = cached
         return cached
 
+    _skip_task_excludes_kwargs = frozenset(
+        ("_skip_task_excludes", "_skip_task_excludes_get", "_skip_task_excludes_set")
+    )
+
     @classmethod
     def req(cls, inst, **kwargs):
+        # law applies exclude_params_req whatever the two families are, so a same-family req()
+        # would silently take the class defaults instead of the per-task values the source
+        # holds (--max-runtime 9 on the command line) and, n_cpus being significant, could make
+        # a second task for the same outputs. The caller has to say which of the two it means.
+        if (
+            cls.get_task_family() == inst.get_task_family()
+            and Task._skip_task_excludes_kwargs.isdisjoint(kwargs)
+        ):
+            raise SameFamilyReqError(
+                f"{cls.get_task_family()}.req() from a task of the same family drops the "
+                "per-task parameters the source holds (exclude_params_req: --max-runtime, "
+                "--n-cpus, --tasks-per-job, --crab-memory). For the same task, pass "
+                "_skip_task_excludes=True or use req_branch/req_workflow/as_branch/"
+                "as_workflow; for a separate task that keeps its own per-task defaults, "
+                "pass _skip_task_excludes=False"
+            )
         # Law control kwargs (prefixed with "_", e.g. _exclude/_prefer_cli) change which
         # parameters are copied; defer those rare calls to law's full implementation.
         if any(key.startswith("_") for key in kwargs):
@@ -1691,10 +1716,10 @@ class CERNHTCondorJobFileFactory(law.htcondor.HTCondorJobFileFactory):
     """HTCondor job file factory that stages transfer_input_files to EOS and uses protocol URLs.
 
     When config._worker_files_remote_dir is set (a WLCGDirectoryTarget), every file listed in
-    transfer_input_files is uploaded to that remote directory and its path in the JDL is replaced
-    with the corresponding remote URL.  This lets CERN HTCondor fetch input files from EOS via the
-    protocol layer instead of trying to read /eos POSIX paths, which the batch system does not
-    support.
+    transfer_input_files is uploaded to `<sha256 of its content>/<its name>` under that remote
+    directory and its path in the JDL is replaced with the corresponding remote URL.  This lets
+    CERN HTCondor fetch input files from EOS via the protocol layer instead of trying to read /eos
+    POSIX paths, which the batch system does not support.
     """
 
     def create(self, **kwargs):
@@ -1728,10 +1753,18 @@ class CERNHTCondorJobFileFactory(law.htcondor.HTCondorJobFileFactory):
                     if "://" in local_path:
                         remote_urls.append(local_path)
                         continue
+                    # law names a copied input after the path it was copied from, not after its
+                    # content: under one name come the rendered scripts of other tasks and of
+                    # edited code. Keyed on the content, an existing copy is the right one, and
+                    # queued jobs keep theirs. The job finds the file by its name.
                     basename = os.path.basename(local_path)
-                    remote_file = worker_files_dir.child(basename, type="f")
+                    with open(local_path, "rb") as f:
+                        digest = hashlib.sha256(f.read()).hexdigest()[:12]
+                    remote_file = worker_files_dir.child(
+                        f"{digest}/{basename}", type="f"
+                    )
                     if not remote_file.exists():
-                        print(f"worker_files: uploading {basename}")
+                        print(f"worker_files: uploading {digest}/{basename}")
                         remote_file.copy_from_local(local_path)
                     remote_urls.append(remote_file.uri())
                 line = f'{key} = {",".join(remote_urls)}'
@@ -1998,7 +2031,9 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
 
         A flavour the analysis does not configure is skipped rather than fatal: FLAF asks for
         the flavours it knows about, and an analysis that keeps e.g. its environment inside
-        another bundle simply has fewer of them.
+        another bundle simply has fewer of them. One of them must pack flaf_env, though: the job
+        sources env.sh from the unpacked bundles, which refuses to run without it, so a
+        submission that would ship none raises here instead.
         """
         if self.meta_era:
             # bundles are per era: a task over a meta-era ships those of each of its eras
@@ -2006,7 +2041,7 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
                 bundle
                 for era in self.sub_eras
                 for bundle in self.sub_era_task(
-                    type(self), era, branch=-1, branches=()
+                    type(self), era, branch=-1, branches=(), _skip_task_excludes=False
                 )._bundle_tasks()
             ]
         configured = self.global_params.get("bundles", {})
@@ -2035,6 +2070,14 @@ class HTCondorWorkflow(law.htcondor.HTCondorWorkflow):
                         or law.NO_STR,
                     ),
                 )
+            )
+        if not any(task.packs_environment() for _, task in tasks):
+            raise RuntimeError(
+                f"{self.__class__.__name__}: none of the bundle flavours it ships "
+                f"{[flavour for flavour, _ in tasks]} packs flaf_env "
+                f"({os.environ['FLAF_ENVIRONMENT_PATH']}), without which its jobs cannot "
+                "load the environment: add the flavour that packs it (soft in the analyses) "
+                "to bundle_flavours"
             )
         return tasks
 

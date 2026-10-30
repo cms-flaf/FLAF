@@ -142,11 +142,7 @@ class _ScratchAnalysis(unittest.TestCase):
     def write_input_lists(self, era):
         ref = ana_prod.InputFileTask(version=self.version, era=era)
         for dataset_id, dataset_name in ref.iter_datasets():
-            path = (
-                ana_prod.InputFileTask.req(ref, branch=dataset_id, branches=())
-                .output()
-                .abspath
-            )
+            path = ref.req_branch(dataset_id).output().abspath
             self.write(
                 path, json.dumps({"input_files": INPUT_FILES[(era, dataset_name)]})
             )
@@ -224,7 +220,7 @@ class AnaTupleOutputsPerUserCustom(_ScratchAnalysis):
             ana_prod.AnaTupleMergeTask, "all_branch_outputs", all_branch_outputs
         ):
             for user_custom in (first, second, first):
-                ref = ana_prod.AnaTupleMergeTask(
+                ref = analysis.HistTupleProducerTask(
                     version=self.version, era=ERA_A, user_custom=user_custom
                 )
                 self.assertEqual(

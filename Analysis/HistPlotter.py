@@ -9,7 +9,27 @@ if __name__ == "__main__":
 
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
+import FLAF.Common.PlotBlinding as PlotBlinding
+from FLAF.Common.PlotGroups import (
+    GroupProcesses,
+    control_regions,
+    drop_empty_entries,
+    plot_settings,
+    want_data,
+    want_signals,
+)
 from FLAF.Common.Utilities import str_to_bool
+
+
+def _detached(hist):
+    """``hist`` out of any directory and owned by Python, so that it is freed once nothing refers to
+    it. Get() and Clone() leave a histogram to the open file, and SetDirectory(0) alone then leaves it
+    owned by nobody: every histogram read for the plots of a variable (all up/down variations of the
+    uncertainty band) stayed allocated until the job ended, ~6 GB for a 2D DNN x HME variable.
+    """
+    hist.SetDirectory(0)
+    ROOT.SetOwnership(hist, True)
+    return hist
 
 
 def GetHistName(dataset_name, dataset_type, uncName, unc_scale, global_cfg_dict):
@@ -60,8 +80,7 @@ def GetTotalUncertaintyHist(
     central_total = None
     for hist in bkg_hists.values():
         if central_total is None:
-            central_total = hist.Clone("bkg_total_unc")
-            central_total.SetDirectory(0)
+            central_total = _detached(hist.Clone("bkg_total_unc"))
         else:
             central_total.Add(hist)
     if central_total is None:
@@ -84,16 +103,19 @@ def GetTotalUncertaintyHist(
                     obj = dir_1.Get(hist_name)
                     if not obj or not obj.IsA().InheritsFrom(ROOT.TH1.Class()):
                         continue
-                    obj.SetDirectory(0)
+                    _detached(obj)
                     varied_hist = rebin_fn(obj, hist_name)
+                    if varied_hist is not obj:
+                        _detached(varied_hist)
                     found_any = True
                 else:
                     # No variation stored for this process (e.g. data-driven QCD):
                     # it simply does not move under this source.
                     varied_hist = central_hist
                 if varied_total is None:
-                    varied_total = varied_hist.Clone(f"{unc_name}_{scale}_total")
-                    varied_total.SetDirectory(0)
+                    varied_total = _detached(
+                        varied_hist.Clone(f"{unc_name}_{scale}_total")
+                    )
                 else:
                     varied_total.Add(varied_hist)
             if found_any and varied_total is not None:
@@ -169,7 +191,6 @@ if __name__ == "__main__":
     parser.add_argument("--all_outFiles", required=True)
     parser.add_argument("--inFile", required=True, type=str)
     parser.add_argument("--var", required=False, type=str, default="tau1_pt")
-    parser.add_argument("--globalConfig", required=True, type=str)
     parser.add_argument(
         "--all_keys", required=False, type=str, default="tauTau:inclusive:OS_Iso"
     )
@@ -188,6 +209,13 @@ if __name__ == "__main__":
     parser.add_argument("--era", required=True, type=str)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
     parser.add_argument("--user-custom", type=str, default=None)
+    parser.add_argument(
+        "--customisations",
+        type=str,
+        default="",
+        help="the task's --customisations (key=value;...), applied to the Setup as in "
+        "every task",
+    )
     parser.add_argument(
         "--compute_unc_histograms",
         required=False,
@@ -217,6 +245,7 @@ if __name__ == "__main__":
             era,
             args.LAWrunVersion,
             user_custom_file=args.user_custom,
+            customisations=args.customisations,
         )
         for era in eras
     }
@@ -229,12 +258,22 @@ if __name__ == "__main__":
         page_cfg_dict = yaml.safe_load(f)
     with open(page_cfg_custom, "r") as f:
         page_cfg_custom_dict = yaml.safe_load(f)
+    PlotBlinding.check_data_style(
+        {page_cfg: page_cfg_dict, page_cfg_custom: page_cfg_custom_dict}
+    )
     inputs_cfg = os.path.join(
         os.environ["ANALYSIS_PATH"], "config", "plot", "inputs.yaml"
     )
 
-    with open(args.globalConfig, "r") as f:
-        global_cfg_dict = yaml.safe_load(f)
+    # Global settings from the merged Setup of every era (FLAF and analysis global.yaml, era
+    # configurations, user_custom, --customisations), as every other task reads them.
+    settings = plot_settings(
+        {era: era_setup.global_params for era, era_setup in setups.items()}
+    )
+    # where blinded variables show data and no signal is drawn
+    plot_control_regions = control_regions(
+        settings["plot_control_regions"], settings["regions"]
+    )
 
     keys = args.all_keys.split(",")
     outFiles = args.all_outFiles.split(",")
@@ -242,6 +281,10 @@ if __name__ == "__main__":
     for key, outFile in zip(keys, outFiles):
         print(f"Plotting key {key}")
         channel, category, custom_region = key.split(":")
+        # signals as wanted (plot_wantSignals), never in the control regions
+        show_signals = want_signals(
+            args.wantSignals, custom_region, plot_control_regions
+        )
 
         all_histlist = {}
 
@@ -280,6 +323,8 @@ if __name__ == "__main__":
 
             if process.get("to_plot", True):
                 if process_group == "signals":
+                    if not show_signals:
+                        continue
                     if "channels" in process.keys():
                         if channel not in process["channels"]:
                             continue
@@ -312,11 +357,19 @@ if __name__ == "__main__":
             "scope_text": "",
         }
         var_entry = findBinEntry(hist_cfg_dict, args.var)
+        blind_windows = PlotBlinding.blind_windows(
+            args.var, var_entry, hist_cfg_dict[var_entry]
+        )
 
-        blind_check = hist_cfg_dict[var_entry].get("blind", False)
-        args.wantData = args.wantData and (not blind_check)
-        if args.wantData == False:
-            custom1["datasim_text"] = "CMS simulation"
+        # A blinded variable hides the data outside the control regions only. Without data
+        # PlotKit's CMS label reads "Simulation <scope>" (both backends), so datasim_text
+        # keeps just the scope.
+        show_data = want_data(
+            args.wantData,
+            hist_cfg_dict[var_entry].get("blind", False),
+            custom_region,
+            plot_control_regions,
+        )
         inFile_root = ROOT.TFile.Open(args.inFile, "READ")
         dir_0 = inFile_root.Get(channel)
         keys_0 = [str(k) for k in dir_0.GetListOfKeys()]
@@ -357,7 +410,7 @@ if __name__ == "__main__":
             dataset_plot_name = dataset_content["plot_name"]
             dataset_plot_color = dataset_content["plot_color"]
 
-            if dataset_process_group == "data" and not args.wantData:
+            if dataset_process_group == "data" and not show_data:
                 continue
 
             if args.uncSource != "Central":
@@ -368,15 +421,29 @@ if __name__ == "__main__":
                 dataset_process_group,
                 "Central",
                 "Central",
-                global_cfg_dict,
+                setup.global_params,
             )
+            # A process without events in this channel, region and category may have no
+            # histogram at all (e.g. data in a channel its primary dataset does not feed), so
+            # an absent one counts as empty: said, and drawn as nothing -- a group keeps its
+            # name, and an entry left with nothing is not drawn (drop_empty_entries).
+            where = f"{args.inFile}:{channel}/{custom_region}/{category}"
             if dataset_histname not in dir_1.GetListOfKeys():
-                print(f"ERRORE: {dataset_histname} non è nelle keys")
+                process = (
+                    ""
+                    if dataset_histname == dataset_process_name
+                    else f" (process {dataset_process_name})"
+                )
+                print(
+                    f"WARNING: {dataset_histname}{process} is not in {where}; "
+                    "drawn as empty",
+                    file=sys.stderr,
+                )
                 continue
             obj = dir_1.Get(dataset_histname)
             if not obj.IsA().InheritsFrom(ROOT.TH1.Class()):
-                print(f"ERRORE: {dataset_histname} non è un istogramma")
-            obj.SetDirectory(0)
+                raise RuntimeError(f"{dataset_histname} in {where} is not a histogram")
+            _detached(obj)
 
             if dataset_process_name in hists_to_plot_unbinned.keys():
                 print(hists_to_plot_unbinned[dataset_process_name])
@@ -396,12 +463,14 @@ if __name__ == "__main__":
         def apply_binning(hist, hist_key):
             if not rebin_condition:
                 return hist
-            return RebinHisto(
-                hist,
-                new_bins,
-                hist_key,
-                wantOverflow=args.wantOverflow,
-                verbose=False,
+            return _detached(
+                RebinHisto(
+                    hist,
+                    new_bins,
+                    hist_key,
+                    wantOverflow=args.wantOverflow,
+                    verbose=False,
+                )
             )
 
         hists_to_plot_binned = {}
@@ -417,6 +486,13 @@ if __name__ == "__main__":
                 plot_color,
                 dataset_process_group,
             )
+            if dataset_process_group == "data":
+                PlotBlinding.blind_data(
+                    hists_to_plot_binned[hist_key][0],
+                    hist_unbinned,
+                    blind_windows,
+                    apply_binning,
+                )
 
         # Full (stat + syst) uncertainty on the background stack, from the up/down
         # variations stored alongside the central histograms.
@@ -448,12 +524,17 @@ if __name__ == "__main__":
                 apply_binning,
             )
 
-        scale = global_cfg_dict.get("signal_plot_scale", 1.0)
+        hists_to_plot_binned = drop_empty_entries(
+            GroupProcesses(hists_to_plot_binned, settings["plot_process_groups"] or [])
+        )
+        scale = settings["signal_plot_scale"]
+        if scale is None:
+            scale = 1.0
         plotter.plot(
             var_entry,
             hists_to_plot_binned,
             outFile,
-            want_data=args.wantData,
+            want_data=show_data,
             custom=custom1,
             scale=scale,
             total_unc=total_unc_hist,

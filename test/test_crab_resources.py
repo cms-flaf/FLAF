@@ -27,6 +27,8 @@ import types
 import unittest
 from unittest import mock
 
+import pytest
+
 flaf_repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 flaf_parent = os.path.dirname(flaf_repo)
 if flaf_parent not in sys.path:
@@ -549,6 +551,7 @@ class TheSharedHTCondorPath(unittest.TestCase):
                     self.assertEqual(self.submit(tmp, crab_memory), unset)
 
 
+@pytest.mark.needs_cvmfs
 class TheCrabClientItself(unittest.TestCase):
     """The constants against the CRAB client on cvmfs (skipped where it is not mounted)."""
 

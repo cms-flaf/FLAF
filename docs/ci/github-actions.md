@@ -32,14 +32,16 @@ which runs FLAF's `run_tools/check_era_rename.py` from a pinned FLAF commit; and
 A checkout helper inside the shared workflows (`.github/actions/checkout-flaf`) makes the FLAF
 tooling — `.yamllint`, `.clang-format`, `test/` — available in the other repos. It checks out the
 `FLAF` submodule at **FLAF's `main`** (or clones it), not at the commit the repository pins, so an
-analysis PR is checked with the current FLAF tooling and configuration.
+analysis PR is checked with the current FLAF tooling and configuration. `unit-tests.yaml` is the
+exception: an analysis's unit tests import FLAF, so they run against the FLAF commit the analysis
+pins (see [Unit tests](#unit-tests)).
 
 ## The standard checks
 
 | Workflow | Runs on | What it checks | Repos |
 |---|---|---|---|
 | `formatting-check.yaml` | PRs to `main` | The files the PR changes: `black --check` (Python), `clang-format --dry-run --Werror` (C++: `.cpp`, `.h`, `.hpp`, `.cc`), `yamllint -s` (YAML); `black` and `yamllint` are installed at the versions `run_tools/mk_flaf_env.sh` pins, so that the check agrees with `run_tools/apply_format.sh` run in `flaf_env`. The repository's own `.clang-format`/`.yamllint` is used if it has one, otherwise FLAF's. In FLAF, when a Python file changed, it also runs `flake8 --select=F821,F811` (undefined or shadowed names) over the whole package: a dropped import surfaces only where the name is used, which can be a branch that runs on a CRAB worker alone. | all seven (the `flake8` step: FLAF only) |
-| `unit-tests.yaml` | PRs to `main` and pushes to `main` | The pure-Python suites of `test/` that need neither ROOT, CVMFS nor a grid proxy — the CRAB backend, the path cache and the remote-storage mechanics — with `pytest`, against the law and luigi that `run_tools/mk_flaf_env.sh` pins (`test_flaf_env.py` checks that every workflow installs a package that script pins at the same version). `test_flaf_env.py` runs `env.sh` in bash and in zsh; the workflow installs zsh, and under CI a missing zsh fails those cases. They cover code that otherwise runs on a batch node only. Another step runs `run_tools/check_era_rename.py` over FLAF's tracked `.py`, `.yaml`, `.yml`, `.sh`, `.cfg`, `.ini` and `.json` files (not the docs, not C++): no leftover of the `period` → `era` rename (a `period` identifier outside its allow-list, `getattr`/`.get` with `"period"`, `--period`, `{period}`, and, inside task classes, the era tuple used as a string); a line carrying `# noqa: era-rename` and the files the step excludes are skipped. The same script reports era-scope leaks, which keep a task over several eras from reading another era's value: an `era` keyword in `X.req(...)`, `req_params`, `req_branch` or `req_workflow` outside `with_eras`, and `self.era[...]` read inside a task class outside `only_era` (a line carrying `# noqa: era-scope` is skipped). | FLAF; StatInference has its own, which runs `test/test_law_chain.py` (its law tasks on the real FLAF and law classes) against a pinned FLAF commit |
+| `unit-tests.yaml` | PRs to `main` and pushes to `main`; reusable (`workflow_call`, no inputs) | Every `test/**/test_*.py` with `pytest`, except the tests marked as needing ROOT, CVMFS or a grid proxy — see [Unit tests](#unit-tests) — against the law and luigi that `run_tools/mk_flaf_env.sh` pins (`test_flaf_env.py` checks that every workflow installs a package that script pins at the same version), and against the `onnx` and `onnxruntime` of the LCG release of `flaf_env`, for `test_nn_determinism.py`. `test_flaf_env.py` runs `env.sh` in bash and in zsh; the workflow installs zsh, and under CI a missing zsh fails those cases. Many of them cover code that otherwise runs on a batch node only. Another step, in FLAF only, runs `run_tools/check_era_rename.py` over FLAF's tracked `.py`, `.yaml`, `.yml`, `.sh`, `.cfg`, `.ini` and `.json` files (not the docs, not C++): no leftover of the `period` → `era` rename (a `period` identifier outside its allow-list, `getattr`/`.get` with `"period"`, `--period`, `{period}`, and, inside task classes, the era tuple used as a string); a line carrying `# noqa: era-rename` and the files the step excludes are skipped. The same script reports era-scope leaks, which keep a task over several eras from reading another era's value: an `era` keyword in `X.req(...)`, `req_params`, `req_branch` or `req_workflow` outside `with_eras`, and `self.era[...]` read inside a task class outside `only_era` (a line carrying `# noqa: era-scope` is skipped). | FLAF, and the three analyses through their own `unit-tests.yaml` wrapper; StatInference has its own, which runs `test/test_law_chain.py` (its law tasks on the real FLAF and law classes) against a pinned FLAF commit |
 | `repo-sanity-checks.yaml` | every PR | Two jobs: the growth of the repository after a simulated squash merge (fails above 1024 KiB unless the PR has the `big changes` label), and no binary files among the changed files (use Git LFS for those). | all seven |
 | `test-setup-loading.yaml` | PRs to `main` in the analyses | Actually loads `Setup` for the seven Run 3 eras listed in the analysis's wrapper (a real load with ROOT mocked, not a dry run) and checks that every shape weight in each era's `weights.yaml` comes from a correction that era enables — catches config typos and broken references early. | HH_bbtautau, HH_bbWW, H_mumu |
 | `test-era-dimension.yaml` | reusable only (`workflow_call`, input `eras`: space-separated, at least two) | Constructs every FLAF stage over all the given eras on the analysis's own configuration, with each workflow type it supports, and takes it through what the scheduler does before anything runs (`test/test_era_dimension.py`; no grid, ROOT and Corrections are stand-ins). It fails when a setting that a run over several eras reads once (`fs_default`, `crab`, a producer's resources, …) differs between the eras, or when a per-era value is read on a task over several. See [Eras](../concepts/eras.md#settings-that-must-agree-between-the-eras). | called from an analysis's wrapper, which passes its eras |
@@ -56,9 +58,9 @@ analysis PR is checked with the current FLAF tooling and configuration.
     - `formatting-check`, `test-setup-loading` and FLAF's two config checks below run only on PRs
       whose base is `main`; a PR to another branch (e.g. `next_prod`) gets only
       `repo-sanity-checks` (and `deploy-docs` if it touches the docs).
-    - Only the unit suites listed in `unit-tests.yaml` (the CRAB backend, the path cache and the
-      storage suites) run in CI. The other suites in `FLAF/test/` (`test_bundle_hash.py`, …) need
-      ROOT or CVMFS and are not run by any workflow — see
+    - The unit tests marked `needs_root`, `needs_cvmfs` or `needs_proxy` (`test_stitching_variables.py`,
+      the `test_fuse_*.py` suites, the checks against the CRAB client on CVMFS, …) are deselected
+      by `unit-tests` and run by no workflow: run them in an analysis environment — see
       [Contributing](../contributing.md#run-the-tests).
 
 FLAF itself additionally runs, on PRs to `main`:
@@ -70,6 +72,41 @@ FLAF itself additionally runs, on PRs to `main`:
 
 FLAF also holds `integration-test.yaml`, the [GitHub Actions backend](integration-pipeline.md#the-github-actions-backend)
 of the integration test; it runs only when the bot trigger dispatches it (`ci_backend: github`).
+
+### Unit tests
+
+`unit-tests.yaml` runs, on Python 3.13 with only `pyyaml`, `luigi`, `law` and `pytest` installed
+(pytest 9.0.3, the version of the LCG view, since `test/conftest.py` builds on pytest's collection
+classes),
+
+```sh
+python -m pytest -q -ra --strict-markers -m "not needs_root and not needs_cvmfs and not needs_proxy" test
+```
+
+pytest collects every `test/**/test_*.py`, so adding a test changes nothing under `.github/`. The
+markers and the collection rules are in FLAF's `test/conftest.py`; how to mark a test is in
+[Contributing](../contributing.md#unit-tests).
+
+- A module that fails to import and declares none of the markers stops the run: a test never
+  disappears because the runner lacks something. `--strict-markers` rejects a misspelt marker,
+  and a module that leaves a stand-in for ROOT in `sys.modules` stops the run as well: the next
+  module would import the stand-in instead of failing to import ROOT.
+- The end of the log lists every deselected test file with its marker (a module that the runner
+  cannot even import shows its import error), and every test file that ran no test: in FLAF,
+  the scripts named `test_*.py` that other workflows and the docs run by path. `-ra` lists the
+  skipped tests with their reason.
+- An analysis without a `test/` directory, or whose tests are all deselected (pytest exit code
+  5), passes with a notice in the run summary: it has no unit test until it adds one. In FLAF,
+  which has tests, either fails the job, as it can only mean that the collection broke (a moved
+  `test/`, an edited `-m` expression, a broken `test/conftest.py`).
+
+Each analysis calls it from its own `.github/workflows/unit-tests.yaml`
+(`uses: cms-flaf/FLAF/.github/workflows/unit-tests.yaml@main`, no inputs). The workflow then checks
+out the analysis with its `FLAF` submodule only, at the commit the analysis pins (Corrections would
+need ROOT, and `inference` is on CERN GitLab), and loads that FLAF's `test/conftest.py` with
+`-p FLAF.test.conftest`. An analysis whose FLAF pin has no `test/conftest.py` yet fails there
+with `Error importing plugin "FLAF.test.conftest"` until it advances the pin. The
+`period` → `era` leftover step runs in FLAF only; the analyses run theirs in `repo-sanity-checks`.
 
 ## Passing the checks before you push
 

@@ -107,6 +107,10 @@ rules:
   `X.req(...)`, `req_params`, `req_branch` or `req_workflow` outside `with_eras`, and `self.era[...]`
   in a task class outside `only_era`; a deliberate exception carries `# noqa: era-scope` on the
   line (the rename findings use `# noqa: era-rename`).
+- **Deriving a task of the task's own family states what it is**: `X.req(task)` with `task` an `X`
+  passes `_skip_task_excludes=True` for the same task or `_skip_task_excludes=False` for a separate
+  one with its own defaults; `Task.req` refuses it otherwise
+  ([HTCondor options](workflow/arguments.md#htcondor-options-on-every-workflow-task)).
 - **A producer that reads AnaTuples checks the era of their events:** `Utilities.book_era_check(df, era)`
   before the event loop and `Utilities.check_era(count, era, what)` after it, as `AnaTupleMergeTask`,
   `HistTupleProducerTask` and `AnalysisCacheTask` do.
@@ -143,21 +147,75 @@ from the analysis checkout with `env.sh` sourced:
   a per-era value read on a task over several eras. No grid is needed: the `fs_*` are redirected
   to a local directory, and ROOT and Corrections are stand-ins. The reusable GitHub workflow
   `test-era-dimension.yaml` runs it ([GitHub Actions](ci/github-actions.md)).
-- **Unit suites** — the other `FLAF/test/test_*.py` files (path cache, bundle hashing, stitching
-  variables, cost model, …) are standalone scripts, mostly `unittest` modules; run one directly,
-  e.g. `python3 FLAF/test/test_path_cache.py`. CI's `unit-tests` workflow runs the ones that need
-  neither ROOT nor CVMFS nor a grid proxy (the CRAB backend, the path cache and the storage
-  suites) on every FLAF PR; the others are not run by any workflow, so run the ones covering the
-  code you changed, and extend them when you change that code.
+- **Unit tests** — the other `FLAF/test/test_*.py` files (path cache, bundle hashing, stitching
+  variables, cost model, …), and the `test/test_*.py` of an analysis, are pytest modules, mostly
+  `unittest` classes; see [Unit tests](#unit-tests) for where they go, how to mark the ones that
+  need ROOT, CVMFS or a grid proxy, and how to run them. Run the ones covering the code you
+  changed, and extend them when you change that code.
 - **Undefined names** — `run_tools/apply_format.sh`, when run in FLAF, also runs
   `flake8 --select=F821,F811` over the whole package, as `formatting-check` does in CI.
+
+### Unit tests
+
+A unit test goes into `test/test_<topic>.py` of the repository whose code it covers, FLAF or an
+analysis. The `unit-tests` workflow collects every `test/**/test_*.py` there, so a new test needs
+no change under `.github/` (a PR that changes `.github/` can be
+[tested by the bot](ci/integration-pipeline.md) on a comment by `kandrosov` only). The GitHub runner has only `pyyaml`, `luigi`, `law` and `pytest` (9.0.3, as in the LCG view): no ROOT,
+no `/cvmfs`, no grid proxy. A test that needs one of them declares it with a marker, and CI
+deselects it ([GitHub Actions](ci/github-actions.md#unit-tests)):
+
+| Marker | The test needs |
+|---|---|
+| `needs_root` | ROOT or another package of the analysis environment (numpy, uproot, awkward, Corrections) |
+| `needs_cvmfs` | `/cvmfs`, e.g. the CRAB client or `SITECONF` |
+| `needs_proxy` | a valid grid proxy |
+
+```python
+import pytest
+
+pytestmark = pytest.mark.needs_root  # the whole module
+
+
+@pytest.mark.needs_cvmfs  # or one class, or one test method
+class TheCrabClientItself(unittest.TestCase):
+    ...
+```
+
+- A test that uses no ROOT itself but reaches it through an import (`FLAF.Common.Setup` and
+  `FLAF.Common.Utilities` import ROOT at module level, and so does `run_tools/law_customizations.py`
+  through them) takes no marker. It imports through a stand-in where ROOT is missing, as
+  `test_crab_credentials.py` and `test_bundle_hash.py` do, and so it runs in CI. Keep `needs_root`
+  for tests that use ROOT themselves.
+- A module that cannot be imported without what it needs (`import ROOT` at the top, for the
+  tests' own use) declares the marker module-wide with `pytestmark`. The marker is read from the
+  source, and the failed import is reported as one test that carries it, so the marker deselects
+  the module. A module without a marker that fails to import stops the run.
+- The test modules share one process, so a stand-in serves the import only and is removed from
+  `sys.modules` right after: a module collected later must still get the real ROOT, or fail to
+  import it. A module that leaves a stand-in for ROOT behind stops the run.
+- `FLAF/test/conftest.py` defines the markers and these rules. Its `collect_ignore` lists the
+  scripts named `test_*.py` that are not unit tests (`test_setup_loading.py`,
+  `test_era_dimension.py`, `test_hello_world.py`, `GenProcess/`).
+
+Run them from the root of the repository:
+
+```sh
+python -m pytest                     # FLAF: every test, which needs an analysis environment
+python -m pytest -m "not needs_root and not needs_cvmfs and not needs_proxy"   # what CI runs
+python -m pytest -p FLAF.test.conftest test   # an analysis: its test/, with the pinned FLAF's markers
+```
+
+The marked tests run in an analysis environment: in the analysis checkout, after
+`source env.sh`, `cd FLAF && python -m pytest -m "needs_root or needs_cvmfs or needs_proxy"`
+(`test_shape_weight_registry.py` takes Corrections from `ANALYSIS_PATH`). The end of the output
+lists the deselected test files with their markers and every test file that ran no test.
 
 ## Open the PR and run the checks
 
 On the pull request:
 
 1. The GitHub Actions checks run automatically: repository sanity on every PR, formatting on PRs
-   to `main` in every repo, the unit suites on FLAF PRs to `main`, `test-setup-loading` on analysis PRs to `main`, the cross-section and
+   to `main` in every repo, the unit tests on PRs to `main` in FLAF and the analyses, `test-setup-loading` on analysis PRs to `main`, the cross-section and
    dataset checks on FLAF PRs to `main` that change those files, and the docs build when the docs
    change — see
    [GitHub Actions](ci/github-actions.md).
@@ -172,7 +230,7 @@ On the pull request:
 - [ ] `law index --verbose` run if you added/renamed a task
 - [ ] dataset consistency check run if you touched `datasets.yaml`
 - [ ] `test_setup_loading.py` run if you changed configuration or its loading
-- [ ] the unit suites for the code you changed pass
+- [ ] the unit tests for the code you changed pass, including the marked ones CI deselects
 - [ ] no binary files staged (use Git LFS for those)
 - [ ] docs updated if behaviour or interfaces changed (see below)
 

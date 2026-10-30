@@ -5,8 +5,10 @@ import luigi
 import os
 import shutil
 import re
+import tempfile
 import yaml
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 from FLAF.RunKit.run_tools import (
@@ -15,6 +17,7 @@ from FLAF.RunKit.run_tools import (
     natural_sort,
     check_root_file_integrity,
     get_tree_entries,
+    on_batch_node,
 )
 from FLAF.run_tools.law_customizations import (
     EraDependentValueError,
@@ -953,6 +956,10 @@ class AnaTupleFileListBuilderTask(
                 shutil.rmtree(job_home)
 
 
+# Plans copied at once by AnaTupleFileListTask.copy_plans().
+PLAN_COPY_THREADS = 16
+
+
 class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
     bundle_flavours = []
     # This task only copies the Builder's plan into a local_target, so it is forced to run locally
@@ -989,9 +996,85 @@ class AnaTupleFileListTask(AnaTupleFileListBuilderTask):
         return self.local_target(f"{dataset_name}.json")
 
     def run(self):
-        with self.input()["plan"].localize("r") as input_local:
-            self.output().makedirs()
-            shutil.copy(input_local.abspath, self.output().abspath)
+        self.copy_plan(self.input()["plan"])
+
+    def copy_plan(self, plan):
+        """Copy `plan`, the Builder's plan of this branch, to this branch's output.
+
+        Through a temporary file beside the output, renamed onto it: an output that exists
+        is complete, also while another process copies the same plan or after a copy was
+        interrupted.
+        """
+        output = self.output()
+        output.makedirs()
+        with plan.localize("r") as plan_local:
+            fd, tmp_path = tempfile.mkstemp(
+                dir=output.parent.abspath, prefix=f".{output.basename}."
+            )
+            os.close(fd)
+            try:
+                shutil.copy(plan_local.abspath, tmp_path)
+                os.replace(tmp_path, output.abspath)
+            finally:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+
+    def copy_plans(self):
+        """Copy the Builder's plans of the branches of this workflow whose output is missing,
+        several at once: one copy costs a few seconds of storage round trips, whatever the
+        size of the plan."""
+        copies = [
+            (branch_task, branch_task.input()["plan"])
+            for branch_task in self.get_branch_tasks().values()
+            if not branch_task.complete()
+        ]
+        if not copies:
+            return
+        print(
+            f"Copying {len(copies)} AnaTuple merge plans of version {self.version} "
+            f"from fs_anaTuple into {self.ana_data_path()}"
+        )
+        with ThreadPoolExecutor(
+            max_workers=min(PLAN_COPY_THREADS, len(copies))
+        ) as pool:
+            futures = [
+                pool.submit(branch_task.copy_plan, plan) for branch_task, plan in copies
+            ]
+            try:
+                for future in as_completed(futures):
+                    future.result()
+            except BaseException:
+                # The first failure, or Ctrl-C, ends the copy: the queued plans are not
+                # started, only the running copies are waited for.
+                pool.shutdown(cancel_futures=True)
+                raise
+
+
+def anaTuple_plans_ready(task):
+    """Whether the AnaTuple merge plans of `task`'s eras are in this checkout's data area,
+    i.e. AnaTupleFileListTask is complete: every branch map from AnaTupleMergeTask down is
+    built from them.
+
+    When they are not, but the plans of that version exist on fs_anaTuple
+    (AnaTupleFileListBuilderTask complete, e.g. an existing production reused from a new
+    checkout), they are copied into the data area first, as AnaTupleFileListTask would.
+    The dynamic workflow conditions of those tasks and the choice between their narrow and
+    their whole-era requirements all ask this, so that the two never disagree.
+    """
+    file_list = AnaTupleFileListTask.req(task, branch=-1, branches=())
+    if file_list.complete():
+        return True
+    # A job finds the plans in its bundle or in the shared data area of its submission;
+    # copies are made by the submitting process only.
+    if on_batch_node():
+        return False
+    builder = AnaTupleFileListBuilderTask.req(
+        file_list, workflow=file_list.upstream_workflow
+    )
+    if not builder.complete():
+        return False
+    file_list.copy_plans()
+    return file_list.complete()
 
 
 class AnaTupleMergeTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
@@ -1015,10 +1098,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
             return {}
 
         reqs = super().stage_workflow_requires()
-        merge_organization_complete = AnaTupleFileListTask.req(
-            self, branches=()
-        ).complete()
-        if not merge_organization_complete:
+        if not anaTuple_plans_ready(self):
             reqs["AnaTupleFileListTask"] = AnaTupleFileListTask.req(
                 self,
                 version=self.version,
@@ -1133,7 +1213,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
 
     @law.dynamic_workflow_condition
     def workflow_condition(self):
-        return AnaTupleFileListTask.req(self, branch=-1, branches=()).complete()
+        return anaTuple_plans_ready(self)
 
     @workflow_condition.create_branch_map
     def create_branch_map(self):

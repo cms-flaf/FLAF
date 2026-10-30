@@ -23,6 +23,8 @@ import types
 import unittest
 from unittest import mock
 
+import pytest
+
 flaf_repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 flaf_parent = os.path.dirname(flaf_repo)
 if flaf_parent not in sys.path:
@@ -119,6 +121,7 @@ class ThePlaceholder(unittest.TestCase):
         self.assertTrue(lfn.startswith("/store/"), lfn)
 
 
+@pytest.mark.needs_cvmfs
 class TheCrabServerRule(unittest.TestCase):
     """The placeholder against CRAB's `checkOutLFN` (skipped where /cvmfs is not mounted)."""
 
@@ -162,6 +165,7 @@ class TheCrabServerRule(unittest.TestCase):
                     self.assertTrue(self.check_out_lfn(lfn, user), lfn)
 
 
+@pytest.mark.needs_cvmfs
 class TheSiteConfiguration(unittest.TestCase):
     """The placeholder against the site's storage.json (skipped where /cvmfs is not mounted).
 

@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import importlib
+import re
 import ROOT
 import time
 
@@ -11,21 +12,20 @@ if __name__ == "__main__":
 import FLAF.Common.HistHelper as HistHelper
 import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
-from FLAF.RunKit.run_tools import ps_call
 from FLAF.Analysis.HistTupleProducer import DefineBinnedColumn
-from FLAF.Analysis.histFromNtupleBatch import (
-    count_booked_hists,
-    hist_bytes,
-    iter_hist_batches,
-    memory_budget,
-    n_cut_slots,
-    unc_scale_pairs,
-)
+from FLAF.Analysis.histFromNtupleBatch import cells_budget, fill_groups
 
-# Memory (MB) the histograms booked in one pass may take, every thread slot's copy and the fixed
-# cost of each booked action included, unless hist_from_ntuple_max_hist_memory_mb or
-# --max-hist-memory-mb says otherwise. It is what bounds the large 2D/3D variables.
+# Memory (MB) the histograms of one event loop may take, every thread slot's copy counted, unless
+# hist_from_ntuple_max_hist_memory_mb or --max-hist-memory-mb says otherwise.
 DEFAULT_MAX_HIST_MEMORY_MB = 1500
+
+_HIST_FILLER_H = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "include",
+    "HistFiller.h",
+)
+if not ROOT.gInterpreter.Declare(f'#include "{_HIST_FILLER_H}"'):
+    raise RuntimeError(f"Failed to include {_HIST_FILLER_H}")
 
 
 def find_keys(inFiles_list):
@@ -40,156 +40,191 @@ def find_keys(inFiles_list):
     return sorted(unique_keys)
 
 
-ROOT.gInterpreter.Declare("""
-    // Copy the first n cells of src into dst, contents and errors, flows included; the caller
-    // sets the entries.
-    void copyHistCells(const TH1& src, TH1& dst, int n) {
-        for (int i = 0; i < n; ++i) {
-            dst.SetBinContent(i, src.GetBinContent(i));
-            dst.SetBinError(i, src.GetBinError(i));
-        }
-    }
-    """)
-
-
-def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
-    model, unit_hist, rdf = hist_list[0]
-    if verbose > 0:
-        print(
-            f"Saving hist for key: {key_tuple}, unc: {unc}, scale: {scale}. Number of RDF runs: {rdf.GetNRuns()}"
-        )
-    dir_name = "/".join(key_tuple)
-    dir_ptr = Utilities.mkdir(outFile, dir_name)
-
-    # The model hands out a fresh, directory-less histogram on every call, and Python owns it.
-    merged_hist = model.GetHistogram()
-    N_bins = (
-        unit_hist.GetNbins()
-        if hasattr(unit_hist, "GetNbins")
-        else unit_hist.GetNcells()
-    )
-    ROOT.copyHistCells(unit_hist.GetValue(), merged_hist, N_bins)
-
-    nentries = unit_hist.GetEntries()
-    if len(hist_list) > 1:
-        for model, unit_hist in hist_list[1:]:
-            hist = model.GetHistogram()
-            ROOT.copyHistCells(unit_hist.GetValue(), hist, N_bins)
-            nentries += unit_hist.GetEntries()
-            merged_hist.Add(hist)
-
-    merged_hist.SetEntries(nentries)
-    isCentral = unc == "Central"
-    final_hist_name = hist_name if isCentral else f"{hist_name}_{unc}_{scale}"
-    dir_ptr.WriteTObject(merged_hist, final_hist_name, "Overwrite")
-
-
-def BookUnitHist(rdf_filtered, var, weight_name):
-    """Book the unit-bin histogram for ``var`` on an ALREADY-filtered RDataFrame node.
-
-    The selection filter is applied once by the caller and the resulting node is shared
-    across all variables, so the (compound) channel/region/category cut is evaluated once
-    per event instead of once per variable.
-    """
-    var_entry = HistHelper.findBinEntry(hist_cfg_dict, var)
-    dims = (
-        1
-        if not hist_cfg_dict[var_entry].get("var_list", False)
-        else len(hist_cfg_dict[var_entry]["var_list"])
-    )
-    if dims < 1 or dims > 3:
-        raise RuntimeError("Only 1D, 2D and 3D histograms are supported")
-    model, unit_bin_model = HistHelper.GetModel(
-        hist_cfg_dict, var, dims, return_unit_bin_model=True
-    )
-    var_bin_list = (
-        [f"{v}_bin" for v in hist_cfg_dict[var_entry]["var_list"]]
-        if dims > 1
-        else [f"{var}_bin"]
-    )
-    mkhist_fn = getattr(rdf_filtered, f"Histo{dims}D")
-    unit_hist = mkhist_fn(unit_bin_model, *var_bin_list, weight_name)
-    return model, unit_hist
-
-
-def VarCells(hist_cfg, var):
-    """Cells of one histogram of ``var`` as booked (its unit-bin model, flows included):
-    what each thread holds a copy of."""
+def VarModel(hist_cfg, var):
+    """The output histogram model of ``var`` and the bin column of each of its dimensions."""
     var_entry = HistHelper.findBinEntry(hist_cfg, var)
     var_list = hist_cfg[var_entry].get("var_list")
     dims = len(var_list) if var_list else 1
-    _, unit_bin_model = HistHelper.GetModel(
-        hist_cfg, var, dims, return_unit_bin_model=True
+    if dims < 1 or dims > 3:
+        raise RuntimeError("Only 1D, 2D and 3D histograms are supported")
+    model = HistHelper.GetModel(hist_cfg, var, dims)
+    components = list(var_list) if var_list else [var]
+    return model, [f"{v}_bin" for v in components]
+
+
+def ModelBins(model):
+    """Bins per dimension of a TH1DModel / TH2DModel / TH3DModel."""
+    if isinstance(model, ROOT.RDF.TH3DModel):
+        return [model.fNbinsX, model.fNbinsY, model.fNbinsZ]
+    if isinstance(model, ROOT.RDF.TH2DModel):
+        return [model.fNbinsX, model.fNbinsY]
+    return [model.fNbinsX]
+
+
+def ModelCells(model):
+    """Cells of one histogram of a model, under- and overflows included."""
+    cells = 1
+    for n in ModelBins(model):
+        cells *= n + 2
+    return cells
+
+
+def IsVectorType(type_name):
+    return "RVec" in type_name or "vector" in type_name
+
+
+# Element types of a bin column: integers that fit an int (include/HistFiller.h narrows them to int, so a
+# wider or an unsigned int type could land in another bin).
+BIN_COLUMN_TYPES = {
+    "bool",
+    "Bool_t",
+    "char",
+    "Char_t",
+    "signed char",
+    "unsigned char",
+    "UChar_t",
+    "short",
+    "Short_t",
+    "unsigned short",
+    "UShort_t",
+    "int",
+    "Int_t",
+}
+
+
+def ElementType(type_name):
+    """The element type of a column type: ``int`` for ``int``, ``ROOT::VecOps::RVec<int>`` or
+    ``vector<int>``."""
+    base = type_name.replace("const", "").replace("&", "").strip()
+    match = re.fullmatch(
+        r"(?:ROOT::(?:VecOps::)?RVec|(?:std::)?vector)\s*<\s*(.+?)\s*>", base
     )
-    return unit_bin_model.GetHistogram().GetNcells()
+    return match.group(1) if match else base
 
 
-def _make_save_fn(key_tuple, outFile, model, unit_hist, rdf, var, unc, scale):
-    def save_fn():
-        SaveHist(key_tuple, outFile, [(model, unit_hist, rdf)], var, unc, scale)
-
-    return save_fn
+def IsBinColumnType(type_name):
+    return ElementType(type_name) in BIN_COLUMN_TYPES
 
 
-def BuildAllHistActions(
-    uncs_to_compute,
-    unc_cfg_dict,
-    all_trees,
-    vars_to_process,
-    key_filter_dict,
-    further_cuts,
-    treeName,
-    var_tmp_files,
-):
-    """Register histogram actions for every variable, sharing one filtered RDataFrame node
-    per (uncertainty, scale, selection-key, further-cut) across ALL variables.
-
-    The dominant per-event cost is evaluating the compound channel/region/category filter,
-    not filling the (precomputed unit-bin) histogram. Booking each variable on its own
-    ``rdf.Filter(...)`` re-evaluated the identical selection once per variable; sharing the
-    filtered node collapses ~Nvar redundant filter passes into a single one. Histograms are
-    identical -- only the RDF graph is smaller and the single event loop does far less work.
-
-    Returns a list of save callables; invoke them after booking so ROOT runs one event loop.
-    """
-    save_fns = []
-    cut_names = list(further_cuts.keys()) if further_cuts else [None]
+def TreeFills(uncs_to_compute, unc_cfg_dict, treeName):
+    """``{tree: [(unc, scale, weight column)]}``: the histograms of each tree, as one (unc, scale) each.
+    A shape uncertainty is its own tree filled with the central weight; the central tree also takes
+    every normalisation uncertainty as a weight."""
+    fills = {}
     for unc, scales in uncs_to_compute.items():
         is_shift_unc = unc in unc_cfg_dict["shape"].keys()
         for scale in scales:
             if is_shift_unc:
-                rdf_base = all_trees[f"Events__{unc}__{scale}"]
-                weight_name = "weight_Central"
+                tree, weight = f"Events__{unc}__{scale}", "weight_Central"
             else:
-                rdf_base = all_trees[treeName]
-                weight_name = (
+                tree = treeName
+                weight = (
                     f"weight_{unc}_{scale}" if unc != "Central" else "weight_Central"
                 )
-            for key, filter_to_apply_base in key_filter_dict.items():
-                for further_cut_name in cut_names:
-                    filter_to_apply_final = (
-                        f"{filter_to_apply_base} && {further_cut_name}"
-                        if further_cut_name
-                        else filter_to_apply_base
+            fills.setdefault(tree, []).append((unc, scale, weight))
+    return fills
+
+
+def FillTree(
+    rdf,
+    tree_name,
+    weights,
+    keys,
+    vars_to_process,
+    var_models,
+    var_files,
+    max_cells,
+):
+    """Fill and write every (key, weight, variable) histogram of one tree, in event loops of at most
+    ``max_cells`` cells, every thread slot's copy counted (include/HistFiller.h)."""
+    columns = {str(c): str(rdf.GetColumnType(c)) for c in rdf.GetColumnNames()}
+    for _, _, weight in weights:
+        if IsVectorType(columns[weight]):
+            raise RuntimeError(f"{tree_name}: weight column {weight} is a vector")
+    # a key filter must be a bool, as for RDataFrame's Filter (HistFillerKey refuses anything else)
+    pass_expr = (
+        "ROOT::RVec<char>{"
+        + ", ".join(f"analysis::HistFillerKey(({flt}))" for _, flt in keys)
+        + "}"
+    )
+    var_cells = {var: ModelCells(var_models[var][0]) for var in vars_to_process}
+    n_slots = rdf.GetNSlots()  # each fills its own copy of a loop's histograms
+    groups = fill_groups(var_cells, len(keys), len(weights), max_cells, n_slots)
+    for group_vars, (w_first, w_end) in groups:
+        group_weights = weights[w_first:w_end]
+        scalar_cols, vector_cols = [], []
+        filler = ROOT.analysis.HistFiller()
+        for var in group_vars:
+            model, bin_cols = var_models[var]
+            is_vector, index = [], []
+            for col in bin_cols:
+                col_type = columns[col]
+                if not IsBinColumnType(col_type):
+                    raise RuntimeError(
+                        f"{tree_name}: bin column {col} is {col_type}; a bin column holds "
+                        f"integers that fit an int ({', '.join(sorted(BIN_COLUMN_TYPES))})"
                     )
-                    rdf_filtered = rdf_base.Filter(filter_to_apply_final)
-                    key_tuple = key + (further_cut_name,) if further_cut_name else key
-                    for var in vars_to_process:
-                        model, unit_hist = BookUnitHist(rdf_filtered, var, weight_name)
-                        _, tmp_root_file = var_tmp_files[var]
-                        save_fns.append(
-                            _make_save_fn(
-                                key_tuple,
-                                tmp_root_file,
-                                model,
-                                unit_hist,
-                                rdf_filtered,
-                                var,
-                                unc,
-                                scale,
-                            )
-                        )
-    return save_fns
+                cols = vector_cols if IsVectorType(col_type) else scalar_cols
+                if col not in cols:
+                    cols.append(col)
+                is_vector.append(1 if cols is vector_cols else 0)
+                index.append(cols.index(col))
+            filler.AddVariable(ModelBins(model), is_vector, index)
+        filler.Allocate(len(keys), len(group_weights), n_slots)
+        address = ROOT.addressof(filler)
+        loop = (
+            rdf.Define(
+                "_hf_scalar_bins",
+                "ROOT::RVec<int>{"
+                + ", ".join(f"static_cast<int>({c})" for c in scalar_cols)
+                + "}",
+            )
+            .Define(
+                "_hf_vector_bins",
+                "ROOT::RVec<ROOT::RVec<int>>{"
+                + ", ".join(f"analysis::HistFillerBins({c})" for c in vector_cols)
+                + "}",
+            )
+            .Define(
+                "_hf_weights",
+                "ROOT::RVec<double>{"
+                + ", ".join(f"static_cast<double>({w})" for _, _, w in group_weights)
+                + "}",
+            )
+            .Define("_hf_pass", pass_expr)
+            .Define(
+                "_hf_filled",
+                f"analysis::HistFillerFill({address}, rdfslot_, _hf_pass, "
+                "_hf_scalar_bins, _hf_vector_bins, _hf_weights)",
+            )
+        )
+        t_start = time.time()
+        n_filled = loop.Sum("_hf_filled").GetValue()
+        t_loop = time.time() - t_start
+
+        hists = ROOT.std.vector["TH1*"]()
+        dirs = ROOT.std.vector["TDirectory*"]()
+        names = ROOT.std.vector["std::string"]()
+        keep_alive = []
+        for var in group_vars:
+            hist = var_models[var][0].GetHistogram()
+            keep_alive.append(hist)
+            hists.push_back(hist)
+            for key_tuple, _ in keys:
+                dirs.push_back(Utilities.mkdir(var_files[var], "/".join(key_tuple)))
+            for unc, scale, _ in group_weights:
+                names.push_back(var if unc == "Central" else f"{var}_{unc}_{scale}")
+        filler.Write(hists, dirs, names)
+        filler.Release()
+        print(
+            f"{tree_name}: {len(group_vars)} vars × {len(keys)} keys × "
+            f"{len(group_weights)} weights, {filler.NumberOfCells()} cells × {n_slots} thread "
+            f"slot(s) (~{filler.NumberOfCells() * n_slots * 16 / 1e6:.0f} MB), "
+            f"{n_filled:.0f} events in a key; "
+            f"loop {t_loop:.1f} s, write {time.time() - t_start - t_loop:.1f} s",
+            flush=True,
+        )
+        del filler
 
 
 if __name__ == "__main__":
@@ -214,34 +249,22 @@ if __name__ == "__main__":
         type=int,
         default=1,
         help="Threads of the event loop: 1 (default) runs without implicit MT, 0 uses all "
-        "cores (EnableImplicitMT(0)).",
+        "cores (EnableImplicitMT(0)). Every thread fills its own copy of the histograms.",
     )
     parser.add_argument("--user-custom", type=str, default=None)
-    parser.add_argument(
-        "--max-hists",
-        type=int,
-        default=None,
-        help="Max histograms booked in one RDataFrame pass, counting every "
-        "(variable, selection, unc, scale) including Up/Down. "
-        "0 removes the count cap; a single pass also needs --max-hist-memory-mb 0. "
-        "Default: hist_from_ntuple_max_hists from config, else 30000.",
-    )
     parser.add_argument(
         "--max-hist-memory-mb",
         type=float,
         default=None,
-        help="Max memory (MB) of the histograms booked in one RDataFrame pass: every "
-        "thread slot's copy of their cells, plus a fixed cost per booked histogram. Large "
-        "2D/3D variables get smaller passes. 0 disables it. Default: "
-        "hist_from_ntuple_max_hist_memory_mb from config, else "
-        f"{DEFAULT_MAX_HIST_MEMORY_MB}.",
+        help="Max memory (MB) of the histograms filled in one event loop, every thread "
+        "slot's copy of them; a tree is filled in as many loops as its variables need. "
+        "Below 1 it is disabled. Default: hist_from_ntuple_max_hist_memory_mb from config, "
+        f"else {DEFAULT_MAX_HIST_MEMORY_MB}.",
     )
     args = parser.parse_args()
 
     if args.nMT != 1:
         ROOT.EnableImplicitMT(max(0, args.nMT))
-    # thread slots the event loop fills: one copy of every booked histogram each
-    n_slots = ROOT.GetThreadPoolSize() if ROOT.IsImplicitMTEnabled() else 1
 
     start = time.time()
 
@@ -335,20 +358,19 @@ if __name__ == "__main__":
                     )
 
     if all_trees:
-        # Open one compressed output file per variable. SaveHist writes into it as
-        # each batch's event loop runs (209 == LZMA level 9).
-        var_tmp_files = {}
+        tree_fills = TreeFills(uncs_to_compute, unc_cfg_dict, treeName)
+        missing_trees = sorted(set(tree_fills) - set(all_trees))
+        if missing_trees:
+            raise RuntimeError(
+                f"Trees missing from every input file: {missing_trees}; present: "
+                f"{sorted(all_trees)}"
+            )
+        # One compressed output file per variable (209 == LZMA level 9).
+        var_files = {}
         for var in vars_to_process:
             out_path = os.path.join(args.outDir, f"{var}.root")
-            out_root_file = ROOT.TFile(out_path, "RECREATE", "", 209)
-            var_tmp_files[var] = (out_path, out_root_file)
+            var_files[var] = ROOT.TFile(out_path, "RECREATE", "", 209)
 
-        if args.max_hists is not None:
-            max_hists = args.max_hists
-        else:
-            max_hists = int(
-                setup.global_params.get("hist_from_ntuple_max_hists", 30000)
-            )
         if args.max_hist_memory_mb is not None:
             max_memory_mb = args.max_hist_memory_mb
         else:
@@ -357,66 +379,38 @@ if __name__ == "__main__":
                     "hist_from_ntuple_max_hist_memory_mb", DEFAULT_MAX_HIST_MEMORY_MB
                 )
             )
-        max_bytes = memory_budget(max_memory_mb)
-        var_cells = {var: VarCells(hist_cfg_dict, var) for var in vars_to_process}
-        var_bytes = {var: hist_bytes(var_cells[var], n_slots) for var in var_cells}
-        n_total = count_booked_hists(
-            max(1, len(vars_to_process)),
-            max(1, len(key_filter_dict)),
-            n_cut_slots(further_cuts),
-            max(1, len(unc_scale_pairs(uncs_to_compute))),
-        )
-        batches = list(
-            iter_hist_batches(
-                uncs_to_compute,
-                key_filter_dict,
-                further_cuts,
-                vars_to_process,
-                max_hists,
-                var_bytes=var_bytes,
-                max_bytes=max_bytes,
+        max_cells = cells_budget(max_memory_mb)
+        cut_names = list(further_cuts.keys()) if further_cuts else [None]
+        keys = [
+            (
+                key + (cut_name,) if cut_name else key,
+                f"{key_filter} && {cut_name}" if cut_name else key_filter,
             )
-        )
+            for key, key_filter in key_filter_dict.items()
+            for cut_name in cut_names
+        ]
+        var_models = {var: VarModel(hist_cfg_dict, var) for var in vars_to_process}
+        n_hists = len(vars_to_process) * len(keys) * sum(map(len, tree_fills.values()))
         print(
-            f"Booking {n_total} histograms "
-            f"({len(vars_to_process)} vars × {len(key_filter_dict)} keys × "
-            f"{n_cut_slots(further_cuts)} cuts × "
-            f"{len(unc_scale_pairs(uncs_to_compute))} unc/scales); "
-            f"max_hists={max_hists}, max hist memory {max_memory_mb:g} MB with "
-            f"{n_slots} thread slot(s) → {len(batches)} batch(es)"
+            f"Filling {n_hists} histograms ({len(vars_to_process)} vars × {len(keys)} keys × "
+            f"{sum(map(len, tree_fills.values()))} unc/scales) from {len(tree_fills)} trees, "
+            f"max hist memory {max_memory_mb:g} MB per event loop (every thread slot's copy)",
+            flush=True,
         )
+        for tree_name, weights in tree_fills.items():
+            FillTree(
+                all_trees[tree_name],
+                tree_name,
+                weights,
+                keys,
+                vars_to_process,
+                var_models,
+                var_files,
+                max_cells,
+            )
 
-        for batch_idx, (b_uncs, b_keys, b_cuts, b_vars) in enumerate(batches, start=1):
-            n_per_var = count_booked_hists(
-                1,
-                max(1, len(b_keys)),
-                n_cut_slots(b_cuts),
-                max(1, len(unc_scale_pairs(b_uncs))),
-            )
-            n_batch = n_per_var * max(1, len(b_vars))
-            cells_batch = n_per_var * sum(var_cells[v] for v in b_vars)
-            memory_mb = n_per_var * sum(var_bytes[v] for v in b_vars) / 1e6
-            print(
-                f"Histogram batch {batch_idx}/{len(batches)}: {n_batch} hists, "
-                f"{cells_batch} cells, ~{memory_mb:.0f} MB with {n_slots} thread slot(s)"
-            )
-            save_fns = BuildAllHistActions(
-                b_uncs,
-                unc_cfg_dict,
-                all_trees,
-                b_vars,
-                b_keys,
-                b_cuts,
-                treeName,
-                var_tmp_files,
-            )
-            for fn in save_fns:
-                fn()
-            del save_fns
-
-        for var in vars_to_process:
-            _, out_root_file = var_tmp_files[var]
-            out_root_file.Close()
+        for out_file in var_files.values():
+            out_file.Close()
 
     time_elapsed = time.time() - start
     print(f"execution time = {time_elapsed} ")

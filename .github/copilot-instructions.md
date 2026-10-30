@@ -459,6 +459,13 @@ Each of these has caused a production incident. They are ordered by how much dam
   merge fills from a stored bin it overlaps, in every region, control regions included. A change
   that lifts a window in some region, or draws a hidden bin as a marker at zero, shows blinded
   data.
+- `HistProducerFromNTuple` fills through `include/HistFiller.h`, one event loop per tree (or per
+  budget group), with one copy of its arrays per RDataFrame slot, summed in slot order by `Write`;
+  `hist_from_ntuple_max_hist_memory_mb` counts every copy. Key filters are `bool`
+  (`HistFillerKey`), bin columns integers no wider than `int`, weights scalars. With one thread every
+  cell, error and entry count must stay identical to RDataFrame's `Histo` filling
+  (`test/test_hist_filler.py`, `needs_root`, run by hand). `hist_from_ntuple_max_hists` is retired
+  and refused by `HistFromNtupleProducerTask`.
 
 ## Testing expectations
 

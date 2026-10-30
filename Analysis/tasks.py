@@ -584,9 +584,8 @@ class HistFromNtupleProducerTask(
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     variables = luigi.Parameter(default="")
     # Number of input ntuple files processed per job. LAW branches stay split by
-    # files. If the booked histograms exceed hist_from_ntuple_max_hists or
-    # hist_from_ntuple_max_hist_memory_mb, the producer repeats the event loop in
-    # batches inside the same job.
+    # files. The producer fills each tree in one event loop, or in several if its
+    # histograms exceed hist_from_ntuple_max_hist_memory_mb.
     n_files_per_job = luigi.IntParameter(default=20)
 
     @property
@@ -673,9 +672,9 @@ class HistFromNtupleProducerTask(
             dataset_to_branches.setdefault(histTuple_dataset_name, []).append(prod_br)
 
         # Each (dataset, file-chunk) is its own branch/job. Big datasets are
-        # parallelized by chunking files (n_files_per_job). Histogram-count
-        # batching, if needed, happens inside the producer — not as extra LAW
-        # branches — so inputs are localized once.
+        # parallelized by chunking files (n_files_per_job). A tree whose histograms
+        # exceed the memory budget is filled in several event loops inside the
+        # producer — not as extra LAW branches — so inputs are localized once.
         n_files = max(1, self.n_files_per_job)
         idx = 0
         for dataset_name, prod_br_list in sorted(dataset_to_branches.items()):
@@ -734,6 +733,12 @@ class HistFromNtupleProducerTask(
 
     def run(self):
         self._refuse_inline_on_worker()
+        if "hist_from_ntuple_max_hists" in self.global_params:
+            raise RuntimeError(
+                "`hist_from_ntuple_max_hists` is no longer used: HistProducerFromNTuple fills every "
+                "histogram of a tree in one event loop, and only "
+                "`hist_from_ntuple_max_hist_memory_mb` splits it. Remove the key."
+            )
         dataset_name, prod_br_list, chunk_id = self.branch_data
         var_names = self._branch_variables()
         job_home, remove_job_home = self.law_job_home()
@@ -753,10 +758,10 @@ class HistFromNtupleProducerTask(
         HistFromNtupleProducer = os.path.join(
             self._flaf_root(), "Analysis", "HistProducerFromNTuple.py"
         )
-        # On HTCondor/CRAB one thread per requested core. More (the former 2 x n_cpus) only
-        # oversubscribes the slot, and every thread holds its own copy of every booked
-        # histogram (more memory, so more passes for the large 2D variables); on a 20-file,
-        # 126-variable bbWW job 2 threads took 74 min against 100 min for 1. Local runs keep 8.
+        # On HTCondor/CRAB one thread per requested core: more only oversubscribes the slot. Every
+        # thread fills its own copy of a loop's histograms (include/HistFiller.h) within the same
+        # memory budget, so more threads can mean more loops for the large 2D variables. Local
+        # runs keep 8.
         nMT = self.n_cpus if self.effective_workflow in ("htcondor", "crab") else 8
 
         # Determine which variables still need to be produced for this (dataset, chunk).
@@ -820,9 +825,6 @@ class HistFromNtupleProducerTask(
                 cmd.extend(["--customisations", self.customisations])
             if self.user_custom:
                 cmd.extend(["--user-custom", self.user_custom])
-            max_hists = self.global_params.get("hist_from_ntuple_max_hists")
-            if max_hists is not None:
-                cmd.extend(["--max-hists", str(int(max_hists))])
             cmd.extend(local_inputs)
             ps_call(cmd, verbose=1)
 

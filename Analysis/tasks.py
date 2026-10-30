@@ -566,6 +566,15 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
             shutil.rmtree(job_home)
 
 
+def _chunk_evenly(items, n):
+    """Split ``items`` into ``n`` roughly-equal, contiguous chunks. Order doesn't matter
+    for merge correctness -- only that parallel lists (e.g. dataset names and their
+    localized file paths) are split at the same indices."""
+    n = max(1, min(n, len(items)))
+    k, m = divmod(len(items), n)
+    return [items[i * k + min(i, m) : (i + 1) * k + min(i + 1, m)] for i in range(n)]
+
+
 def _split_merged_marker(split_target):
     # The per-chunk ``.merged`` marker written next to a HistFromNtupleProducer split histogram
     # when HistMergerTask removes it after merging (issue #229). Placed beside the split so it is
@@ -877,8 +886,17 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     era_branches = True
     allow_meta_era = True
     max_runtime = copy_param(HTCondorWorkflow.max_runtime, 5.0)
-    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
+    # Matches n_merge_batches below: each batch runs as its own MergerProducer subprocess,
+    # so the job needs that many allocated cores for the batches to run in parallel rather
+    # than contend with each other.
+    n_cpus = copy_param(HTCondorWorkflow.n_cpus, 4)
     variables = luigi.Parameter(default="")
+    n_merge_batches = luigi.IntParameter(
+        default=4,
+        description="Split one variable's dataset list into this many parallel "
+        "MergerProducer subprocesses (reduced into the final output via SumEraFiles) "
+        "instead of merging all datasets sequentially in one process.",
+    )
 
     @property
     def bundle_flavours(self):
@@ -888,6 +906,46 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     @property
     def active_variables(self):
         return _active_variables(self.setup, self.variables)
+
+    def _branch_request_memory_mb(self, branch):
+        """Memory (MB) a branch needs above the site default, or None.
+
+        Only a branch that carries signal Trees/ (signal_tree_hists_ELReweighter) needs
+        more: their per-event rows, unlike binned histograms, scale with the events, and
+        the parallel merge batches hold them at the same time (~26 GB measured for
+        ggF_DNN_HH in Run3_2022EE against the 12 GB a 4-cpu slot gets). Every other
+        branch keeps the default the site derives from n_cpus.
+        """
+        var_name, _br_indices, datasets = self.branch_map[branch]
+        cfg = self.global_params.get("signal_tree_hists_ELReweighter") or {}
+        request_mb = cfg.get("merger_request_memory_mb")
+        if not (request_mb and cfg.get("store_signal_trees")) or not datasets:
+            return None
+        if var_name not in cfg.get("vars_to_store", []):
+            return None
+        if not any(
+            self.setup.datasets.get(ds, {}).get("process_group") == "signals"
+            for ds in datasets
+        ):
+            return None
+        return int(request_mb)
+
+    def htcondor_job_config(self, config, job_num, branches):
+        config = super().htcondor_job_config(config, job_num, branches)
+        # Law passes one job's branch list, or, for a group of jobs sharing one job file,
+        # a list of them; either way the request is sized for the most demanding branch.
+        flat = [
+            b
+            for item in branches
+            for b in (item if isinstance(item, (list, tuple)) else [item])
+        ]
+        request_mb = max(
+            (m for m in map(self._branch_request_memory_mb, flat) if m),
+            default=None,
+        )
+        if request_mb:
+            config.custom_content.append(("RequestMemory", request_mb))
+        return config
 
     def stage_workflow_requires(self):
         reqs = super().stage_workflow_requires()
@@ -1070,30 +1128,69 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                 stack.callback(file_stack.close)
                 all_datasets.append(dataset_name)
                 local_inputs.append(abspath)
-            dataset_names = ",".join(smpl for smpl in all_datasets)
             with self.output().localize("w") as outFile:
-                MergerProducer_cmd = [
-                    "python3",
-                    MergerProducer,
-                    "--outFile",
-                    outFile.abspath,
-                    "--var",
-                    var_name,
-                    "--dataset_names",
-                    dataset_names,
-                    "--uncSources",
-                    ",".join(uncNames),
-                    "--channels",
-                    channels,
-                    "--era",
-                    self.only_era,
-                    "--LAWrunVersion",
-                    self.version,
-                ]
-                if self.user_custom:
-                    MergerProducer_cmd.extend(["--user-custom", self.user_custom])
-                MergerProducer_cmd.extend(local_inputs)
-                ps_call(MergerProducer_cmd, verbose=1)
+
+                def _merger_cmd(out_path, batch_datasets, batch_inputs):
+                    cmd = [
+                        "python3",
+                        MergerProducer,
+                        "--outFile",
+                        out_path,
+                        "--var",
+                        var_name,
+                        "--dataset_names",
+                        ",".join(batch_datasets),
+                        "--uncSources",
+                        ",".join(uncNames),
+                        "--channels",
+                        channels,
+                        "--era",
+                        self.only_era,
+                        "--LAWrunVersion",
+                        self.version,
+                    ]
+                    if self.user_custom:
+                        cmd.extend(["--user-custom", self.user_custom])
+                    cmd.extend(batch_inputs)
+                    return cmd
+
+                dataset_batches = _chunk_evenly(all_datasets, self.n_merge_batches)
+                input_batches = _chunk_evenly(local_inputs, self.n_merge_batches)
+                if len(dataset_batches) <= 1:
+                    ps_call(
+                        _merger_cmd(outFile.abspath, all_datasets, local_inputs),
+                        verbose=1,
+                    )
+                else:
+                    # Splitting the dataset list across parallel subprocesses cuts wall
+                    # time on this I/O- and deserialization-heavy merge without touching
+                    # the task graph: each batch produces its own partial merged file,
+                    # independently correct (same structure as a normal merge, just over
+                    # fewer input datasets), and SumEraFiles -- already used to sum
+                    # per-era merged files bin-by-bin -- reduces them into the final
+                    # output exactly the same way.
+                    from FLAF.Common.HistHelper import SumEraFiles
+
+                    batch_out_dir = os.path.dirname(outFile.abspath)
+                    batch_outputs = [
+                        os.path.join(batch_out_dir, f"{var_name}_batch{i}.root")
+                        for i in range(len(dataset_batches))
+                    ]
+                    batch_cmds = [
+                        _merger_cmd(batch_path, batch_ds, batch_in)
+                        for batch_path, batch_ds, batch_in in zip(
+                            batch_outputs, dataset_batches, input_batches
+                        )
+                    ]
+                    with ThreadPoolExecutor(max_workers=len(batch_cmds)) as executor:
+                        list(
+                            executor.map(lambda c: ps_call(c, verbose=1), batch_cmds)
+                        )
+                    scales = list(self.global_params["scales"])
+                    SumEraFiles(batch_outputs, outFile.abspath, scales)
+                    for batch_path in batch_outputs:
+                        if os.path.exists(batch_path):
+                            os.remove(batch_path)
 
         # The merged output is now written; the per-chunk split inputs for this variable are no
         # longer needed. When enabled (issue #229), remove them to save space, leaving a small

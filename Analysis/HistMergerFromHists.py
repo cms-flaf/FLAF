@@ -49,17 +49,11 @@ def fill_hists(
     single pass. Data has no per-uncertainty variations: only its nominal histogram is
     accumulated here; alias_data_variations() links it under the varied keys afterwards
     (QCD estimation looks data up per (unc, scale))."""
-    target_keys = {var_input: ("Central", "Central")}
-    if dataset_type != data_type:
-        for unc_source in unc_sources:
-            if unc_source == "Central":
-                continue
-            for scale in ["Up", "Down"]:
-                target_keys[f"{var_input}_{unc_source}_{scale}"] = (unc_source, scale)
+    effective_unc_sources = unc_sources if dataset_type != data_type else []
     hists = all_hist_dict.setdefault(dataset_type, {})
     for key_tuple, hist_map in items_dict.items():
         for var, var_hist in hist_map.items():
-            unc_scale = target_keys.get(var)
+            unc_scale = resolve_unc_scale(var, var_input, effective_unc_sources)
             if unc_scale is None:
                 continue
             final_key = (key_tuple, unc_scale)
@@ -88,6 +82,28 @@ def alias_data_variations(all_hist_dict, data_type, unc_sources):
         for scale in ["Up", "Down"]:
             for key_tuple, hist in central.items():
                 data_hists.setdefault((key_tuple, (unc_source, scale)), hist)
+
+
+def resolve_merged_hist_name(
+    dataset_type, uncName, uncScale, unc_sources, all_unc_dict
+):
+    """Derive the merged output's histogram/tree name for one (dataset_type, uncName,
+    uncScale) combination, or None if that combination should be skipped -- the exact
+    naming and skip rules the histogram-writing loop uses, factored out so the
+    signal-tree writing pass agrees on the same name for the same key."""
+    if uncName not in unc_sources:
+        return None
+    hist_name = dataset_type
+    if uncName != "Central":
+        if dataset_type == "data":
+            return None
+        if uncScale == "Central":
+            return None
+        hist_name += f"""_{all_unc_dict[uncName]["name"].format(uncScale)}"""
+    else:
+        if uncScale != "Central":
+            return None
+    return hist_name
 
 
 def GetBTagWeightDict(
@@ -257,34 +273,117 @@ if __name__ == "__main__":
 
     all_hists_dict = {}
     all_datasets = args.dataset_names.split(",")
-    for dataset_name, inFile_path in zip(all_datasets, args.inFiles):
-        if not os.path.exists(inFile_path):
-            print(
-                f"input file for dataset {dataset_name} (with path= {inFile_path}) does not exist, skipping"
-            )
-            continue
 
+    all_unc_dict = unc_cfg_dict["norm"].copy()
+    all_unc_dict.update(unc_cfg_dict["shape"])
+
+    # Group (dataset_name, inFile_path) by dataset_type up front, no I/O needed -- so
+    # every dataset_type's signal Trees/ can be merged, written to outFile and closed
+    # before the next dataset_type's files are even opened. Keeping every signal
+    # dataset_type's files open at once (and deferring every Trees/ write to the very
+    # end) held dozens of open TTrees/compression buffers in memory simultaneously;
+    # this bounds that to one dataset_type's chunks at a time.
+    datasets_by_type = {}
+    for dataset_name, inFile_path in zip(all_datasets, args.inFiles):
         base_process_name = dataset_cfg_dict[dataset_name]["process_name"]
         dataset_type = setup.base_processes[base_process_name]["parent_process"]
-        print(dataset_type)
-        if dataset_type not in all_hists_dict.keys():
-            all_hists_dict[dataset_type] = {}
+        datasets_by_type.setdefault(dataset_type, []).append(
+            (dataset_name, inFile_path)
+        )
 
-        with ROOT.TFile.Open(inFile_path, "READ") as inFile:
-            # check that the file is ok
-            if inFile.IsZombie():
-                raise RuntimeError(f"{inFile_path} is zombie")
-            if not checkFile(inFile, channels, regions, all_categories):
-                raise RuntimeError(f"{dataset_name} has void file")
-            all_items = get_all_items_recursive(inFile)
-            fill_hists(
-                all_items,
-                all_hists_dict,
-                dataset_type,
-                args.var,
-                unc_sources,
-                data_process_name,
+    # 209 = LZMA level 9, the standard compression for merged histogram files
+    outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)
+
+    for dataset_type, pairs in datasets_by_type.items():
+        print(dataset_type)
+        # Signal Trees/ for this dataset_type only: sources list holds each
+        # contributing chunk's own already-open TTree object -- its source TFile is
+        # kept open (via signal_open_files) specifically so CloneTree()/MergeTrees()
+        # below works without re-reading anything from disk, and closed again right
+        # after, before the next dataset_type's files are opened.
+        signal_tree_sources = {}
+        all_signal_hist_dict = {}
+        signal_open_files = []
+
+        for dataset_name, inFile_path in pairs:
+            if not os.path.exists(inFile_path):
+                print(
+                    f"input file for dataset {dataset_name} (with path= {inFile_path}) does not exist, skipping"
+                )
+                continue
+
+            inFile = ROOT.TFile.Open(inFile_path, "READ")
+            keep_open = False
+            try:
+                # check that the file is ok
+                if inFile.IsZombie():
+                    raise RuntimeError(f"{inFile_path} is zombie")
+                if not checkFile(inFile, channels, regions, all_categories):
+                    raise RuntimeError(f"{dataset_name} has void file")
+                all_items = get_all_items_recursive(inFile)
+                fill_hists(
+                    all_items,
+                    all_hists_dict,
+                    dataset_type,
+                    args.var,
+                    unc_sources,
+                    data_process_name,
+                )
+
+                signal_trees_in_file = get_all_signal_trees_recursive(inFile)
+                if signal_trees_in_file:
+                    keep_open = True
+                    signal_open_files.append(inFile)
+                for key_tuple, tree_map in signal_trees_in_file.items():
+                    for name, tree_obj in tree_map.items():
+                        unc_scale = resolve_unc_scale(name, args.var, unc_sources)
+                        if unc_scale is None:
+                            continue
+                        bucket = signal_tree_sources.setdefault(dataset_type, {})
+                        bucket.setdefault((key_tuple, unc_scale), []).append(tree_obj)
+                        hist = unwrap_hist_from_tree(tree_obj)
+                        fill_hists(
+                            {key_tuple: {name: hist}},
+                            all_signal_hist_dict,
+                            dataset_type,
+                            args.var,
+                            unc_sources,
+                            data_process_name,
+                        )
+            finally:
+                if not keep_open:
+                    inFile.Close()
+
+        # Write and release this dataset_type's signal Trees/ now, instead of
+        # deferring every dataset_type's trees to one pass after every input file in
+        # the whole batch has been read.
+        bucket = signal_tree_sources.get(dataset_type, {})
+        for (key_dir, unc_scale), sources in bucket.items():
+            uncName, uncScale = unc_scale
+            hist_name = resolve_merged_hist_name(
+                dataset_type, uncName, uncScale, unc_sources, all_unc_dict
             )
+            if hist_name is None:
+                continue
+            tree_dir = Utilities.mkdir(outFile, "/".join(key_dir) + "/Trees")
+            tree_dir.cd()
+            if len(sources) == 1:
+                cloned_tree = sources[0].CloneTree(-1, "fast")
+            else:
+                tlist = ROOT.TList()
+                for t in sources:
+                    tlist.Add(t)
+                cloned_tree = ROOT.TTree.MergeTrees(tlist)
+            cloned_tree.SetName(hist_name)
+            cloned_tree.SetTitle(hist_name)
+            hist = all_signal_hist_dict.get(dataset_type, {}).get((key_dir, unc_scale))
+            if hist is not None:
+                wrap_hist_in_tree(hist, hist_name, base_tree=cloned_tree)
+            tree_dir.WriteTObject(cloned_tree, hist_name, "Overwrite")
+
+        for f in signal_open_files:
+            f.Close()
+
     alias_data_variations(all_hists_dict, data_process_name, unc_sources)
 
     # here there should be the custom applications - e.g. GetBTagWeightDict, AddQCDInHistDict, etc.
@@ -326,35 +425,25 @@ if __name__ == "__main__":
                 wantNegativeContributions=False,
             )
 
-    all_unc_dict = unc_cfg_dict["norm"].copy()
-    all_unc_dict.update(unc_cfg_dict["shape"])
-
-    # 209 = LZMA level 9, the standard compression for merged histogram files
-    outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)
     for dataset_type in all_hists_dict.keys():
         for key in all_hists_dict[dataset_type].keys():
             key_dir, (uncName, uncScale) = key
             # here there can be some custom requirements - e.g. regions / categories to not merge, datasets to ignore
             hist = all_hists_dict[dataset_type][key]
-            hist_name = dataset_type
-            if uncName not in unc_sources:
+            hist_name = resolve_merged_hist_name(
+                dataset_type, uncName, uncScale, unc_sources, all_unc_dict
+            )
+            if hist_name is None:
                 continue
-            if uncName != "Central":
-                if dataset_type == "data":
-                    continue
-                if uncScale == "Central":
-                    continue
-                hist_name += f"""_{all_unc_dict[uncName]["name"].format(uncScale)}"""
-            else:
-                if uncScale != "Central":
-                    continue
 
             dir_name = "/".join(key_dir)
             dir_ptr = Utilities.mkdir(outFile, dir_name)
             hist.SetTitle(hist_name)
             hist.SetName(hist_name)
             dir_ptr.WriteTObject(hist, hist_name, "Overwrite")
+
     outFile.Close()
+
     executionTime = time.time() - startTime
 
     print("Execution time in seconds: " + str(executionTime))

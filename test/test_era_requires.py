@@ -171,7 +171,7 @@ corrections:
     normCacheProducer: P2
 bundles:
   core: {}
-  soft: {}
+  soft: { patterns: [ soft/flaf_env ] }
   inputFileList: {}
   AnaTupleFileList: {}
 """,
@@ -228,13 +228,16 @@ def make_analysis(tmp):
     return ana
 
 
+def environment_path(ana):
+    """flaf_env of the scratch analysis, which its soft flavour packs, as in the analyses."""
+    return os.path.join(ana, "soft", "flaf_env")
+
+
 def write_input_lists(version, era):
     """The InputFileTask lists of `era`, where InputFileTask writes them."""
     ref = ana_prod.InputFileTask(version=version, era=era)
     for dataset_id, dataset_name in ref.iter_datasets():
-        target = ana_prod.InputFileTask.req(
-            ref, branch=dataset_id, branches=()
-        ).output()
+        target = ref.req_branch(dataset_id).output()
         write(
             target.abspath,
             json.dumps({"input_files": INPUT_FILES[(era, dataset_name)]}),
@@ -245,9 +248,7 @@ def write_merge_plans(version, era):
     """The AnaTupleFileListTask outputs (merge plans) of `era`."""
     ref = ana_prod.AnaTupleFileListTask(version=version, era=era)
     for branch, (dataset_name, _) in ref.get_branch_map().items():
-        target = ana_prod.AnaTupleFileListTask.req(
-            ref, branch=branch, branches=()
-        ).output()
+        target = ref.req_branch(branch).output()
         plan = []
         n_out = 0
         for inputs, n_outputs, n_events in MERGE_PLANS[(era, dataset_name)]:
@@ -335,6 +336,9 @@ def write_fixture(path):
     try:
         os.environ["ANALYSIS_PATH"] = make_analysis(tmp)
         os.environ["ANALYSIS_DATA_PATH"] = os.path.join(tmp, "data")
+        os.environ["FLAF_ENVIRONMENT_PATH"] = environment_path(
+            os.environ["ANALYSIS_PATH"]
+        )
         sys.modules["FLAF.Common.HistHelper"] = _hist_helper
         clear_process_caches()
         fixture = {phase: one_era_requirements(phase) for phase in PHASE_VERSIONS}
@@ -580,6 +584,7 @@ class _Scratch(unittest.TestCase):
             {
                 "ANALYSIS_PATH": self.ana,
                 "ANALYSIS_DATA_PATH": os.path.join(self.tmp, "data"),
+                "FLAF_ENVIRONMENT_PATH": environment_path(self.ana),
             },
         )
         env.start()
@@ -647,7 +652,7 @@ class CardShapedProbe(lc.Task, lc.HTCondorWorkflow, law.LocalWorkflow):
     """StatInference's CreateDatacardsTask shape: its own workflow_requires() on top of
     FLAF's, which carries the bundles."""
 
-    bundle_flavours = ["core"]
+    bundle_flavours = ["core", "soft"]
 
     def create_branch_map(self):
         return {0: "card"}
@@ -667,7 +672,7 @@ class CardShapedProbe(lc.Task, lc.HTCondorWorkflow, law.LocalWorkflow):
 class CrabCardShapedProbe(
     lc.Task, lc.HTCondorWorkflow, lc.CrabWorkflow, law.LocalWorkflow
 ):
-    bundle_flavours = ["core"]
+    bundle_flavours = ["core", "soft"]
     allow_multi_era = True
 
     def create_branch_map(self):
@@ -693,7 +698,8 @@ class ExternalOverridesKeepTheirBundles(_Scratch):
         reqs = task.workflow_requires()
         self.assertIn("hists", reqs)
         self.assertEqual(
-            [(b.flavour, b.era) for b in reqs["bundles"]], [("core", (ERA_A,))]
+            [(b.flavour, b.era) for b in reqs["bundles"]],
+            [("core", (ERA_A,)), ("soft", (ERA_A,))],
         )
 
     def test_htcondor_with_bundles(self):
@@ -707,7 +713,8 @@ class ExternalOverridesKeepTheirBundles(_Scratch):
         task = CrabCardShapedProbe(version=self.version, era=ERA_A, workflow="crab")
         self.assert_bundles(task)
         self.assertEqual(
-            [b.flavour for b in task.crab_workflow_requires()["bundles"]], ["core"]
+            [b.flavour for b in task.crab_workflow_requires()["bundles"]],
+            ["core", "soft"],
         )
 
     def test_crab_with_bundles_on_htcondor(self):
@@ -789,6 +796,14 @@ class LiftKeepsEveryRequirement(_TwoEras):
             sorted(b.era[0] for b in lifted["bundles"]), [ERA_A] * 3 + [ERA_B] * 3
         )
 
+    def test_a_branch_requires_the_cache_of_its_dependency(self):
+        self.met(ERA_A)
+        branch = analysis.AnalysisCacheTask(
+            version=self.version, era=ERA_A, producer_to_run="P2", workflow="local"
+        ).req_branch(1)
+        dependency = branch.requires()["anaCaches"]["P1"]
+        self.assertEqual((dependency.producer_to_run, dependency.branch), ("P1", 1))
+
     def test_a_body_with_branch_tasks_a_list_and_a_workflow(self):
         root = self.root(analysis.AnalysisCacheTask, producer_to_run="P2")
         merge = {
@@ -838,7 +853,11 @@ class LiftKeepsEveryRequirement(_TwoEras):
         # Run3_2022's requirement covers its whole map, and over one era it is kept as it is
         self.assertEqual(
             set(merges[0].get_branch_map()),
-            set(merges[0].req(merges[0], branches=()).get_branch_map()),
+            set(
+                merges[0]
+                .req(merges[0], branches=(), _skip_task_excludes=True)
+                .get_branch_map()
+            ),
         )
         single_b = root.single(ERA_B).stage_workflow_requires()["anaTuple"]
         self.assertEqual(
@@ -846,7 +865,11 @@ class LiftKeepsEveryRequirement(_TwoEras):
         )
         self.assertLess(
             len(numbers(single_b.branches)),
-            len(single_b.req(single_b, branches=()).get_branch_map()),
+            len(
+                single_b.req(
+                    single_b, branches=(), _skip_task_excludes=True
+                ).get_branch_map()
+            ),
         )
 
     def test_different_parameters_stay_apart(self):
@@ -1495,7 +1518,7 @@ class TheRequirementPathOverTwoEras(_TwoEras):
                 )
                 self.assertEqual(
                     sorted(b.era for b in both.workflow_requires()["bundles"]),
-                    [(ERA_A,), (ERA_B,)],
+                    [(ERA_A,), (ERA_A,), (ERA_B,), (ERA_B,)],
                 )
         done = HelloWorldTask(version=self.version, era=ERA_A, branch=0)
         write(done.output().abspath, "hello")
@@ -1507,10 +1530,12 @@ class TheRequirementPathOverTwoEras(_TwoEras):
                 )
                 self.assertEqual(
                     [(b.flavour, b.era) for b in root.workflow_requires()["bundles"]],
-                    [("core", (ERA_B,))],
+                    [("core", (ERA_B,)), ("soft", (ERA_B,))],
                 )
                 proxy_reqs = root.workflow_proxy.requires()
-                self.assertEqual([b.era for b in proxy_reqs["bundles"]], [(ERA_B,)])
+                self.assertEqual(
+                    [b.era for b in proxy_reqs["bundles"]], [(ERA_B,), (ERA_B,)]
+                )
 
 
 class SchedulingIsTheUnionOfTheEras(_Scratch):

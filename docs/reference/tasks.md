@@ -121,6 +121,17 @@ local `data/` area, where `AnaTupleMergeTask` reads it to build its branch map (
 analysis tasks' branch maps are built in turn). Both are pulled
 in automatically; you rarely call them directly.
 
+The same copy is made without running `AnaTupleFileListTask` when a checkout reuses an existing
+production (`--anaTuple-version`/`--ana-version` with `fs_anaTuple` at its storage, see
+[Per-task version overrides](../workflow/arguments.md#per-task-version-overrides)): as soon as a
+task built from the plans is scheduled or its status printed, the plans missing from `data/` are
+copied there, several at a time, if all of that version's plans exist on `fs_anaTuple`. So the
+first `--print-status` in a new checkout writes into `data/` once. If they do not all exist,
+nothing is copied and the downstream tasks require the whole upstream chain. Batch jobs never
+copy; they read the plans from the `AnaTupleFileList` bundle or the shared data area. A copy goes
+through a temporary file beside its output, renamed onto it, so an interrupted copy never leaves a
+partial plan that counts as complete.
+
 ### `AnaTupleMergeTask`
 Merges per-file anaTuples according to the merge plan. **One branch per merge-plan item**; each
 writes one or more files of about `nEventsPerFile` events, `anaTuple_<N>.root` under
@@ -170,11 +181,22 @@ chunk of input files and fills every active variable, one output file per variab
 their files into chunks.
 
 If the number of histograms booked in one RDataFrame pass — variables × selections ×
-(Central + every Up/Down) — exceeds `hist_from_ntuple_max_hists` (default `4000`), the
+(Central + every Up/Down) — exceeds `hist_from_ntuple_max_hists` (default `30000`), the
 producer repeats the event loop in batches instead of holding every histogram at once.
-That keeps CI (8 GiB) from running out of memory when uncertainties are on. Set the
-threshold in `global.yaml` / `user_custom.yaml`, or pass `--max-hists` to the producer
-(`0` disables batching). LAW branches stay file-chunks; batching is inside the job.
+Every pass costs a full graph build and event loop, so the count is kept high: memory is bounded
+by the memory budget below. Set the threshold in `global.yaml` / `user_custom.yaml`, or pass
+`--max-hists` to the producer (`0` removes the count cap; a single pass needs both caps at `0`).
+LAW branches stay file-chunks; batching is inside the job.
+
+A count does not bound memory by itself: RDataFrame keeps one copy of every booked histogram
+per thread slot (`--nMT`; on HTCondor/CRAB the task runs one thread per requested core,
+`nMT = n_cpus`, and 8 locally), and a 2D histogram can have a hundred times the cells of a 1D
+one. A batch therefore also stays within `hist_from_ntuple_max_hist_memory_mb` (default
+`1500`), counted per histogram as a fixed ~6 kB (the booked action) plus cells × 16 B for each
+thread slot. Variables are packed largest first, so large 2D/3D variables share passes with the
+1D ones; a variable that alone exceeds the budget is split over its selections and Up/Down.
+Pass `--max-hist-memory-mb` to the producer to override it (`0` disables it). Each batch's line
+in the log gives its histograms, cells and estimated memory.
 
 - **Parameters:** `--variables` (string; restrict which variables), `--n-files-per-job` (int,
   default `20`; input files processed per branch).
@@ -224,7 +246,9 @@ on the variables of the active histTuple flavour; also for an `is_global` produc
 correction names as its `normCacheProducer` (through `AnalysisCacheAggregationTask` when the
 producer also sets `needs_aggregation`). A producer's `dependencies` run first, and its
 `n_cpus`, `max_runtime` (default 2 h), `crab_memory` (CRAB memory in MB, [default](../workflow/crab.md#resources) the most CRAB grants for the cores; it overrides `--AnalysisCacheTask-crab-memory`), `save_as` (file type, default `root`) and `cmssw_env`
-(run inside CMSSW) come from its `payload_producers` entry.
+(run inside CMSSW) come from its `payload_producers` entry. A producer that runs an ONNX model
+creates its sessions with `FLAF.Common.OnnxSession`, so that its outputs do not depend on the core
+count of the node ([NN outputs and the CPU of the node](../concepts/environment.md#nn-outputs-and-the-cpu-of-the-node)).
 
 - **Parameter:** `--producer-to-run` (which payload producer to run; required).
 - **Caveat:** on a cold cache this can be **time-consuming** (≈ 1 h per branch). Reuse it across
@@ -264,6 +288,23 @@ per variable, skipping variables configured with `plot_task: false`).
   `<version>/Plots/<meta-era>/…`, with the processes and uncertainty sources of every era of the
   group and the labels of `config/plot/<meta-era>.yaml`. See
   [Meta-eras](../concepts/eras.md#meta-eras).
+- **Blinding** (per variable, in `config/plot/histograms.yaml`): `blind: true` shows no data on
+  the plots of the variable outside the `plot_control_regions` (below). `blind_ranges` hides
+  the data points inside windows of its x axis,
+  in the plot and in the ratio panel, in every region, control regions included: one window
+  `[lo, hi]` or a list of them, `[[lo, hi], ...]`, with numbers `lo < hi`. A bin is hidden when it overlaps a window by more
+  than a point — partly overlapping bins included, while a bin that ends at `lo` or starts at
+  `hi` is shown — and so is a bin into which the rebinning (`x_rebin`) or the overflow merge
+  moves events of a stored bin that overlaps a window. `blind_ranges` is for 1D variables only.
+  Any other key starting with `blind` (in any letter case) on a variable, and any such key in
+  `data_hist` of `cms_stacked.yaml` or `<era>.yaml`, is an error, so that a key no code reads
+  cannot pass for blinding.
+
+  ```yaml
+  m_mumu(_.*)?:
+    x_bins: "1500|0:300"
+    blind_ranges: [ 115, 135 ]          # or [ [ 115, 120 ], [ 130, 135 ] ]
+  ```
 
 Plot styling comes from the analysis `config/plot/*.yaml` files (`cms_stacked.yaml`,
 `histograms.yaml`, `<era>.yaml`), read as the legacy renderer read them. The CMS label line draws

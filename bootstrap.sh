@@ -47,6 +47,7 @@ action() {
         fi
     fi
 
+    local env_script
     if [ -n "${bundle_list}" ]; then
         local gfal_copy_bin
         gfal_copy_bin=$(which gfal-copy 2>/dev/null)
@@ -156,13 +157,7 @@ action() {
         # Ensure no leftover AFS CMSSW_BASE from the pilot / prior steps.
         unset CMSSW_BASE CMSSW_RELEASE_BASE RELEASETOP LOCALTOP 2>/dev/null || true
         export FLAF_NO_INSTALL=1
-        source "${bundle_dir}/env.sh"
-        # After env.sh, force CMSSW_BASE to the bundled release when present so
-        # subprocesses (includeLibTool, HHbtag models) never see an AFS path.
-        if [ -n "${FLAF_CMSSW_BASE:-}" ] && [ -d "${FLAF_CMSSW_BASE}" ]; then
-            export CMSSW_BASE="${FLAF_CMSSW_BASE}"
-            echo "bootstrap: CMSSW_BASE=${CMSSW_BASE}"
-        fi
+        env_script="${bundle_dir}/env.sh"
     else
         if [ "${analysis_path}" = "NONE" ]; then
             echo "ERROR: analysis_path is NONE but no bundle_list was provided"
@@ -178,7 +173,33 @@ action() {
         local corrections_path="{{corrections_path}}"
         [ -n "${flaf_path}" ] && export FLAF_PATH="${flaf_path}"
         [ -n "${corrections_path}" ] && export CORRECTIONS_PATH="${corrections_path}"
-        source "${analysis_path}/env.sh"
+        env_script="${analysis_path}/env.sh"
+    fi
+
+    # env.sh stops on an error with `kill -INT $$`. Where law runs the job in this shell (HTCondor),
+    # the signal would end it before law stages the job's log out: it is caught here. Where law runs
+    # the job in a pipeline to keep a log file (CRAB), `$$` is another shell and env.sh goes on. In
+    # either case the bootstrap fails unless env.sh exported FLAF_ENV_LOADED=1, which it does only
+    # once nothing has refused, so that law ends the job through its own failure path (exit code
+    # 20), stageout included. The analysis env.sh returns 0 whatever FLAF/env.sh did.
+    unset FLAF_ENV_LOADED
+    local env_sh_status=0
+    trap 'env_sh_status=130' INT
+    source "${env_script}" || env_sh_status=$?
+    trap - INT
+    if [ ${env_sh_status} -eq 0 ] && [ "${FLAF_ENV_LOADED:-}" != "1" ]; then
+        env_sh_status=1
+    fi
+    if [ ${env_sh_status} -ne 0 ]; then
+        echo "ERROR: ${env_script} did not load the environment (status ${env_sh_status})"
+        return ${env_sh_status}
+    fi
+
+    # After env.sh, force CMSSW_BASE to the bundled release when present so
+    # subprocesses (includeLibTool, HHbtag models) never see an AFS path.
+    if [ -n "${bundle_list}" ] && [ -n "${FLAF_CMSSW_BASE:-}" ] && [ -d "${FLAF_CMSSW_BASE}" ]; then
+        export CMSSW_BASE="${FLAF_CMSSW_BASE}"
+        echo "bootstrap: CMSSW_BASE=${CMSSW_BASE}"
     fi
 
     # Re-assert after env.sh (Rucio cvmfs init may re-read USER on some pilots).

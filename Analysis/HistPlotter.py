@@ -9,6 +9,7 @@ if __name__ == "__main__":
 
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
+import FLAF.Common.PlotBlinding as PlotBlinding
 from FLAF.Common.PlotGroups import (
     GroupProcesses,
     control_regions,
@@ -18,6 +19,17 @@ from FLAF.Common.PlotGroups import (
     want_signals,
 )
 from FLAF.Common.Utilities import str_to_bool
+
+
+def _detached(hist):
+    """``hist`` out of any directory and owned by Python, so that it is freed once nothing refers to
+    it. Get() and Clone() leave a histogram to the open file, and SetDirectory(0) alone then leaves it
+    owned by nobody: every histogram read for the plots of a variable (all up/down variations of the
+    uncertainty band) stayed allocated until the job ended, ~6 GB for a 2D DNN x HME variable.
+    """
+    hist.SetDirectory(0)
+    ROOT.SetOwnership(hist, True)
+    return hist
 
 
 def GetHistName(dataset_name, dataset_type, uncName, unc_scale, global_cfg_dict):
@@ -68,8 +80,7 @@ def GetTotalUncertaintyHist(
     central_total = None
     for hist in bkg_hists.values():
         if central_total is None:
-            central_total = hist.Clone("bkg_total_unc")
-            central_total.SetDirectory(0)
+            central_total = _detached(hist.Clone("bkg_total_unc"))
         else:
             central_total.Add(hist)
     if central_total is None:
@@ -92,16 +103,19 @@ def GetTotalUncertaintyHist(
                     obj = dir_1.Get(hist_name)
                     if not obj or not obj.IsA().InheritsFrom(ROOT.TH1.Class()):
                         continue
-                    obj.SetDirectory(0)
+                    _detached(obj)
                     varied_hist = rebin_fn(obj, hist_name)
+                    if varied_hist is not obj:
+                        _detached(varied_hist)
                     found_any = True
                 else:
                     # No variation stored for this process (e.g. data-driven QCD):
                     # it simply does not move under this source.
                     varied_hist = central_hist
                 if varied_total is None:
-                    varied_total = varied_hist.Clone(f"{unc_name}_{scale}_total")
-                    varied_total.SetDirectory(0)
+                    varied_total = _detached(
+                        varied_hist.Clone(f"{unc_name}_{scale}_total")
+                    )
                 else:
                     varied_total.Add(varied_hist)
             if found_any and varied_total is not None:
@@ -244,6 +258,9 @@ if __name__ == "__main__":
         page_cfg_dict = yaml.safe_load(f)
     with open(page_cfg_custom, "r") as f:
         page_cfg_custom_dict = yaml.safe_load(f)
+    PlotBlinding.check_data_style(
+        {page_cfg: page_cfg_dict, page_cfg_custom: page_cfg_custom_dict}
+    )
     inputs_cfg = os.path.join(
         os.environ["ANALYSIS_PATH"], "config", "plot", "inputs.yaml"
     )
@@ -340,6 +357,9 @@ if __name__ == "__main__":
             "scope_text": "",
         }
         var_entry = findBinEntry(hist_cfg_dict, args.var)
+        blind_windows = PlotBlinding.blind_windows(
+            args.var, var_entry, hist_cfg_dict[var_entry]
+        )
 
         # A blinded variable hides the data outside the control regions only. Without data
         # PlotKit's CMS label reads "Simulation <scope>" (both backends), so datasim_text
@@ -423,7 +443,7 @@ if __name__ == "__main__":
             obj = dir_1.Get(dataset_histname)
             if not obj.IsA().InheritsFrom(ROOT.TH1.Class()):
                 raise RuntimeError(f"{dataset_histname} in {where} is not a histogram")
-            obj.SetDirectory(0)
+            _detached(obj)
 
             if dataset_process_name in hists_to_plot_unbinned.keys():
                 print(hists_to_plot_unbinned[dataset_process_name])
@@ -443,12 +463,14 @@ if __name__ == "__main__":
         def apply_binning(hist, hist_key):
             if not rebin_condition:
                 return hist
-            return RebinHisto(
-                hist,
-                new_bins,
-                hist_key,
-                wantOverflow=args.wantOverflow,
-                verbose=False,
+            return _detached(
+                RebinHisto(
+                    hist,
+                    new_bins,
+                    hist_key,
+                    wantOverflow=args.wantOverflow,
+                    verbose=False,
+                )
             )
 
         hists_to_plot_binned = {}
@@ -464,6 +486,13 @@ if __name__ == "__main__":
                 plot_color,
                 dataset_process_group,
             )
+            if dataset_process_group == "data":
+                PlotBlinding.blind_data(
+                    hists_to_plot_binned[hist_key][0],
+                    hist_unbinned,
+                    blind_windows,
+                    apply_binning,
+                )
 
         # Full (stat + syst) uncertainty on the background stack, from the up/down
         # variations stored alongside the central histograms.

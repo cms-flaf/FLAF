@@ -54,12 +54,17 @@ class TestSaveHistOwnership(unittest.TestCase):
         # HistHelper.GetModel builds unnamed models, which is what makes an
         # auto-registered histogram a *stray unnamed* object in the output file.
         self.model = ROOT.RDF.TH2DModel("", "", 4, 0.0, 1.0, 3, 0.0, 300.0)
-        self.unit_hist = ROOT.TH2D("unit", "unit", 4, 0.0, 1.0, 3, 0.0, 300.0)
-        self.unit_hist.SetDirectory(0)
-        for i in range(self.unit_hist.GetNcells()):
-            self.unit_hist.SetBinContent(i, 0.5 * i)
-            self.unit_hist.SetBinError(i, 0.25 * i)
-        self.unit_hist.SetEntries(17)
+        # As in production: the unit-bin histogram is an RDataFrame result (RResultPtr),
+        # filled with weights; 17 entries spread over the 4 x 3 bins and their flows.
+        unit_model = ROOT.RDF.TH2DModel("", "", 4, -0.5, 3.5, 3, -0.5, 2.5)
+        self.unit_hist = (
+            ROOT.RDataFrame(17)
+            .Define("bx", "int(rdfentry_ % 6) - 1")
+            .Define("by", "int(rdfentry_ % 5) - 1")
+            .Define("w", "0.5 + 0.25 * rdfentry_")
+            .Histo2D(unit_model, "bx", "by", "w")
+        )
+        self.unit_hist.GetValue()
 
     def tearDown(self):
         if self.out_file and self.out_file.IsOpen():
@@ -120,10 +125,11 @@ class TestSaveHistOwnership(unittest.TestCase):
 
     def test_written_contents_match_the_unit_histogram(self):
         written = self._save()
-        self.assertEqual(written.GetNcells(), self.unit_hist.GetNcells())
-        for i in range(self.unit_hist.GetNcells()):
-            self.assertAlmostEqual(written.GetBinContent(i), 0.5 * i)
-            self.assertAlmostEqual(written.GetBinError(i), 0.25 * i)
+        unit = self.unit_hist.GetValue()
+        self.assertEqual(written.GetNcells(), unit.GetNcells())
+        for i in range(unit.GetNcells()):
+            self.assertEqual(written.GetBinContent(i), unit.GetBinContent(i))
+            self.assertEqual(written.GetBinError(i), unit.GetBinError(i))
         self.assertEqual(written.GetEntries(), 17)
 
     def test_output_file_holds_only_the_named_histogram(self):

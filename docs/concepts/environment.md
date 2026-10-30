@@ -33,6 +33,12 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
    written again at the same time, so edits made to it by hand do not survive a version change.
 4. **Sets up grid access** — points `X509_USER_PROXY` at `data/voms.proxy` (unless it is already
    set) and initialises Rucio, pinned to the version in `FLAF_RUCIO_VERSION` (default `39.2.0`).
+   It also sets `GFAL_PYTHONBIN=/usr/bin/python3` (unless already set), so that the system
+   `gfal-*` commands (`gfal-ls`, `gfal-copy`, …) work in the shell: they look for a python that
+   has the gfal2 bindings, which the one of `flaf_env` does not have, and otherwise fail with
+   `/usr/bin/python: No such file or directory`. Where `/usr/bin/python3` cannot import them
+   either, `env.sh` prints a warning instead. Inside a law batch job it does neither; FLAF runs its
+   own `gfal-*` calls with an environment of their own.
 5. **Defines the `cmsEnv` helper** (see below).
 
 !!! note "First source is slow, the rest are fast"
@@ -101,12 +107,14 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
 | `ANALYSIS_DATA_PATH` | The local `data/` working area. |
 | `X509_USER_PROXY` | Your VOMS proxy (default `data/voms.proxy`; a value set before sourcing is kept). |
 | `LAW_HOME` / `LAW_CONFIG_FILE` | LAW's home (`.law`) and config (`config/law.cfg`). |
+| `TF_ENABLE_ONEDNN_OPTS` | Set to `0` by `env.sh`, also when it was set before: TensorFlow does not switch to its oneDNN kernels on CPUs that support them (see [NN outputs and the CPU of the node](#nn-outputs-and-the-cpu-of-the-node)). |
 | `FLAF_NO_INSTALL` | When `1`, `env.sh` refuses to build or change anything (a `flaf_env` without the marker of the current `run_tools/mk_flaf_env.sh` included) and skips CMSSW/Combine entirely if no CMSSW area is present. Set by the bootstrap of bundle jobs, which have a CMSSW area only when the `cmssw` flavour is shipped. |
+| `FLAF_ENV_LOADED` | Set to `1` by `env.sh` at the end of a load in which nothing refused, and cleared when a load starts. A batch job's bootstrap requires it: a job whose `env.sh` refused fails its bootstrap (law exit code 20) with its log staged, on HTCondor and on CRAB alike. |
 
 ## `cmsEnv`: running inside CMSSW
 
 Some commands must run inside the CMSSW runtime. The `cmsEnv` alias runs a command in a clean
-shell with just the CMSSW variables set:
+shell with just the CMSSW variables (and `TF_ENABLE_ONEDNN_OPTS`) set:
 
 ```sh
 cmsEnv python3 my_cmssw_script.py
@@ -168,6 +176,52 @@ flowchart TD
     `flaf_env` is identified by the `run_tools/mk_flaf_env.sh` of `FLAF_PATH`. When the overlay
     and the submodule copy differ there (an overlay with a moved pin, say), every `source env.sh`
     that switches between the two deletes and rebuilds `soft/flaf_env`.
+
+## NN outputs and the CPU of the node
+
+The same job on the same inputs can give NN outputs that differ in the last digits from one batch
+node to another (HHbtag scores by up to about 2e-5, DeepHME momenta by about 1e-5 relative), while
+every other column is identical. HHbtag also chooses the H→bb̄ jet pair, so on a near tie a
+different result can change the pair. The environment removes two of the causes:
+
+- **TensorFlow** decides per CPU whether it runs its oneDNN kernels: they are on only on CPUs with
+  AVX512_VNNI, AVX_VNNI, AVX512_BF16 or AMX (many `x86_64-v4` nodes, also some lxplus nodes). `env.sh`
+  exports `TF_ENABLE_ONEDNN_OPTS=0`, which turns them off in `flaf_env`; the CMSSW environment of the
+  tasks (`Setup.cmssw_env`, which starts from an empty environment, e.g. for HHbtag in the HH→bb̄ττ
+  AnaTuple production) and `cmsEnv` set the same. A script that builds an environment of its own
+  from scratch has to set it as well.
+- **ONNX Runtime** with its default options starts one thread per physical core of the host,
+  whatever the slot of the job, and how the work is split across the threads changes the last bits
+  of some outputs. `FLAF.Common.OnnxSession` creates sessions with one thread:
+  `OnnxSession.make_session(model_path)`, or `OnnxSession.session_options()` for code that creates
+  its sessions itself (DeepHME takes them as `session_options`). A payload producer that runs an
+  ONNX model creates its sessions through it.
+
+Other causes remain, and no setting of these builds removes them:
+
+- **TensorFlow** computes reciprocals and reciprocal square roots (`Rsqrt`, softmax normalisation)
+  from the approximate AVX instructions `rcpps` and `rsqrtps`, whose results differ between Intel
+  and AMD CPUs. Outputs of such models, HHbtag among them, are reproducible only between nodes of
+  the same vendor (HTCondor `CpuFamily` 6 for Intel; 23, 25 and 26 for AMD).
+- **TensorFlow in `flaf_env`** (the HH→bb̄ττ DNN) runs its matrix products through oneDNN routines
+  that choose AVX-512 code on CPUs that have it, so its outputs also depend on the `Microarch` level.
+- **ONNX Runtime** chooses its kernels by the instruction set of the CPU: AVX-512 kernels on a CPU
+  that has AVX-512 (HTCondor `Microarch == "x86_64-v4"`), AVX2 ones on `x86_64-v3`, so **ONNX
+  outputs are reproducible only between nodes of the same `Microarch` level**.
+
+One more cause is not removed, although a setting removes it: **TensorFlow in `flaf_env`** spreads
+its work over one thread per core of the host, as ONNX Runtime does with its default options, and
+the number of threads changes the outputs. A fixed number of threads removes this
+(`TF_NUM_INTRAOP_THREADS=1` and `TF_NUM_INTEROP_THREADS=1` in the environment, or
+`tf.config.threading.set_intra_op_parallelism_threads(1)` and
+`set_inter_op_parallelism_threads(1)` before the first operation). `env.sh` does not set it, as it
+would also slow down training in `flaf_env`, so the HH→bb̄ττ DNN still depends on the core count of
+the node.
+
+To check that two productions are identical, compare the NN columns with a tolerance and every
+other column exactly, except in the events where HHbtag chose another b-jet pair (the columns of
+the pair and those built from it change there); or compare outputs of jobs that ran on the same
+kind of CPU.
 
 ## Sharp edges
 

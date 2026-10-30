@@ -272,57 +272,118 @@ if __name__ == "__main__":
     # print(dataset_cfg_dict)
 
     all_hists_dict = {}
-    all_signal_hist_dict = {}
-    signal_tree_sources = {}
     all_datasets = args.dataset_names.split(",")
-    for dataset_name, inFile_path in zip(all_datasets, args.inFiles):
-        if not os.path.exists(inFile_path):
-            print(
-                f"input file for dataset {dataset_name} (with path= {inFile_path}) does not exist, skipping"
-            )
-            continue
 
+    all_unc_dict = unc_cfg_dict["norm"].copy()
+    all_unc_dict.update(unc_cfg_dict["shape"])
+
+    # Group (dataset_name, inFile_path) by dataset_type up front, no I/O needed -- so
+    # every dataset_type's signal Trees/ can be merged, written to outFile and closed
+    # before the next dataset_type's files are even opened. Keeping every signal
+    # dataset_type's files open at once (and deferring every Trees/ write to the very
+    # end) held dozens of open TTrees/compression buffers in memory simultaneously;
+    # this bounds that to one dataset_type's chunks at a time.
+    datasets_by_type = {}
+    for dataset_name, inFile_path in zip(all_datasets, args.inFiles):
         base_process_name = dataset_cfg_dict[dataset_name]["process_name"]
         dataset_type = setup.base_processes[base_process_name]["parent_process"]
+        datasets_by_type.setdefault(dataset_type, []).append(
+            (dataset_name, inFile_path)
+        )
+
+    # 209 = LZMA level 9, the standard compression for merged histogram files
+    outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)
+
+    for dataset_type, pairs in datasets_by_type.items():
         print(dataset_type)
-        if dataset_type not in all_hists_dict.keys():
-            all_hists_dict[dataset_type] = {}
+        # Signal Trees/ for this dataset_type only: sources list holds each
+        # contributing chunk's own already-open TTree object -- its source TFile is
+        # kept open (via signal_open_files) specifically so CloneTree()/MergeTrees()
+        # below works without re-reading anything from disk, and closed again right
+        # after, before the next dataset_type's files are opened.
+        signal_tree_sources = {}
+        all_signal_hist_dict = {}
+        signal_open_files = []
 
-        with ROOT.TFile.Open(inFile_path, "READ") as inFile:
-            # check that the file is ok
-            if inFile.IsZombie():
-                raise RuntimeError(f"{inFile_path} is zombie")
-            if not checkFile(inFile, channels, regions, all_categories):
-                raise RuntimeError(f"{dataset_name} has void file")
-            all_items = get_all_items_recursive(inFile)
-            fill_hists(
-                all_items,
-                all_hists_dict,
-                dataset_type,
-                args.var,
-                unc_sources,
-                data_process_name,
+        for dataset_name, inFile_path in pairs:
+            if not os.path.exists(inFile_path):
+                print(
+                    f"input file for dataset {dataset_name} (with path= {inFile_path}) does not exist, skipping"
+                )
+                continue
+
+            inFile = ROOT.TFile.Open(inFile_path, "READ")
+            keep_open = False
+            try:
+                # check that the file is ok
+                if inFile.IsZombie():
+                    raise RuntimeError(f"{inFile_path} is zombie")
+                if not checkFile(inFile, channels, regions, all_categories):
+                    raise RuntimeError(f"{dataset_name} has void file")
+                all_items = get_all_items_recursive(inFile)
+                fill_hists(
+                    all_items,
+                    all_hists_dict,
+                    dataset_type,
+                    args.var,
+                    unc_sources,
+                    data_process_name,
+                )
+
+                signal_trees_in_file = get_all_signal_trees_recursive(inFile)
+                if signal_trees_in_file:
+                    keep_open = True
+                    signal_open_files.append(inFile)
+                for key_tuple, tree_map in signal_trees_in_file.items():
+                    for name, tree_obj in tree_map.items():
+                        unc_scale = resolve_unc_scale(name, args.var, unc_sources)
+                        if unc_scale is None:
+                            continue
+                        bucket = signal_tree_sources.setdefault(dataset_type, {})
+                        bucket.setdefault((key_tuple, unc_scale), []).append(tree_obj)
+                        hist = unwrap_hist_from_tree(tree_obj)
+                        fill_hists(
+                            {key_tuple: {name: hist}},
+                            all_signal_hist_dict,
+                            dataset_type,
+                            args.var,
+                            unc_sources,
+                            data_process_name,
+                        )
+            finally:
+                if not keep_open:
+                    inFile.Close()
+
+        # Write and release this dataset_type's signal Trees/ now, instead of
+        # deferring every dataset_type's trees to one pass after every input file in
+        # the whole batch has been read.
+        bucket = signal_tree_sources.get(dataset_type, {})
+        for (key_dir, unc_scale), sources in bucket.items():
+            uncName, uncScale = unc_scale
+            hist_name = resolve_merged_hist_name(
+                dataset_type, uncName, uncScale, unc_sources, all_unc_dict
             )
+            if hist_name is None:
+                continue
+            tree_dir = Utilities.mkdir(outFile, "/".join(key_dir) + "/Trees")
+            tree_dir.cd()
+            if len(sources) == 1:
+                cloned_tree = sources[0].CloneTree(-1, "fast")
+            else:
+                tlist = ROOT.TList()
+                for t in sources:
+                    tlist.Add(t)
+                cloned_tree = ROOT.TTree.MergeTrees(tlist)
+            cloned_tree.SetName(hist_name)
+            cloned_tree.SetTitle(hist_name)
+            hist = all_signal_hist_dict.get(dataset_type, {}).get((key_dir, unc_scale))
+            if hist is not None:
+                wrap_hist_in_tree(hist, hist_name, base_tree=cloned_tree)
+            tree_dir.WriteTObject(cloned_tree, hist_name, "Overwrite")
 
-            signal_trees_in_file = get_all_signal_trees_recursive(inFile)
-            for key_tuple, tree_map in signal_trees_in_file.items():
-                for name, tree_obj in tree_map.items():
-                    unc_scale = resolve_unc_scale(name, args.var, unc_sources)
-                    if unc_scale is None:
-                        continue
-                    bucket = signal_tree_sources.setdefault(dataset_type, {})
-                    bucket.setdefault((key_tuple, unc_scale), []).append(
-                        (inFile_path, "/".join(key_tuple) + "/Trees/" + name)
-                    )
-                    hist = unwrap_hist_from_tree(tree_obj)
-                    fill_hists(
-                        {key_tuple: {name: hist}},
-                        all_signal_hist_dict,
-                        dataset_type,
-                        args.var,
-                        unc_sources,
-                        data_process_name,
-                    )
+        for f in signal_open_files:
+            f.Close()
+
     alias_data_variations(all_hists_dict, data_process_name, unc_sources)
 
     # here there should be the custom applications - e.g. GetBTagWeightDict, AddQCDInHistDict, etc.
@@ -364,32 +425,6 @@ if __name__ == "__main__":
                 wantNegativeContributions=False,
             )
 
-    all_unc_dict = unc_cfg_dict["norm"].copy()
-    all_unc_dict.update(unc_cfg_dict["shape"])
-
-    # Signal Trees/<hist_name>: for each (dataset_type, key_dir, unc_scale) group,
-    # the sources list holds every contributing chunk's own in-file tree (all sharing
-    # the exact same in-file name, since they all came from the same producer
-    # var/unc/scale combo). Resolve the merged hist_name the same way the plain-
-    # histogram loop below does, so both agree on the name for the same
-    # (dataset_type, uncName, uncScale).
-    signal_tree_groups = (
-        []
-    )  # (key_dir, hist_name, [file_path, ...], dataset_type, unc_scale)
-    for dataset_type, bucket in signal_tree_sources.items():
-        for (key_dir, unc_scale), sources in bucket.items():
-            uncName, uncScale = unc_scale
-            hist_name = resolve_merged_hist_name(
-                dataset_type, uncName, uncScale, unc_sources, all_unc_dict
-            )
-            if hist_name is None:
-                continue
-            signal_tree_groups.append(
-                (key_dir, hist_name, sources, dataset_type, unc_scale)
-            )
-
-    # 209 = LZMA level 9, the standard compression for merged histogram files
-    outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)
     for dataset_type in all_hists_dict.keys():
         for key in all_hists_dict[dataset_type].keys():
             key_dir, (uncName, uncScale) = key
@@ -406,24 +441,6 @@ if __name__ == "__main__":
             hist.SetTitle(hist_name)
             hist.SetName(hist_name)
             dir_ptr.WriteTObject(hist, hist_name, "Overwrite")
-
-    # Concatenate each group's rows via a pure-ROOT TChain (not uproot): mixing an
-    # uproot-written tree with a same-process PyROOT re-read of it crashes (streamer/
-    # class-resolution mismatch inside TDirectoryFile::Get) -- TChain avoids this by
-    # never involving uproot at all, matching the producer's own CloneTree approach.
-    for key_dir, hist_name, sources, dataset_type, unc_scale in signal_tree_groups:
-        chain = ROOT.TChain(sources[0][1])
-        for file_path, _ in sources:
-            chain.Add(file_path)
-        tree_dir = Utilities.mkdir(outFile, "/".join(key_dir) + "/Trees")
-        tree_dir.cd()
-        cloned_tree = chain.CloneTree(-1, "fast")
-        cloned_tree.SetName(hist_name)
-        cloned_tree.SetTitle(hist_name)
-        hist = all_signal_hist_dict.get(dataset_type, {}).get((key_dir, unc_scale))
-        if hist is not None:
-            wrap_hist_in_tree(hist, hist_name, base_tree=cloned_tree)
-        tree_dir.WriteTObject(cloned_tree, hist_name, "Overwrite")
 
     outFile.Close()
 

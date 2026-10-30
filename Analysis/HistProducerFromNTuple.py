@@ -15,10 +15,17 @@ from FLAF.RunKit.run_tools import ps_call
 from FLAF.Analysis.HistTupleProducer import DefineBinnedColumn
 from FLAF.Analysis.histFromNtupleBatch import (
     count_booked_hists,
+    hist_bytes,
     iter_hist_batches,
+    memory_budget,
     n_cut_slots,
     unc_scale_pairs,
 )
+
+# Memory (MB) the histograms booked in one pass may take, every thread slot's copy and the fixed
+# cost of each booked action included, unless hist_from_ntuple_max_hist_memory_mb or
+# --max-hist-memory-mb says otherwise. It is what bounds the large 2D/3D variables.
+DEFAULT_MAX_HIST_MEMORY_MB = 1500
 
 
 def find_keys(inFiles_list):
@@ -31,6 +38,18 @@ def find_keys(inFiles_list):
             unique_keys.add(key.GetName())
         rf.Close()
     return sorted(unique_keys)
+
+
+ROOT.gInterpreter.Declare("""
+    // Copy the first n cells of src into dst, contents and errors, flows included; the caller
+    // sets the entries.
+    void copyHistCells(const TH1& src, TH1& dst, int n) {
+        for (int i = 0; i < n; ++i) {
+            dst.SetBinContent(i, src.GetBinContent(i));
+            dst.SetBinError(i, src.GetBinError(i));
+        }
+    }
+    """)
 
 
 def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
@@ -49,21 +68,13 @@ def SaveHist(key_tuple, outFile, hist_list, hist_name, unc, scale, verbose=0):
         if hasattr(unit_hist, "GetNbins")
         else unit_hist.GetNcells()
     )
-    for i in range(0, N_bins):
-        bin_content = unit_hist.GetBinContent(i)
-        bin_error = unit_hist.GetBinError(i)
-        merged_hist.SetBinContent(i, bin_content)
-        merged_hist.SetBinError(i, bin_error)
+    ROOT.copyHistCells(unit_hist.GetValue(), merged_hist, N_bins)
 
     nentries = unit_hist.GetEntries()
     if len(hist_list) > 1:
         for model, unit_hist in hist_list[1:]:
             hist = model.GetHistogram()
-            for i in range(0, N_bins):
-                bin_content = unit_hist.GetBinContent(i)
-                bin_error = unit_hist.GetBinError(i)
-                hist.SetBinContent(i, bin_content)
-                hist.SetBinError(i, bin_error)
+            ROOT.copyHistCells(unit_hist.GetValue(), hist, N_bins)
             nentries += unit_hist.GetEntries()
             merged_hist.Add(hist)
 
@@ -99,6 +110,18 @@ def BookUnitHist(rdf_filtered, var, weight_name):
     mkhist_fn = getattr(rdf_filtered, f"Histo{dims}D")
     unit_hist = mkhist_fn(unit_bin_model, *var_bin_list, weight_name)
     return model, unit_hist
+
+
+def VarCells(hist_cfg, var):
+    """Cells of one histogram of ``var`` as booked (its unit-bin model, flows included):
+    what each thread holds a copy of."""
+    var_entry = HistHelper.findBinEntry(hist_cfg, var)
+    var_list = hist_cfg[var_entry].get("var_list")
+    dims = len(var_list) if var_list else 1
+    _, unit_bin_model = HistHelper.GetModel(
+        hist_cfg, var, dims, return_unit_bin_model=True
+    )
+    return unit_bin_model.GetHistogram().GetNcells()
 
 
 def _make_save_fn(key_tuple, outFile, model, unit_hist, rdf, var, unc, scale):
@@ -244,7 +267,13 @@ if __name__ == "__main__":
     )
     parser.add_argument("--furtherCut", type=str, default=None)
     parser.add_argument("--LAWrunVersion", required=True, type=str)
-    parser.add_argument("--nMT", type=int, default=8)
+    parser.add_argument(
+        "--nMT",
+        type=int,
+        default=1,
+        help="Threads of the event loop: 1 (default) runs without implicit MT, 0 uses all "
+        "cores (EnableImplicitMT(0)).",
+    )
     parser.add_argument("--user-custom", type=str, default=None)
     parser.add_argument(
         "--max-hists",
@@ -252,11 +281,25 @@ if __name__ == "__main__":
         default=None,
         help="Max histograms booked in one RDataFrame pass, counting every "
         "(variable, selection, unc, scale) including Up/Down. "
-        "0 disables batching. Default: hist_from_ntuple_max_hists from config, else 4000.",
+        "0 removes the count cap; a single pass also needs --max-hist-memory-mb 0. "
+        "Default: hist_from_ntuple_max_hists from config, else 30000.",
+    )
+    parser.add_argument(
+        "--max-hist-memory-mb",
+        type=float,
+        default=None,
+        help="Max memory (MB) of the histograms booked in one RDataFrame pass: every "
+        "thread slot's copy of their cells, plus a fixed cost per booked histogram. Large "
+        "2D/3D variables get smaller passes. 0 disables it. Default: "
+        "hist_from_ntuple_max_hist_memory_mb from config, else "
+        f"{DEFAULT_MAX_HIST_MEMORY_MB}.",
     )
     args = parser.parse_args()
 
-    ROOT.EnableImplicitMT(args.nMT)
+    if args.nMT != 1:
+        ROOT.EnableImplicitMT(max(0, args.nMT))
+    # thread slots the event loop fills: one copy of every booked histogram each
+    n_slots = ROOT.GetThreadPoolSize() if ROOT.IsImplicitMTEnabled() else 1
 
     start = time.time()
 
@@ -394,7 +437,20 @@ if __name__ == "__main__":
         if args.max_hists is not None:
             max_hists = args.max_hists
         else:
-            max_hists = int(setup.global_params.get("hist_from_ntuple_max_hists", 4000))
+            max_hists = int(
+                setup.global_params.get("hist_from_ntuple_max_hists", 30000)
+            )
+        if args.max_hist_memory_mb is not None:
+            max_memory_mb = args.max_hist_memory_mb
+        else:
+            max_memory_mb = float(
+                setup.global_params.get(
+                    "hist_from_ntuple_max_hist_memory_mb", DEFAULT_MAX_HIST_MEMORY_MB
+                )
+            )
+        max_bytes = memory_budget(max_memory_mb)
+        var_cells = {var: VarCells(hist_cfg_dict, var) for var in vars_to_process}
+        var_bytes = {var: hist_bytes(var_cells[var], n_slots) for var in var_cells}
         n_total = count_booked_hists(
             max(1, len(vars_to_process)),
             max(1, len(key_filter_dict)),
@@ -408,6 +464,8 @@ if __name__ == "__main__":
                 further_cuts,
                 vars_to_process,
                 max_hists,
+                var_bytes=var_bytes,
+                max_bytes=max_bytes,
             )
         )
         print(
@@ -415,7 +473,8 @@ if __name__ == "__main__":
             f"({len(vars_to_process)} vars × {len(key_filter_dict)} keys × "
             f"{n_cut_slots(further_cuts)} cuts × "
             f"{len(unc_scale_pairs(uncs_to_compute))} unc/scales); "
-            f"max_hists={max_hists} → {len(batches)} batch(es)"
+            f"max_hists={max_hists}, max hist memory {max_memory_mb:g} MB with "
+            f"{n_slots} thread slot(s) → {len(batches)} batch(es)"
         )
 
         signal_extra_snap_info = {}
@@ -434,13 +493,19 @@ if __name__ == "__main__":
             )
 
         for batch_idx, (b_uncs, b_keys, b_cuts, b_vars) in enumerate(batches, start=1):
-            n_batch = count_booked_hists(
-                max(1, len(b_vars)),
+            n_per_var = count_booked_hists(
+                1,
                 max(1, len(b_keys)),
                 n_cut_slots(b_cuts),
                 max(1, len(unc_scale_pairs(b_uncs))),
             )
-            print(f"Histogram batch {batch_idx}/{len(batches)}: {n_batch} hists")
+            n_batch = n_per_var * max(1, len(b_vars))
+            cells_batch = n_per_var * sum(var_cells[v] for v in b_vars)
+            memory_mb = n_per_var * sum(var_bytes[v] for v in b_vars) / 1e6
+            print(
+                f"Histogram batch {batch_idx}/{len(batches)}: {n_batch} hists, "
+                f"{cells_batch} cells, ~{memory_mb:.0f} MB with {n_slots} thread slot(s)"
+            )
             save_fns = BuildAllHistActions(
                 b_uncs,
                 unc_cfg_dict,

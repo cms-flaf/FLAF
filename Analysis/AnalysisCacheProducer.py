@@ -14,7 +14,7 @@ import inspect
 ROOT.EnableThreadSafety()
 
 from FLAF.Common.Utilities import DeclareHeader
-from FLAF.RunKit.run_tools import ps_call
+from FLAF.RunKit.run_tools import hadd_parallel
 import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
 from FLAF.Common.TupleHelpers import writeTree
@@ -367,10 +367,7 @@ if __name__ == "__main__":
 
     saveAs = producer_config.get("save_as", "root")
     if saveAs == "root":
-        # without a number, hadd -j runs in one process since ROOT 6.38
-        hadd_cmd = ["hadd", "-j", str(os.cpu_count()), "-ff", args.outFile]
-        hadd_cmd.extend(tmp_fileNames)
-        ps_call(hadd_cmd, verbose=1)
+        hadd_parallel(args.outFile, tmp_fileNames)
         if os.path.exists(args.outFile) and len(tmp_fileNames) != 0:
             for file_syst in tmp_fileNames:
                 if file_syst != args.outFile:

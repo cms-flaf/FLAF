@@ -22,8 +22,8 @@ def findBinEntry(hist_cfg_dict, var_name):
     """
     Match variable name against regex-based histogram config entries.
 
-    The answer for a (config, variable) pair is cached: the producers ask it for the same
-    variable once per booked histogram, and every miss runs one regex per config entry. An entry
+    The answer for a (config, variable) pair is cached: the producers and plotters ask it for the
+    same variable several times, and every miss runs one regex per config entry. An entry
     holds its config, so that config's id cannot be reused by another one, and a hit is only
     taken for that very config.
     """
@@ -271,19 +271,14 @@ def GetBinVec(x_bins):
     return x_bins_vec
 
 
-def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
+def GetModel(hist_cfg, var, dims):
     THModel_Inputs = []
-    unit_bin_Inputs = []
     var_entry = findBinEntry(hist_cfg, var)
     if dims == 1:
         x_bins_vec = GetBinVec(hist_cfg[var_entry]["x_bins"])
         THModel_Inputs.append(x_bins_vec.size() - 1)
         THModel_Inputs.append(x_bins_vec.data())
-        model = ROOT.RDF.TH1DModel("", "", *THModel_Inputs)
-        if not return_unit_bin_model:
-            return model
-        unit_bin_Inputs = [model.fNbinsX, -0.5, model.fNbinsX - 0.5]
-        unit_bin_model = ROOT.RDF.TH1DModel("", "", *unit_bin_Inputs)
+        return ROOT.RDF.TH1DModel("", "", *THModel_Inputs)
 
     elif (dims == 2) or (dims == 3):
         list_var_bins_vec = []
@@ -299,39 +294,11 @@ def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
             THModel_Inputs.append(var_bins_vec.size() - 1)
             THModel_Inputs.append(var_bins_vec.data())
         if dims == 2:
-            model = ROOT.RDF.TH2DModel("", "", *THModel_Inputs)
-            if not return_unit_bin_model:
-                return model
-            unit_bin_Inputs = [
-                model.fNbinsX,
-                -0.5,
-                model.fNbinsX - 0.5,
-                model.fNbinsY,
-                -0.5,
-                model.fNbinsY - 0.5,
-            ]
-            unit_bin_model = ROOT.RDF.TH2DModel("", "", *unit_bin_Inputs)
-        if dims == 3:
-            model = ROOT.RDF.TH3DModel("", "", *THModel_Inputs)
-            if not return_unit_bin_model:
-                return model
-            unit_bin_Inputs = [
-                model.fNbinsX,
-                -0.5,
-                model.fNbinsX - 0.5,
-                model.fNbinsY,
-                -0.5,
-                model.fNbinsY - 0.5,
-                model.fNbinsZ,
-                -0.5,
-                model.fNbinsZ - 0.5,
-            ]
-            unit_bin_model = ROOT.RDF.TH3DModel("", "", *unit_bin_Inputs)
+            return ROOT.RDF.TH2DModel("", "", *THModel_Inputs)
+        return ROOT.RDF.TH3DModel("", "", *THModel_Inputs)
     else:
         raise RuntimeError("nD histogram not implemented yet")
         # model = ROOT.RDF.THnDModel("", "", )
-
-    return model, unit_bin_model
 
 
 def _hist_dir_paths(root_dir, path=()):

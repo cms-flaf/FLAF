@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 import importlib
+import re
 import ROOT
 import time
 
@@ -14,20 +15,17 @@ from FLAF.Common.Setup import Setup
 from FLAF.Analysis.HistTupleProducer import DefineBinnedColumn
 from FLAF.Analysis.histFromNtupleBatch import cells_budget, fill_groups
 
-# Memory (MB) the histograms of one event loop may take unless hist_from_ntuple_max_hist_memory_mb or
-# --max-hist-memory-mb says otherwise: the 1D variables of a tree fit in one loop, large 2D/3D ones
-# get loops of their own.
+# Memory (MB) the histograms of one event loop may take, every thread slot's copy counted, unless
+# hist_from_ntuple_max_hist_memory_mb or --max-hist-memory-mb says otherwise.
 DEFAULT_MAX_HIST_MEMORY_MB = 1500
 
-ROOT.gInterpreter.Declare(
-    '#include "'
-    + os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "include",
-        "HistFiller.h",
-    )
-    + '"'
+_HIST_FILLER_H = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+    "include",
+    "HistFiller.h",
 )
+if not ROOT.gInterpreter.Declare(f'#include "{_HIST_FILLER_H}"'):
+    raise RuntimeError(f"Failed to include {_HIST_FILLER_H}")
 
 
 def find_keys(inFiles_list):
@@ -75,28 +73,37 @@ def IsVectorType(type_name):
     return "RVec" in type_name or "vector" in type_name
 
 
-def IsIntegerType(type_name):
-    base = type_name.replace("ROOT::VecOps::RVec", "").replace("std::vector", "")
-    base = base.strip("<> ").replace("const", "").replace("&", "").strip()
-    return base in (
-        "int",
-        "Int_t",
-        "unsigned int",
-        "UInt_t",
-        "short",
-        "Short_t",
-        "unsigned short",
-        "UShort_t",
-        "long",
-        "Long_t",
-        "Long64_t",
-        "long long",
-        "ULong64_t",
-        "char",
-        "Char_t",
-        "unsigned char",
-        "UChar_t",
+# Element types of a bin column: integers that fit an int (include/HistFiller.h narrows them to int, so a
+# wider or an unsigned int type could land in another bin).
+BIN_COLUMN_TYPES = {
+    "bool",
+    "Bool_t",
+    "char",
+    "Char_t",
+    "signed char",
+    "unsigned char",
+    "UChar_t",
+    "short",
+    "Short_t",
+    "unsigned short",
+    "UShort_t",
+    "int",
+    "Int_t",
+}
+
+
+def ElementType(type_name):
+    """The element type of a column type: ``int`` for ``int``, ``ROOT::VecOps::RVec<int>`` or
+    ``vector<int>``."""
+    base = type_name.replace("const", "").replace("&", "").strip()
+    match = re.fullmatch(
+        r"(?:ROOT::(?:VecOps::)?RVec|(?:std::)?vector)\s*<\s*(.+?)\s*>", base
     )
+    return match.group(1) if match else base
+
+
+def IsBinColumnType(type_name):
+    return ElementType(type_name) in BIN_COLUMN_TYPES
 
 
 def TreeFills(uncs_to_compute, unc_cfg_dict, treeName):
@@ -129,18 +136,20 @@ def FillTree(
     max_cells,
 ):
     """Fill and write every (key, weight, variable) histogram of one tree, in event loops of at most
-    ``max_cells`` cells (include/HistFiller.h)."""
+    ``max_cells`` cells, every thread slot's copy counted (include/HistFiller.h)."""
     columns = {str(c): str(rdf.GetColumnType(c)) for c in rdf.GetColumnNames()}
     for _, _, weight in weights:
         if IsVectorType(columns[weight]):
             raise RuntimeError(f"{tree_name}: weight column {weight} is a vector")
+    # a key filter must be a bool, as for RDataFrame's Filter (HistFillerKey refuses anything else)
     pass_expr = (
         "ROOT::RVec<char>{"
-        + ", ".join(f"static_cast<char>(({flt}))" for _, flt in keys)
+        + ", ".join(f"analysis::HistFillerKey(({flt}))" for _, flt in keys)
         + "}"
     )
     var_cells = {var: ModelCells(var_models[var][0]) for var in vars_to_process}
-    groups = fill_groups(var_cells, len(keys), len(weights), max_cells)
+    n_slots = rdf.GetNSlots()  # each fills its own copy of a loop's histograms
+    groups = fill_groups(var_cells, len(keys), len(weights), max_cells, n_slots)
     for group_vars, (w_first, w_end) in groups:
         group_weights = weights[w_first:w_end]
         scalar_cols, vector_cols = [], []
@@ -150,9 +159,10 @@ def FillTree(
             is_vector, index = [], []
             for col in bin_cols:
                 col_type = columns[col]
-                if not IsIntegerType(col_type):
+                if not IsBinColumnType(col_type):
                     raise RuntimeError(
-                        f"{tree_name}: bin column {col} is {col_type}, not integers"
+                        f"{tree_name}: bin column {col} is {col_type}; a bin column holds "
+                        f"integers that fit an int ({', '.join(sorted(BIN_COLUMN_TYPES))})"
                     )
                 cols = vector_cols if IsVectorType(col_type) else scalar_cols
                 if col not in cols:
@@ -160,7 +170,7 @@ def FillTree(
                 is_vector.append(1 if cols is vector_cols else 0)
                 index.append(cols.index(col))
             filler.AddVariable(ModelBins(model), is_vector, index)
-        filler.Allocate(len(keys), len(group_weights))
+        filler.Allocate(len(keys), len(group_weights), n_slots)
         address = ROOT.addressof(filler)
         loop = (
             rdf.Define(
@@ -184,8 +194,8 @@ def FillTree(
             .Define("_hf_pass", pass_expr)
             .Define(
                 "_hf_filled",
-                f"analysis::HistFillerFill({address}, _hf_pass, _hf_scalar_bins, "
-                "_hf_vector_bins, _hf_weights)",
+                f"analysis::HistFillerFill({address}, rdfslot_, _hf_pass, "
+                "_hf_scalar_bins, _hf_vector_bins, _hf_weights)",
             )
         )
         t_start = time.time()
@@ -208,8 +218,9 @@ def FillTree(
         filler.Release()
         print(
             f"{tree_name}: {len(group_vars)} vars × {len(keys)} keys × "
-            f"{len(group_weights)} weights, {filler.NumberOfCells()} cells "
-            f"(~{filler.NumberOfCells() * 16 / 1e6:.0f} MB), {n_filled:.0f} events in a key; "
+            f"{len(group_weights)} weights, {filler.NumberOfCells()} cells × {n_slots} thread "
+            f"slot(s) (~{filler.NumberOfCells() * n_slots * 16 / 1e6:.0f} MB), "
+            f"{n_filled:.0f} events in a key; "
             f"loop {t_loop:.1f} s, write {time.time() - t_start - t_loop:.1f} s",
             flush=True,
         )
@@ -237,19 +248,23 @@ if __name__ == "__main__":
         "--nMT",
         type=int,
         default=1,
-        help="Accepted for compatibility: the histograms are filled single-threaded.",
+        help="Threads of the event loop: 1 (default) runs without implicit MT, 0 uses all "
+        "cores (EnableImplicitMT(0)). Every thread fills its own copy of the histograms.",
     )
     parser.add_argument("--user-custom", type=str, default=None)
     parser.add_argument(
         "--max-hist-memory-mb",
         type=float,
         default=None,
-        help="Max memory (MB) of the histograms filled in one event loop; a tree is filled "
-        "in as many loops as its variables need. 0 disables it. Default: "
-        "hist_from_ntuple_max_hist_memory_mb from config, else "
-        f"{DEFAULT_MAX_HIST_MEMORY_MB}.",
+        help="Max memory (MB) of the histograms filled in one event loop, every thread "
+        "slot's copy of them; a tree is filled in as many loops as its variables need. "
+        "Below 1 it is disabled. Default: hist_from_ntuple_max_hist_memory_mb from config, "
+        f"else {DEFAULT_MAX_HIST_MEMORY_MB}.",
     )
     args = parser.parse_args()
+
+    if args.nMT != 1:
+        ROOT.EnableImplicitMT(max(0, args.nMT))
 
     start = time.time()
 
@@ -263,12 +278,6 @@ if __name__ == "__main__":
     unc_cfg_dict = setup.weights_config
     analysis_import = setup.global_params["analysis_import"]
     analysis = importlib.import_module(f"{analysis_import}")
-    # HistFiller is filled from the event loop and is not thread-safe.
-    if ROOT.IsImplicitMTEnabled():
-        print(
-            "Implicit MT was enabled; disabling it: the histograms are filled single-threaded"
-        )
-        ROOT.DisableImplicitMT()
 
     treeName = setup.global_params["treeName"]
     all_infiles = [fileName for fileName in args.inputFiles]
@@ -349,6 +358,13 @@ if __name__ == "__main__":
                     )
 
     if all_trees:
+        tree_fills = TreeFills(uncs_to_compute, unc_cfg_dict, treeName)
+        missing_trees = sorted(set(tree_fills) - set(all_trees))
+        if missing_trees:
+            raise RuntimeError(
+                f"Trees missing from every input file: {missing_trees}; present: "
+                f"{sorted(all_trees)}"
+            )
         # One compressed output file per variable (209 == LZMA level 9).
         var_files = {}
         for var in vars_to_process:
@@ -374,12 +390,11 @@ if __name__ == "__main__":
             for cut_name in cut_names
         ]
         var_models = {var: VarModel(hist_cfg_dict, var) for var in vars_to_process}
-        tree_fills = TreeFills(uncs_to_compute, unc_cfg_dict, treeName)
         n_hists = len(vars_to_process) * len(keys) * sum(map(len, tree_fills.values()))
         print(
             f"Filling {n_hists} histograms ({len(vars_to_process)} vars × {len(keys)} keys × "
             f"{sum(map(len, tree_fills.values()))} unc/scales) from {len(tree_fills)} trees, "
-            f"max hist memory {max_memory_mb:g} MB per event loop",
+            f"max hist memory {max_memory_mb:g} MB per event loop (every thread slot's copy)",
             flush=True,
         )
         for tree_name, weights in tree_fills.items():

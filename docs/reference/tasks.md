@@ -184,15 +184,28 @@ Every tree (the central one and each shape variation) is read in **one event loo
 all its histograms, every selection × (Central or Up/Down) × variable
 ([`include/HistFiller.h`](https://github.com/cms-flaf/FLAF/blob/main/include/HistFiller.h)): each
 event's selections are evaluated once, and its weights are added to the histograms of the
-selections it passes. The histograms are the ones a separate RDataFrame histogram per selection,
-weight and variable would fill, bit for bit. Filling is single-threaded.
+selections it passes. The loop runs on one thread per requested core on HTCondor/CRAB
+(`nMT = n_cpus`) and 8 locally; every thread fills its own copy of the histograms, and the copies
+are summed when they are written. With one thread the histograms are the ones a separate RDataFrame
+histogram per selection, weight and variable would fill, bit for bit; with several the entry
+counts are exact and the contents differ at rounding level (about 1e-14 of a histogram's largest
+cell), as RDataFrame's own multi-threaded histograms do, and from run to run.
 
-The histograms of one loop are held as cells × 16 B. If a tree's histograms exceed
-`hist_from_ntuple_max_hist_memory_mb` (default `1500`), its variables are split over several
-loops, and a variable that alone exceeds it over its weights; in practice the 1D variables of a
-tree share one loop and large 2D/3D variables get their own. Pass `--max-hist-memory-mb` to the
-producer to override it (`0` disables it). Each loop's line in the log gives its histograms,
-cells and time.
+The histograms of one loop are held as cells × 16 B for each thread. If a tree's histograms, all
+threads' copies counted, exceed `hist_from_ntuple_max_hist_memory_mb` (default `1500`), its
+variables are split over several loops, and a variable that alone exceeds it over its weights
+(the variables before it share those loops when that needs no more of them); more threads can
+therefore mean more loops. The budget is not a hard bound: one (variable, weight) larger than it
+still gets a loop of its own, and a job peaks at about the budget plus 1 GB. On the HH_bbWW CR
+layout (101 1D and 25 2D variables, 27 selections, 49 weights) at one thread the first central
+loop holds all the 1D and 7 of the 2D variables, and the other 2D variables share three more.
+Pass `--max-hist-memory-mb` to the producer to override it (a value below 1 disables it). Each
+loop's line in the log gives its histograms, cells, thread slots and time.
+
+A key filter must be a `bool`, as for RDataFrame's `Filter`, and a bin column an integer type no
+wider than `int` (`bool`, `char`, `short`, `int` and their unsigned narrower forms, scalar or
+vector); anything else is refused. `hist_from_ntuple_max_hists` was removed with the histogram-count
+batching: a configuration that still sets it is refused.
 
 - **Parameters:** `--variables` (string; restrict which variables), `--n-files-per-job` (int,
   default `20`; input files processed per branch).

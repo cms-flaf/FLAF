@@ -1,4 +1,5 @@
 import law
+import math
 import os
 import contextlib
 import luigi
@@ -888,6 +889,66 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     @property
     def active_variables(self):
         return _active_variables(self.setup, self.variables)
+
+    def _branch_signal_tree_resources(self, branch):
+        """{"memory_mb", "max_runtime_h"} for a branch that carries signal Trees/, or None.
+
+        Only such a branch (signal_tree_hists_ELReweighter) needs more memory and wall
+        time than the defaults: its per-event rows, unlike binned histograms, scale with the
+        events. Each value is taken from the config if set there (merger_request_memory_mb,
+        merger_max_runtime_hours); unset ones keep the defaults. They go into the job file
+        only, not into task parameters, so the task id stays that of every other variable.
+        """
+        var_name, _br_indices, datasets = self.branch_map[branch]
+        cfg = self.global_params.get("signal_tree_hists_ELReweighter") or {}
+        if not cfg.get("store_signal_trees") or not datasets:
+            return None
+        if var_name not in cfg.get("vars_to_store", []):
+            return None
+        if not any(
+            self.setup.datasets.get(ds, {}).get("process_group") == "signals"
+            for ds in datasets
+        ):
+            return None
+        resources = {}
+        if cfg.get("merger_request_memory_mb"):
+            resources["memory_mb"] = int(cfg["merger_request_memory_mb"])
+        if cfg.get("merger_max_runtime_hours"):
+            resources["max_runtime_h"] = float(cfg["merger_max_runtime_hours"])
+        return resources or None
+
+    def htcondor_job_config(self, config, job_num, branches):
+        config = super().htcondor_job_config(config, job_num, branches)
+        # Law passes one job's branch list, or, for a group of jobs sharing one job file,
+        # a list of them; either way the request is sized for the most demanding branch.
+        flat = [
+            b
+            for item in branches
+            for b in (item if isinstance(item, (list, tuple)) else [item])
+        ]
+        resources = [
+            r for r in map(self._branch_signal_tree_resources, flat) if r is not None
+        ]
+        memory_mb = max(
+            (r["memory_mb"] for r in resources if "memory_mb" in r), default=None
+        )
+        runtime_h = max(
+            (r["max_runtime_h"] for r in resources if "max_runtime_h" in r),
+            default=None,
+        )
+        if runtime_h and runtime_h > self.max_runtime:
+            # replaces the +MaxRuntime the base set from max_runtime, same encoding
+            config.custom_content[:] = [
+                (key, value)
+                for key, value in config.custom_content
+                if key != "+MaxRuntime"
+            ]
+            config.custom_content.append(
+                ("+MaxRuntime", int(math.floor(runtime_h * 3600)) - 1)
+            )
+        if memory_mb:
+            config.custom_content.append(("RequestMemory", memory_mb))
+        return config
 
     def stage_workflow_requires(self):
         reqs = super().stage_workflow_requires()

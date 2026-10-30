@@ -73,6 +73,95 @@ def get_all_items_recursive(root_dir, path=()):
     return items_dict
 
 
+def wrap_hist_in_tree(hist, name, base_tree=None):
+    """Attach a clone of ``hist`` to a TTree's ``GetUserInfo()`` list, named to match
+    the tree, so the histogram rides through the tree's Write/Read cycle without
+    becoming a branch. If ``base_tree`` is given (e.g. a cloned Snapshot tree already
+    holding real rows), it is reused and renamed; otherwise a fresh empty tree is
+    created. ``base_tree``'s UserInfo is cleared first: CloneTree()/MergeTrees() carry
+    the source tree's existing UserInfo along, so without this, merging a tree an
+    earlier stage already wrapped would leave both the old and new histogram embedded
+    instead of just the current one."""
+    tree = base_tree if base_tree is not None else ROOT.TTree(name, name)
+    tree.SetName(name)
+    tree.SetTitle(name)
+    tree.GetUserInfo().Clear()
+    hist_clone = hist.Clone()
+    hist_clone.SetName(name)
+    hist_clone.SetTitle(name)
+    hist_clone.SetDirectory(0)
+    tree.GetUserInfo().Add(hist_clone)
+    return tree
+
+
+def unwrap_hist_from_tree(tree):
+    """Return an independent clone of the histogram embedded in
+    ``tree.GetUserInfo()`` (see ``wrap_hist_in_tree``). Must clone, not return the
+    UserInfo entry directly: TTree owns that TList and deletes its contents when
+    the tree itself is destroyed (e.g. when the source TFile closes), so holding
+    onto the raw entry past that point is a dangling pointer -- SetDirectory(0)
+    does not protect against this (it only affects TDirectory's separate
+    auto-registration, not TList ownership)."""
+    hist = tree.GetUserInfo().At(0).Clone()
+    hist.SetDirectory(0)
+    return hist
+
+
+def _key_inherits_from(key, base_class_name):
+    """Whether a TKey's stored class inherits from ``base_class_name``, checked via
+    TClass's class hierarchy from the key's class-name metadata -- without calling
+    TKey::ReadObj(), which would deserialize the (possibly large) object just to
+    inspect its type."""
+    cls = ROOT.TClass.GetClass(key.GetClassName())
+    return bool(cls) and cls.InheritsFrom(base_class_name)
+
+
+def get_all_signal_trees_recursive(root_dir, path=()):
+    """Collect every TTree directly inside a directory literally named ``"Trees"``
+    anywhere under ``root_dir``, keyed by the channel/region/category path leading to
+    it (with the ``"Trees"`` segment itself stripped). Only ever looks one level
+    inside a ``Trees`` directory -- this feature's trees live there and nowhere
+    else, so there is no need for a fully generic tree walker. Every non-directory
+    key (the overwhelming majority -- every plain histogram leaf) is skipped via its
+    class-name metadata alone, never deserialized with ReadObj(): this function runs
+    unconditionally on every merged file regardless of whether any analysis is even
+    using this feature, so it must not pay the cost of reading every histogram just
+    to discover it isn't a directory."""
+    items_dict = {}
+    for key in root_dir.GetListOfKeys():
+        if not _key_inherits_from(key, "TDirectory"):
+            continue
+        obj = key.ReadObj()
+        if key.GetName() == "Trees":
+            local_items = {}
+            for tree_key in obj.GetListOfKeys():
+                if not _key_inherits_from(tree_key, "TTree"):
+                    continue
+                local_items[tree_key.GetName()] = tree_key.ReadObj()
+            if local_items:
+                items_dict[path] = local_items
+        else:
+            items_dict.update(
+                get_all_signal_trees_recursive(obj, path + (key.GetName(),))
+            )
+    return items_dict
+
+
+def resolve_unc_scale(name, var_input, unc_sources):
+    """Match a stored histogram/tree name like ``"<var>_<unc>_<scale>"`` (or exactly
+    ``"<var>"`` for Central) back to its ``(uncName, uncScale)`` pair, or ``None`` if
+    it doesn't belong to ``var_input`` at all."""
+    if name == var_input:
+        return ("Central", "Central")
+    for unc_source in unc_sources:
+        if unc_source == "Central":
+            continue
+        for scale in ("Up", "Down"):
+            if name == f"{var_input}_{unc_source}_{scale}":
+                return (unc_source, scale)
+    return None
+
+
 def load_all_items(file_path):
     inFile = ROOT.TFile.Open(file_path, "READ")
     if not inFile or inFile.IsZombie():
@@ -367,6 +456,21 @@ def _read_dir_hists(root_file, dir_path):
     return hists
 
 
+def _read_dir_signal_trees(root_file, dir_path):
+    """The signal-tree feature's TTrees directly inside ``dir_path``'s ``"Trees"`` child,
+    if any -- not detached from ``root_file`` (unlike ``_read_dir_hists``'s histograms):
+    CloneTree()/MergeTrees() need the source TTree's file to stay open."""
+    directory = root_file.GetDirectory("/".join(dir_path)) if dir_path else root_file
+    trees_dir = directory.GetDirectory("Trees") if directory else None
+    if not trees_dir:
+        return {}
+    trees = {}
+    for key in trees_dir.GetListOfKeys():
+        if _key_inherits_from(key, "TTree"):
+            trees[key.GetName()] = key.ReadObj()
+    return trees
+
+
 def SumEraFiles(in_paths, out_path, scales):
     """Sum the merged histogram files of several eras into one, bin by bin.
 
@@ -378,6 +482,12 @@ def SumEraFiles(in_paths, out_path, scales):
     One directory at a time: only that directory's histograms of the eras are in memory. Holding
     every histogram of every era at once took ~12 GB for a variable with control regions (four
     eras of ~400k histograms).
+
+    Every input file is kept open for the whole call (there are only ever a handful of
+    them -- eras, or HistMergerTask's own parallel merge batches -- unlike the many
+    per-dataset files HistMergerFromHists.py streams through one at a time), so a
+    signal-tree TTree found alongside a directory's histograms can be concatenated via
+    CloneTree()/MergeTrees() directly, without re-reading anything from disk.
     """
     in_files = [ROOT.TFile.Open(path, "READ") for path in in_paths]
     era_dirs = [_hist_dir_paths(in_file) for in_file in in_files]
@@ -388,9 +498,19 @@ def SumEraFiles(in_paths, out_path, scales):
             _read_dir_hists(in_file, dir_path) if dir_path in dirs else {}
             for in_file, dirs in zip(in_files, era_dirs)
         ]
+        signal_trees = [
+            _read_dir_signal_trees(in_file, dir_path) if dir_path in dirs else {}
+            for in_file, dirs in zip(in_files, era_dirs)
+        ]
+        has_signal_trees = any(signal_trees)
         names = list(dict.fromkeys(name for era_hists in hists for name in era_hists))
         centrals = [name for name in names if not name.endswith(tuple(scales))]
         out_dir = mkdir_recursive(out_file, "/".join(dir_path))
+        tree_dir = (
+            mkdir_recursive(out_file, "/".join(dir_path) + "/Trees")
+            if has_signal_trees
+            else None
+        )
         for name in names:
             # the process of a variation: the longest central name it extends
             process = None
@@ -409,7 +529,46 @@ def SumEraFiles(in_paths, out_path, scales):
             ROOT.SetOwnership(total, True)
             for part in parts[1:]:
                 total.Add(part)
+            if has_signal_trees:
+                # Same (uncName, uncScale) naming convention as the histogram above, so
+                # the signal tree resolved via this name/process pair is this one's own
+                # -- concatenate rather than sum, since rows (not bin contents) are rows.
+                tree_parts = [st.get(name, st.get(process)) for st in signal_trees]
+                tree_parts = [part for part in tree_parts if part]
+                if tree_parts:
+                    tree_dir.cd()
+                    if len(tree_parts) == 1:
+                        cloned_tree = tree_parts[0].CloneTree(-1, "fast")
+                    else:
+                        tlist = ROOT.TList()
+                        for t in tree_parts:
+                            tlist.Add(t)
+                        cloned_tree = ROOT.TTree.MergeTrees(tlist)
+                    cloned_tree.SetName(name)
+                    cloned_tree.SetTitle(name)
+                    wrap_hist_in_tree(total, name, base_tree=cloned_tree)
+                    tree_dir.WriteTObject(cloned_tree, name, "Overwrite")
+                    # Written to disk above; detach the in-memory tree the same way
+                    # `total` already is, or it stays registered (and resident) in the
+                    # still-open output file until out_file.Close() at the very end --
+                    # across every category this run combines, that is the output-side
+                    # twin of the input-side accumulation fixed just below.
+                    cloned_tree.SetDirectory(0)
+                    ROOT.SetOwnership(cloned_tree, True)
             out_dir.WriteTObject(total, name, "Overwrite")
+        # Release this directory's signal trees before moving to the next one. Unlike
+        # histograms (detached and Python-owned the moment they're read), these were
+        # deliberately left attached to their source file above -- CloneTree()/
+        # MergeTrees() need it open to read rows -- so without detaching them here,
+        # every tree this call ever reads stays registered in its source TFile for the
+        # whole run (the same "release only when everything finally closes" pattern
+        # fixed in HistMergerFromHists.py's own per-dataset_type loop, reintroduced
+        # here in a different spot).
+        if has_signal_trees:
+            for era_trees in signal_trees:
+                for t in era_trees.values():
+                    t.SetDirectory(0)
+                    ROOT.SetOwnership(t, True)
     out_file.Close()
     for in_file in in_files:
         in_file.Close()

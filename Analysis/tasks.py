@@ -720,15 +720,26 @@ class HistFromNtupleProducerTask(
         # Per-chunk split histograms are only needed until their variable is merged downstream;
         # HistMergerTask can remove each variable's per-chunk split after merging (issue #229) and
         # leaves a small ``.merged`` marker next to it. Treat a branch as complete when, for every
-        # variable, the split still exists OR its per-chunk marker is present -- so removing the
-        # intermediates keeps the task graph consistent (law will not re-run this task). The marker
-        # is chunk-specific, so a branch whose split was never produced (e.g. a new dataset or a
-        # changed n_files_per_job, which shift the branch map) has no marker and is still correctly
-        # reported incomplete instead of being masked by an unrelated variable's merged output.
+        # variable, the split still exists OR its per-chunk marker is present, and that variable's
+        # merged output still exists -- so removing the intermediates keeps the task graph
+        # consistent (law will not re-run this task), while deleting a merged output re-runs the
+        # split it was made from. The marker is chunk-specific, so a branch whose split was never
+        # produced (e.g. a new dataset or a changed n_files_per_job, which shift the branch map) has
+        # no marker and is still correctly reported incomplete instead of being masked by an
+        # unrelated variable's merged output.
         if not self.is_branch():
             return super().complete()
         for var_name, target in self.output().items():
-            if not target.exists() and not _split_merged_marker(target).exists():
+            if target.exists():
+                continue
+            if not _split_merged_marker(target).exists():
+                return False
+            # The marker stands in for the split only while the merged output it fed exists. When
+            # that output is deleted to re-merge it, the split must be produced again: HistMergerTask
+            # reads every split it was given, and a marker alone leaves it nothing to merge.
+            if not _merged_hists_target(
+                self, self.only_era, var_name, self.fs_HistTuple
+            ).exists():
                 return False
         return True
 

@@ -259,10 +259,9 @@ if __name__ == "__main__":
     all_datasets = args.dataset_names.split(",")
     for dataset_name, inFile_path in zip(all_datasets, args.inFiles):
         if not os.path.exists(inFile_path):
-            print(
-                f"input file for dataset {dataset_name} (with path= {inFile_path}) does not exist, skipping"
+            raise FileNotFoundError(
+                f"input file for dataset {dataset_name} (with path= {inFile_path}) does not exist"
             )
-            continue
 
         base_process_name = dataset_cfg_dict[dataset_name]["process_name"]
         dataset_type = setup.base_processes[base_process_name]["parent_process"]

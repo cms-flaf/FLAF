@@ -12,6 +12,7 @@ versus "analysis-specific".
 | [`Corrections`](https://github.com/cms-flaf/Corrections) | Object corrections & systematics (pileup, b-tag, triggers, …). | GitHub |
 | [`StatInference`](https://github.com/cms-flaf/StatInference) | Datacard creation and limit/fit tooling. | GitHub |
 | [`inference`](https://gitlab.cern.ch/cms-flaf/inference) | The HH combine-based inference tooling (`dhi`). | CERN GitLab |
+| [`cws`](https://gitlab.cern.ch/cms-analysis/general/cws) | The Combine Workflow System, successor of `dhi` (HH_bbtautau). | CERN GitLab |
 | `HH_bbtautau`, `HH_bbWW`, `H_mumu` | The **analysis** repositories. | GitHub |
 
 The first four are **shared** — every analysis uses the same `FLAF` and `Corrections`; the two HH
@@ -32,6 +33,7 @@ HH_bbtautau/                  ← the analysis repository (you clone this)
 ├── Corrections/              ← shared corrections (submodule)
 ├── StatInference/            ← shared stat tooling (submodule; HH analyses only)
 ├── inference/                ← HH combine tooling (submodule; HH analyses only)
+├── cws/                      ← Combine Workflow System, successor of inference (submodule)
 ├── ClassicSVfit/ SVfitTF/    ← analysis-specific physics tools (submodules)
 ├── HHKinFit2/ HHbtag/        ← analysis-specific physics tools (submodules)
 ├── SyncTool/                 ← analysis-specific (submodule)

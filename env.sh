@@ -155,6 +155,49 @@ EOF
   run_cmd touch "$installed_flag"
 }
 
+do_install_cws() {
+  local cmb_version=$1
+
+  local installed_flag=$2
+
+  local setups_dir="$HH_CWS_PATH/.setups"
+  local setup_file="$setups_dir/flaf.sh"
+
+  # The variables that cws/setup.sh would otherwise ask for or derive. CWS_CMSSW_VERSION and
+  # CWS_SCRAM_ARCH follow the CMSSW area of FLAF; they are read when this file is sourced.
+  run_cmd rm -f "$HH_CWS_PATH"/data/.installed*
+  run_cmd mkdir -p "$setups_dir"
+  cat > "$setup_file" <<EOF
+export CWS_BASE="\$ANALYSIS_PATH/cws"
+export CWS_USER="$(whoami)"
+export CWS_USER_FIRSTCHAR="\${CWS_USER:0:1}"
+export CWS_DATA="\$CWS_BASE/data"
+export CWS_STORE="\$CWS_DATA/store"
+export CWS_STORE_JOBS="\$CWS_DATA/jobs"
+export CWS_STORE_BUNDLES="\$CWS_STORE"
+export CWS_STORE_EOSUSER="/eos/user/\$CWS_USER_FIRSTCHAR/\$CWS_USER/cws/store"
+export CWS_SOFTWARE="\$CWS_DATA/software"
+export CWS_WLCG_USE_CACHE="false"
+export CWS_WLCG_CACHE_ROOT=""
+export CWS_HOOK_FILE=""
+export CWS_LOCAL_SCHEDULER="True"
+export CWS_SCHEDULER_HOST="hh:cmshhcombr2@hh-scheduler1.cern.ch"
+export CWS_SCHEDULER_PORT="80"
+export CWS_HAS_GFAL="0"
+export CWS_REMOTE_JOB="\${CWS_REMOTE_JOB:-0}"
+export CWS_COMBINE_VERSION="$cmb_version"
+export CWS_CMSSW_VERSION="\$FLAF_CMSSW_VERSION"
+export CWS_SCRAM_ARCH="\$FLAF_CMSSW_ARCH"
+EOF
+
+  # The python packages that CWS needs beyond flaf_env, for cwsEnv alone (see mk_cws_env.sh).
+  source "$FLAF_ENVIRONMENT_PATH/bin/activate"
+  run_cmd "$FLAF_PATH/run_tools/mk_cws_env.sh" "$HH_CWS_PATH/data/software/site-packages"
+
+  run_cmd mkdir -p "$HH_CWS_PATH/data"
+  run_cmd touch "$installed_flag"
+}
+
 install() {
   local env_file="$1"
   local node_os=$2
@@ -230,6 +273,17 @@ install_inference() {
   local cmb_ver=$4
   local installed_flag="$HH_INFERENCE_PATH/data/.installed_$cmb_ver"
   install "$env_file" $node_os $target_os install_inference "$installed_flag" $cmb_ver "$installed_flag"
+}
+
+install_cws() {
+  local env_file="$1"
+  local node_os=$2
+  local target_os=$3
+  local cmb_ver=$4
+  # the flag carries a hash of mk_cws_env.sh (of its pins), so changing it installs them again
+  local cws_env_script_hash="$(sha256sum < "$FLAF_PATH/run_tools/mk_cws_env.sh")"
+  local installed_flag="$HH_CWS_PATH/data/.installed_${cmb_ver}_${cws_env_script_hash:0:12}"
+  install "$env_file" $node_os $target_os install_cws "$installed_flag" $cmb_ver "$installed_flag"
 }
 
 load_flaf_env() {
@@ -375,6 +429,15 @@ load_flaf_env() {
         export PYTHONPATH="$HH_INFERENCE_PATH:$PYTHONPATH"
         source $HH_INFERENCE_PATH/.setups/flaf.sh
       fi
+      # CWS (cms-analysis/general/cws), the successor of dhi, on the same standalone combine. Its
+      # tasks share most of their names with dhi's, so they are indexed under a law config of their
+      # own, which cwsEnv selects; the plain `law` of this shell stays on the analysis config.
+      if [ -n "$HH_CWS_PATH" ] && [ -d "$HH_CWS_PATH/cws" ]; then
+        install_cws "$env_file" $node_os $cmb_os $FLAF_COMBINE_VERSION || flaf_env_refused=1
+        export PYTHONPATH="$HH_CWS_PATH:$PYTHONPATH"
+        export PATH="$HH_CWS_PATH/bin:$HH_CWS_PATH/cws/scripts:$PATH"
+        source $HH_CWS_PATH/.setups/flaf.sh
+      fi
     fi
   fi
 
@@ -422,6 +485,13 @@ load_flaf_env() {
   fi
   #export PATH="$ANALYSIS_SOFT_PATH/bin:$PATH"
   alias cmsEnv="env -i HOME=$HOME ANALYSIS_PATH=$ANALYSIS_PATH ANALYSIS_DATA_PATH=$ANALYSIS_DATA_PATH X509_USER_PROXY=$X509_USER_PROXY FLAF_CMSSW_BASE=$FLAF_CMSSW_BASE FLAF_CMSSW_ARCH=$FLAF_CMSSW_ARCH TF_ENABLE_ONEDNN_OPTS=$TF_ENABLE_ONEDNN_OPTS $FLAF_PATH/cmsEnv.sh"
+  # cwsEnv runs a command (law, cws) against the law config and task index of CWS, with the law
+  # that CWS pins (its modules/law submodule, a fork of law 0.1.12 that the CWS tasks are written
+  # for) in place of the one of flaf_env, and with the packages of run_tools/mk_cws_env.sh.
+  # Single quotes: expanded when it is used.
+  if [ -n "$CWS_BASE" ]; then
+    alias cwsEnv='env LAW_HOME="$CWS_BASE/.law" LAW_CONFIG_FILE="$CWS_BASE/law.cfg" PYTHONPATH="$CWS_BASE/modules/law:$CWS_SOFTWARE/site-packages:$PYTHONPATH" PATH="$CWS_BASE/modules/law/bin:$PATH"'
+  fi
 
   ulimit -n 4096
   if (( ! flaf_env_refused )); then
@@ -459,6 +529,8 @@ source_env_fn() {
     do_install_combine "${@:3}"
   elif [ "$cmd" = "install_inference" ]; then
     do_install_inference "${@:3}"
+  elif [ "$cmd" = "install_cws" ]; then
+    do_install_cws "${@:3}"
   else
     load_flaf_env "$env_file"
   fi
@@ -472,10 +544,12 @@ unset -f do_install_cmssw
 unset -f do_install_cmssw_combine
 unset -f do_install_combine
 unset -f do_install_inference
+unset -f do_install_cws
 unset -f install
 unset -f install_cmssw
 unset -f install_cmssw_combine
 unset -f install_combine
 unset -f install_inference
+unset -f install_cws
 unset -f load_flaf_env
 unset -f source_env_fn

@@ -389,6 +389,11 @@ def concat_trees(out_dir, name, trees, extra_branches_from=None):
     memory until the file is closed, and every later deletion of a ROOT object walks it
     (RecursiveRemove).
     """
+    if not trees or not all(trees):
+        raise RuntimeError(
+            f"{name}: {len(trees)} input tree(s), of which "
+            f"{sum(not tree for tree in trees)} missing"
+        )
     branches = _branch_names(trees[0])
     for index, tree in enumerate(trees[1:], start=1):
         tree_branches = _branch_names(tree)

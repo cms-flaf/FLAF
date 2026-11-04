@@ -201,6 +201,45 @@ in the log gives its histograms, cells and estimated memory.
 - **Parameters:** `--variables` (string; restrict which variables), `--n-files-per-job` (int,
   default `20`; input files processed per branch).
 
+#### Signal trees
+Optionally, the job also keeps the **per-event rows** behind the histograms of the signal
+datasets, for a per-event reweighting (e.g. an ELReweighter) downstream. It is configured in
+`global.yaml` / `user_custom.yaml`; without the block, or with `store_signal_trees: false`,
+nothing changes:
+
+```yaml
+signal_tree_hists_ELReweighter:
+  store_signal_trees: true
+  vars_to_store: [ ggF_DNN_HH ]           # variables whose output files get the trees
+  extra_vars_to_store:                    # histTuple columns to keep per event
+    - run
+    - event
+    - luminosityBlock
+    - mhh_lhe
+```
+
+The trees are written for a dataset with `process_group: signals` and the variables of
+`vars_to_store` that the job fills. Every `extra_vars_to_store` column (and every
+`weight_<unc>_<scale>` column used for the norm variations) must be in the histTuple: the job
+fails otherwise, so the histTuple flavour has to keep them (`fullResolution_variables`).
+
+In the chunk's output file of each such variable, `SignalTrees/<variation>` holds one tree per
+tree the histograms are filled from — `Central` and, with `compute_unc_histograms`, each shape
+variation (`<unc>_<scale>`, e.g. `JES_Total_Up`). A row is an event that passes at least one
+selection, with:
+
+- the `extra_vars_to_store` columns and `weight_Central`;
+- for each stored variable `v`, `v_bin` (the value its histograms are filled with) and `v`
+  itself when the flavour keeps it at full resolution;
+- a boolean `sel__<channel>__<region>__<category>[__<further cut>]` per selection: the filter of
+  that directory's histograms;
+- in the `Central` tree only, `weight_<unc>_<scale>` of every norm variation.
+
+A histogram is rebuilt from `SignalTrees/<variation>` by keeping the rows whose `sel__…` flag is
+true, weighted by `weight_Central` (a shape variation) or by `weight_<unc>_<scale>` of the
+`Central` tree (a norm variation). When several `vars_to_store` variables are filled in the same
+job, each of their files gets the same trees, with the columns of all of them.
+
 ### `HistMergerTask`
 Merges the per-chunk histograms into per-process histograms ready for plotting and fitting,
 one file per variable at `<version>/Hists_merged/<era>/<variable>/<variable>.root`. Each branch
@@ -215,12 +254,19 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
   and merged here only for datasets matching at least one entry. A dataset matches an entry if,
   for every key of the entry, it lacks that key or has that value, so backgrounds always match.
   Any dataset key can be listed; a single dict is a one-entry list.
+- **Signal trees:** with [signal trees](#signal-trees) in the chunks, the chunks of each merged
+  process are concatenated, one variation at a time, into
+  `SignalTrees/<process>/<variation>` of the merged file, after the histograms. A shape
+  variation takes the name its histograms have (e.g. `JES_Total_Up` becomes `CMS_scale_j_Up`);
+  `Central` keeps its name. The baskets are copied, not decompressed. A process whose chunks
+  have trees in some files only is an error: its trees would be incomplete.
 - **Meta-era** (`--era Run3_22_23`, a group of `era_groups:`): one branch per variable that every
   era of the group merges. It requires `HistMergerTask` over the eras and sums, bin by bin, their
   merged files of the variable (read through [`MergedHistsTask`](#mergedhiststask)) into
   `<version>/Hists_merged/<meta-era>/<variable>/<variable>.root`. An era without a variation of a
-  process (a source decorrelated between the eras) contributes its central histogram to it. See
-  [Meta-eras](../concepts/eras.md#meta-eras).
+  process (a source decorrelated between the eras) contributes its central histogram to it. The
+  signal trees are concatenated by the same rule: an era without a variation contributes the rows
+  of its `Central` tree. See [Meta-eras](../concepts/eras.md#meta-eras).
 
 ### `MergedHistsTask`
 An **external** task: the merged histograms of one variable of one era, at `HistMergerTask`'s

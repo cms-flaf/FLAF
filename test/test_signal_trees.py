@@ -229,6 +229,19 @@ class ConcatTrees(TempDirTest):
         with self.assertRaisesRegex(RuntimeError, "5 of 12 entries copied"):
             self.concat(chunks)
 
+    def test_no_or_missing_tree(self):
+        out_file = ROOT.TFile(self.path("out.root"), "RECREATE")
+        try:
+            with self.assertRaisesRegex(RuntimeError, "0 input tree"):
+                HistHelper.concat_trees(out_file, "Events", [])
+            in_file = ROOT.TFile.Open(self.chunk("a.root", list(range(5))), "READ")
+            trees = [in_file.Get("Events"), in_file.Get("NotThere")]
+            with self.assertRaisesRegex(RuntimeError, "2 input tree.*1 missing"):
+                HistHelper.concat_trees(out_file, "Events", trees)
+            in_file.Close()
+        finally:
+            out_file.Close()
+
 
 class SumEraFilesSignalTrees(TempDirTest):
     CENTRAL_HISTS = ["sig", "bkg"]

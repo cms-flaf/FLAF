@@ -236,7 +236,7 @@ def BookSignalTreeSnapshots(
     for variation, (tree_name, weight_columns) in sources.items():
         rdf = all_trees[tree_name]
         available = set(str(c) for c in rdf.GetColumnNames())
-        missing = [c for c in columns if c not in available]
+        missing = [c for c in columns + weight_columns if c not in available]
         if missing:
             raise ValueError(
                 f"signal_tree_hists_ELReweighter: column(s) {missing} not present in "

@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Stitching denominators for variations normalised over the whole stitched sample.
+"""Stitching denominators of shape-weight variations, normalised over the whole stitched sample.
 
-By default the stitcher divides every bin by its own sum under a variation, which pins each
-bin to its nominal cross section. A source listed in inclusiveNormalisationSources keeps the
-nominal per-bin sums and shares one factor C_k between the bins, so the bins may change
-relative to each other while the total stays nominal. Needs neither ROOT nor a config file.
+Dividing every bin by its own sum under a variation would pin each bin to its nominal cross
+section. The stitcher instead keeps the nominal per-bin sums and shares one factor C_k between
+the bins, so the bins may change relative to each other while the total stays nominal.
+Needs neither ROOT nor a config file.
 """
 
 import os
@@ -28,19 +28,20 @@ from FLAF.Processors.MCStitching import (
 SIGMA = {"0j": 80.0, "2j": 20.0}
 NOMINAL = {"0j": 1000.0, "2j": 500.0}
 VARIED = {"0j": 1025.0, "2j": 425.0}
+# A pileup-like variation: the same 0.2% change in every bin.
+UNIFORM = {name: 1.002 * NOMINAL[name] for name in NOMINAL}
 
 
 def bin_yields(denominators, sums):
     return {name: SIGMA[name] * sums[name] / denominators[name] for name in SIGMA}
 
 
-def make_stitcher(sources):
+def make_stitcher():
     stitcher = MCStitcher.__new__(MCStitcher)
     stitcher.bins = [
         {"name": name, "selection": f"bin == {i}", "crossSectionValue": SIGMA[name]}
         for i, name in enumerate(SIGMA)
     ]
-    stitcher.inclusiveNormalisationSources = set(sources)
     return stitcher
 
 
@@ -55,7 +56,7 @@ def make_ana_caches():
             "denominator": {
                 CENTRAL: {CENTRAL: entry(NOMINAL, share)},
                 "qcd_scale": {"_muR2_muF2": entry(VARIED, share)},
-                "pu": {"Up": entry(VARIED, share)},
+                "pu": {"Up": entry(UNIFORM, share)},
             }
         }
     return caches
@@ -85,7 +86,7 @@ class TestInclusivelyNormalisedDenominators(unittest.TestCase):
         self.assertAlmostEqual(yields["2j"] / 100.0, 0.17171717, places=6)
 
     def test_per_bin_division_pins_every_bin(self):
-        # The default denominators, N_k,b, for comparison.
+        # Dividing each bin by its own varied sum N_k,b, for comparison.
         yields = bin_yields(VARIED, VARIED)
         self.assertEqual(yields, SIGMA)
 
@@ -111,30 +112,23 @@ class TestInclusivelyNormalisedDenominators(unittest.TestCase):
 
 
 class TestStitcherBinDenominators(unittest.TestCase):
-    def test_listed_source_is_normalised_over_the_sample(self):
-        stitcher = make_stitcher(["qcd_scale"])
+    def test_variation_is_normalised_over_the_sample(self):
+        stitcher = make_stitcher()
         denom = stitcher.binDenominators(
             make_ana_caches(), "Stitcher", "qcd_scale", "_muR2_muF2"
         )
         self.assertAlmostEqual(denom["0j"], NOMINAL["0j"] * 0.99)
         self.assertAlmostEqual(denom["2j"], NOMINAL["2j"] * 0.99)
 
-    def test_unlisted_source_keeps_the_per_bin_sums(self):
-        stitcher = make_stitcher(["qcd_scale"])
+    def test_uniform_variation_matches_per_bin_sums(self):
+        # A variation that changes every bin alike (pileup) comes out as before.
+        stitcher = make_stitcher()
         denom = stitcher.binDenominators(make_ana_caches(), "Stitcher", "pu", "Up")
-        for name in VARIED:
-            self.assertAlmostEqual(denom[name], VARIED[name])
-
-    def test_default_is_unchanged(self):
-        stitcher = make_stitcher([])
-        denom = stitcher.binDenominators(
-            make_ana_caches(), "Stitcher", "qcd_scale", "_muR2_muF2"
-        )
-        for name in VARIED:
-            self.assertAlmostEqual(denom[name], VARIED[name])
+        for name in UNIFORM:
+            self.assertAlmostEqual(denom[name], UNIFORM[name])
 
     def test_nominal_is_unchanged(self):
-        stitcher = make_stitcher(["qcd_scale"])
+        stitcher = make_stitcher()
         denom = stitcher.binDenominators(
             make_ana_caches(), "Stitcher", CENTRAL, CENTRAL
         )
@@ -142,7 +136,7 @@ class TestStitcherBinDenominators(unittest.TestCase):
             self.assertAlmostEqual(denom[name], NOMINAL[name])
 
     def test_single_bin_is_unchanged(self):
-        stitcher = make_stitcher(["qcd_scale"])
+        stitcher = make_stitcher()
         stitcher.bins = stitcher.bins[:1]
         denom = stitcher.binDenominators(
             make_ana_caches(), "Stitcher", "qcd_scale", "_muR2_muF2"
@@ -150,7 +144,7 @@ class TestStitcherBinDenominators(unittest.TestCase):
         self.assertAlmostEqual(denom["0j"], VARIED["0j"])
 
     def test_denominator_expression_uses_the_new_values(self):
-        stitcher = make_stitcher(["qcd_scale"])
+        stitcher = make_stitcher()
         df = stitcher.onAnaTuple_defineDenominator(
             FakeDataFrame(),
             "__denom",

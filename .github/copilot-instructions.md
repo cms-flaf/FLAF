@@ -399,6 +399,17 @@ Each of these has caused a production incident. They are ordered by how much dam
   `file[name] = arrays`.** Since uproot 5.7 (LCG_110a) that assignment writes an RNTuple, which
   TChain, tree friends and the anaTuple readers do not accept.
 
+### ROOT object ownership in Python
+
+- **A ROOT object detached with `SetDirectory(0)` that no other C++ object owns must be given to
+  Python: `ROOT.SetOwnership(obj, True)`** (or `obj.__python_owns__ = True` in a module that does
+  not import ROOT). An object still held by a C++ owner (an RDataFrame result's `shared_ptr`, an
+  owning collection) must not be. PyROOT 6.40 never owns what `Clone()`, `TKey::ReadObj()`, `TDirectory::Get()`,
+  `Rebin(n, newname, …)` or `Projection*()` return, a TH1 constructed while a file is the current
+  directory belongs to that file, and `SetDirectory(0)` does not give ownership back: without the
+  call every such histogram stays allocated until the job ends. Never give ownership while the
+  object is still in a file's directory: `TFile::Close` deletes it, and Python deletes it again.
+
 ### NN inference (`env.sh`, `Common/Setup.py`, `Common/OnnxSession.py`)
 
 - **`TF_ENABLE_ONEDNN_OPTS=0` everywhere TensorFlow runs.** TensorFlow turns its oneDNN kernels on

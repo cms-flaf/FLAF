@@ -192,6 +192,71 @@ def BuildAllHistActions(
     return save_fns
 
 
+def BookSignalTreeSnapshots(
+    uncs_to_compute,
+    unc_cfg_dict,
+    all_trees,
+    key_filter_dict,
+    further_cuts,
+    treeName,
+    columns,
+    tmp_dir,
+):
+    """Book one lazy Snapshot per tree the histograms read -- the central one and each
+    shape-varied one -- so that it runs in their event loop.
+
+    It keeps the events that pass any selection key, with ``columns``, a boolean
+    ``sel__<channel>__<region>__<category>[__<further cut>]`` per key holding the filter of
+    its histograms and, in the central tree, the weight of every norm variation: each
+    histogram can be rebuilt from these rows. Returns ``{variation: (tmp_path, snapshot)}``
+    with ``variation`` ``"Central"`` or ``"<unc>_<scale>"``.
+    """
+    cut_names = list(further_cuts.keys()) if further_cuts else [None]
+    sel_columns = {}
+    for key, filter_to_apply_base in key_filter_dict.items():
+        for further_cut_name in cut_names:
+            key_tuple = key + (further_cut_name,) if further_cut_name else key
+            sel_columns["sel__" + "__".join(key_tuple)] = (
+                f"{filter_to_apply_base} && {further_cut_name}"
+                if further_cut_name
+                else filter_to_apply_base
+            )
+    sources = {"Central": (treeName, [])}
+    for unc, scales in uncs_to_compute.items():
+        if unc == "Central":
+            continue
+        for scale in scales:
+            if unc in unc_cfg_dict["shape"].keys():
+                sources[f"{unc}_{scale}"] = (f"Events__{unc}__{scale}", [])
+            else:
+                sources["Central"][1].append(f"weight_{unc}_{scale}")
+    opts = ROOT.RDF.RSnapshotOptions()
+    opts.fLazy = True
+    snapshots = {}
+    for variation, (tree_name, weight_columns) in sources.items():
+        rdf = all_trees[tree_name]
+        available = set(str(c) for c in rdf.GetColumnNames())
+        missing = [c for c in columns + weight_columns if c not in available]
+        if missing:
+            raise ValueError(
+                f"signal_tree_hists_ELReweighter: column(s) {missing} not present in "
+                f"HistTuple tree {tree_name!r}."
+            )
+        for sel_column, filter_to_apply in sel_columns.items():
+            rdf = rdf.Define(sel_column, filter_to_apply)
+        rdf = rdf.Filter(" || ".join(sel_columns))
+        tmp_path = os.path.join(tmp_dir, f"{variation}.root")
+        snapshot_columns = list(dict.fromkeys(columns + weight_columns))
+        snapshot_columns += list(sel_columns)
+        snapshots[variation] = (
+            tmp_path,
+            rdf.Snapshot(
+                "Events", tmp_path, Utilities.ListToVector(snapshot_columns), opts
+            ),
+        )
+    return snapshots
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("inputFiles", nargs="+", type=str)
@@ -261,6 +326,11 @@ if __name__ == "__main__":
     unique_keys = find_keys(all_infiles)
 
     hist_cfg_dict = setup.hists
+
+    signal_tree_cfg = setup.global_params.get("signal_tree_hists_ELReweighter") or {}
+    is_signal = (
+        setup.datasets.get(args.dataset_name, {}).get("process_group") == "signals"
+    )
 
     channels = (
         args.channels.split(",")
@@ -386,6 +456,39 @@ if __name__ == "__main__":
             f"{n_slots} thread slot(s) → {len(batches)} batch(es)"
         )
 
+        signal_tree_vars = [
+            var
+            for var in signal_tree_cfg.get("vars_to_store", [])
+            if var in vars_to_process
+        ]
+        signal_tree_snapshots = {}
+        signal_tree_tmp_created = False
+        if signal_tree_cfg.get("store_signal_trees") and is_signal and signal_tree_vars:
+            # each observable as its histograms are filled (<v>_bin) and, when the
+            # HistTuple flavour keeps it at full resolution, its value
+            central_columns = set(str(c) for c in all_trees[treeName].GetColumnNames())
+            signal_tree_columns = list(signal_tree_cfg.get("extra_vars_to_store", []))
+            signal_tree_columns.append("weight_Central")
+            for var in signal_tree_vars:
+                var_entry = HistHelper.findBinEntry(hist_cfg_dict, var)
+                for v in hist_cfg_dict[var_entry].get("var_list") or [var]:
+                    signal_tree_columns.append(f"{v}_bin")
+                    if v in central_columns:
+                        signal_tree_columns.append(v)
+            signal_tree_tmp_dir = os.path.join(args.outDir, "signal_tree_tmp")
+            signal_tree_tmp_created = not os.path.isdir(signal_tree_tmp_dir)
+            os.makedirs(signal_tree_tmp_dir, exist_ok=True)
+            signal_tree_snapshots = BookSignalTreeSnapshots(
+                uncs_to_compute,
+                unc_cfg_dict,
+                all_trees,
+                key_filter_dict,
+                further_cuts,
+                treeName,
+                list(dict.fromkeys(signal_tree_columns)),
+                signal_tree_tmp_dir,
+            )
+
         for batch_idx, (b_uncs, b_keys, b_cuts, b_vars) in enumerate(batches, start=1):
             n_per_var = count_booked_hists(
                 1,
@@ -413,6 +516,22 @@ if __name__ == "__main__":
             for fn in save_fns:
                 fn()
             del save_fns
+
+        for variation, (tmp_path, snapshot) in signal_tree_snapshots.items():
+            snapshot.GetValue()
+            tmp_file = ROOT.TFile.Open(tmp_path, "READ")
+            for var in signal_tree_vars:
+                _, out_root_file = var_tmp_files[var]
+                HistHelper.concat_trees(
+                    Utilities.mkdir(out_root_file, HistHelper.SIGNAL_TREES_DIR),
+                    variation,
+                    [tmp_file.Get("Events")],
+                )
+            tmp_file.Close()
+            os.remove(tmp_path)
+        signal_tree_snapshots.clear()
+        if signal_tree_tmp_created:
+            os.rmdir(signal_tree_tmp_dir)
 
         for var in vars_to_process:
             _, out_root_file = var_tmp_files[var]

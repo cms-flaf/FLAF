@@ -256,6 +256,7 @@ if __name__ == "__main__":
     # print(dataset_cfg_dict)
 
     all_hists_dict = {}
+    chunk_has_trees = {}
     all_datasets = args.dataset_names.split(",")
     for dataset_name, inFile_path in zip(all_datasets, args.inFiles):
         if not os.path.exists(inFile_path):
@@ -285,6 +286,11 @@ if __name__ == "__main__":
                 unc_sources,
                 data_process_name,
             )
+            has_trees = bool(inFile.GetDirectory(SIGNAL_TREES_DIR))
+            chunk_has_trees.setdefault(dataset_type, []).append(
+                (dataset_name, inFile_path, has_trees)
+            )
+    signal_tree_files = signal_tree_inputs(chunk_has_trees)
     alias_data_variations(all_hists_dict, data_process_name, unc_sources)
 
     # here there should be the custom applications - e.g. GetBTagWeightDict, AddQCDInHistDict, etc.
@@ -354,6 +360,30 @@ if __name__ == "__main__":
             hist.SetTitle(hist_name)
             hist.SetName(hist_name)
             dir_ptr.WriteTObject(hist, hist_name, "Overwrite")
+
+    # The signal trees of the chunks, concatenated per process, one variation at a time;
+    # a shape variation takes the name its histograms have.
+    tree_variations = {"Central": "Central"}
+    for uncName in unc_sources:
+        if uncName in unc_cfg_dict["shape"].keys():
+            for uncScale in scales:
+                tree_variations[f"{uncName}_{uncScale}"] = all_unc_dict[uncName][
+                    "name"
+                ].format(uncScale)
+    for dataset_type, paths in signal_tree_files.items():
+        out_dir = Utilities.mkdir(outFile, f"{SIGNAL_TREES_DIR}/{dataset_type}")
+        in_files = [ROOT.TFile.Open(path, "READ") for path in paths]
+        for tree_name, variation in tree_variations.items():
+            trees = [
+                in_file.Get(f"{SIGNAL_TREES_DIR}/{tree_name}") for in_file in in_files
+            ]
+            if not all(trees):
+                raise RuntimeError(
+                    f"{SIGNAL_TREES_DIR}/{tree_name} missing in a file of {dataset_type}"
+                )
+            concat_trees(out_dir, variation, trees)
+        for in_file in in_files:
+            in_file.Close()
     outFile.Close()
     executionTime = time.time() - startTime
 

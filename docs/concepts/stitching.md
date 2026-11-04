@@ -73,6 +73,40 @@ given the cross-section of its bin and the combined denominator of that bin, fro
 `weight_base` is built. For shared MC (`shared_mc`, see [Eras](eras.md)) a second, in-era
 denominator is summed in the same way and feeds `weight_base_cmb`.
 
+### Shape-weight variations
+
+Every shape-weight variation k (pileup, parton shower, PDF members, QCD scales) gets its own
+denominator, its own sum of weights per bin N<sub>k,b</sub>, so that `weight_base_<k>_rel`
+does not change the cross section. By default each bin is divided by its own varied sum, which
+puts every bin back to its nominal cross section σ<sub>b</sub> under every variation. That is
+right for a variation that changes all bins alike, but a variation that changes them by
+different amounts loses that difference, and keeps only the shape inside each bin. A QCD-scale
+variation of the DY stitch is the typical case: it changes the 2-jet bins by up to 16% and the
+0-jet bin by 2%.
+
+Sources listed in `inclusiveNormalisationSources` are normalised once over the whole stitched
+sample instead:
+
+```yaml
+processors:
+  - name: Stitcher
+    module: FLAF.Processors.MCStitching
+    class: MCStitcher
+    config: FLAF/config/Processors/stitching_DY_amcatnlo_Vpt_NpNLO.yaml
+    inclusiveNormalisationSources: [ qcd_scale, pdf ]
+    ...
+```
+
+Each bin keeps its nominal sum N<sub>0,b</sub> and all bins share one factor,
+
+D<sub>k,b</sub> = N<sub>0,b</sub> · C<sub>k</sub>, &nbsp; C<sub>k</sub> = Σ<sub>b</sub> σ<sub>b</sub> r<sub>k,b</sub> / Σ<sub>b</sub> σ<sub>b</sub>, &nbsp; r<sub>k,b</sub> = N<sub>k,b</sub> / N<sub>0,b</sub>,
+
+so bin b integrates to σ<sub>b</sub> r<sub>k,b</sub> / C<sub>k</sub>: the bins change relative to
+each other as the generator weights say, and the total stays at the nominal Σ<sub>b</sub>
+σ<sub>b</sub>, whose uncertainty belongs to a separate normalisation term. C<sub>k</sub> is
+printed for each variation at the merge. A single-bin stitcher is unaffected, and so is the
+nominal.
+
 ## Several datasets, one physics point
 
 An extension sample (`_ext1`) or a variant of the same sample carrying LHE weights adds

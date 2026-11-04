@@ -4,6 +4,48 @@ import sys
 
 from FLAF.Common.CrossSectionDB import CrossSectionDB
 
+# The nominal (source, scale) key of the anaCache denominators; the same string as
+# Corrections.CorrectionsCore.central, spelled out to keep this module free of Corrections.
+CENTRAL = "Central"
+
+
+def inclusivelyNormalisedDenominators(cross_sections, varied, nominal):
+    """Per-bin denominators that normalise a variation once over the whole stitched sample.
+
+    Dividing each bin by its own varied sum N_k,b, as the stitcher does by default, puts
+    every bin back to its nominal cross section sigma_b: a variation that changes the bins
+    by different amounts (a QCD-scale variation moves the 2-jet bins much more than the
+    0-jet one) is then left with only the shape inside each bin. Here the bins keep their
+    nominal sums and share one factor instead,
+
+        D_k,b = N_0,b * C_k,    C_k = sum_b sigma_b r_k,b / sum_b sigma_b,
+        r_k,b = N_k,b / N_0,b,
+
+    so bin b integrates to sigma_b r_k,b / C_k: the bins change relative to each other as
+    the generator weights say, and the total stays sum_b sigma_b, the nominal cross section.
+
+    cross_sections, varied and nominal map bin name -> sigma_b, N_k,b and N_0,b. A bin with
+    N_0,b = 0 holds no events, so it stays out of C_k and keeps its varied sum.
+    Returns (denominators, C_k).
+    """
+    filled = [name for name in cross_sections if nominal[name] != 0]
+    if not filled:
+        raise RuntimeError("MCStitcher: no stitching bin has a non-zero nominal sum")
+    sigma_total = sum(cross_sections[name] for name in filled)
+    if sigma_total == 0:
+        raise RuntimeError(
+            "MCStitcher: the filled stitching bins have zero cross section"
+        )
+    norm = (
+        sum(cross_sections[name] * varied[name] / nominal[name] for name in filled)
+        / sigma_total
+    )
+    denominators = {
+        name: (nominal[name] * norm if nominal[name] != 0 else varied[name])
+        for name in cross_sections
+    }
+    return denominators, norm
+
 
 def defineFromStoredOrExpression(
     df, name, *, expression, stored=None, stored_expression=None, prepare=None
@@ -46,6 +88,12 @@ class MCStitcher:
         )
         self.useDatasetCrossSection = processor_entry.get(
             "useDatasetCrossSection", False
+        )
+        # Shape-weight sources (qcd_scale, pdf, ...) whose variations are normalised once
+        # over the whole stitched sample instead of bin by bin, so that their change of the
+        # relative bin populations survives; see inclusivelyNormalisedDenominators.
+        self.inclusiveNormalisationSources = set(
+            processor_entry.get("inclusiveNormalisationSources", [])
         )
 
         if stage not in ["AnaTuple", "AnaTupleMerge"]:
@@ -204,6 +252,43 @@ class MCStitcher:
         df = df.Define(tmp_branch, xs_expression)
         return df.Define(crossSectionBranch, f"float({tmp_branch})")
 
+    def sumBinDenominators(self, ana_caches, processor_name, source_name, scale_name):
+        """Sum of weights per stitching bin over every dataset of the stitched process."""
+        denom = {}
+        for bin in self.bins:
+            bin_name = bin["name"]
+            denom[bin_name] = 0.0
+            for ana_cache in ana_caches.values():
+                denom[bin_name] += ana_cache["denominator"][source_name][scale_name][
+                    processor_name
+                ][bin_name]
+        return denom
+
+    def binDenominators(self, ana_caches, processor_name, source_name, scale_name):
+        """The denominator of each stitching bin for one (source, scale) variation.
+
+        By default each bin is divided by its own sum under that variation. A source listed
+        in inclusiveNormalisationSources is normalised once over the whole stitched sample
+        instead (inclusivelyNormalisedDenominators). With a single bin the two coincide.
+        """
+        denom = self.sumBinDenominators(
+            ana_caches, processor_name, source_name, scale_name
+        )
+        if (
+            source_name == CENTRAL
+            or source_name not in self.inclusiveNormalisationSources
+            or len(self.bins) < 2
+        ):
+            return denom
+        nominal = self.sumBinDenominators(ana_caches, processor_name, CENTRAL, CENTRAL)
+        cross_sections = {bin["name"]: bin["crossSectionValue"] for bin in self.bins}
+        denom, norm = inclusivelyNormalisedDenominators(cross_sections, denom, nominal)
+        print(
+            f"MCStitcher: {source_name} {scale_name} normalised over the whole stitched"
+            f" sample, C = {norm:.6f}"
+        )
+        return denom
+
     def onAnaTuple_defineDenominator(
         self,
         df,
@@ -214,14 +299,9 @@ class MCStitcher:
         scale_name,
         ana_caches,
     ):
-        denom = {}
-        for bin in self.bins:
-            bin_name = bin["name"]
-            denom[bin_name] = 0.0
-            for ana_cache in ana_caches.values():
-                denom[bin_name] += ana_cache["denominator"][source_name][scale_name][
-                    processor_name
-                ][bin_name]
+        denom = self.binDenominators(
+            ana_caches, processor_name, source_name, scale_name
+        )
         denom_expression = ""
         for bin_cfg in self.bins:
             bin_selection = bin_cfg["selection"]

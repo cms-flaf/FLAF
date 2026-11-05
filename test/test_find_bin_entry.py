@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """HistHelper.findBinEntry: the histograms.yaml entry of a variable, matched by regex.
 
-HistFromNtupleProducer asks it once per booked histogram, so the answer is cached per
+The producers and plotters ask it for the same variable several times, so the answer is cached per
 (config, variable): the cache must return what the regex scan returns, keep configs apart, and
 not cache a failure. ROOT and numpy are not needed (HistHelper only uses them at import, mocked
-here; the CI runner has neither).
+here; the CI runner has no ROOT).
 """
 
 import os

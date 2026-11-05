@@ -8,270 +8,137 @@ if flaf_parent not in sys.path:
     sys.path.insert(0, flaf_parent)
 
 from FLAF.Analysis.histFromNtupleBatch import (
-    BYTES_PER_BOOKED_HIST,
     BYTES_PER_CELL,
-    count_booked_hists,
-    hist_bytes,
-    iter_hist_batches,
-    memory_budget,
-    n_cut_slots,
-    unc_scale_pairs,
+    cells_budget,
+    fill_groups,
 )
 
 
-def _cover(batches, var_bytes):
-    """(histograms, bytes) of every batch, and every (var, key, cut, unc, scale) booked."""
-    sizes, booked = [], []
-    for b_uncs, b_keys, b_cuts, b_vars in batches:
-        cuts = list(b_cuts) or [None]
-        pairs = unc_scale_pairs(b_uncs)
-        items = [
-            (v, k, c, p) for v in b_vars for k in b_keys for c in cuts for p in pairs
-        ]
-        booked.extend(items)
-        sizes.append((len(items), sum(var_bytes.get(v, 1) for v, *_ in items)))
-    return sizes, booked
+def _cover(groups, var_cells, n_keys, n_slots=1):
+    """Cells of every group, all slots' copies, and every (variable, weight) filled."""
+    sizes, filled = [], []
+    for group_vars, (first, end) in groups:
+        filled.extend((v, w) for v in group_vars for w in range(first, end))
+        sizes.append(
+            sum(var_cells[v] for v in group_vars) * n_keys * (end - first) * n_slots
+        )
+    return sizes, filled
 
 
-class TestHistFromNtupleBatch(unittest.TestCase):
-    def test_count_includes_up_down(self):
-        uncs = {
-            "Central": ["Central"],
-            "JER": ["Up", "Down"],
-            "JES_Total": ["Up", "Down"],
+# The HH_bbWW CR layout of a HistFromNtuple job: DeepHME_mass (80 cells), 100 DNN 1D variables (22 cells)
+# and 25 2D DNN_m*_vs_HME (8160 cells), 27 keys, 49 weights on the central tree.
+CR_LAYOUT = {"DeepHME_mass": 80}
+CR_LAYOUT.update({f"DNN_M{m}_Signal": 22 for m in range(100)})
+CR_LAYOUT.update({f"DNN_m{m}_vs_HME": 8160 for m in range(25)})
+
+
+class TestFillGroups(unittest.TestCase):
+    def test_budget(self):
+        self.assertEqual(BYTES_PER_CELL, 16)
+        self.assertEqual(cells_budget(1500), 1500 * 10**6 // 16)
+        self.assertEqual(cells_budget(0), 0)
+        self.assertEqual(cells_budget(None), 0)
+
+    def test_budget_is_an_int_for_a_float(self):
+        # --max-hist-memory-mb and the config value reach cells_budget as floats
+        for mb in (100.0, 1500.0, 1.5):
+            self.assertIsInstance(cells_budget(mb), int)
+        # below 1 MB the cap is off
+        self.assertEqual(cells_budget(0.5), 0)
+
+    def test_a_small_budget_splits_a_cr_2d_variable_over_its_weights(self):
+        var_cells = {"DNN_m300_vs_HME": 8160}
+        groups = fill_groups(var_cells, 27, 49, cells_budget(100.0))
+        self.assertEqual(
+            groups, [(["DNN_m300_vs_HME"], (0, 28)), (["DNN_m300_vs_HME"], (28, 49))]
+        )
+
+    def test_the_budget_counts_every_slot(self):
+        max_cells = cells_budget(1500.0)
+        n_loops = {}
+        for n_slots in (1, 2, 4, 8):
+            groups = fill_groups(CR_LAYOUT, 27, 49, max_cells, n_slots)
+            sizes, filled = _cover(groups, CR_LAYOUT, 27, n_slots)
+            self.assertEqual(
+                sorted(filled),
+                sorted((v, w) for v in CR_LAYOUT for w in range(49)),
+                n_slots,
+            )
+            self.assertTrue(all(s <= max_cells for s in sizes), (n_slots, sizes))
+            n_loops[n_slots] = len(groups)
+        # more slots, more copies: never fewer loops
+        self.assertEqual(n_loops[1], len(fill_groups(CR_LAYOUT, 27, 49, max_cells)))
+        self.assertTrue(n_loops[1] <= n_loops[2] <= n_loops[4] <= n_loops[8], n_loops)
+
+    def test_the_open_group_shares_the_loops_of_a_variable_over_the_budget(self):
+        # a 100 x 100 x 80 3D variable between 1D ones: its weight chunks take the 1D variables before it
+        # instead of a loop of their own
+        var_cells = {"a": 52, "b": 52, "c": 52, "big": 102 * 102 * 82, "d": 52}
+        max_cells = cells_budget(1500.0)
+        groups = fill_groups(var_cells, 27, 49, max_cells)
+        big = [g for g in groups if "big" in g[0]]
+        self.assertTrue(all(g[0] == ["a", "b", "c", "big"] for g in big), groups)
+        self.assertEqual(groups[-1], (["d"], (0, 49)))
+        self.assertEqual(len(groups), len(big) + 1)
+        sizes, filled = _cover(groups, var_cells, 27)
+        self.assertEqual(
+            sorted(filled), sorted((v, w) for v in var_cells for w in range(49))
+        )
+        self.assertTrue(all(s <= max_cells for s in sizes))
+        # the variables keep their order
+        first_seen = list(dict.fromkeys(v for g in groups for v in g[0]))
+        self.assertEqual(first_seen, list(var_cells))
+
+    def test_no_budget_is_one_group(self):
+        var_cells = {"a": 10, "b": 8160}
+        self.assertEqual(fill_groups(var_cells, 27, 49, 0), [(["a", "b"], (0, 49))])
+
+    def test_everything_fits(self):
+        var_cells = {"a": 10, "b": 20}
+        self.assertEqual(fill_groups(var_cells, 2, 3, 1000), [(["a", "b"], (0, 3))])
+
+    def test_every_variable_and_weight_once_within_the_budget(self):
+        var_cells = {
+            f"v{i}": c for i, c in enumerate([102, 80, 8160, 8160, 50, 8160, 30])
         }
-        self.assertEqual(len(unc_scale_pairs(uncs)), 5)
-        # 10 vars × 4 keys × 1 cut × 5 scales
-        self.assertEqual(count_booked_hists(10, 4, 1, 5), 200)
-        self.assertEqual(n_cut_slots({}), 1)
-        self.assertEqual(n_cut_slots({"a": 1, "b": 2}), 2)
-
-    def test_under_threshold_is_one_batch(self):
-        uncs = {"Central": ["Central"], "JER": ["Up", "Down"]}
-        keys = {("e", "SR"): "e && SR", ("mu", "SR"): "mu && SR"}
-        vars_ = ["lep1_pt", "lep1_eta"]
-        batches = list(iter_hist_batches(uncs, keys, {}, vars_, max_hists=100))
-        self.assertEqual(len(batches), 1)
-        b_uncs, b_keys, b_cuts, b_vars = batches[0]
-        self.assertEqual(b_uncs, uncs)
-        self.assertEqual(b_keys, keys)
-        self.assertEqual(b_vars, vars_)
-
-    def test_disabled_threshold_is_one_batch(self):
-        uncs = {"Central": ["Central"]}
-        keys = {("e",): "e"}
-        vars_ = [f"v{i}" for i in range(50)]
-        batches = list(iter_hist_batches(uncs, keys, {}, vars_, max_hists=0))
-        self.assertEqual(len(batches), 1)
-        self.assertEqual(batches[0][3], vars_)
-
-    def test_split_by_variables(self):
-        uncs = {"Central": ["Central"], "JER": ["Up", "Down"]}  # 3 scales
-        keys = {("e",): "e", ("mu",): "mu"}  # 2 keys
-        # 3 × 2 × 1 = 6 hists/var; max 10 → 1 var per batch
-        vars_ = ["a", "b", "c"]
-        batches = list(iter_hist_batches(uncs, keys, {}, vars_, max_hists=10))
-        self.assertEqual(len(batches), 3)
-        seen = []
-        for b_uncs, b_keys, _, b_vars in batches:
-            self.assertEqual(b_uncs, uncs)
-            self.assertEqual(set(b_keys), set(keys))
-            self.assertEqual(len(b_vars), 1)
-            seen.extend(b_vars)
-        self.assertEqual(seen, vars_)
-
-    def test_one_var_over_budget_splits_keys(self):
-        uncs = {"Central": ["Central"]}
-        keys = {("k%d" % i,): "c" for i in range(10)}
-        vars_ = ["only"]
-        # 1 × 10 × 1 × 1 = 10; max 3 → 4 key-batches (3+3+3+1)
-        batches = list(iter_hist_batches(uncs, keys, {}, vars_, max_hists=3))
-        self.assertGreater(len(batches), 1)
-        seen_keys = []
-        for _, b_keys, _, b_vars in batches:
-            self.assertEqual(b_vars, ["only"])
-            self.assertLessEqual(len(b_keys), 3)
-            seen_keys.extend(b_keys)
-        self.assertEqual(sorted(seen_keys), sorted(keys))
-
-    def test_each_batch_respects_budget(self):
-        uncs = {
-            "Central": ["Central"],
-            "JER": ["Up", "Down"],
-            "EleES": ["Up", "Down"],
-        }  # 5
-        keys = {("c%d" % i,): "x" for i in range(8)}  # 8
-        cuts = {"cutA": "a", "cutB": "b"}  # 2
-        vars_ = ["v1", "v2", "v3"]  # 3
-        # total = 3*8*2*5 = 240
-        max_hists = 20
-        batches = list(iter_hist_batches(uncs, keys, cuts, vars_, max_hists))
-        self.assertGreater(len(batches), 1)
-        covered = 0
-        for b_uncs, b_keys, b_cuts, b_vars in batches:
-            n = count_booked_hists(
-                len(b_vars),
-                max(1, len(b_keys)),
-                n_cut_slots(b_cuts),
-                max(1, len(unc_scale_pairs(b_uncs))),
-            )
-            self.assertLessEqual(n, max_hists)
-            covered += n
-        self.assertEqual(covered, 240)
-
-
-class TestHistFromNtupleMemoryBudget(unittest.TestCase):
-    """The memory budget: batches of mixed 1D / 2D variables within both limits."""
-
-    UNCS = {"Central": ["Central"], "JER": ["Up", "Down"], "PU": ["Up", "Down"]}  # 5
-    KEYS = {(f"ch{i}", "SR", f"cat{j}"): "x" for i in range(3) for j in range(3)}  # 9
-    VARS = ["pt1", "pt2", "m_2d_a", "eta", "m_2d_b", "m_2d_c"]
-    CELLS = {
-        "pt1": 102,
-        "pt2": 102,
-        "eta": 52,
-        "m_2d_a": 8160,
-        "m_2d_b": 8160,
-        "m_2d_c": 8160,
-    }
-    # one thread slot: 1D 7.6 kB / 6.8 kB per histogram, 2D 136.6 kB
-    BYTES = {var: hist_bytes(cells, 1) for var, cells in CELLS.items()}
-
-    def test_hist_bytes_and_budget(self):
-        # one copy per thread slot (none extra for the merge), plus the fixed cost per action
+        n_keys, n_weights, max_cells = 27, 49, 3 * 8160 * 27 * 49
+        groups = fill_groups(var_cells, n_keys, n_weights, max_cells)
+        sizes, filled = _cover(groups, var_cells, n_keys)
         self.assertEqual(
-            hist_bytes(8160, 1), BYTES_PER_BOOKED_HIST + 8160 * BYTES_PER_CELL
+            sorted(filled), sorted((v, w) for v in var_cells for w in range(n_weights))
         )
+        self.assertTrue(all(s <= max_cells for s in sizes))
+        # variables keep their order
+        order = [v for group_vars, _ in groups for v in group_vars]
+        self.assertEqual(order, list(var_cells))
+
+    def test_a_variable_larger_than_the_budget_is_split_over_its_weights(self):
+        var_cells = {"small": 10, "big": 1000, "after": 10}
+        n_keys, n_weights = 2, 10
+        max_cells = 1000 * n_keys * 3  # three weights of "big" per group
+        groups = fill_groups(var_cells, n_keys, n_weights, max_cells)
+        self.assertEqual(groups[0], (["small"], (0, 10)))
         self.assertEqual(
-            hist_bytes(8160, 4), BYTES_PER_BOOKED_HIST + 4 * 8160 * BYTES_PER_CELL
+            [g for g in groups if g[0] == ["big"]],
+            [
+                (["big"], (0, 3)),
+                (["big"], (3, 6)),
+                (["big"], (6, 9)),
+                (["big"], (9, 10)),
+            ],
         )
-        self.assertEqual(hist_bytes(100, 0), hist_bytes(100, 1))
-        self.assertEqual(memory_budget(1500), 1_500_000_000)
-        self.assertEqual(memory_budget(0), 0)
-        self.assertEqual(memory_budget(None), 0)
+        self.assertEqual(groups[-1], (["after"], (0, 10)))
+        sizes, filled = _cover(groups, var_cells, n_keys)
+        self.assertEqual(len(filled), len(set(filled)))
+        self.assertEqual(len(filled), 3 * n_weights)
+        self.assertTrue(all(s <= max_cells for s in sizes))
 
-    def test_without_a_memory_budget_the_batches_are_the_counts(self):
-        # literal batches: 45 histograms per variable, so 2 variables per 100
-        expected = {
-            0: [self.VARS],
-            100: [["pt1", "pt2"], ["m_2d_a", "eta"], ["m_2d_b", "m_2d_c"]],
-            4000: [self.VARS],
-        }
-        for max_hists, var_lists in expected.items():
-            for kwargs in ({}, {"var_bytes": self.BYTES, "max_bytes": 0}):
-                batches = list(
-                    iter_hist_batches(
-                        self.UNCS, self.KEYS, {}, self.VARS, max_hists, **kwargs
-                    )
-                )
-                self.assertEqual(
-                    [b[3] for b in batches], var_lists, (max_hists, kwargs)
-                )
-                for b_uncs, b_keys, b_cuts, _ in batches:
-                    self.assertEqual(
-                        (b_uncs, b_keys, b_cuts), (self.UNCS, self.KEYS, {})
-                    )
+    def test_one_weight_above_the_budget_still_gets_a_group(self):
+        groups = fill_groups({"huge": 10**6}, 4, 2, 100)
+        self.assertEqual(groups, [(["huge"], (0, 1)), (["huge"], (1, 2))])
 
-    def test_every_histogram_once_within_both_budgets(self):
-        n_total = len(self.VARS) * len(self.KEYS) * 5
-        for max_hists, max_bytes in (
-            (4000, 13_000_000),
-            (100, 13_000_000),
-            (4000, 2_000_000),
-            (30, 300_000),
-            (0, 4_000_000),
-        ):
-            batches = list(
-                iter_hist_batches(
-                    self.UNCS,
-                    self.KEYS,
-                    {},
-                    self.VARS,
-                    max_hists,
-                    var_bytes=self.BYTES,
-                    max_bytes=max_bytes,
-                )
-            )
-            sizes, booked = _cover(batches, self.BYTES)
-            self.assertEqual(len(booked), n_total, (max_hists, max_bytes))
-            self.assertEqual(len(set(booked)), n_total, (max_hists, max_bytes))
-            for n, size in sizes:
-                if max_hists:
-                    self.assertLessEqual(n, max_hists, (max_hists, max_bytes))
-                # a single histogram larger than the budget is the one allowed overshoot
-                self.assertTrue(
-                    size <= max_bytes or n == 1, (max_hists, max_bytes, n, size)
-                )
-
-    def test_largest_variables_are_packed_first(self):
-        # in input order: d1..d8 (8 MB), then m2a (6 MB) and m2b (6 MB) each start a pass -> 3
-        # passes; first-fit-decreasing puts each 2D with four 1D: 2 passes of 10 MB
-        uncs, keys = {"Central": ["Central"]}, {("e",): "e"}
-        var_bytes = {f"d{i}": 1_000_000 for i in range(1, 9)}
-        var_bytes.update({"m2a": 6_000_000, "m2b": 6_000_000})
-        batches = list(
-            iter_hist_batches(
-                uncs,
-                keys,
-                {},
-                list(var_bytes),
-                0,
-                var_bytes=var_bytes,
-                max_bytes=10_000_000,
-            )
-        )
-        self.assertEqual(
-            [b[3] for b in batches],
-            [["d1", "d2", "d3", "d4", "m2a"], ["d5", "d6", "d7", "d8", "m2b"]],
-        )
-
-    def test_over_budget_variable_is_chunked_by_what_fits(self):
-        # one key, 21 (unc, scale) pairs of 1 MB, 5 MB per batch: 5 batches, not 21
-        uncs = {"Central": ["Central"]}
-        uncs.update({f"u{i}": ["Up", "Down"] for i in range(10)})
-        batches = list(
-            iter_hist_batches(
-                uncs,
-                {("e",): "e"},
-                {},
-                ["v"],
-                0,
-                var_bytes={"v": 1_000_000},
-                max_bytes=5_000_000,
-            )
-        )
-        self.assertEqual([len(unc_scale_pairs(b[0])) for b in batches], [5, 5, 5, 5, 1])
-        sizes, booked = _cover(batches, {"v": 1_000_000})
-        self.assertEqual(len(set(booked)), 21)
-
-    def test_further_cuts_count_in_the_memory(self):
-        # with 2 cuts a 2D variable is 90 histograms, 12.3 MB: one per 13 MB batch. Without the
-        # cut factor two would be packed together, 24.6 MB.
-        cuts = {"cutA": ("a", "a"), "cutB": ("b", "b")}
-        batches = list(
-            iter_hist_batches(
-                self.UNCS,
-                self.KEYS,
-                cuts,
-                ["m_2d_a", "m_2d_b", "pt1"],
-                0,
-                var_bytes=self.BYTES,
-                max_bytes=13_000_000,
-            )
-        )
-        sizes, booked = _cover(batches, self.BYTES)
-        self.assertEqual(len(set(booked)), 3 * 9 * 2 * 5)
-        self.assertTrue(all(size <= 13_000_000 for _, size in sizes), sizes)
-        self.assertEqual([b[3] for b in batches], [["m_2d_a", "pt1"], ["m_2d_b"]])
-
-    def test_empty_variable_list(self):
-        batches = list(
-            iter_hist_batches(
-                self.UNCS, self.KEYS, {}, [], 4000, var_bytes=self.BYTES, max_bytes=1000
-            )
-        )
-        self.assertEqual(len(batches), 1)
-        self.assertEqual(batches[0][3], [])
+    def test_no_variables(self):
+        self.assertEqual(fill_groups({}, 27, 49, 1000), [])
 
 
 if __name__ == "__main__":

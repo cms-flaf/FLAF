@@ -19,6 +19,7 @@ from FLAF.AnaProd.tasks import (
     anaTuple_plans_ready,
 )
 from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
+import FLAF.Common.TheoryUncertainties as TheoryUncertainties
 
 # Process-local cache of the upstream AnaTupleMergeTask outputs, keyed like its branch map
 # (`Task._branch_map_cache_key`). HistTupleProducerTask.output() and
@@ -63,6 +64,24 @@ def _active_variables(setup, variables=""):
     if missing:
         print(f"Warning: variables not found in config: {sorted(missing)}")
     return result
+
+
+def _theory_members(setup):
+    """``{unc: (weights entry, [members])}``: the uncertainties of `setup` that have members
+    (PDF, QCD scale) instead of Up/Down, as the corrections configuration registers them.
+    """
+    from Corrections.Corrections import Corrections
+    from Corrections.CorrectionsCore import getScales
+
+    Corrections.registerConfiguredSourceScales(setup.global_params)
+    up_down = list(setup.global_params["scales"])
+    entries = dict(setup.weights_config["norm"])
+    entries.update(setup.weights_config["shape"])
+    return {
+        unc: (entry, list(getScales(unc)))
+        for unc, entry in entries.items()
+        if TheoryUncertainties.has_members(getScales(unc), up_down)
+    }
 
 
 def _merged_hists_target(task, era, var_name, fs):
@@ -1123,6 +1142,15 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         scales = self.common(
             lambda setup: list(setup.global_params["scales"]), "scales"
         )
+        members = self.common(_theory_members, "theory-uncertainty members")
+
+        def member_names(process):
+            return [
+                f"{process}_{TheoryUncertainties.format_name(entry, m, process)}"
+                for entry, unc_members in members.values()
+                for m in unc_members
+            ]
+
         inputs = self.input()
         with contextlib.ExitStack() as stack:
             local_inputs = [
@@ -1130,7 +1158,7 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                 for era in self.sub_eras
             ]
             with self.output().localize("w") as out_file:
-                SumEraFiles(local_inputs, out_file.abspath, scales)
+                SumEraFiles(local_inputs, out_file.abspath, scales, member_names)
 
 
 class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):

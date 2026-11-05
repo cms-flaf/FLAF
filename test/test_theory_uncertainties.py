@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Theory uncertainties stored as members (Common/TheoryUncertainties.py).
 
-The members of a PDF or QCD-scale uncertainty are reduced to Up/Down per bin once the datasets of a
-process are summed: the 7-point envelope for the QCD scale, the Hessian sum (+ alpha_s) for the PDF.
-Each process of the physics model has its own nuisance. The reduction itself needs no ROOT; the
-histogram tests do.
+HistMerger writes every member of a PDF or QCD-scale uncertainty as its own histogram,
+``<process>_<name>`` with the member in place of ``{}``; reducing them to Up/Down is left to the
+datacard step. The meta-era sum treats a member as a variation of its process: an era without
+it enters with its central histogram, and a process name ending like a member (``..._MY_100``)
+is not mistaken for one.
 """
 
-import math
 import os
 import sys
+import tempfile
 import unittest
 
 import pytest
@@ -24,12 +25,10 @@ import FLAF.Common.TheoryUncertainties as TU  # noqa: E402
 QCD = {
     "expression": "weight_base_qcd_scale{scale}_rel * final_weight",
     "name": "QCDscale_{process}_{}",
-    "reduction": "envelope",
 }
 PDF = {
     "expression": "weight_base_pdf{scale}_rel * final_weight",
     "name": "pdf_{process}_{}",
-    "reduction": "hessian",
 }
 QCD_SCALES = [
     "_muR0p5_muF0p5",
@@ -42,188 +41,113 @@ QCD_SCALES = [
     "_muR2_muF2",
 ]
 PDF_SCALES = [str(k) for k in range(103)]
+UP_DOWN = ["Up", "Down"]
 
 
-class ConfigTest(unittest.TestCase):
-    def test_reduction(self):
-        self.assertEqual(TU.reduction(QCD), "envelope")
-        self.assertEqual(TU.reduction(PDF), "hessian")
-        self.assertIsNone(TU.reduction({"name": "ps_isr_{}"}))
-        with self.assertRaises(ValueError):
-            TU.reduction({"reduction": "replicas"})
+class NamesTest(unittest.TestCase):
+    def test_has_members(self):
+        self.assertTrue(TU.has_members(QCD_SCALES, UP_DOWN))
+        self.assertTrue(TU.has_members(PDF_SCALES, UP_DOWN))
+        self.assertFalse(TU.has_members(["Up", "Down"], UP_DOWN))
 
-    def test_names(self):
-        self.assertEqual(TU.format_name(QCD, "Up", "TT"), "QCDscale_TT_Up")
-        # every process of the physics model has its own nuisance
+    def test_member_names(self):
+        # the member's leading underscore is dropped
         self.assertEqual(
-            TU.format_name(QCD, "Down", "DY_M_10to50"), "QCDscale_DY_M_10to50_Down"
+            TU.format_name(QCD, "_muR2_muF1", "TT"), "QCDscale_TT_muR2_muF1"
         )
+        self.assertEqual(TU.format_name(PDF, "57", "TT"), "pdf_TT_57")
+
+    def test_process_names(self):
+        # every process of the physics model has its own
         self.assertEqual(TU.format_name(QCD, "Up", "DY_M_50"), "QCDscale_DY_M_50_Up")
         self.assertEqual(
-            TU.format_name(PDF, "Up", "GluGluToRadion_bbWW_2L_500"),
-            "pdf_GluGluToRadion_bbWW_2L_500_Up",
+            TU.format_name(PDF, "0", "GluGluToRadion_bbWW_2L_500"),
+            "pdf_GluGluToRadion_bbWW_2L_500_0",
         )
         # an ordinary entry, without {process}, is formatted as before
         self.assertEqual(TU.format_name({"name": "ps_isr_{}"}, "Up", "TT"), "ps_isr_Up")
 
-    def test_members_used(self):
-        used = TU.members_used(QCD, QCD_SCALES)
-        self.assertEqual(len(used), 6)
-        self.assertNotIn("_muR0p5_muF2", used)
-        self.assertNotIn("_muR2_muF0p5", used)
-        self.assertEqual(TU.members_used(PDF, PDF_SCALES), PDF_SCALES[1:])
-
-
-class ReduceCellsTest(unittest.TestCase):
-    def test_envelope_is_the_7_point_range(self):
-        nominal = [10.0, 20.0]
-        members = {s: [10.0, 20.0] for s in QCD_SCALES}
-        members["_muR2_muF2"] = [8.0, 21.0]
-        members["_muR0p5_muF0p5"] = [12.5, 19.0]
-        # the excluded corners are outside the envelope and must not count
-        members["_muR0p5_muF2"] = [100.0, 0.0]
-        members["_muR2_muF0p5"] = [0.0, 100.0]
-        up, down = TU.reduce_cells(QCD, nominal, members)
-        self.assertEqual(up, [12.5, 21.0])
-        self.assertEqual(down, [8.0, 19.0])
-
-    def test_envelope_contains_the_nominal(self):
-        nominal = [10.0]
-        members = {s: [11.0] for s in QCD_SCALES}
-        up, down = TU.reduce_cells(QCD, nominal, members)
-        self.assertEqual((up, down), ([11.0], [10.0]))
-
-    def test_hessian_with_alphas(self):
-        nominal = [100.0, 50.0]
-        members = {s: [100.0, 50.0] for s in PDF_SCALES}
-        members["1"] = [103.0, 50.0]
-        members["2"] = [96.0, 51.0]
-        members["101"] = [98.0, 50.0]  # alpha_s down
-        members["102"] = [104.0, 50.0]  # alpha_s up
-        up, down = TU.reduce_cells(PDF, nominal, members)
-        sigma0 = math.sqrt(
-            3.0**2 + 4.0**2 + 3.0**2
-        )  # eigenvectors 3, -4; alpha_s (104-98)/2
-        sigma1 = 1.0
-        self.assertAlmostEqual(up[0], 100.0 + sigma0)
-        self.assertAlmostEqual(down[0], 100.0 - sigma0)
-        self.assertAlmostEqual(up[1], 50.0 + sigma1)
-        self.assertAlmostEqual(down[1], 50.0 - sigma1)
-
-    def test_hessian_settings(self):
-        nominal = [100.0]
-        members = {s: [100.0] for s in PDF_SCALES}
-        members["101"], members["102"] = [98.0], [104.0]
-        entry = dict(PDF, alphas_scale=0.75)
-        up, _ = TU.reduce_cells(entry, nominal, members)
-        self.assertAlmostEqual(up[0], 100.0 + 3.0 * 0.75)
-        up, _ = TU.reduce_cells(dict(PDF, alphas=None), nominal, members)
-        self.assertAlmostEqual(up[0], 100.0)
-
-    def test_hessian_without_finite_alphas_uses_the_eigenvectors(self):
-        # the X->HH signal samples carry no alpha_s members: they are NaN in the anaTuples
-        nominal = [100.0]
-        members = {s: [100.0] for s in PDF_SCALES}
-        members["1"] = [103.0]
-        members["101"], members["102"] = [float("nan")], [float("nan")]
-        self.assertFalse(TU.alphas_available(PDF, members))
-        up, down = TU.reduce_cells(PDF, nominal, members)
-        self.assertAlmostEqual(up[0], 103.0)
-        self.assertAlmostEqual(down[0], 97.0)
-
-    def test_hessian_non_finite_eigenvector_raises(self):
-        members = {s: [1.0] for s in PDF_SCALES}
-        members["7"] = [float("nan")]
-        with self.assertRaises(ValueError):
-            TU.reduce_cells(PDF, [1.0], members)
-
-    def test_hessian_missing_member_raises(self):
-        members = {s: [1.0] for s in PDF_SCALES if s != "57"}
-        with self.assertRaises(ValueError):
-            TU.reduce_cells(PDF, [1.0], members)
-
 
 @pytest.mark.needs_root
-class ReduceHistDictTest(unittest.TestCase):
-    """The step HistMergerFromHists runs once every dataset is summed into its process."""
+class SumEraMembersTest(unittest.TestCase):
+    """SumEraFiles with member_names: members are variations of their process."""
 
-    @classmethod
-    def setUpClass(cls):
-        global ROOT
-        import ROOT
+    PROCESSES = ["TT", "XtoYH_MX_1000_MY_100"]
+
+    def setUp(self):
+        try:
+            import ROOT
+        except ImportError as e:
+            raise unittest.SkipTest(f"needs ROOT: {e}")
+        import FLAF.Common.HistHelper as HistHelper
 
         ROOT.gROOT.SetBatch(True)
+        self.ROOT, self.HistHelper = ROOT, HistHelper
+        self.tmp = tempfile.TemporaryDirectory()
 
-    def hist(self, name, values, dim=1):
-        if dim == 1:
-            h = ROOT.TH1D(name, "", len(values), 0, len(values))
-            for i, v in enumerate(values, start=1):
-                h.SetBinContent(i, v)
-                h.SetBinError(i, 0.1 * v)
-        else:
-            h = ROOT.TH2D(name, "", 2, 0, 2, 2, 0, 2)
-            for i, v in enumerate(values):
-                h.SetBinContent(h.GetBin(i % 2 + 1, i // 2 + 1), v)
-        h.SetDirectory(0)
-        return h
+    def tearDown(self):
+        self.tmp.cleanup()
 
-    def test_members_replaced_by_up_down(self):
-        key = ("eE", "SR", "res2b")
-        nominal = self.hist("nom", [10.0, 20.0])
-        hists = {(key, ("Central", "Central")): nominal}
-        for s in QCD_SCALES:
-            hists[(key, ("qcd_scale", s))] = self.hist(s, [10.0, 20.0])
-        hists[(key, ("qcd_scale", "_muR2_muF2"))] = self.hist("a", [9.0, 22.0])
-        hists[(key, ("ps_isr", "Up"))] = self.hist("isr", [11.0, 21.0])
-        data = {(key, ("Central", "Central")): self.hist("data", [30.0, 40.0])}
-        all_hists = {"TT": hists, "data": data}
-        TU.reduce_in_hist_dict(all_hists, "qcd_scale", QCD, QCD_SCALES)
-        remaining = sorted(u for (_, u) in hists)
-        self.assertEqual(
-            remaining,
-            sorted(
-                [
-                    ("Central", "Central"),
-                    ("ps_isr", "Up"),
-                    ("qcd_scale", "Up"),
-                    ("qcd_scale", "Down"),
-                ]
-            ),
+    def member_names(self, process):
+        return [
+            f"{process}_{TU.format_name(PDF, m, process)}" for m in ("0", "1", "100")
+        ]
+
+    def write_era(self, name, contents):
+        """One merged file: eE/SR/res2b with one-bin histograms {name: value}."""
+        path = os.path.join(self.tmp.name, name)
+        out = self.ROOT.TFile(path, "RECREATE")
+        d = self.HistHelper.mkdir_recursive(out, "eE/SR/res2b")
+        for hist_name, value in contents.items():
+            h = self.ROOT.TH1D(hist_name, hist_name, 1, 0.0, 1.0)
+            h.SetDirectory(0)
+            h.SetBinContent(1, value)
+            d.WriteTObject(h, hist_name)
+        out.Close()
+        return path
+
+    def summed(self, path):
+        f = self.ROOT.TFile.Open(path)
+        d = f.Get("eE/SR/res2b")
+        values = {
+            k.GetName(): d.Get(k.GetName()).GetBinContent(1) for k in d.GetListOfKeys()
+        }
+        f.Close()
+        return values
+
+    def test_members_summed_and_missing_member_takes_central(self):
+        era_a = self.write_era(
+            "a.root",
+            {
+                "TT": 10.0,
+                "TT_pdf_TT_0": 11.0,
+                "TT_pdf_TT_1": 12.0,
+                "TT_pdf_TT_100": 13.0,
+                # a process whose name ends like a member
+                "XtoYH_MX_1000_MY_100": 1.0,
+                "XtoYH_MX_1000_MY_100_pdf_XtoYH_MX_1000_MY_100_1": 2.0,
+            },
         )
-        up, down = (
-            hists[(key, ("qcd_scale", "Up"))],
-            hists[(key, ("qcd_scale", "Down"))],
+        # era b misses TT's member 100 and the signal's member 1
+        era_b = self.write_era(
+            "b.root",
+            {
+                "TT": 20.0,
+                "TT_pdf_TT_0": 21.0,
+                "TT_pdf_TT_1": 22.0,
+                "XtoYH_MX_1000_MY_100": 3.0,
+            },
         )
-        self.assertEqual([up.GetBinContent(i) for i in (1, 2)], [10.0, 22.0])
-        self.assertEqual([down.GetBinContent(i) for i in (1, 2)], [9.0, 20.0])
-        # the nominal keeps its contents and its errors carry over to Up/Down
-        self.assertEqual(nominal.GetBinContent(1), 10.0)
-        self.assertAlmostEqual(up.GetBinError(2), 2.0)
-        self.assertEqual(list(data), [(key, ("Central", "Central"))])
-
-    def test_2d_and_overflow(self):
-        key = ("muMu", "SR", "boosted")
-        nominal = self.hist("nom2", [1.0, 2.0, 3.0, 4.0], dim=2)
-        nominal.SetBinContent(0, 5.0)  # underflow cell
-        hists = {(key, ("Central", "Central")): nominal}
-        for s in PDF_SCALES:
-            hists[(key, ("pdf", s))] = nominal.Clone(f"m{s}")
-        shifted = nominal.Clone("m1")
-        shifted.SetBinContent(0, 7.0)
-        hists[(key, ("pdf", "1"))] = shifted
-        TU.reduce_in_hist_dict({"DY_M_50": hists}, "pdf", PDF, PDF_SCALES)
-        up = hists[(key, ("pdf", "Up"))]
-        self.assertIsInstance(up, ROOT.TH2D)
-        self.assertAlmostEqual(up.GetBinContent(0), 7.0)
-        self.assertAlmostEqual(up.GetBinContent(up.GetBin(2, 2)), 4.0)
-
-    def test_missing_member_raises(self):
-        key = ("eE", "SR", "res2b")
-        hists = {(key, ("Central", "Central")): self.hist("n", [1.0])}
-        for s in QCD_SCALES[:-1]:
-            hists[(key, ("qcd_scale", s))] = self.hist(s, [1.0])
-        with self.assertRaises(RuntimeError):
-            TU.reduce_in_hist_dict({"TT": hists}, "qcd_scale", QCD, QCD_SCALES)
+        out = os.path.join(self.tmp.name, "sum.root")
+        self.HistHelper.SumEraFiles([era_a, era_b], out, UP_DOWN, self.member_names)
+        values = self.summed(out)
+        self.assertEqual(values["TT"], 30.0)
+        self.assertEqual(values["TT_pdf_TT_0"], 32.0)
+        self.assertEqual(values["TT_pdf_TT_1"], 34.0)
+        # era b has no member 100: its central TT enters instead
+        self.assertEqual(values["TT_pdf_TT_100"], 33.0)
+        self.assertEqual(values["XtoYH_MX_1000_MY_100"], 4.0)
+        self.assertEqual(values["XtoYH_MX_1000_MY_100_pdf_XtoYH_MX_1000_MY_100_1"], 5.0)
 
 
 if __name__ == "__main__":

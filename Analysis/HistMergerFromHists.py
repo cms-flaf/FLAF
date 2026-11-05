@@ -278,16 +278,39 @@ if __name__ == "__main__":
 
     all_hists_dict = {}
     chunk_has_trees = {}
-    all_datasets = args.dataset_names.split(",")
-    for dataset_name, inFile_path in zip(all_datasets, args.inFiles):
+
+    def process_of(dataset_name):
+        base_process_name = dataset_cfg_dict[dataset_name]["process_name"]
+        return setup.base_processes[base_process_name]["parent_process"]
+
+    # The datasets of a process are read one after the other, so that its theory-uncertainty
+    # members can be reduced as soon as its last dataset is summed: only one process holds its
+    # members at a time (~0.4 GB per process for a 2D DNN_m*_vs_HME, 15 processes per variable).
+    inputs = list(zip(args.dataset_names.split(","), args.inFiles))
+    process_order = list(dict.fromkeys(process_of(name) for name, _ in inputs))
+    inputs.sort(key=lambda item: process_order.index(process_of(item[0])))
+    last_input_of = {process_of(name): i for i, (name, _) in enumerate(inputs)}
+
+    def reduce_theory_uncertainties(process):
+        for unc_name, unc_entry in theory_uncs.items():
+            TheoryUncertainties.reduce_in_hist_dict(
+                {process: all_hists_dict.get(process, {})},
+                unc_name,
+                unc_entry,
+                getScales(unc_name),
+                data_type=data_process_name,
+            )
+
+    for i, (dataset_name, inFile_path) in enumerate(inputs):
+        dataset_type = process_of(dataset_name)
         if not os.path.exists(inFile_path):
             print(
                 f"input file for dataset {dataset_name} (with path= {inFile_path}) does not exist, skipping"
             )
+            if last_input_of[dataset_type] == i:
+                reduce_theory_uncertainties(dataset_type)
             continue
 
-        base_process_name = dataset_cfg_dict[dataset_name]["process_name"]
-        dataset_type = setup.base_processes[base_process_name]["parent_process"]
         print(dataset_type)
         if dataset_type not in all_hists_dict.keys():
             all_hists_dict[dataset_type] = {}
@@ -311,17 +334,12 @@ if __name__ == "__main__":
             chunk_has_trees.setdefault(dataset_type, []).append(
                 (dataset_name, inFile_path, has_trees)
             )
+        del all_items
+        # Every dataset of the process is summed now: reduce each theory uncertainty's members
+        # to its Up/Down pair, so that everything below sees a plain Up/Down uncertainty.
+        if last_input_of[dataset_type] == i:
+            reduce_theory_uncertainties(dataset_type)
     signal_tree_files = signal_tree_inputs(chunk_has_trees)
-    # Every dataset is summed into its process now: reduce each theory uncertainty's members
-    # to its Up/Down pair, so that everything below sees a plain Up/Down uncertainty.
-    for unc_name, unc_entry in theory_uncs.items():
-        TheoryUncertainties.reduce_in_hist_dict(
-            all_hists_dict,
-            unc_name,
-            unc_entry,
-            getScales(unc_name),
-            data_type=data_process_name,
-        )
     alias_data_variations(all_hists_dict, data_process_name, unc_sources)
 
     # here there should be the custom applications - e.g. GetBTagWeightDict, AddQCDInHistDict, etc.

@@ -9,7 +9,9 @@ if __name__ == "__main__":
 
 import FLAF.Common.Utilities as Utilities
 import FLAF.Common.Setup as Setup
+import FLAF.Common.TheoryUncertainties as TheoryUncertainties
 from FLAF.Common.HistHelper import *
+from Corrections.CorrectionsCore import getScales
 
 
 def checkFile(inFileRoot, channels, qcdRegions, categories):
@@ -54,7 +56,8 @@ def fill_hists(
         for unc_source in unc_sources:
             if unc_source == "Central":
                 continue
-            for scale in ["Up", "Down"]:
+            # Up/Down, or every member of a theory uncertainty (reduced after the sum)
+            for scale in getScales(unc_source):
                 target_keys[f"{var_input}_{unc_source}_{scale}"] = (unc_source, scale)
     hists = all_hist_dict.setdefault(dataset_type, {})
     for key_tuple, hist_map in items_dict.items():
@@ -232,6 +235,24 @@ if __name__ == "__main__":
     ]
     if unknown_sources:
         raise ValueError(f"Unknown uncertainty source(s): {', '.join(unknown_sources)}")
+    all_unc_dict = unc_cfg_dict["norm"].copy()
+    all_unc_dict.update(unc_cfg_dict["shape"])
+    # The members of a theory uncertainty (PDF, QCD scale) are known from the corrections
+    # configuration, and it is merged only for the variables its entry lists.
+    from Corrections.Corrections import Corrections
+
+    Corrections.registerConfiguredSourceScales(global_cfg_dict)
+    unc_sources = [
+        s
+        for s in unc_sources
+        if s == "Central"
+        or TheoryUncertainties.applies_to_variable(all_unc_dict[s], args.var)
+    ]
+    theory_uncs = {
+        s: all_unc_dict[s]
+        for s in unc_sources
+        if s != "Central" and TheoryUncertainties.reduction(all_unc_dict[s])
+    }
     # Uncertainties exception
     unc_exception = global_cfg_dict.get(
         "unc_exception", {}
@@ -291,6 +312,16 @@ if __name__ == "__main__":
                 (dataset_name, inFile_path, has_trees)
             )
     signal_tree_files = signal_tree_inputs(chunk_has_trees)
+    # Every dataset is summed into its process now: reduce each theory uncertainty's members
+    # to its Up/Down pair, so that everything below sees a plain Up/Down uncertainty.
+    for unc_name, unc_entry in theory_uncs.items():
+        TheoryUncertainties.reduce_in_hist_dict(
+            all_hists_dict,
+            unc_name,
+            unc_entry,
+            getScales(unc_name),
+            data_type=data_process_name,
+        )
     alias_data_variations(all_hists_dict, data_process_name, unc_sources)
 
     # here there should be the custom applications - e.g. GetBTagWeightDict, AddQCDInHistDict, etc.
@@ -332,9 +363,6 @@ if __name__ == "__main__":
                 wantNegativeContributions=False,
             )
 
-    all_unc_dict = unc_cfg_dict["norm"].copy()
-    all_unc_dict.update(unc_cfg_dict["shape"])
-
     # 209 = LZMA level 9, the standard compression for merged histogram files
     outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)
     for dataset_type in all_hists_dict.keys():
@@ -350,7 +378,9 @@ if __name__ == "__main__":
                     continue
                 if uncScale == "Central":
                     continue
-                hist_name += f"""_{all_unc_dict[uncName]["name"].format(uncScale)}"""
+                hist_name += "_" + TheoryUncertainties.format_name(
+                    all_unc_dict[uncName], uncScale, dataset_type
+                )
             else:
                 if uncScale != "Central":
                     continue

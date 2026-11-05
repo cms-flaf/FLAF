@@ -6,6 +6,7 @@ import ROOT
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
+import FLAF.Common.TheoryUncertainties as TheoryUncertainties
 import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
 from FLAF.RunKit.run_tools import hadd_parallel
@@ -90,7 +91,17 @@ def createHistTuple(
 
     norm_uncertainties = set()
     if setup.global_params["compute_rel_weights"]:
-        norm_uncertainties.update(unc_cfg_dict["norm"].keys())
+        # A norm uncertainty whose entry lists `variables` (a theory uncertainty, one weight
+        # per member) is stored only if this flavour has one of them.
+        flavour_vars = [
+            v if isinstance(v, str) else v.get("name", "_".join(v.get("vars", [])))
+            for v in binned_variables
+        ] + list(fullres_variables)
+        norm_uncertainties.update(
+            name
+            for name, entry in unc_cfg_dict["norm"].items()
+            if TheoryUncertainties.applies_to_any_variable(entry, flavour_vars)
+        )
     print("Norm uncertainties to consider:", norm_uncertainties)
     scale_uncertainties = set()
     if setup.global_params["compute_unc_variations"]:

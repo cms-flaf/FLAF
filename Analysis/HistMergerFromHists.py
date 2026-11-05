@@ -9,7 +9,9 @@ if __name__ == "__main__":
 
 import FLAF.Common.Utilities as Utilities
 import FLAF.Common.Setup as Setup
+import FLAF.Common.TheoryUncertainties as TheoryUncertainties
 from FLAF.Common.HistHelper import *
+from Corrections.CorrectionsCore import getScales
 
 
 def checkFile(inFileRoot, channels, qcdRegions, categories):
@@ -54,7 +56,8 @@ def fill_hists(
         for unc_source in unc_sources:
             if unc_source == "Central":
                 continue
-            for scale in ["Up", "Down"]:
+            # Up/Down, or every member of a theory uncertainty (reduced after the sum)
+            for scale in getScales(unc_source):
                 target_keys[f"{var_input}_{unc_source}_{scale}"] = (unc_source, scale)
     hists = all_hist_dict.setdefault(dataset_type, {})
     for key_tuple, hist_map in items_dict.items():
@@ -232,6 +235,19 @@ if __name__ == "__main__":
     ]
     if unknown_sources:
         raise ValueError(f"Unknown uncertainty source(s): {', '.join(unknown_sources)}")
+    all_unc_dict = unc_cfg_dict["norm"].copy()
+    all_unc_dict.update(unc_cfg_dict["shape"])
+    # The members of a theory uncertainty (PDF, QCD scale) are known from the corrections
+    # configuration. Every member is kept in the output; reducing them to Up/Down is left to
+    # the datacard step.
+    from Corrections.Corrections import Corrections
+
+    Corrections.registerConfiguredSourceScales(global_cfg_dict)
+    member_uncs = [
+        s
+        for s in unc_sources
+        if s != "Central" and TheoryUncertainties.has_members(getScales(s), scales)
+    ]
     # Uncertainties exception
     unc_exception = global_cfg_dict.get(
         "unc_exception", {}
@@ -257,16 +273,51 @@ if __name__ == "__main__":
 
     all_hists_dict = {}
     chunk_has_trees = {}
-    all_datasets = args.dataset_names.split(",")
-    for dataset_name, inFile_path in zip(all_datasets, args.inFiles):
+
+    def process_of(dataset_name):
+        base_process_name = dataset_cfg_dict[dataset_name]["process_name"]
+        return setup.base_processes[base_process_name]["parent_process"]
+
+    # 209 = LZMA level 9, the standard compression for merged histogram files
+    outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)
+
+    def write_hist(dataset_type, key, hist):
+        """Write one summed histogram as <process>[_<variation>] into its directory."""
+        key_dir, (uncName, uncScale) = key
+        hist_name = dataset_type
+        if uncName != "Central":
+            hist_name += "_" + TheoryUncertainties.format_name(
+                all_unc_dict[uncName], uncScale, dataset_type
+            )
+        dir_ptr = Utilities.mkdir(outFile, "/".join(key_dir))
+        hist.SetTitle(hist_name)
+        hist.SetName(hist_name)
+        dir_ptr.WriteTObject(hist, hist_name, "Overwrite")
+
+    # The datasets of a process are read one after the other. Once its last dataset is summed,
+    # its theory-uncertainty members are final (nothing below uses them): they are written and
+    # freed, so that only one process holds its members at a time (~0.4 GB per process for a
+    # 2D DNN_m*_vs_HME, 15 processes per variable).
+    inputs = list(zip(args.dataset_names.split(","), args.inFiles))
+    process_order = list(dict.fromkeys(process_of(name) for name, _ in inputs))
+    inputs.sort(key=lambda item: process_order.index(process_of(item[0])))
+    last_input_of = {process_of(name): i for i, (name, _) in enumerate(inputs)}
+
+    def write_members(process):
+        hists = all_hists_dict.get(process, {})
+        for key in [k for k in hists if k[1][0] in member_uncs]:
+            write_hist(process, key, hists.pop(key))
+
+    for i, (dataset_name, inFile_path) in enumerate(inputs):
+        dataset_type = process_of(dataset_name)
         if not os.path.exists(inFile_path):
             print(
                 f"input file for dataset {dataset_name} (with path= {inFile_path}) does not exist, skipping"
             )
+            if last_input_of[dataset_type] == i:
+                write_members(dataset_type)
             continue
 
-        base_process_name = dataset_cfg_dict[dataset_name]["process_name"]
-        dataset_type = setup.base_processes[base_process_name]["parent_process"]
         print(dataset_type)
         if dataset_type not in all_hists_dict.keys():
             all_hists_dict[dataset_type] = {}
@@ -290,6 +341,9 @@ if __name__ == "__main__":
             chunk_has_trees.setdefault(dataset_type, []).append(
                 (dataset_name, inFile_path, has_trees)
             )
+        del all_items
+        if last_input_of[dataset_type] == i:
+            write_members(dataset_type)
     signal_tree_files = signal_tree_inputs(chunk_has_trees)
     alias_data_variations(all_hists_dict, data_process_name, unc_sources)
 
@@ -320,6 +374,9 @@ if __name__ == "__main__":
         # to all_hists_dict, which must not appear in all_samples_list for later sources.
         dataset_types = list(all_hists_dict.keys())
         for unc_source in unc_sources:
+            # the members of a theory uncertainty are already written: no QCD variation
+            if unc_source in member_uncs:
+                continue
             error_on_qcdnorm, error_on_qcdnorm_varied = AddQCDInHistDict(
                 args.var,
                 all_hists_dict,
@@ -332,17 +389,10 @@ if __name__ == "__main__":
                 wantNegativeContributions=False,
             )
 
-    all_unc_dict = unc_cfg_dict["norm"].copy()
-    all_unc_dict.update(unc_cfg_dict["shape"])
-
-    # 209 = LZMA level 9, the standard compression for merged histogram files
-    outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)
     for dataset_type in all_hists_dict.keys():
         for key in all_hists_dict[dataset_type].keys():
             key_dir, (uncName, uncScale) = key
             # here there can be some custom requirements - e.g. regions / categories to not merge, datasets to ignore
-            hist = all_hists_dict[dataset_type][key]
-            hist_name = dataset_type
             if uncName not in unc_sources:
                 continue
             if uncName != "Central":
@@ -350,16 +400,9 @@ if __name__ == "__main__":
                     continue
                 if uncScale == "Central":
                     continue
-                hist_name += f"""_{all_unc_dict[uncName]["name"].format(uncScale)}"""
-            else:
-                if uncScale != "Central":
-                    continue
-
-            dir_name = "/".join(key_dir)
-            dir_ptr = Utilities.mkdir(outFile, dir_name)
-            hist.SetTitle(hist_name)
-            hist.SetName(hist_name)
-            dir_ptr.WriteTObject(hist, hist_name, "Overwrite")
+            elif uncScale != "Central":
+                continue
+            write_hist(dataset_type, key, all_hists_dict[dataset_type][key])
 
     # The signal trees of the chunks, concatenated per process, one variation at a time;
     # a shape variation takes the name its histograms have.

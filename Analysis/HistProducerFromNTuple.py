@@ -12,6 +12,7 @@ if __name__ == "__main__":
 import FLAF.Common.HistHelper as HistHelper
 import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
+from Corrections.CorrectionsCore import getScales
 from FLAF.Analysis.HistTupleProducer import DefineBinnedColumn
 from FLAF.Analysis.histFromNtupleBatch import cells_budget, fill_groups
 
@@ -387,15 +388,17 @@ if __name__ == "__main__":
                 rdf = rdf.Define(further_cut_name, cut_expr)
         all_trees[tree_name] = rdf
 
+    # A norm uncertainty is Up/Down, or the members of a theory uncertainty (PDF, QCD scale)
+    # as the corrections configuration declares them (see Common/TheoryUncertainties.py).
+    from Corrections.Corrections import Corrections
+
+    Corrections.registerConfiguredSourceScales(setup.global_params)
     uncs_to_compute = {}
     uncs_to_compute["Central"] = ["Central"]
     if args.dataset_name != "data":
         if args.compute_rel_weights:
             uncs_to_compute.update(
-                {
-                    key: setup.global_params["scales"]
-                    for key in unc_cfg_dict["norm"].keys()
-                }
+                {key: getScales(key) for key in unc_cfg_dict["norm"].keys()}
             )
         if args.compute_unc_variations:
             uncs_to_compute.update(
@@ -404,7 +407,12 @@ if __name__ == "__main__":
                     for key in unc_cfg_dict["shape"].keys()
                 }
             )
-    print(uncs_to_compute)
+    print(
+        {
+            unc: scales if len(scales) <= 3 else f"{len(scales)} members"
+            for unc, scales in uncs_to_compute.items()
+        }
+    )
 
     vars_to_process = [v.strip() for v in args.vars.split(",") if v.strip()]
     os.makedirs(args.outDir, exist_ok=True)

@@ -10,6 +10,7 @@ if __name__ == "__main__":
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
 import FLAF.Common.PlotBlinding as PlotBlinding
+import FLAF.Common.TheoryUncertainties as TheoryUncertainties
 from FLAF.Common.PlotGroups import (
     GroupProcesses,
     control_regions,
@@ -57,7 +58,7 @@ def GetUncNames(setup, global_cfg_dict, era):
     all_unc_dict.update(unc_cfg_dict["shape"])
     uncs_to_exclude = (global_cfg_dict.get("uncs_to_exclude") or {}).get(era, [])
     return {
-        unc_name: unc_entry["name"]
+        unc_name: unc_entry
         for unc_name, unc_entry in all_unc_dict.items()
         if unc_name not in uncs_to_exclude
     }
@@ -92,13 +93,15 @@ def GetTotalUncertaintyHist(
 
     available = {str(key.GetName()) for key in dir_1.GetListOfKeys()}
     n_sources = 0
-    for unc_name, name_template in unc_names.items():
+    for unc_name, unc_entry in unc_names.items():
         deviations = []
         for scale in scales:
             varied_total = None
             found_any = False
             for process_name, central_hist in bkg_hists.items():
-                hist_name = f"{process_name}_{name_template.format(scale)}"
+                # the name HistMergerFromHists gives it, {process} included
+                suffix = TheoryUncertainties.format_name(unc_entry, scale, process_name)
+                hist_name = f"{process_name}_{suffix}"
                 if hist_name in available:
                     obj = dir_1.Get(hist_name)
                     if not obj or not obj.IsA().InheritsFrom(ROOT.TH1.Class()):
@@ -514,9 +517,9 @@ if __name__ == "__main__":
                 # every era's sources: one decorrelated between the eras is a source of
                 # its own in each, keyed by its histogram-name template
                 {
-                    template: template
+                    entry["name"]: entry
                     for era, era_setup in setups.items()
-                    for template in GetUncNames(
+                    for entry in GetUncNames(
                         era_setup, era_setup.global_params, era
                     ).values()
                 },

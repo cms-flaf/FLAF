@@ -269,6 +269,26 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
   variation takes the name its histograms have (e.g. `JES_Total_Up` becomes `CMS_scale_j_Up`);
   `Central` keeps its name. The baskets are copied, not decompressed. A process whose chunks
   have trees in some files only is an error: its trees would be incomplete.
+- **Theory uncertainties** (PDF, QCD scale): a `weights.yaml` norm entry whose source the
+  corrections configuration registers with members (103 PDF members, 8 QCD-scale points) has
+  one weight per member instead of Up/Down. Like every uncertainty, it is filled for every
+  variable when the uncertainties are computed, and the summed histogram of every member of
+  every process is written: `<process>_<name>` with the member in place of `{}` (its leading
+  underscore dropped), e.g. `TT_QCDscale_TT_muR2_muF1`, `TT_pdf_TT_57`. `{process}` in the
+  `name` is the process of the physics model, so each process (each DY mass range, each signal)
+  has its own. The members are written as soon as the last dataset of their process is summed,
+  so only one process holds them in memory. Reducing them to Up/Down (envelope, Hessian sum) is
+  left to the datacard step, on the era or meta-era it fits:
+
+    ```yaml
+    norm:
+      qcd_scale:
+        expression: weight_base_qcd_scale{scale}_rel * final_weight
+        name: QCDscale_{process}_{}
+    ```
+
+  Over a meta-era, a member is summed like any variation: an era without it enters with its
+  central histogram of the process.
 - **Meta-era** (`--era Run3_22_23`, a group of `era_groups:`): one branch per variable that every
   era of the group merges. It requires `HistMergerTask` over the eras and sums, bin by bin, their
   merged files of the variable (read through [`MergedHistsTask`](#mergedhiststask)) into

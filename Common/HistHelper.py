@@ -434,7 +434,7 @@ def _has_hist(root_file, dir_path, name):
     return bool(cls) and cls.InheritsFrom("TH1")
 
 
-def SumEraFiles(in_paths, out_path, scales):
+def SumEraFiles(in_paths, out_path, scales, member_names=None):
     """Sum the merged histogram files of several eras into one, bin by bin.
 
     A variation that an era does not have -- a source decorrelated between the eras, such
@@ -445,6 +445,10 @@ def SumEraFiles(in_paths, out_path, scales):
     One directory at a time: only that directory's histograms of the eras are in memory. Holding
     every histogram of every era at once took ~12 GB for a variable with control regions (four
     eras of ~400k histograms).
+
+    `member_names(process)` gives the histogram names of the theory-uncertainty members of a
+    process (``TT_pdf_TT_57``): they are variations of that process too, though they do not end
+    with one of `scales`.
     """
     in_files = [ROOT.TFile.Open(path, "READ") for path in in_paths]
     era_dirs = [_hist_dir_paths(in_file) for in_file in in_files]
@@ -469,11 +473,16 @@ def SumEraFiles(in_paths, out_path, scales):
         ]
         names = list(dict.fromkeys(name for era_hists in hists for name in era_hists))
         centrals = [name for name in names if not name.endswith(tuple(scales))]
+        member_of = {}
+        if member_names is not None:
+            member_of = {m: c for c in centrals for m in member_names(c)}
+            centrals = [c for c in centrals if c not in member_of]
         out_dir = mkdir_recursive(out_file, "/".join(dir_path))
         for name in names:
-            # the process of a variation: the longest central name it extends
-            process = None
-            if name not in centrals:
+            # the process of a variation: the one it is a member of, or the longest central
+            # name it extends
+            process = member_of.get(name)
+            if process is None and name not in centrals:
                 process = max(
                     (c for c in centrals if name.startswith(c + "_")),
                     key=len,

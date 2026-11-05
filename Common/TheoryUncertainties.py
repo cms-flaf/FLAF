@@ -109,6 +109,21 @@ def members_used(unc_entry, scales):
     return members + (alphas or [])
 
 
+def alphas_available(unc_entry, members):
+    """Whether a hessian reduction can use its alpha_s pair for these members.
+
+    A sample whose PDF weights stop at the eigenvectors (the X->HH signals, the four-flavour
+    samples) has NaN in place of the alpha_s members, and so has a process summing it. The
+    reduction then uses the eigenvectors alone. `members` maps scale -> cell contents.
+    """
+    _, alphas, _ = _hessian_settings(unc_entry)
+    if alphas is None:
+        return False
+    return all(
+        a in members and all(math.isfinite(x) for x in members[a]) for a in alphas
+    )
+
+
 def reduce_cells(unc_entry, nominal, members):
     """Up and Down cell contents from the nominal and `members` ({scale: contents}).
 
@@ -128,6 +143,11 @@ def reduce_cells(unc_entry, nominal, members):
     missing = [k for k in member_names + (alphas or []) if k not in members]
     if missing:
         raise ValueError(f"hessian reduction: members {missing} are missing")
+    bad = [k for k in member_names if not all(math.isfinite(x) for x in members[k])]
+    if bad:
+        raise ValueError(f"hessian reduction: members {bad} are not finite")
+    if not alphas_available(unc_entry, members):
+        alphas = None
     up, down = [], []
     for i in range(n):
         var = sum((members[k][i] - nominal[i]) ** 2 for k in member_names)
@@ -166,10 +186,12 @@ def reduce_in_hist_dict(all_hists_dict, unc_name, unc_entry, scales, data_type="
     is left alone; a process with some members but not all raises.
     """
     used = members_used(unc_entry, scales)
+    hessian = reduction(unc_entry) == HESSIAN
     for process, hists in all_hists_dict.items():
         if process == data_type:
             continue
         key_tuples = {kt for (kt, (unc, _)) in hists if unc == unc_name}
+        without_alphas = 0
         for key_tuple in key_tuples:
             nominal = hists.get((key_tuple, ("Central", "Central")))
             if nominal is None:
@@ -183,8 +205,18 @@ def reduce_in_hist_dict(all_hists_dict, unc_name, unc_entry, scales, data_type="
                 raise RuntimeError(
                     f"{process} {'/'.join(key_tuple)}: {unc_name} misses members {missing}"
                 )
+            if hessian and not alphas_available(
+                unc_entry, {s: _cells(h) for s, h in members.items()}
+            ):
+                without_alphas += 1
             up, down = reduce_histograms(unc_entry, nominal, members, unc_name)
             for s in scales:
                 hists.pop((key_tuple, (unc_name, s)), None)
             hists[(key_tuple, (unc_name, "Up"))] = up
             hists[(key_tuple, (unc_name, "Down"))] = down
+        if without_alphas:
+            print(
+                f"{unc_name}: {process} has no finite alpha_s members (its samples do not "
+                f"carry them); the eigenvectors alone are used in {without_alphas} of "
+                f"{len(key_tuples)} directories"
+            )

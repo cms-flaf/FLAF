@@ -143,6 +143,23 @@ class ReduceCellsTest(unittest.TestCase):
         up, _ = TU.reduce_cells(dict(PDF, alphas=None), nominal, members)
         self.assertAlmostEqual(up[0], 100.0)
 
+    def test_hessian_without_finite_alphas_uses_the_eigenvectors(self):
+        # the X->HH signal samples carry no alpha_s members: they are NaN in the anaTuples
+        nominal = [100.0]
+        members = {s: [100.0] for s in PDF_SCALES}
+        members["1"] = [103.0]
+        members["101"], members["102"] = [float("nan")], [float("nan")]
+        self.assertFalse(TU.alphas_available(PDF, members))
+        up, down = TU.reduce_cells(PDF, nominal, members)
+        self.assertAlmostEqual(up[0], 103.0)
+        self.assertAlmostEqual(down[0], 97.0)
+
+    def test_hessian_non_finite_eigenvector_raises(self):
+        members = {s: [1.0] for s in PDF_SCALES}
+        members["7"] = [float("nan")]
+        with self.assertRaises(ValueError):
+            TU.reduce_cells(PDF, [1.0], members)
+
     def test_hessian_missing_member_raises(self):
         members = {s: [1.0] for s in PDF_SCALES if s != "57"}
         with self.assertRaises(ValueError):

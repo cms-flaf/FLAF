@@ -676,13 +676,13 @@ VBFHToBB_M125:
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +0.5% -0.3% (QCD Scale) +-2.1% (PDF alpha s) +-2.1% (PDF) +-0.5 (alpha s)
 VBFHto2Tau:
-  crossSec: 4.18 * BR_H_tautau  # x B(H -> tau tau): the XSDB value is the production cross section only
-  reference: B(H -> tau tau) from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR, XSDB VBFHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-pythia8 modifiedOn 2025-09-04 12:43:24
-  unc: 0.006886
+  crossSec: VBFH * BR_H_tautau
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
+  unc: +0.5% -0.3% (QCD Scale) +-2.1% (PDF alpha s) +-2.1% (PDF) +-0.5 (alpha s)
 VBFHto2Tau_Filtered:
-  crossSec: 1.717 * BR_H_tautau  # x B(H -> tau tau): the XSDB value is the production cross section only
-  reference: B(H -> tau tau) from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR, XSDB VBFHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-pythia8 modifiedOn 2025-09-04 12:43:22
-  unc: 0.005038
+  crossSec: VBFH * BR_H_tautau * 0.4108  # x filter efficiency
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR; filter eff = XSDB VBFHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-pythia8 / VBFHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-pythia8 (1.717 / 4.18 pb)
+  unc: +0.5% -0.3% (QCD Scale) +-2.1% (PDF alpha s) +-2.1% (PDF) +-0.5 (alpha s)
 
 WminusH_Hbb_Wlnu:
   crossSec: WminusH * BR_H_bb * 3 * BR_W_lnu
@@ -693,13 +693,13 @@ WminusH_Hbb_Wqq:
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
 WminusHto2Tau_Filtered:
-  crossSec: 0.2307 * BR_H_tautau  # x B(H -> tau tau): the XSDB value is the production cross section only
-  reference: B(H -> tau tau) from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR, XSDB WminusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 modifiedOn 2025-09-04 12:43:26
-  unc: 0.0005923
+  crossSec: WminusH * BR_H_tautau * 0.3986  # x filter efficiency
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR; filter eff = XSDB WminusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 / WminusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 (0.2307 / 0.5788 pb)
+  unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
 WminusHto2Tau:
-  crossSec: 0.5788 * BR_H_tautau  # x B(H -> tau tau): the XSDB value is the production cross section only
-  reference: B(H -> tau tau) from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR, XSDB WminusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 modifiedOn 2025-09-04 12:43:28
-  unc: 0.00001752
+  crossSec: WminusH * BR_H_tautau
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
+  unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
 WplusH_Hbb_Wlnu:
   crossSec: WplusH * BR_H_bb * 3 * BR_W_lnu
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
@@ -709,13 +709,13 @@ WplusH_Hbb_Wqq:
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
 WplusHto2Tau_Filtered:
-  crossSec: 0.3504 * BR_H_tautau  # x B(H -> tau tau): the XSDB value is the production cross section only
-  reference: B(H -> tau tau) from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR, XSDB WplusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 modifiedOn 2025-09-04 12:43:29
-  unc: 0.0009183
+  crossSec: WplusH * BR_H_tautau * 0.3779  # x filter efficiency
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR; filter eff = XSDB WplusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 / WplusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 (0.3504 / 0.9273 pb)
+  unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
 WplusHto2Tau:
-  crossSec: 0.9273 * BR_H_tautau  # x B(H -> tau tau): the XSDB value is the production cross section only
-  reference: B(H -> tau tau) from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR, XSDB WplusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 modifiedOn 2025-09-04 12:43:31
-  unc: 0.0001175
+  crossSec: WplusH * BR_H_tautau
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
+  unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
 
 QCD_HT40to70_MLM:
   crossSec: 311400000.0

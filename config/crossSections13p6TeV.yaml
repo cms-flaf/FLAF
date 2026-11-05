@@ -58,7 +58,7 @@ BR_Z_nunu:
   unc:
 
 BR_Z_qq:
-  BR: 0.69911
+  BR: 1 - (3 * BR_Z_ll) - BR_Z_nunu
   reference: https://pdg.lbl.gov/2018/listings/rpp2018-list-z-boson.pdf
   unc:
 

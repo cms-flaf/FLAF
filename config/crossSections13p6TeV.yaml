@@ -9,6 +9,10 @@ one_pb:
   reference:
   unc:
 
+# Higgs branching fractions: the LHC Higgs WG values at mH = 125.40 GeV
+# (https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR), as in the HH
+# recommendations. The single-Higgs production cross sections below (XS_*) are at the nearest
+# tabulated mass, 125.38 GeV, so every Higgs number in this file refers to the same mass.
 BR_H_bb:
   BR: 5.760E-01
   reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
@@ -27,6 +31,11 @@ BR_H_ZZ:
 BR_H_tautau:
   BR: 6.208E-02
   reference: https://gitlab.cern.ch/hh/recommendations/-/blob/d7ad328c2ca55c75466b0a480af19823b7fa305b/CrossSections.md
+
+BR_H_mumu:
+  BR: 2.153E-04
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR (mH = 125.40 GeV)
+  unc: +1.23% -1.2% (theory) +0.97% -0.99% (mq) +0.59% -0.64% (alphas)
 
 BR_W_lnu:
   BR: 10.86e-02
@@ -47,6 +56,46 @@ BR_Z_nunu:
   BR: 20e-02
   reference: https://pdg.lbl.gov/2018/listings/rpp2018-list-z-boson.pdf
   unc:
+
+BR_Z_qq:
+  BR: 0.69911
+  reference: https://pdg.lbl.gov/2018/listings/rpp2018-list-z-boson.pdf
+  unc:
+
+# Single-Higgs production cross sections at 13.6 TeV, mH = 125.38 GeV
+XS_ggH:
+  crossSec: 5.196E+01
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap (ggF, mH = 125.38 GeV)
+  unc: +4.6% -6.7% (theory) +-3.9 (TH Gaussian) +-3.2 (PDF+alpha s) +-1.9 (PDF) +-2.6 (alpha s)
+
+XS_VBFH:
+  crossSec: 4.067
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap (VBF, mH = 125.38 GeV)
+  unc: +0.5% -0.3% (QCD Scale) +-2.1% (PDF alpha s) +-2.1% (PDF) +-0.5 (alpha s)
+
+XS_WplusH:
+  crossSec: 0.880114
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap (W+H, mH = 125.38 GeV)
+  unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
+
+XS_WminusH:
+  crossSec: 0.562032
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap (W-H, mH = 125.38 GeV)
+  unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
+
+XS_ZH:
+  crossSec: 9.361E-01
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap (pp -> ZH including gg -> ZH, mH = 125.38 GeV)
+  unc: +3.7 -3.2 (qcd scale) +-1.6 (pdf alpha) +-1.3 (pdf) +- 0.9 (alpha)
+
+XS_ggZH:
+  crossSec: 1.347E-01
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap (gg -> ZH, NLO QCD, mH = 125.38 GeV)
+
+XS_ttH:
+  crossSec: 5.638E-01
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap (ttH, mH = 125.38 GeV)
+  unc: +6% -9.3% (QCD Scale) +-3.5% (PDF alpha s) +-3% (PDF) +-2 (alpha s)
 
 XtoHHto2B2Wto2B2L2Nu:
   crossSec: one_pb * 2 * ( BR_H_bb * BR_H_WW * (3 * BR_W_lnu) * (3 * BR_W_lnu) )
@@ -563,24 +612,24 @@ LLJJ_SM_M-50_MJJ120_13p6TeV_herwig7:
   unc:
 
 GluGluHto2Mu:
-  crossSec: 52.23 * (0.0002176)
+  crossSec: XS_ggH * BR_H_mumu
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +4.6% -6.7% (theory) +-3.9 (TH Gaussian) +-3.2 (PDF+alpha s) +-1.9 (PDF) +-2.6 (alpha s) ; +1.23% -1.2% (theory) +0.97% -0.99% (mq) +0.59% -0.64% (alphas)
 
 GluGluHToTauTau_M125:
-  crossSec: 52.23 * (0.06272)
+  crossSec: XS_ggH * BR_H_tautau
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +4.6% -6.7% (theory) +-3.9 (TH Gaussian) +-3.2 (PDF+alpha s) +-1.9 (PDF) +-2.6 (alpha s)
 GluGluHToTauTau_M125_Filtered:
-  crossSec: 52.23 * (0.06272) * 3.896e-01
+  crossSec: XS_ggH * BR_H_tautau * 3.896e-01  # x filter efficiency
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap * filter eff from genXsec
   unc: +4.6% -6.7% (theory) +-3.9 (TH Gaussian) +-3.2 (PDF+alpha s) +-1.9 (PDF) +-2.6 (alpha s) +- 0.534 (filter eff)
 GluGluHToWWTo2L2Nu_M125:
-  crossSec: 52.23 * (0.2137) * (3 * 0.1086) * (3 * 0.1086)  # both W -> l nu
+  crossSec: XS_ggH * BR_H_WW * (3 * BR_W_lnu) * (3 * BR_W_lnu)  # both W -> l nu
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +4.6% -6.7% (theory) +-3.9 (TH Gaussian) +-3.2 (PDF+alpha s) +-1.9 (PDF) +-2.6 (alpha s)
 GluGluHToBB_M125:
-  crossSec: 52.23 * (0.5824)
+  crossSec: XS_ggH * BR_H_bb
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +4.6% -6.7% (theory) +-3.9 (TH Gaussian) +-3.2 (PDF+alpha s) +-1.9 (PDF) +-2.6 (alpha s)
 
@@ -618,48 +667,48 @@ GluGlutoContinto2Zto4Tau:
   unc: 3.596e-03
 
 VBFHToBB_M125:
-  crossSec: 4.078 * (0.5824)
+  crossSec: XS_VBFH * BR_H_bb
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +0.5% -0.3% (QCD Scale) +-2.1% (PDF alpha s) +-2.1% (PDF) +-0.5 (alpha s)
 VBFHto2Tau:
-  crossSec: 4.18 * (0.06272)  # x B(H -> tau tau): the XSDB value is the production cross section only
+  crossSec: 4.18 * BR_H_tautau  # x B(H -> tau tau): the XSDB value is the production cross section only
   reference: B(H -> tau tau) from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR, XSDB VBFHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-pythia8 modifiedOn 2025-09-04 12:43:24
   unc: 0.006886
 VBFHto2Tau_Filtered:
-  crossSec: 1.717 * (0.06272)  # x B(H -> tau tau): the XSDB value is the production cross section only
+  crossSec: 1.717 * BR_H_tautau  # x B(H -> tau tau): the XSDB value is the production cross section only
   reference: B(H -> tau tau) from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR, XSDB VBFHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-pythia8 modifiedOn 2025-09-04 12:43:22
   unc: 0.005038
 
 WminusH_Hbb_Wlnu:
-  crossSec: 0.5677 * 0.5824 * 3 * 0.1086
+  crossSec: XS_WminusH * BR_H_bb * 3 * BR_W_lnu
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
 WminusH_Hbb_Wqq:
-  crossSec: 0.5677 * 0.5824 * (1 - 3 * 0.1086)
+  crossSec: XS_WminusH * BR_H_bb * BR_W_qq
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
 WminusHto2Tau_Filtered:
-  crossSec: 0.2307 * (0.06272)  # x B(H -> tau tau): the XSDB value is the production cross section only
+  crossSec: 0.2307 * BR_H_tautau  # x B(H -> tau tau): the XSDB value is the production cross section only
   reference: B(H -> tau tau) from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR, XSDB WminusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 modifiedOn 2025-09-04 12:43:26
   unc: 0.0005923
 WminusHto2Tau:
-  crossSec: 0.5788 * (0.06272)  # x B(H -> tau tau): the XSDB value is the production cross section only
+  crossSec: 0.5788 * BR_H_tautau  # x B(H -> tau tau): the XSDB value is the production cross section only
   reference: B(H -> tau tau) from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR, XSDB WminusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 modifiedOn 2025-09-04 12:43:28
   unc: 0.00001752
 WplusH_Hbb_Wlnu:
-  crossSec: 0.8889 * 0.5824 * 3 * 0.1086  # 1.457 (total)
-  reference: https://indico.cern.ch/event/1119741/contributions/4715908/attachments/2383849/4073592/YR4_13p6_VH_update.pdf
+  crossSec: XS_WplusH * BR_H_bb * 3 * BR_W_lnu
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
 WplusH_Hbb_Wqq:
-  crossSec: 0.8889 * 0.5824 * (1 - 3 * 0.1086)  # 1.457 (total)
-  reference: https://indico.cern.ch/event/1119741/contributions/4715908/attachments/2383849/4073592/YR4_13p6_VH_update.pdf
+  crossSec: XS_WplusH * BR_H_bb * BR_W_qq
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s)
 WplusHto2Tau_Filtered:
-  crossSec: 0.3504 * (0.06272)  # x B(H -> tau tau): the XSDB value is the production cross section only
+  crossSec: 0.3504 * BR_H_tautau  # x B(H -> tau tau): the XSDB value is the production cross section only
   reference: B(H -> tau tau) from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR, XSDB WplusHTo2TauUncorrelatedDecay_Filtered_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 modifiedOn 2025-09-04 12:43:29
   unc: 0.0009183
 WplusHto2Tau:
-  crossSec: 0.9273 * (0.06272)  # x B(H -> tau tau): the XSDB value is the production cross section only
+  crossSec: 0.9273 * BR_H_tautau  # x B(H -> tau tau): the XSDB value is the production cross section only
   reference: B(H -> tau tau) from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR, XSDB WplusHTo2TauUncorrelatedDecay_M-125_TuneCP5_13p6TeV_powheg-minnlo-pythia8 modifiedOn 2025-09-04 12:43:31
   unc: 0.0001175
 
@@ -984,41 +1033,41 @@ TTZZ_ZZto4B:
   unc: 1.217e-8
 
 TTHto2B_M125:
-  crossSec: 0.57 * (0.5824)
+  crossSec: XS_ttH * BR_H_bb
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +6% -9.3% (QCD Scale) +-3.5% (PDF alpha s) +-3% (PDF) +-2 (alpha s)
 TTHtoNon2B_M125:
-  crossSec: 0.57 * (1 - 0.5824)
+  crossSec: XS_ttH * (1 - BR_H_bb)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +6% -9.3% (QCD Scale) +-3.5% (PDF alpha s) +-3% (PDF) +-2 (alpha s)
 
 TTH_Hto2Mu:
-  crossSec: 0.57 * (0.0002176)
+  crossSec: XS_ttH * BR_H_mumu
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +6% -9.3% (QCD Scale) +-3.5% (PDF alpha s) +-3% (PDF) +-2 (alpha s) ; +1.23% -1.2% (theory) +0.97% -0.99% (mq) +0.59% -0.64% (alphas)
 
 VBFHto2Mu:
-  crossSec: 4.078 * (0.0002176)
+  crossSec: XS_VBFH * BR_H_mumu
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +0.5% -0.3% (QCD Scale) +-2.1% (PDF alpha s) +-2.1% (PDF) +-0.5 (alpha s) ; +1.23% -1.2% (theory) +0.97% -0.99% (mq) +0.59% -0.64% (alphas)
 
 VBFHToTauTau_M125:
-  crossSec: 4.078 * (0.06272)
+  crossSec: XS_VBFH * BR_H_tautau
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +0.5% -0.3% (QCD Scale) +-2.1% (PDF alpha s) +-2.1% (PDF) +-0.5 (alpha s)
 VBFHToWWTo2L2Nu_M125:
-  crossSec: 4.078 * (0.2137) * (3 * 0.1086) * (3 * 0.1086)  # both W -> l nu
+  crossSec: XS_VBFH * BR_H_WW * (3 * BR_W_lnu) * (3 * BR_W_lnu)  # both W -> l nu
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +0.5% -0.3% (QCD Scale) +-2.1% (PDF alpha s) +-2.1% (PDF) +-0.5 (alpha s)
 
 WminusH_Hto2Mu_WtoAll:
-  crossSec: 0.5677 * (0.0002176)  # 1.457 (total)
-  reference: https://indico.cern.ch/event/1119741/contributions/4715908/attachments/2383849/4073592/YR4_13p6_VH_update.pdf
+  crossSec: XS_WminusH * BR_H_mumu
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s) ; +1.23% -1.2% (theory) +0.97% -0.99% (mq) +0.59% -0.64% (alphas)
 
 WplusH_Hto2Mu_WtoAll:
-  crossSec: 0.8889 * (0.0002176)  # 1.457 (total)
-  reference: https://indico.cern.ch/event/1119741/contributions/4715908/attachments/2383849/4073592/YR4_13p6_VH_update.pdf
+  crossSec: XS_WplusH * BR_H_mumu
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR for BR
   unc: +0.4% -0.7% (QCD scale) ±1.8% (PDF+alphas) ±1.6 (PDF) ±0.9 (alpha s) ; +1.23% -1.2% (theory) +0.97% -0.99% (mq) +0.59% -0.64% (alphas)
 
 WtoLNu_0J_amcatnloFXFX:
@@ -1197,31 +1246,31 @@ WWtoLNu2Q-1Jets:
 
 
 ZH_Hbb_Zll:
-  crossSec: (9.439e-1 - 1.360e-1) * 0.5824 * 3 * 0.033658  # qq -> ZH: total ZH minus gg -> ZH (separate samples)
+  crossSec: (XS_ZH - XS_ggZH) * BR_H_bb * 3 * BR_Z_ll  # qq -> ZH: total ZH minus gg -> ZH (separate samples)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +3.7 -3.2 (qcd scale) +-1.6 (pdf alpha) +-1.3 (pdf) +- 0.9 (alpha)
 ZH_Hbb_Zqq:
-  crossSec: (9.439e-1 - 1.360e-1) * 0.5824 * 0.69911  # qq -> ZH: total ZH minus gg -> ZH (separate samples)
+  crossSec: (XS_ZH - XS_ggZH) * BR_H_bb * BR_Z_qq  # qq -> ZH: total ZH minus gg -> ZH (separate samples)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +3.7 -3.2 (qcd scale) +-1.6 (pdf alpha) +-1.3 (pdf) +- 0.9 (alpha)
 ggZH_Hbb_Zll:
-  crossSec: 1.360e-1 * 0.5824 * 3 * 0.033658
+  crossSec: XS_ggZH * BR_H_bb * 3 * BR_Z_ll
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap (gg -> ZH, NLO QCD)
 ggZH_Hbb_Zqq:
-  crossSec: 1.360e-1 * 0.5824 * 0.69911
+  crossSec: XS_ggZH * BR_H_bb * BR_Z_qq
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap (gg -> ZH, NLO QCD)
 
 ZH_Hto2Mu_ZtoAll:
-  crossSec: 0.9439 * (0.0002176)
+  crossSec: XS_ZH * BR_H_mumu
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +3.7 -3.2 (qcd scale) +-1.6 (pdf alpha) +-1.3 (pdf) +- 0.9 (alpha) ; +1.23% -1.2% (theory) +0.97% -0.99% (mq) +0.59% -0.64% (alphas)
 
 ZHto2Tau:
-  crossSec: 0.9439 *  0.06272
+  crossSec: XS_ZH * BR_H_tautau
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and BR from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR
   unc: +3.7 -3.2 (qcd scale) +-1.6 (pdf alpha) +-1.3 (pdf) +- 0.9 (alpha) ; +1.17% -1.16% (theory) +0.98% -0.99% (mq) +0.62% -0.62% (alphas)
 ZHto2Tau_Filtered:
-  crossSec: 0.9439 *  0.06272 * 0.3932
+  crossSec: XS_ZH * BR_H_tautau * 0.3932  # x filter efficiency
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and BR from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR * genXsec analyzer filter eff
   unc: +3.7 -3.2 (qcd scale) +-1.6 (pdf alpha) +-1.3 (pdf) +- 0.9 (alpha) ; +1.17% -1.16% (theory) +0.98% -0.99% (mq) +0.62% -0.62% (alphas) ; 0.8% (filter eff)
 

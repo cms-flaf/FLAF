@@ -1293,12 +1293,16 @@ ZH_Hto2Mu_ZtoAll:
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap
   unc: +3.7 -3.2 (qcd scale) +-1.6 (pdf alpha) +-1.3 (pdf) +- 0.9 (alpha) ; +1.23% -1.2% (theory) +0.97% -0.99% (mq) +0.59% -0.64% (alphas)
 
+# The ZH -> tautau samples (unfiltered and filtered) are POWHEG HZJ (MiNLO), i.e. qq -> ZH only:
+# gridpack HZJ_HanythingJ_NNPDF31_13p6TeV_M125_Vinclusive, Z inclusive, H -> tautau forced in Pythia
+# (McM HIG-Run3Summer22wmLHEGS-00280/-00749, HIG-RunIII2024Summer24wmLHEGS-00936/-00943). So they take
+# sigma(qq -> ZH), not the total ZH. There is no gg -> ZH -> tautau sample, so that part is not covered.
 ZHto2Tau:
-  crossSec: ZH * BR_H_tautau
+  crossSec: QQtoZH * BR_H_tautau  # qq -> ZH only
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and BR from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR
   unc: +3.7 -3.2 (qcd scale) +-1.6 (pdf alpha) +-1.3 (pdf) +- 0.9 (alpha) ; +1.17% -1.16% (theory) +0.98% -0.99% (mq) +0.62% -0.62% (alphas)
 ZHto2Tau_Filtered:
-  crossSec: ZH * BR_H_tautau * 0.3932  # x filter efficiency
+  crossSec: QQtoZH * BR_H_tautau * 0.3932  # qq -> ZH only, x filter efficiency
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/LHCHWG136TeVxsec_extrap and BR from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/CERNYellowReportPageBR * genXsec analyzer filter eff
   unc: +3.7 -3.2 (qcd scale) +-1.6 (pdf alpha) +-1.3 (pdf) +- 0.9 (alpha) ; +1.17% -1.16% (theory) +0.98% -0.99% (mq) +0.62% -0.62% (alphas) ; 0.8% (filter eff)
 

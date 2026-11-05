@@ -11,8 +11,6 @@ Up/Down pair every later step uses. The entry in `weights.yaml` says how:
         expression: weight_base_qcd_scale{scale}_rel * final_weight
         name: QCDscale_{process}_{}
         reduction: envelope
-        variables: [ "^DNN_m[0-9]+_vs_HME$" ]
-        process_groups: { DY: [ DY_M_10to50, DY_M_50 ] }
 
 - ``reduction``: ``envelope`` -- Up/Down are the largest/smallest of the nominal and the
   members, bin by bin; ``exclude`` lists members left out (default: the two points where muR and
@@ -21,16 +19,13 @@ Up/Down pair every later step uses. The entry in `weights.yaml` says how:
   [1, 100]), with alpha_s = (m_up - m_down) / 2 * ``alphas_scale`` from the ``alphas`` pair
   (default [101, 102], scale 1); m_0 is the nominal. An entry without ``reduction`` is an
   ordinary Up/Down uncertainty.
-- ``variables``: regular expressions (``re.search``); the uncertainty is filled and reduced only
-  for the variables matching one of them. Without it, every variable.
-- ``process_groups``: ``{group: [process, ...]}`` (a member starting with ``^`` is a regular
-  expression); the ``{process}`` of ``name`` is the group of
-  a process listed there, else the process itself, so that processes of one group share one
-  nuisance (for instance both DY mass ranges).
+
+Like every other uncertainty, it is filled for every variable when the uncertainties are
+computed. The reduction is done per process of the physics model, and ``{process}`` in ``name``
+is that process: each process (each DY mass range, each signal) has its own nuisance.
 """
 
 import math
-import re
 
 ENVELOPE = "envelope"
 HESSIAN = "hessian"
@@ -52,39 +47,9 @@ def reduction(unc_entry):
     return method
 
 
-def applies_to_variable(unc_entry, var):
-    """Whether an uncertainty is filled for `var`: every variable without ``variables``."""
-    patterns = (unc_entry or {}).get("variables")
-    if patterns is None:
-        return True
-    if isinstance(patterns, str):
-        patterns = [patterns]
-    return any(re.search(p, var) for p in patterns)
-
-
-def applies_to_any_variable(unc_entry, variables):
-    return any(applies_to_variable(unc_entry, v) for v in variables)
-
-
-def process_name(unc_entry, process):
-    """The name that ``{process}`` takes for `process` in this entry's nuisance name.
-
-    A member of a group starting with ``^`` is a regular expression (``re.match``), as in the
-    datacard configuration; anything else is compared literally.
-    """
-    for group, members in ((unc_entry or {}).get("process_groups") or {}).items():
-        for member in members:
-            if member.startswith("^"):
-                if re.match(member, process):
-                    return group
-            elif process == member:
-                return group
-    return process
-
-
 def format_name(unc_entry, scale, process):
-    """The histogram suffix of one scale of an uncertainty, e.g. QCDscale_DY_Up."""
-    return unc_entry["name"].format(scale, process=process_name(unc_entry, process))
+    """The histogram suffix of one scale of an uncertainty, e.g. QCDscale_DY_M_50_Up."""
+    return unc_entry["name"].format(scale, process=process)
 
 
 def _hessian_settings(unc_entry):

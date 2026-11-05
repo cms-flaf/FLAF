@@ -238,16 +238,10 @@ if __name__ == "__main__":
     all_unc_dict = unc_cfg_dict["norm"].copy()
     all_unc_dict.update(unc_cfg_dict["shape"])
     # The members of a theory uncertainty (PDF, QCD scale) are known from the corrections
-    # configuration, and it is merged only for the variables its entry lists.
+    # configuration.
     from Corrections.Corrections import Corrections
 
     Corrections.registerConfiguredSourceScales(global_cfg_dict)
-    unc_sources = [
-        s
-        for s in unc_sources
-        if s == "Central"
-        or TheoryUncertainties.applies_to_variable(all_unc_dict[s], args.var)
-    ]
     theory_uncs = {
         s: all_unc_dict[s]
         for s in unc_sources

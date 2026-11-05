@@ -274,10 +274,10 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
   QCD-scale points) instead of Up/Down. Every member is filled, and once the datasets of a
   process are summed they are reduced, bin by bin, to the Up/Down pair that everything after
   sees: `reduction: envelope` (the 7-point envelope of the nominal and the members) or
-  `reduction: hessian` (nominal ± the Hessian sum of the members, with alpha_s). `variables:`
-  (regular expressions) limits the entry to the matching variables, from the HistTuple on.
-  `{process}` in its `name` is the process, or its group in `process_groups:`, so several
-  processes can share one nuisance:
+  `reduction: hessian` (nominal ± the Hessian sum of the members, with alpha_s). Like every
+  uncertainty, it is filled for every variable when the uncertainties are computed. The
+  reduction is done per process of the physics model, and `{process}` in its `name` is that
+  process, so each process (each DY mass range, each signal) has its own nuisance:
 
     ```yaml
     norm:
@@ -285,8 +285,6 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
         expression: weight_base_qcd_scale{scale}_rel * final_weight
         name: QCDscale_{process}_{}
         reduction: envelope
-        variables: [ "^DNN_m[0-9]+_vs_HME$" ]
-        process_groups: { DY: [ DY_M_10to50, DY_M_50 ] }
     ```
 
   See `Common/TheoryUncertainties.py` for every option (`exclude`, `members`, `alphas`,

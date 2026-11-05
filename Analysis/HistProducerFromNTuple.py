@@ -10,7 +10,6 @@ if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
 import FLAF.Common.HistHelper as HistHelper
-import FLAF.Common.TheoryUncertainties as TheoryUncertainties
 import FLAF.Common.Utilities as Utilities
 from FLAF.Common.Setup import Setup
 from Corrections.CorrectionsCore import getScales
@@ -125,28 +124,6 @@ def TreeFills(uncs_to_compute, unc_cfg_dict, treeName):
                 )
             fills.setdefault(tree, []).append((unc, scale, weight))
     return fills
-
-
-def weights_by_variables(weights, unc_cfg_dict, vars_to_process):
-    """``[(variables, weights)]``: a tree's weights grouped by the variables they are filled for.
-
-    Every weight is filled for every variable, except a norm uncertainty whose entry lists
-    ``variables`` (a theory uncertainty filled only for the fit variables): its weights go to a
-    group of their own, so the other variables get no histogram of theirs and no extra cells.
-    Groups keep the order of `weights`; a group with no variable is dropped.
-    """
-    groups = {}
-    for weight in weights:
-        unc = weight[0]
-        entry = unc_cfg_dict["norm"].get(unc)
-        group_vars = tuple(
-            var
-            for var in vars_to_process
-            if entry is None or TheoryUncertainties.applies_to_variable(entry, var)
-        )
-        if group_vars:
-            groups.setdefault(group_vars, []).append(weight)
-    return [(list(group_vars), ws) for group_vars, ws in groups.items()]
 
 
 def FillTree(
@@ -411,11 +388,8 @@ if __name__ == "__main__":
                 rdf = rdf.Define(further_cut_name, cut_expr)
         all_trees[tree_name] = rdf
 
-    vars_to_process = [v.strip() for v in args.vars.split(",") if v.strip()]
-
     # A norm uncertainty is Up/Down, or the members of a theory uncertainty (PDF, QCD scale)
-    # as the corrections configuration declares them; one whose entry lists `variables` is
-    # filled only for those (see Common/TheoryUncertainties.py).
+    # as the corrections configuration declares them (see Common/TheoryUncertainties.py).
     from Corrections.Corrections import Corrections
 
     Corrections.registerConfiguredSourceScales(setup.global_params)
@@ -424,13 +398,7 @@ if __name__ == "__main__":
     if args.dataset_name != "data":
         if args.compute_rel_weights:
             uncs_to_compute.update(
-                {
-                    key: getScales(key)
-                    for key, entry in unc_cfg_dict["norm"].items()
-                    if TheoryUncertainties.applies_to_any_variable(
-                        entry, vars_to_process
-                    )
-                }
+                {key: getScales(key) for key in unc_cfg_dict["norm"].keys()}
             )
         if args.compute_unc_variations:
             uncs_to_compute.update(
@@ -446,6 +414,7 @@ if __name__ == "__main__":
         }
     )
 
+    vars_to_process = [v.strip() for v in args.vars.split(",") if v.strip()]
     os.makedirs(args.outDir, exist_ok=True)
 
     for var in vars_to_process:
@@ -543,19 +512,16 @@ if __name__ == "__main__":
             )
 
         for tree_name, weights in tree_fills.items():
-            for group_vars, group_weights in weights_by_variables(
-                weights, unc_cfg_dict, vars_to_process
-            ):
-                FillTree(
-                    all_trees[tree_name],
-                    tree_name,
-                    group_weights,
-                    keys,
-                    group_vars,
-                    var_models,
-                    var_files,
-                    max_cells,
-                )
+            FillTree(
+                all_trees[tree_name],
+                tree_name,
+                weights,
+                keys,
+                vars_to_process,
+                var_models,
+                var_files,
+                max_cells,
+            )
 
         # A snapshot not already run by its tree's first fill loop runs here.
         for variation, (tmp_path, snapshot) in signal_tree_snapshots.items():

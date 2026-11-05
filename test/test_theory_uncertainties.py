@@ -3,8 +3,8 @@
 
 The members of a PDF or QCD-scale uncertainty are reduced to Up/Down per bin once the datasets of a
 process are summed: the 7-point envelope for the QCD scale, the Hessian sum (+ alpha_s) for the PDF.
-An entry's `variables` restricts it to the fit variables, and `process_groups` lets processes share
-one nuisance name. The reduction itself needs no ROOT; the histogram tests do.
+Each process of the physics model has its own nuisance. The reduction itself needs no ROOT; the
+histogram tests do.
 """
 
 import math
@@ -25,14 +25,11 @@ QCD = {
     "expression": "weight_base_qcd_scale{scale}_rel * final_weight",
     "name": "QCDscale_{process}_{}",
     "reduction": "envelope",
-    "variables": ["^DNN_m[0-9]+_vs_HME$"],
-    "process_groups": {"DY": ["DY_M_10to50", "DY_M_50"]},
 }
 PDF = {
     "expression": "weight_base_pdf{scale}_rel * final_weight",
     "name": "pdf_{process}_{}",
     "reduction": "hessian",
-    "variables": ["^DNN_m[0-9]+_vs_HME$"],
 }
 QCD_SCALES = [
     "_muR0p5_muF0p5",
@@ -55,39 +52,19 @@ class ConfigTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             TU.reduction({"reduction": "replicas"})
 
-    def test_variables(self):
-        self.assertTrue(TU.applies_to_variable(QCD, "DNN_m300_vs_HME"))
-        self.assertFalse(TU.applies_to_variable(QCD, "lep1_pt"))
-        self.assertFalse(TU.applies_to_variable(QCD, "DNN_M300_Signal"))
-        self.assertTrue(TU.applies_to_variable({"name": "x_{}"}, "lep1_pt"))
-        self.assertTrue(TU.applies_to_any_variable(QCD, ["lep1_pt", "DNN_m500_vs_HME"]))
-        self.assertFalse(TU.applies_to_any_variable(QCD, ["lep1_pt"]))
-
     def test_names(self):
         self.assertEqual(TU.format_name(QCD, "Up", "TT"), "QCDscale_TT_Up")
-        self.assertEqual(TU.format_name(QCD, "Down", "DY_M_10to50"), "QCDscale_DY_Down")
-        self.assertEqual(TU.format_name(QCD, "Up", "DY_M_50"), "QCDscale_DY_Up")
+        # every process of the physics model has its own nuisance
+        self.assertEqual(
+            TU.format_name(QCD, "Down", "DY_M_10to50"), "QCDscale_DY_M_10to50_Down"
+        )
+        self.assertEqual(TU.format_name(QCD, "Up", "DY_M_50"), "QCDscale_DY_M_50_Up")
+        self.assertEqual(
+            TU.format_name(PDF, "Up", "GluGluToRadion_bbWW_2L_500"),
+            "pdf_GluGluToRadion_bbWW_2L_500_Up",
+        )
         # an ordinary entry, without {process}, is formatted as before
         self.assertEqual(TU.format_name({"name": "ps_isr_{}"}, "Up", "TT"), "ps_isr_Up")
-
-    def test_regex_groups(self):
-        entry = dict(
-            QCD,
-            process_groups={
-                "GluGluToRadion_bbWW_2L": ["^GluGluToRadion_bbWW_2L_[0-9]+$"],
-                "DY": ["DY_M_10to50", "DY_M_50"],
-            },
-        )
-        self.assertEqual(
-            TU.format_name(entry, "Up", "GluGluToRadion_bbWW_2L_500"),
-            "QCDscale_GluGluToRadion_bbWW_2L_Up",
-        )
-        self.assertEqual(
-            TU.format_name(entry, "Up", "GluGluToRadion_bbWW_1L_500"),
-            "QCDscale_GluGluToRadion_bbWW_1L_500_Up",
-        )
-        # a literal member is not a pattern: "DY" alone is not in the group
-        self.assertEqual(TU.process_name(entry, "DY"), "DY")
 
     def test_members_used(self):
         used = TU.members_used(QCD, QCD_SCALES)
@@ -247,41 +224,6 @@ class ReduceHistDictTest(unittest.TestCase):
             hists[(key, ("qcd_scale", s))] = self.hist(s, [1.0])
         with self.assertRaises(RuntimeError):
             TU.reduce_in_hist_dict({"TT": hists}, "qcd_scale", QCD, QCD_SCALES)
-
-
-@pytest.mark.needs_root
-class WeightsByVariablesTest(unittest.TestCase):
-    """HistProducerFromNTuple fills a theory weight only for the variables it lists."""
-
-    def test_groups(self):
-        try:
-            import FLAF.Analysis.HistProducerFromNTuple as producer
-        except ImportError as e:
-            raise unittest.SkipTest(
-                f"HistProducerFromNTuple needs an analysis environment: {e}"
-            )
-        unc_cfg = {
-            "norm": {"qcd_scale": QCD, "ps_isr": {"name": "ps_isr_{}"}},
-            "shape": {},
-        }
-        weights = [
-            ("Central", "Central", "weight_Central"),
-            ("ps_isr", "Up", "weight_ps_isr_Up"),
-            ("qcd_scale", "_muR2_muF2", "weight_qcd_scale__muR2_muF2"),
-        ]
-        groups = producer.weights_by_variables(
-            weights, unc_cfg, ["lep1_pt", "DNN_m300_vs_HME"]
-        )
-        self.assertEqual(
-            groups,
-            [
-                (["lep1_pt", "DNN_m300_vs_HME"], weights[:2]),
-                (["DNN_m300_vs_HME"], weights[2:]),
-            ],
-        )
-        # no fit variable in the job: the theory weight is not filled at all
-        groups = producer.weights_by_variables(weights, unc_cfg, ["lep1_pt"])
-        self.assertEqual(groups, [(["lep1_pt"], weights[:2])])
 
 
 if __name__ == "__main__":

@@ -905,12 +905,35 @@ QCD_PT_3200:
   reference: XSDB QCD_PT-3200_TuneCP5_13p6TeV_pythia8 modifiedOn 2023-03-26 13:58:43
   unc: 1.208e-06
 
+# Single-top production cross sections (no W decay); the decayed entries below multiply them by
+# the W branching fractions, with t -> W b taken as 100%.
+TbarB_s_channel_4FS:
+  crossSec: 4.534
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef#Single_top_quark_t_channel_cross top ratio taken from XSDB
+  unc: +0.059 -0.043 (scale)  # These are the combined values, as of 9May2025 they are still not available
+TBbar_s_channel_4FS:
+  crossSec: 7.244
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef#Single_top_quark_t_channel_cross top ratio taken from XSDB
+  unc: +0.059 - 0.043 (scale)  # These are the combined values, as of 9May2025 they are still not available
+TW:  # tW- + tbarW+
+  crossSec: 87.9
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef
+  unc: +2.0 -1.9 (scale) +-2.4 (PDF AlphaS) +3.1 -3.1 (Total) +1.3 -1.3 (mass) +0.2 -0.2 (Ebeam)
+TWminus:
+  crossSec: TW * 0.4995  # top share of tW, from XSDB
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef, top/antitop % taken from XSDB
+  unc: +2.0 -1.9 (scale) +-2.4 (PDF AlphaS) +3.1 -3.1 (Total) +1.3 -1.3 (mass) +0.2 -0.2 (Ebeam)
+TbarWplus:
+  crossSec: TW - TWminus
+  reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef, top/antitop % taken from XSDB
+  unc: +2.0 -1.9 (scale) +-2.4 (PDF AlphaS) +3.1 -3.1 (Total) +1.3 -1.3 (mass) +0.2 -0.2 (Ebeam)
+
 TbarBtoLminusNuB_s_channel_4FS:
-  crossSec: 4.534 * (3 * BR_W_lnu)
+  crossSec: TbarB_s_channel_4FS * (3 * BR_W_lnu)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef#Single_top_quark_t_channel_cross top ratio taken from XSDB, BR taken from W->LNu pdg (t->Wb 100%)
   unc: +0.059 -0.043 (scale)  # These are the combined values, as of 9May2025 they are still not available
 TBbartoLplusNuBbar_s_channel_4FS:
-  crossSec: 7.244 * (3 * BR_W_lnu)
+  crossSec: TBbar_s_channel_4FS * (3 * BR_W_lnu)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef#Single_top_quark_t_channel_cross top ratio taken from XSDB, BR taken from W->LNu pdg (t->Wb 100%)
   unc: +0.059 - 0.043 (scale)  # These are the combined values, as of 9May2025 they are still not available
 TbarBQ_t_channel_4FS:
@@ -937,27 +960,27 @@ TBbarQto2Q_t_channel_4FS: # FIXME should probably use prod xs from NNLO x BR of 
   reference: XSDB
 
 TbarWplusto2L2Nu:
-  crossSec: 87.9 * (0.5005) * (3 * BR_W_lnu) * (3 * BR_W_lnu)
+  crossSec: TbarWplus * (3 * BR_W_lnu) * (3 * BR_W_lnu)
   reference: Value taken from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef, top/antitop % taken from XSDB, BRs taken from pdg, assume t->Wb 100%
   unc: +2.0 -1.9 (scale) +-2.4 (PDF AlphaS) +3.1 -3.1 (Total) +1.3 -1.3 (mass) +0.2 -0.2 (Ebeam)
 TbarWplusto4Q:
-  crossSec: 87.9 * (0.5005) * BR_W_qq * BR_W_qq
+  crossSec: TbarWplus * BR_W_qq * BR_W_qq
   reference: Value taken from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef, top/antitop % taken from XSDB, BRs taken from pdg, assume t->Wb 100%
   unc: +2.0 -1.9 (scale) +-2.4 (PDF AlphaS) +3.1 -3.1 (Total) +1.3 -1.3 (mass) +0.2 -0.2 (Ebeam)
 TbarWplustoLNu2Q:
-  crossSec: 87.9 * (0.5005) * ( ((3 * BR_W_lnu) * BR_W_qq) + (BR_W_qq * (3 * BR_W_lnu)) )
+  crossSec: TbarWplus * 2 * (3 * BR_W_lnu) * BR_W_qq
   reference: Value taken from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef, top/antitop % taken from XSDB, BRs taken from pdg, assume t->Wb 100%
   unc: +2.0 -1.9 (scale) +-2.4 (PDF AlphaS) +3.1 -3.1 (Total) +1.3 -1.3 (mass) +0.2 -0.2 (Ebeam)
 TWminusto2L2Nu:
-  crossSec: 87.9 * (0.4995) * (3 * BR_W_lnu) * (3 * BR_W_lnu)
+  crossSec: TWminus * (3 * BR_W_lnu) * (3 * BR_W_lnu)
   reference: Value taken from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef, top/antitop % taken from XSDB, BRs taken from pdg, assume t->Wb 100%
   unc: +2.0 -1.9 (scale) +-2.4 (PDF AlphaS) +3.1 -3.1 (Total) +1.3 -1.3 (mass) +0.2 -0.2 (Ebeam)
 TWminusto4Q:
-  crossSec: 87.9 * (0.4995) * BR_W_qq * BR_W_qq
+  crossSec: TWminus * BR_W_qq * BR_W_qq
   reference: Value taken from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef, top/antitop % taken from XSDB, BRs taken from pdg, assume t->Wb 100%
   unc: +2.0 -1.9 (scale) +-2.4 (PDF AlphaS) +3.1 -3.1 (Total) +1.3 -1.3 (mass) +0.2 -0.2 (Ebeam)
 TWminustoLNu2Q:
-  crossSec: 87.9 * (0.4995) * ( ((3 * BR_W_lnu) * BR_W_qq) + (BR_W_qq * (3 * BR_W_lnu)) )
+  crossSec: TWminus * 2 * (3 * BR_W_lnu) * BR_W_qq
   reference: Value taken from https://twiki.cern.ch/twiki/bin/view/LHCPhysics/SingleTopNNLORef, top/antitop % taken from XSDB, BRs taken from pdg, assume t->Wb 100%
   unc: +2.0 -1.9 (scale) +-2.4 (PDF AlphaS) +3.1 -3.1 (Total) +1.3 -1.3 (mass) +0.2 -0.2 (Ebeam)
 
@@ -967,15 +990,15 @@ TT:
   unc: +22.6 -33.4 (scale) +/-  22.8 (PDF alphas) -24.6 +25.4 (mass) (to be multiplied by the BR)
 
 TTto2L2Nu:
-  crossSec: 923.6 * (3 * BR_W_lnu) * (3 * BR_W_lnu)
+  crossSec: TT * (3 * BR_W_lnu) * (3 * BR_W_lnu)
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/TtbarNNLO#Updated_reference_cross_sections
   unc: +22.6 -33.4 (scale) +/-  22.8 (PDF alphas) -24.6 +25.4 (mass) (to be multiplied by the BR)
 TTto4Q:
-  crossSec: 923.6 * BR_W_qq * BR_W_qq
+  crossSec: TT * BR_W_qq * BR_W_qq
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/TtbarNNLO#Updated_reference_cross_sections
   unc: +22.6 -33.4 (scale) +/-  22.8 (PDF alphas) -24.6 +25.4 (mass) (to be multiplied by the BR)
 TTtoLNu2Q:
-  crossSec: 923.6 * BR_W_qq * (3 * BR_W_lnu) * 2
+  crossSec: TT * 2 * (3 * BR_W_lnu) * BR_W_qq
   reference: https://twiki.cern.ch/twiki/bin/view/LHCPhysics/TtbarNNLO#Updated_reference_cross_sections
   unc: +22.6 -33.4 (scale) +/-  22.8 (PDF alphas) -24.6 +25.4 (mass) (to be multiplied by the BR)
 

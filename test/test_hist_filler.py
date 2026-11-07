@@ -567,5 +567,95 @@ class FillTreeMatchesRDataFrame(unittest.TestCase):
         self.check(80)
 
 
+class FillTreeWindowBlocks(FillTreeMatchesRDataFrame):
+    """FillTree with window blocks (Common/WindowRegions.py): a block fills only its own variables, in keys
+    that are a base key and a cut on a stored bin index. Every window histogram must be the RDataFrame
+    histogram of the base key's selection and the cut, the base histograms stay as without blocks, and a
+    window region holds nothing else."""
+
+    # (window region, base key index, cut): q's bins 1-2, and from the first edge (underflow included)
+    WINDOWS = [
+        ("SR_qWin_a", 0, "q_bin >= 1 && q_bin < 3"),
+        ("SR_qWin_a", 1, "q_bin >= 1 && q_bin < 3"),
+        ("SR_qWin_b", 1, "q_bin < 2"),
+    ]
+
+    def window_blocks(self, keys):
+        blocks = {}
+        for region, index, cut in self.WINDOWS:
+            key_tuple = keys[index][0]
+            new_key = (key_tuple[0], region) + tuple(key_tuple[2:])
+            blocks.setdefault(region, []).append((new_key, index, cut))
+        return [(block_keys, ["p"]) for block_keys in blocks.values()]
+
+    def run_fill(self, max_cells):
+        keys = [
+            (key + (self.CUT_NAME,), f"{flt} && {self.CUT_NAME}")
+            for key, flt in self.KEYS
+        ]
+        var_models = self.models()
+        out = ROOT.TMemFile("fill_tree_window_test.root", "RECREATE")
+        var_files = {var: out.mkdir(var) for var in var_models}
+        for tree_name, shift, weights in (
+            ("Events", 0.0, self.WEIGHTS),
+            ("Events__ShapeB__Up", 0.37, [("ShapeB", "Up", "weight_Central")]),
+        ):
+            self.producer.FillTree(
+                self.tree(shift),
+                tree_name,
+                weights,
+                keys,
+                list(var_models),
+                var_models,
+                var_files,
+                max_cells,
+                self.window_blocks(keys),
+            )
+        return out, keys
+
+    def check(self, max_cells):
+        super().check(max_cells)  # the base histograms, as without blocks
+        out, keys = self.run_fill(max_cells)
+        trees = {"Events": self.tree(0.0), "Events__ShapeB__Up": self.tree(0.37)}
+        fills = [("Events", u, s, w) for u, s, w in self.WEIGHTS]
+        fills.append(("Events__ShapeB__Up", "ShapeB", "Up", "weight_Central"))
+        refs = []
+        for block_keys, _ in self.window_blocks(keys):
+            for key, index, cut in block_keys:
+                flt = f"({keys[index][1]}) && ({cut})"
+                for tree, unc, scale, weight in fills:
+                    name = "p" if unc == "Central" else f"p_{unc}_{scale}"
+                    refs.append(
+                        (key, name, self.reference(trees[tree], flt, weight, "p"))
+                    )
+        for key, name, ref in refs:
+            path = f"p/{'/'.join(key)}/{name}"
+            got = out.Get(path)
+            self.assertTrue(got, path)
+            ref = ref.GetValue()
+            self.assertEqual(cells(got), cells(ref), path)
+            self.assertEqual(got.GetEntries(), ref.GetEntries(), path)
+            self.assertGreater(ref.GetEntries(), 0, path)
+        # the window regions hold only their variable, and only the histograms above
+        for key, _, _ in [
+            k for block_keys, _ in self.window_blocks(keys) for k in block_keys
+        ]:
+            self.assertFalse(out.Get(f"pq/{'/'.join(key)}"), key)
+        n_written = sum(
+            len(out.Get(f"p/{'/'.join(key)}").GetListOfKeys())
+            for block_keys, _ in self.window_blocks(keys)
+            for key, _, _ in block_keys
+        )
+        self.assertEqual(n_written, len(refs))
+        out.Close()
+
+    def test_a_window_block_shares_the_loop(self):
+        # every (block, variable) unit fits one loop
+        self.check(0)
+
+    def test_window_blocks_over_several_loops(self):
+        self.check(80)
+
+
 if __name__ == "__main__":
     unittest.main()

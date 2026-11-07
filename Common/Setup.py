@@ -605,6 +605,8 @@ class Setup:
 
         self.histTuple_flavor = self.global_params["histTuple_flavor"]
         print(f"Using histTuple flavor {self.histTuple_flavor}")
+        # Window regions (Common/WindowRegions.py): expanded on first use, see window_regions.
+        self.window_regions_ = None
         self.histTuple_plot_vars = list(
             self.global_params["histTuple_flavors"][self.histTuple_flavor]["variables"]
         )
@@ -997,6 +999,57 @@ class Setup:
                 "histograms", self.config_path_order, ["plot/histograms.yaml"]
             )
         return self.hists_
+
+    def histogrammed_regions(self):
+        """The base regions histogrammed: the list `custom_regions` names (or the keys of a region
+        -> cut mapping)."""
+        regions = self.global_params.get(self.global_params.get("custom_regions") or "")
+        if isinstance(regions, dict):
+            return list(regions)
+        return list(regions or [])
+
+    def histogrammed_categories(self):
+        categories = list(self.global_params.get("categories") or [])
+        custom_name = self.global_params.get("custom_categories")
+        if custom_name:
+            categories += list(self.global_params.get(custom_name) or [])
+        return categories
+
+    @property
+    def window_regions(self):
+        """The window regions of the histTuple flavour (Common/WindowRegions.py), a list of
+        ``{"name", "base_region", "window", "mass", "vars", "cuts"}``; empty without any.
+        """
+        if self.window_regions_ is None:
+            from FLAF.Common import WindowRegions
+
+            flavour_cfg = self.global_params["histTuple_flavors"][self.histTuple_flavor]
+            if not flavour_cfg.get("window_regions"):
+                self.window_regions_ = []
+                return self.window_regions_
+            from FLAF.Common.HistHelper import findBinEntry
+
+            def hist_edges(var):
+                entry = self.hists[findBinEntry(self.hists, var)]
+                if "x_bins" not in entry:
+                    raise WindowRegions.WindowRegionError(
+                        f"window variable {var} has no x_bins in histograms.yaml"
+                    )
+                return WindowRegions.axis_edges(entry["x_bins"])
+
+            self.window_regions_ = WindowRegions.expand_window_regions(
+                flavour_cfg,
+                WindowRegions.load_window_sets(self.global_params, self.ana_path),
+                self.histogrammed_regions(),
+                self.histogrammed_categories(),
+                flavour_cfg.get("variables") or [],
+                {
+                    v["name"] if isinstance(v, dict) else v
+                    for v in self.histTuple_plot_vars
+                },
+                hist_edges,
+            )
+        return self.window_regions_
 
     @staticmethod
     def getGlobal(

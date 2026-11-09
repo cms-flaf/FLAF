@@ -399,6 +399,17 @@ Each of these has caused a production incident. They are ordered by how much dam
   `file[name] = arrays`.** Since uproot 5.7 (LCG_110a) that assignment writes an RNTuple, which
   TChain, tree friends and the anaTuple readers do not accept.
 
+### ROOT object ownership in Python
+
+- **A ROOT object detached with `SetDirectory(0)` that no other C++ object owns must be given to
+  Python: `ROOT.SetOwnership(obj, True)`** (or `obj.__python_owns__ = True` in a module that does
+  not import ROOT). An object still held by a C++ owner (an RDataFrame result's `shared_ptr`, an
+  owning collection) must not be. PyROOT 6.40 never owns what `Clone()`, `TKey::ReadObj()`, `TDirectory::Get()`,
+  `Rebin(n, newname, …)` or `Projection*()` return, a TH1 constructed while a file is the current
+  directory belongs to that file, and `SetDirectory(0)` does not give ownership back: without the
+  call every such histogram stays allocated until the job ends. Never give ownership while the
+  object is still in a file's directory: `TFile::Close` deletes it, and Python deletes it again.
+
 ### NN inference (`env.sh`, `Common/Setup.py`, `Common/OnnxSession.py`)
 
 - **`TF_ENABLE_ONEDNN_OPTS=0` everywhere TensorFlow runs.** TensorFlow turns its oneDNN kernels on
@@ -459,6 +470,13 @@ Each of these has caused a production incident. They are ordered by how much dam
   merge fills from a stored bin it overlaps, in every region, control regions included. A change
   that lifts a window in some region, or draws a hidden bin as a marker at zero, shows blinded
   data.
+- `HistProducerFromNTuple` fills through `include/HistFiller.h`, one event loop per tree (or per
+  budget group), with one copy of its arrays per RDataFrame slot, summed in slot order by `Write`;
+  `hist_from_ntuple_max_hist_memory_mb` counts every copy. Key filters are `bool`
+  (`HistFillerKey`), bin columns integers no wider than `int`, weights scalars. With one thread every
+  cell, error and entry count must stay identical to RDataFrame's `Histo` filling
+  (`test/test_hist_filler.py`, `needs_root`, run by hand). `hist_from_ntuple_max_hists` is retired
+  and refused by `HistFromNtupleProducerTask`.
 
 ## Testing expectations
 

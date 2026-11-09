@@ -10,6 +10,7 @@ if __name__ == "__main__":
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
 import FLAF.Common.PlotBlinding as PlotBlinding
+import FLAF.Common.TheoryUncertainties as TheoryUncertainties
 from FLAF.Common.PlotGroups import (
     GroupProcesses,
     control_regions,
@@ -19,6 +20,17 @@ from FLAF.Common.PlotGroups import (
     want_signals,
 )
 from FLAF.Common.Utilities import str_to_bool
+
+
+def _detached(hist):
+    """``hist`` out of any directory and owned by Python, so that it is freed once nothing refers to
+    it. Get() and Clone() leave a histogram to the open file, and SetDirectory(0) alone then leaves it
+    owned by nobody: every histogram read for the plots of a variable (all up/down variations of the
+    uncertainty band) stayed allocated until the job ended, ~6 GB for a 2D DNN x HME variable.
+    """
+    hist.SetDirectory(0)
+    ROOT.SetOwnership(hist, True)
+    return hist
 
 
 def GetHistName(dataset_name, dataset_type, uncName, unc_scale, global_cfg_dict):
@@ -46,7 +58,7 @@ def GetUncNames(setup, global_cfg_dict, era):
     all_unc_dict.update(unc_cfg_dict["shape"])
     uncs_to_exclude = (global_cfg_dict.get("uncs_to_exclude") or {}).get(era, [])
     return {
-        unc_name: unc_entry["name"]
+        unc_name: unc_entry
         for unc_name, unc_entry in all_unc_dict.items()
         if unc_name not in uncs_to_exclude
     }
@@ -69,8 +81,7 @@ def GetTotalUncertaintyHist(
     central_total = None
     for hist in bkg_hists.values():
         if central_total is None:
-            central_total = hist.Clone("bkg_total_unc")
-            central_total.SetDirectory(0)
+            central_total = _detached(hist.Clone("bkg_total_unc"))
         else:
             central_total.Add(hist)
     if central_total is None:
@@ -82,27 +93,32 @@ def GetTotalUncertaintyHist(
 
     available = {str(key.GetName()) for key in dir_1.GetListOfKeys()}
     n_sources = 0
-    for unc_name, name_template in unc_names.items():
+    for unc_name, unc_entry in unc_names.items():
         deviations = []
         for scale in scales:
             varied_total = None
             found_any = False
             for process_name, central_hist in bkg_hists.items():
-                hist_name = f"{process_name}_{name_template.format(scale)}"
+                # the name HistMergerFromHists gives it, {process} included
+                suffix = TheoryUncertainties.format_name(unc_entry, scale, process_name)
+                hist_name = f"{process_name}_{suffix}"
                 if hist_name in available:
                     obj = dir_1.Get(hist_name)
                     if not obj or not obj.IsA().InheritsFrom(ROOT.TH1.Class()):
                         continue
-                    obj.SetDirectory(0)
+                    _detached(obj)
                     varied_hist = rebin_fn(obj, hist_name)
+                    if varied_hist is not obj:
+                        _detached(varied_hist)
                     found_any = True
                 else:
                     # No variation stored for this process (e.g. data-driven QCD):
                     # it simply does not move under this source.
                     varied_hist = central_hist
                 if varied_total is None:
-                    varied_total = varied_hist.Clone(f"{unc_name}_{scale}_total")
-                    varied_total.SetDirectory(0)
+                    varied_total = _detached(
+                        varied_hist.Clone(f"{unc_name}_{scale}_total")
+                    )
                 else:
                     varied_total.Add(varied_hist)
             if found_any and varied_total is not None:
@@ -430,7 +446,7 @@ if __name__ == "__main__":
             obj = dir_1.Get(dataset_histname)
             if not obj.IsA().InheritsFrom(ROOT.TH1.Class()):
                 raise RuntimeError(f"{dataset_histname} in {where} is not a histogram")
-            obj.SetDirectory(0)
+            _detached(obj)
 
             if dataset_process_name in hists_to_plot_unbinned.keys():
                 print(hists_to_plot_unbinned[dataset_process_name])
@@ -450,12 +466,14 @@ if __name__ == "__main__":
         def apply_binning(hist, hist_key):
             if not rebin_condition:
                 return hist
-            return RebinHisto(
-                hist,
-                new_bins,
-                hist_key,
-                wantOverflow=args.wantOverflow,
-                verbose=False,
+            return _detached(
+                RebinHisto(
+                    hist,
+                    new_bins,
+                    hist_key,
+                    wantOverflow=args.wantOverflow,
+                    verbose=False,
+                )
             )
 
         hists_to_plot_binned = {}
@@ -499,9 +517,9 @@ if __name__ == "__main__":
                 # every era's sources: one decorrelated between the eras is a source of
                 # its own in each, keyed by its histogram-name template
                 {
-                    template: template
+                    entry["name"]: entry
                     for era, era_setup in setups.items()
-                    for template in GetUncNames(
+                    for entry in GetUncNames(
                         era_setup, era_setup.global_params, era
                     ).values()
                 },

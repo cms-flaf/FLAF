@@ -19,6 +19,7 @@ from FLAF.AnaProd.tasks import (
     anaTuple_plans_ready,
 )
 from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
+import FLAF.Common.TheoryUncertainties as TheoryUncertainties
 
 # Process-local cache of the upstream AnaTupleMergeTask outputs, keyed like its branch map
 # (`Task._branch_map_cache_key`). HistTupleProducerTask.output() and
@@ -63,6 +64,24 @@ def _active_variables(setup, variables=""):
     if missing:
         print(f"Warning: variables not found in config: {sorted(missing)}")
     return result
+
+
+def _theory_members(setup):
+    """``{unc: (weights entry, [members])}``: the uncertainties of `setup` that have members
+    (PDF, QCD scale) instead of Up/Down, as the corrections configuration registers them.
+    """
+    from Corrections.Corrections import Corrections
+    from Corrections.CorrectionsCore import getScales
+
+    Corrections.registerConfiguredSourceScales(setup.global_params)
+    up_down = list(setup.global_params["scales"])
+    entries = dict(setup.weights_config["norm"])
+    entries.update(setup.weights_config["shape"])
+    return {
+        unc: (entry, list(getScales(unc)))
+        for unc, entry in entries.items()
+        if TheoryUncertainties.has_members(getScales(unc), up_down)
+    }
 
 
 def _merged_hists_target(task, era, var_name, fs):
@@ -584,9 +603,8 @@ class HistFromNtupleProducerTask(
     n_cpus = copy_param(HTCondorWorkflow.n_cpus, 2)
     variables = luigi.Parameter(default="")
     # Number of input ntuple files processed per job. LAW branches stay split by
-    # files. If the booked-histogram count (variables x selections x unc/scale,
-    # including Up/Down) exceeds hist_from_ntuple_max_hists, the producer repeats
-    # the event loop in batches inside the same job.
+    # files. The producer fills each tree in one event loop, or in several if its
+    # histograms exceed hist_from_ntuple_max_hist_memory_mb.
     n_files_per_job = luigi.IntParameter(default=20)
 
     @property
@@ -673,9 +691,9 @@ class HistFromNtupleProducerTask(
             dataset_to_branches.setdefault(histTuple_dataset_name, []).append(prod_br)
 
         # Each (dataset, file-chunk) is its own branch/job. Big datasets are
-        # parallelized by chunking files (n_files_per_job). Histogram-count
-        # batching, if needed, happens inside the producer — not as extra LAW
-        # branches — so inputs are localized once.
+        # parallelized by chunking files (n_files_per_job). A tree whose histograms
+        # exceed the memory budget is filled in several event loops inside the
+        # producer — not as extra LAW branches — so inputs are localized once.
         n_files = max(1, self.n_files_per_job)
         idx = 0
         for dataset_name, prod_br_list in sorted(dataset_to_branches.items()):
@@ -734,6 +752,12 @@ class HistFromNtupleProducerTask(
 
     def run(self):
         self._refuse_inline_on_worker()
+        if "hist_from_ntuple_max_hists" in self.global_params:
+            raise RuntimeError(
+                "`hist_from_ntuple_max_hists` is no longer used: HistProducerFromNTuple fills every "
+                "histogram of a tree in one event loop, and only "
+                "`hist_from_ntuple_max_hist_memory_mb` splits it. Remove the key."
+            )
         dataset_name, prod_br_list, chunk_id = self.branch_data
         var_names = self._branch_variables()
         job_home, remove_job_home = self.law_job_home()
@@ -753,7 +777,11 @@ class HistFromNtupleProducerTask(
         HistFromNtupleProducer = os.path.join(
             self._flaf_root(), "Analysis", "HistProducerFromNTuple.py"
         )
-        nMT = self.n_cpus * 2 if self.effective_workflow in ("htcondor", "crab") else 8
+        # On HTCondor/CRAB one thread per requested core: more only oversubscribes the slot. Every
+        # thread fills its own copy of a loop's histograms (include/HistFiller.h) within the same
+        # memory budget, so more threads can mean more loops for the large 2D variables. Local
+        # runs keep 8.
+        nMT = self.n_cpus if self.effective_workflow in ("htcondor", "crab") else 8
 
         # Determine which variables still need to be produced for this (dataset, chunk).
         outputs = self.output()
@@ -816,9 +844,6 @@ class HistFromNtupleProducerTask(
                 cmd.extend(["--customisations", self.customisations])
             if self.user_custom:
                 cmd.extend(["--user-custom", self.user_custom])
-            max_hists = self.global_params.get("hist_from_ntuple_max_hists")
-            if max_hists is not None:
-                cmd.extend(["--max-hists", str(int(max_hists))])
             cmd.extend(local_inputs)
             ps_call(cmd, verbose=1)
 
@@ -1117,6 +1142,15 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         scales = self.common(
             lambda setup: list(setup.global_params["scales"]), "scales"
         )
+        members = self.common(_theory_members, "theory-uncertainty members")
+
+        def member_names(process):
+            return [
+                f"{process}_{TheoryUncertainties.format_name(entry, m, process)}"
+                for entry, unc_members in members.values()
+                for m in unc_members
+            ]
+
         inputs = self.input()
         with contextlib.ExitStack() as stack:
             local_inputs = [
@@ -1124,7 +1158,7 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
                 for era in self.sub_eras
             ]
             with self.output().localize("w") as out_file:
-                SumEraFiles(local_inputs, out_file.abspath, scales)
+                SumEraFiles(local_inputs, out_file.abspath, scales, member_names)
 
 
 class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):

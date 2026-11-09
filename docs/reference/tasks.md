@@ -180,15 +180,74 @@ chunk of input files and fills every active variable, one output file per variab
 `<version>/Hists_split/<era>/<variable>/<dataset>/`. Large datasets are parallelized by splitting
 their files into chunks.
 
-If the number of histograms booked in one RDataFrame pass — variables × selections ×
-(Central + every Up/Down) — exceeds `hist_from_ntuple_max_hists` (default `4000`), the
-producer repeats the event loop in batches instead of holding every histogram at once.
-That keeps CI (8 GiB) from running out of memory when uncertainties are on. Set the
-threshold in `global.yaml` / `user_custom.yaml`, or pass `--max-hists` to the producer
-(`0` disables batching). LAW branches stay file-chunks; batching is inside the job.
+Every tree (the central one and each shape variation) is read in **one event loop** that fills
+all its histograms, every selection × (Central or Up/Down) × variable
+([`include/HistFiller.h`](https://github.com/cms-flaf/FLAF/blob/main/include/HistFiller.h)): each
+event's selections are evaluated once, and its weights are added to the histograms of the
+selections it passes. The loop runs on one thread per requested core on HTCondor/CRAB
+(`nMT = n_cpus`) and 8 locally; every thread fills its own copy of the histograms, and the copies
+are summed when they are written. With one thread the histograms are the ones a separate RDataFrame
+histogram per selection, weight and variable would fill, bit for bit; with several the entry
+counts are exact and the contents differ at rounding level (about 1e-14 of a histogram's largest
+cell), as RDataFrame's own multi-threaded histograms do, and from run to run.
+
+The histograms of one loop are held as cells × 16 B for each thread. If a tree's histograms, all
+threads' copies counted, exceed `hist_from_ntuple_max_hist_memory_mb` (default `1500`), its
+variables are split over several loops, and a variable that alone exceeds it over its weights
+(the variables before it share those loops when that needs no more of them); more threads can
+therefore mean more loops. The budget is not a hard bound: one (variable, weight) larger than it
+still gets a loop of its own, and a job peaks at about the budget plus 1 GB. On the HH_bbWW CR
+layout (101 1D and 25 2D variables, 27 selections, 49 weights) at one thread the first central
+loop holds all the 1D and 7 of the 2D variables, and the other 2D variables share three more.
+Pass `--max-hist-memory-mb` to the producer to override it (a value below 1 disables it). Each
+loop's line in the log gives its histograms, cells, thread slots and time.
+
+A key filter must be a `bool`, as for RDataFrame's `Filter`, and a bin column an integer type no
+wider than `int` (`bool`, `char`, `short`, `int` and their unsigned narrower forms, scalar or
+vector); anything else is refused. `hist_from_ntuple_max_hists` was removed with the histogram-count
+batching: a configuration that still sets it is refused.
 
 - **Parameters:** `--variables` (string; restrict which variables), `--n-files-per-job` (int,
   default `20`; input files processed per branch).
+
+#### Signal trees
+Optionally, the job also keeps the **per-event rows** behind the histograms of the signal
+datasets, for a per-event reweighting (e.g. an ELReweighter) downstream. It is configured in
+`global.yaml` / `user_custom.yaml`; without the block, or with `store_signal_trees: false`,
+nothing changes:
+
+```yaml
+signal_tree_hists_ELReweighter:
+  store_signal_trees: true
+  vars_to_store: [ ggF_DNN_HH ]           # variables whose output files get the trees
+  extra_vars_to_store:                    # histTuple columns to keep per event
+    - run
+    - event
+    - luminosityBlock
+    - mhh_lhe
+```
+
+The trees are written for a dataset with `process_group: signals` and the variables of
+`vars_to_store` that the job fills. Every `extra_vars_to_store` column (and every
+`weight_<unc>_<scale>` column used for the norm variations) must be in the histTuple: the job
+fails otherwise, so the histTuple flavour has to keep them (`fullResolution_variables`).
+
+In the chunk's output file of each such variable, `SignalTrees/<variation>` holds one tree per
+tree the histograms are filled from — `Central` and, with `compute_unc_histograms`, each shape
+variation (`<unc>_<scale>`, e.g. `JES_Total_Up`). A row is an event that passes at least one
+selection, with:
+
+- the `extra_vars_to_store` columns and `weight_Central`;
+- for each stored variable `v`, `v_bin` (the value its histograms are filled with) and `v`
+  itself when the flavour keeps it at full resolution;
+- a boolean `sel__<channel>__<region>__<category>[__<further cut>]` per selection: the filter of
+  that directory's histograms;
+- in the `Central` tree only, `weight_<unc>_<scale>` of every norm variation.
+
+A histogram is rebuilt from `SignalTrees/<variation>` by keeping the rows whose `sel__…` flag is
+true, weighted by `weight_Central` (a shape variation) or by `weight_<unc>_<scale>` of the
+`Central` tree (a norm variation). When several `vars_to_store` variables are filled in the same
+job, each of their files gets the same trees, with the columns of all of them.
 
 ### `HistMergerTask`
 Merges the per-chunk histograms into per-process histograms ready for plotting and fitting,
@@ -204,12 +263,39 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
   and merged here only for datasets matching at least one entry. A dataset matches an entry if,
   for every key of the entry, it lacks that key or has that value, so backgrounds always match.
   Any dataset key can be listed; a single dict is a one-entry list.
+- **Signal trees:** with [signal trees](#signal-trees) in the chunks, the chunks of each merged
+  process are concatenated, one variation at a time, into
+  `SignalTrees/<process>/<variation>` of the merged file, after the histograms. A shape
+  variation takes the name its histograms have (e.g. `JES_Total_Up` becomes `CMS_scale_j_Up`);
+  `Central` keeps its name. The baskets are copied, not decompressed. A process whose chunks
+  have trees in some files only is an error: its trees would be incomplete.
+- **Theory uncertainties** (PDF, QCD scale): a `weights.yaml` norm entry whose source the
+  corrections configuration registers with members (103 PDF members, 8 QCD-scale points) has
+  one weight per member instead of Up/Down. Like every uncertainty, it is filled for every
+  variable when the uncertainties are computed, and the summed histogram of every member of
+  every process is written: `<process>_<name>` with the member in place of `{}` (its leading
+  underscore dropped), e.g. `TT_QCDscale_TT_muR2_muF1`, `TT_pdf_TT_57`. `{process}` in the
+  `name` is the process of the physics model, so each process (each DY mass range, each signal)
+  has its own. The members are written as soon as the last dataset of their process is summed,
+  so only one process holds them in memory. Reducing them to Up/Down (envelope, Hessian sum) is
+  left to the datacard step, on the era or meta-era it fits:
+
+    ```yaml
+    norm:
+      qcd_scale:
+        expression: weight_base_qcd_scale{scale}_rel * final_weight
+        name: QCDscale_{process}_{}
+    ```
+
+  Over a meta-era, a member is summed like any variation: an era without it enters with its
+  central histogram of the process.
 - **Meta-era** (`--era Run3_22_23`, a group of `era_groups:`): one branch per variable that every
   era of the group merges. It requires `HistMergerTask` over the eras and sums, bin by bin, their
   merged files of the variable (read through [`MergedHistsTask`](#mergedhiststask)) into
   `<version>/Hists_merged/<meta-era>/<variable>/<variable>.root`. An era without a variation of a
-  process (a source decorrelated between the eras) contributes its central histogram to it. See
-  [Meta-eras](../concepts/eras.md#meta-eras).
+  process (a source decorrelated between the eras) contributes its central histogram to it. The
+  signal trees are concatenated by the same rule: an era without a variation contributes the rows
+  of its `Central` tree. See [Meta-eras](../concepts/eras.md#meta-eras).
 
 ### `MergedHistsTask`
 An **external** task: the merged histograms of one variable of one era, at `HistMergerTask`'s

@@ -1,119 +1,66 @@
-"""Split HistFromNtuple histogram booking so one RDataFrame pass stays within a hist budget.
+"""Split the histograms of one HistFromNtuple event loop so that their arrays fit a memory budget.
 
-The booked-histogram count is
-``n_vars × n_keys × n_cuts × n_scale_slots``, where ``n_scale_slots`` counts
-every (uncertainty, scale) pair (Central plus each Up/Down). When that product
-exceeds ``max_hists``, the work is partitioned so each batch books at most
-``max_hists`` histograms. Axes are split in this order: variables, then extra
-cuts, then selection keys, then (unc, scale).
+HistProducerFromNTuple fills, per tree, every (selection key, weight, variable) histogram in one event
+loop (include/HistFiller.h): ``n_keys x n_weights`` histograms per variable, each of the variable's cells
+held as a sum and a sum of squared weights, and every thread slot of the loop fills its own copy of them.
+The variables are packed in order into groups of at most ``max_cells`` cells in all, every slot's copy
+counted; a variable that alone exceeds it is split over its weights, and the variables of the open group
+join its weight chunks when that needs no more loops. Each group is one event loop over the tree.
 """
 
-
-def n_cut_slots(further_cuts):
-    return max(1, len(further_cuts) if further_cuts else 0)
+BYTES_PER_CELL = 16  # a cell: sum of weights and sum of squared weights, as doubles
 
 
-def unc_scale_pairs(uncs_to_compute):
-    pairs = []
-    for unc, scales in uncs_to_compute.items():
-        for scale in scales:
-            pairs.append((unc, scale))
-    return pairs
+def cells_budget(memory_mb):
+    """Cells one event loop may hold within ``memory_mb``, an int; ``memory_mb < 1`` disables the cap (0)."""
+    if not memory_mb or memory_mb < 1:
+        return 0
+    return int(memory_mb * 1e6 / BYTES_PER_CELL)
 
 
-def pairs_to_uncs(pairs):
-    out = {}
-    for unc, scale in pairs:
-        out.setdefault(unc, []).append(scale)
-    return out
+def _weight_chunks(n_weights, step):
+    return [
+        (first, min(first + step, n_weights)) for first in range(0, n_weights, step)
+    ]
 
 
-def count_booked_hists(n_vars, n_keys, n_cuts, n_scales):
-    return n_vars * n_keys * n_cuts * n_scales
+def fill_groups(var_cells, n_keys, n_weights, max_cells, n_slots=1):
+    """``[(variables, (first_weight, end_weight))]``, the event loops of one tree.
 
-
-def _chunks(items, size):
-    size = max(1, int(size))
-    if not items:
-        yield items
-        return
-    for i in range(0, len(items), size):
-        yield items[i : i + size]
-
-
-def iter_hist_batches(
-    uncs_to_compute, key_filter_dict, further_cuts, vars_to_process, max_hists
-):
-    """Yield ``(uncs_dict, keys_dict, cuts_dict, vars_list)`` batches.
-
-    Each batch books at most ``max_hists`` histograms. ``max_hists < 1`` disables
-    splitting (one batch with everything).
+    ``var_cells``: {variable: cells of one of its histograms}, in the order to fill them; ``n_slots``:
+    the thread slots of the loop, one copy of its cells each. Every (variable, weight) is in exactly one
+    group, and a group holds at most ``max_cells`` cells in its ``n_slots`` copies unless one (variable,
+    weight) alone does. ``max_cells < 1`` gives a single group. The variables keep their order.
     """
-    pairs = unc_scale_pairs(uncs_to_compute)
-    keys = list(key_filter_dict.items())
-    cuts = list(further_cuts.items()) if further_cuts else []
-    vars_list = list(vars_to_process)
-    n_total = count_booked_hists(
-        max(1, len(vars_list)),
-        max(1, len(keys)),
-        n_cut_slots(further_cuts),
-        max(1, len(pairs)),
-    )
-    if max_hists < 1 or n_total <= max_hists:
-        yield uncs_to_compute, key_filter_dict, further_cuts, vars_list
-        return
-
-    for b_pairs, b_keys, b_cuts, b_vars in _split_axes(
-        pairs, keys, cuts, vars_list, max_hists
-    ):
-        yield pairs_to_uncs(b_pairs), dict(b_keys), dict(b_cuts), b_vars
-
-
-def _n_hists(pairs, keys, cuts, vars_list):
-    return count_booked_hists(
-        max(1, len(vars_list)),
-        max(1, len(keys)),
-        max(1, len(cuts) if cuts else 1),
-        max(1, len(pairs)),
-    )
-
-
-def _split_axes(pairs, keys, cuts, vars_list, max_hists):
-    if _n_hists(pairs, keys, cuts, vars_list) <= max_hists:
-        yield pairs, keys, cuts, vars_list
-        return
-
-    per_var = _n_hists(pairs, keys, cuts, [None])
-    if per_var <= max_hists:
-        for d in _chunks(vars_list, max_hists // per_var):
-            yield pairs, keys, cuts, d
-        return
-
-    for d in _chunks(vars_list, 1):
-        if cuts:
-            per_cut = _n_hists(pairs, keys, [None], d)
-            if per_cut <= max_hists:
-                for c in _chunks(cuts, max_hists // per_cut):
-                    yield pairs, keys, c, d
-                continue
-            for c in _chunks(cuts, 1):
-                yield from _split_keys_and_scales(pairs, keys, c, d, max_hists)
-        else:
-            yield from _split_keys_and_scales(pairs, keys, cuts, d, max_hists)
-
-
-def _split_keys_and_scales(pairs, keys, cuts, vars_list, max_hists):
-    if _n_hists(pairs, keys, cuts, vars_list) <= max_hists:
-        yield pairs, keys, cuts, vars_list
-        return
-    per_key = _n_hists(pairs, [None], cuts, vars_list)
-    if per_key <= max_hists:
-        for b in _chunks(keys, max_hists // per_key):
-            yield pairs, b, cuts, vars_list
-        return
-    for b in _chunks(keys, 1):
-        if _n_hists(pairs, b, cuts, vars_list) <= max_hists:
-            yield pairs, b, cuts, vars_list
+    variables = list(var_cells)
+    if not variables:
+        return []
+    if not max_cells or max_cells < 1:
+        return [(variables, (0, n_weights))]
+    n_slots = max(1, int(n_slots))
+    groups = []
+    current, current_cells = [], 0  # current_cells: per weight
+    for var in variables:
+        per_weight = var_cells[var] * n_keys * n_slots
+        if per_weight * n_weights > max_cells:
+            chunks = _weight_chunks(n_weights, max(1, max_cells // per_weight))
+            if current:
+                joint_step = max_cells // (per_weight + current_cells)
+                joint = _weight_chunks(n_weights, joint_step) if joint_step else None
+                if joint is not None and len(joint) <= len(chunks):
+                    # the open group shares the variable's loops instead of a loop of its own
+                    groups.extend((current + [var], chunk) for chunk in joint)
+                    current, current_cells = [], 0
+                    continue
+                groups.append((current, (0, n_weights)))
+                current, current_cells = [], 0
+            groups.extend(([var], chunk) for chunk in chunks)
             continue
-        for a in _chunks(pairs, 1):
-            yield a, b, cuts, vars_list
+        if current and (current_cells + per_weight) * n_weights > max_cells:
+            groups.append((current, (0, n_weights)))
+            current, current_cells = [], 0
+        current.append(var)
+        current_cells += per_weight
+    if current:
+        groups.append((current, (0, n_weights)))
+    return groups

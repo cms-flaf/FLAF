@@ -15,10 +15,22 @@ ROOT.gROOT.ProcessLine(f".include {os.environ['ANALYSIS_PATH']}")
 ROOT.gROOT.ProcessLine(f'#include "FLAF/include/HistHelper.h"')
 
 
+_bin_entry_cache = {}
+
+
 def findBinEntry(hist_cfg_dict, var_name):
     """
     Match variable name against regex-based histogram config entries.
+
+    The answer for a (config, variable) pair is cached: the producers and plotters ask it for the
+    same variable several times, and every miss runs one regex per config entry. An entry
+    holds its config, so that config's id cannot be reused by another one, and a hit is only
+    taken for that very config.
     """
+    key = (id(hist_cfg_dict), var_name)
+    cached = _bin_entry_cache.get(key)
+    if cached is not None and cached[0] is hist_cfg_dict:
+        return cached[1]
 
     matches = []
 
@@ -32,6 +44,7 @@ def findBinEntry(hist_cfg_dict, var_name):
     if len(matches) > 1:
         raise RuntimeError(f"Ambiguous histogram config for '{var_name}': {matches}")
 
+    _bin_entry_cache[key] = (hist_cfg_dict, matches[0])
     return matches[0]
 
 
@@ -40,6 +53,10 @@ def get_all_items_recursive(root_dir, path=()):
     local_items = {}
 
     for key in root_dir.GetListOfKeys():
+        # from the key's class: anything else, such as a signal tree, is not read
+        cls = ROOT.TClass.GetClass(key.GetClassName())
+        if not cls or not (cls.InheritsFrom("TDirectory") or cls.InheritsFrom("TH1")):
+            continue
         obj = key.ReadObj()
 
         if obj.InheritsFrom("TDirectory"):
@@ -258,19 +275,14 @@ def GetBinVec(x_bins):
     return x_bins_vec
 
 
-def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
+def GetModel(hist_cfg, var, dims):
     THModel_Inputs = []
-    unit_bin_Inputs = []
     var_entry = findBinEntry(hist_cfg, var)
     if dims == 1:
         x_bins_vec = GetBinVec(hist_cfg[var_entry]["x_bins"])
         THModel_Inputs.append(x_bins_vec.size() - 1)
         THModel_Inputs.append(x_bins_vec.data())
-        model = ROOT.RDF.TH1DModel("", "", *THModel_Inputs)
-        if not return_unit_bin_model:
-            return model
-        unit_bin_Inputs = [model.fNbinsX, -0.5, model.fNbinsX - 0.5]
-        unit_bin_model = ROOT.RDF.TH1DModel("", "", *unit_bin_Inputs)
+        return ROOT.RDF.TH1DModel("", "", *THModel_Inputs)
 
     elif (dims == 2) or (dims == 3):
         list_var_bins_vec = []
@@ -286,62 +298,191 @@ def GetModel(hist_cfg, var, dims, return_unit_bin_model=False):
             THModel_Inputs.append(var_bins_vec.size() - 1)
             THModel_Inputs.append(var_bins_vec.data())
         if dims == 2:
-            model = ROOT.RDF.TH2DModel("", "", *THModel_Inputs)
-            if not return_unit_bin_model:
-                return model
-            unit_bin_Inputs = [
-                model.fNbinsX,
-                -0.5,
-                model.fNbinsX - 0.5,
-                model.fNbinsY,
-                -0.5,
-                model.fNbinsY - 0.5,
-            ]
-            unit_bin_model = ROOT.RDF.TH2DModel("", "", *unit_bin_Inputs)
-        if dims == 3:
-            model = ROOT.RDF.TH3DModel("", "", *THModel_Inputs)
-            if not return_unit_bin_model:
-                return model
-            unit_bin_Inputs = [
-                model.fNbinsX,
-                -0.5,
-                model.fNbinsX - 0.5,
-                model.fNbinsY,
-                -0.5,
-                model.fNbinsY - 0.5,
-                model.fNbinsZ,
-                -0.5,
-                model.fNbinsZ - 0.5,
-            ]
-            unit_bin_model = ROOT.RDF.TH3DModel("", "", *unit_bin_Inputs)
+            return ROOT.RDF.TH2DModel("", "", *THModel_Inputs)
+        return ROOT.RDF.TH3DModel("", "", *THModel_Inputs)
     else:
         raise RuntimeError("nD histogram not implemented yet")
         # model = ROOT.RDF.THnDModel("", "", )
 
-    return model, unit_bin_model
+
+def _hist_dir_paths(root_dir, path=()):
+    """Paths of the directories holding histograms, in the order get_all_items_recursive finds
+    them, from the keys' class names: no histogram is read."""
+    paths = []
+    has_hists = False
+    for key in root_dir.GetListOfKeys():
+        cls = ROOT.TClass.GetClass(key.GetClassName())
+        if cls and cls.InheritsFrom("TDirectory"):
+            paths.extend(
+                _hist_dir_paths(
+                    root_dir.GetDirectory(key.GetName()), path + (key.GetName(),)
+                )
+            )
+        elif cls and cls.InheritsFrom("TH1"):
+            has_hists = True
+    if has_hists:
+        paths.append(path)
+    return paths
 
 
-def SumEraFiles(in_paths, out_path, scales):
+def _read_dir_hists(root_file, dir_path):
+    """The histograms of one directory, owned by Python as in get_all_items_recursive."""
+    directory = root_file.GetDirectory("/".join(dir_path)) if dir_path else root_file
+    hists = {}
+    for key in directory.GetListOfKeys():
+        obj = key.ReadObj()
+        if obj.InheritsFrom("TH1"):
+            obj.SetDirectory(0)
+            ROOT.SetOwnership(obj, True)
+            hists[key.GetName()] = obj
+    return hists
+
+
+SIGNAL_TREES_DIR = "SignalTrees"
+
+
+def _branch_names(tree):
+    return {branch.GetName() for branch in tree.GetListOfBranches()}
+
+
+def concat_trees(out_dir, name, trees, extra_branches_from=None):
+    """Write the entries of ``trees``, one after the other, into ``out_dir`` as ``name``.
+
+    Fast cloning: the compressed baskets are copied, not read. The output has the branches
+    of the first tree, and every tree must have exactly these; from index
+    ``extra_branches_from`` on a tree may have more, which are left out. A tree that
+    CopyEntries cannot copy (a branch of another type) is skipped with a warning only, hence
+    the entry check. The trees are deleted once written: one left in an open file stays in
+    memory until the file is closed, and every later deletion of a ROOT object walks it
+    (RecursiveRemove).
+    """
+    if not trees or not all(trees):
+        raise RuntimeError(
+            f"{name}: {len(trees)} input tree(s), of which "
+            f"{sum(not tree for tree in trees)} missing"
+        )
+    branches = _branch_names(trees[0])
+    for index, tree in enumerate(trees[1:], start=1):
+        tree_branches = _branch_names(tree)
+        allowed = tree_branches == branches or (
+            extra_branches_from is not None
+            and index >= extra_branches_from
+            and tree_branches > branches
+        )
+        if not allowed:
+            raise RuntimeError(
+                f"{name}: the branches of tree {index} differ from those of the first: "
+                f"{sorted(tree_branches ^ branches)}"
+            )
+    out_dir.cd()
+    out_tree = trees[0].CloneTree(0)
+    out_tree.SetName(name)
+    out_tree.SetTitle(name)
+    for tree in trees:
+        out_tree.CopyEntries(tree, -1, "fast")
+    n_entries = sum(tree.GetEntries() for tree in trees)
+    if out_tree.GetEntries() != n_entries:
+        raise RuntimeError(
+            f"{name}: {out_tree.GetEntries()} of {n_entries} entries copied"
+        )
+    out_tree.Write("", ROOT.TObject.kOverwrite)
+    for tree in [out_tree] + list(trees):
+        tree.SetDirectory(0)
+        ROOT.SetOwnership(tree, True)
+
+
+def _signal_tree_names(root_file):
+    """{process: [variation, ...]} of the signal trees of a merged file."""
+    trees_dir = root_file.GetDirectory(SIGNAL_TREES_DIR)
+    if not trees_dir:
+        return {}
+    return {
+        key.GetName(): [
+            tree_key.GetName()
+            for tree_key in trees_dir.GetDirectory(key.GetName()).GetListOfKeys()
+        ]
+        for key in trees_dir.GetListOfKeys()
+    }
+
+
+def signal_tree_inputs(chunks_by_type):
+    """{dataset_type: [path, ...]} of the types whose chunks all have signal trees.
+
+    ``chunks_by_type`` is {dataset_type: [(dataset_name, path, has_trees), ...]}. The histograms
+    come from every chunk, so a type with trees in some chunks only raises: its trees would be
+    silently incomplete.
+    """
+    tree_inputs = {}
+    for dataset_type, chunks in chunks_by_type.items():
+        without_trees = [f"{name}: {path}" for name, path, has in chunks if not has]
+        if len(without_trees) == len(chunks):
+            continue
+        if without_trees:
+            raise RuntimeError(
+                f"{dataset_type}: {SIGNAL_TREES_DIR} missing in {without_trees}"
+            )
+        tree_inputs[dataset_type] = [path for _, path, _ in chunks]
+    return tree_inputs
+
+
+def _has_hist(root_file, dir_path, name):
+    """Whether the directory ``dir_path`` has a histogram ``name``, from its key: none is
+    read."""
+    directory = root_file.GetDirectory("/".join(dir_path)) if dir_path else root_file
+    key = directory.GetKey(name)
+    cls = ROOT.TClass.GetClass(key.GetClassName()) if key else None
+    return bool(cls) and cls.InheritsFrom("TH1")
+
+
+def SumEraFiles(in_paths, out_path, scales, member_names=None):
     """Sum the merged histogram files of several eras into one, bin by bin.
 
     A variation that an era does not have -- a source decorrelated between the eras, such
     as ``TT_CMS_scale_j_2022_Up`` in Run3_2023 -- enters the sum as that era's central
     histogram of the process: the source does not move that era's events. A plain hadd
     would leave the varied histogram holding the events of its own era alone.
+
+    One directory at a time: only that directory's histograms of the eras are in memory. Holding
+    every histogram of every era at once took ~12 GB for a variable with control regions (four
+    eras of ~400k histograms).
+
+    `member_names(process)` gives the histogram names of the theory-uncertainty members of a
+    process (``TT_pdf_TT_57``): they are variations of that process too, though they do not end
+    with one of `scales`.
     """
     in_files = [ROOT.TFile.Open(path, "READ") for path in in_paths]
-    eras = [get_all_items_recursive(in_file) for in_file in in_files]
+    era_dirs = [_hist_dir_paths(in_file) for in_file in in_files]
+    era_trees = [_signal_tree_names(in_file) for in_file in in_files]
+    # An era with the histograms of a process but not its trees would be missing from the
+    # concatenated trees: checked before anything is summed.
+    for process in dict.fromkeys(p for trees in era_trees for p in trees):
+        for path, in_file, dirs, trees in zip(in_paths, in_files, era_dirs, era_trees):
+            if process not in trees and any(
+                _has_hist(in_file, dir_path, process) for dir_path in dirs
+            ):
+                raise RuntimeError(
+                    f"{path} has histograms of {process} but no "
+                    f"{SIGNAL_TREES_DIR}/{process}"
+                )
     # 209 = LZMA level 9, as the merged files of one era
     out_file = ROOT.TFile(out_path, "RECREATE", "", 209)
-    for dir_path in dict.fromkeys(path for era in eras for path in era):
-        hists = [era.get(dir_path, {}) for era in eras]
+    for dir_path in dict.fromkeys(path for dirs in era_dirs for path in dirs):
+        hists = [
+            _read_dir_hists(in_file, dir_path) if dir_path in dirs else {}
+            for in_file, dirs in zip(in_files, era_dirs)
+        ]
         names = list(dict.fromkeys(name for era_hists in hists for name in era_hists))
         centrals = [name for name in names if not name.endswith(tuple(scales))]
+        member_of = {}
+        if member_names is not None:
+            member_of = {m: c for c in centrals for m in member_names(c)}
+            centrals = [c for c in centrals if c not in member_of]
         out_dir = mkdir_recursive(out_file, "/".join(dir_path))
         for name in names:
-            # the process of a variation: the longest central name it extends
-            process = None
-            if name not in centrals:
+            # the process of a variation: the one it is a member of, or the longest central
+            # name it extends
+            process = member_of.get(name)
+            if process is None and name not in centrals:
                 process = max(
                     (c for c in centrals if name.startswith(c + "_")),
                     key=len,
@@ -350,10 +491,40 @@ def SumEraFiles(in_paths, out_path, scales):
             parts = [h.get(name, h.get(process)) for h in hists]
             parts = [part for part in parts if part]
             total = parts[0].Clone(name)
+            # Clone registers the copy in the open output file, which takes it from Python;
+            # detached, it must be given back, or every summed histogram stays allocated.
             total.SetDirectory(0)
+            ROOT.SetOwnership(total, True)
             for part in parts[1:]:
                 total.Add(part)
             out_dir.WriteTObject(total, name, "Overwrite")
+    # The signal trees are concatenated with the rule of the histograms: an era without a
+    # variation enters with its central events. The eras that have it go first: theirs are
+    # the branches (a central tree has the norm-variation weights in addition, left out).
+    for process in dict.fromkeys(p for trees in era_trees for p in trees):
+        out_dir = mkdir_recursive(out_file, f"{SIGNAL_TREES_DIR}/{process}")
+        eras = [
+            (in_file, trees[process])
+            for in_file, trees in zip(in_files, era_trees)
+            if process in trees
+        ]
+        for variation in dict.fromkeys(v for _, variations in eras for v in variations):
+            varied = [
+                (in_file, f"{SIGNAL_TREES_DIR}/{process}/{variation}")
+                for in_file, variations in eras
+                if variation in variations
+            ]
+            fallback = [
+                (in_file, f"{SIGNAL_TREES_DIR}/{process}/Central")
+                for in_file, variations in eras
+                if variation not in variations
+            ]
+            concat_trees(
+                out_dir,
+                variation,
+                [f.Get(path) for f, path in varied + fallback],
+                extra_branches_from=len(varied),
+            )
     out_file.Close()
     for in_file in in_files:
         in_file.Close()

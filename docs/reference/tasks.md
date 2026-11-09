@@ -218,17 +218,29 @@ regions**: copies of some of its regions restricted to the window of one mass, h
 variables listed for them
 ([`Common/WindowRegions.py`](https://github.com/cms-flaf/FLAF/blob/main/Common/WindowRegions.py)).
 
-The window sets are defined once, at the top level of `global.yaml`, each a variable and a file of
-`[low, high]` windows per mass and category:
+A window is a **box** in one or more variables. The window sets are defined once, at the top level of
+`global.yaml`, each its variables and a file of boxes per mass and category:
 
 ```yaml
 windows:
   HME:
-    variable: DeepHME_mass                       # a variable the flavour histograms
-    definitions: config/windows/hme_DL_v2610.yaml  # windows: {<mass>: {<category>: [low, high]}}
+    variables: [ DeepHME_mass ]                  # variables the flavour histograms
+    definitions: config/windows/hme_DL_v2610.yaml
     # parameter: MX                              # optional: the placeholder name (default MX)
     # region_name: "{region}_{window}Win_m{MX}"  # optional: the region name pattern (this default)
 ```
+
+```yaml
+# the definitions file: per mass and category, a [low, high] per variable of the set
+windows:
+  300:
+    res2b: { DeepHME_mass: [ 250, 400 ] }
+    boosted: { DeepHME_mass: [ 260, 470 ] }
+```
+
+A set of several variables (`variables: [ DeepHME_mass, ll_mass ]`) cuts on all of a box's variables
+at once, e.g. `res2b: { DeepHME_mass: [ 250, 400 ], ll_mass: [ 12, 80 ] }`; a variable left out of a
+box is not cut on in that category.
 
 A flavour lists what to histogram in which windows:
 
@@ -244,19 +256,21 @@ histTuple_flavors:
 
 Each entry and mass gives the regions `<region>_<window>Win_m<mass>`, e.g. `SR_HMEWin_m300`, written
 like any region (`<channel>/SR_HMEWin_m300/<category>/<histogram>`). Their keys are the base keys
-of the listed regions whose category the definitions file has a window for, with the cut
-`low <= variable < high` added. The cut is made on the variable's stored bin index, so the
-histTuples need nothing new. A window starting at the first edge of the binning takes the underflow
-too, and one ending at the last edge the overflow, so a window histogram is exactly the window slice
-of the full 2D histogram.
+of the listed regions whose category the definitions file has a box for, with the cut
+`low <= variable < high` added for every variable of the box. The cuts are made on the variables'
+stored bin indices, so the histTuples need nothing beyond the variables' bin columns, and every
+window edge must be a bin edge of its variable. A window starting at the first edge of a binning
+takes the underflow too, and one ending at the last edge the overflow, so a window histogram is
+exactly the window slice of the full histogram.
 
 - **Only listed variables are booked.** A window region holds only its entry's variables, which must
   already be variables of the flavour; `{MX}` ties a mass-dependent variable to its own window.
   In the event loop, each window region has a filler of its own (`FillTree` blocks), filled in the
   same pass over the tree as the base regions; without window regions the loops are unchanged.
-- **Every ambiguity is an error:** an unknown window set, mass, region or category, a window edge
-  that is not a bin edge, a variable the flavour does not histogram, a variable that names a mass
-  of the window set without the placeholder, a region name made twice.
+- **Every ambiguity is an error:** an unknown window set, mass, region or category, a box variable
+  the set does not declare, a window edge that is not a bin edge, a variable the flavour does not
+  histogram, a variable that names a mass of the window set without the placeholder, a region name
+  made twice.
 - **A cap against too-wide lists:** a job refuses more window (key, variable) pairs than
   `window_regions_max_key_vars` (default `5000`; `0` disables the check). HH_bbWW's 25 masses × 3
   regions × 3 categories × 5 channels × 1 variable is 1125.

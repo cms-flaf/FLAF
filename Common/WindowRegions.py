@@ -1,4 +1,4 @@
-"""Window regions: regions restricted to a window of one variable that depends on a model parameter.
+"""Window regions: regions restricted to a window that depends on a model parameter.
 
 A resonance search keeps, per mass hypothesis, only the events whose reconstructed mass lies in a window
 around it, a different window per category. Instead of carrying the full 2D (discriminant x mass)
@@ -6,15 +6,25 @@ histograms to apply that cut later, the cut can be made at histogramming time, a
 ``SR_HMEWin_m300`` is ``SR`` with the HME window of MX = 300, and it holds only the variables asked for
 in it.
 
+A window is a box in one or more variables: per mass and category, a ``[low, high]`` for each of the
+variables it cuts on, all of them required at once.
+
 Two blocks of configuration:
 
-``windows`` (top level of global.yaml) names window sets, each a variable and a definitions file::
+``windows`` (top level of global.yaml) names window sets, each its variables and a definitions file::
 
     windows:
       HME:
-        variable: DeepHME_mass               # a histogrammed variable of the flavour (its bin column)
-        definitions: config/windows/hme.yaml # windows: {<mass>: {<category>: [low, high]}}
-        parameter: MX                        # optional, the placeholder name (default MX)
+        variables: [ DeepHME_mass ]           # histogrammed variables of the flavour (their bin columns)
+        definitions: config/windows/hme.yaml
+        parameter: MX                         # optional, the placeholder name (default MX)
+
+    # config/windows/hme.yaml: per mass and category, a [low, high] per variable of the set; a variable
+    # left out of a box is not cut on there
+    windows:
+      300:
+        res2b: { DeepHME_mass: [ 250, 400 ] }
+        boosted: { DeepHME_mass: [ 260, 470 ] }
 
 ``window_regions`` (in a histTuple flavour) lists what to histogram in which windows::
 
@@ -26,17 +36,18 @@ Two blocks of configuration:
 
 Each entry and mass makes regions ``<region>_<window>Win_m<mass>`` (``region_name`` overrides the
 pattern), with a key per base key of a listed region whose category the definitions give a window for:
-the base key's selection and ``low <= variable < high``. Nothing else is booked in them: a window region
-has only its entry's variables, which must already be histogrammed by the flavour (so their bin columns
-exist and the base regions keep them).
+the base key's selection and ``low <= variable < high`` for every variable of the box. Nothing else is
+booked in them: a window region has only its entry's variables, which must already be histogrammed by
+the flavour (so their bin columns exist and the base regions keep them).
 
-The cut is made on the variable's stored bin index, so every window edge must be an edge of the
+The cut is made on each variable's stored bin index, so every window edge must be an edge of that
 variable's binning (checked); a window starting at the first edge includes the underflow and one ending
 at the last edge the overflow, as a flow-inclusive projection of the full histogram would. The window
 histograms are then exactly the window slices of the full ones.
 
-Every ambiguity is an error: an unknown window set, mass, region or category, an edge off the binning,
-a variable not histogrammed, a mass-tagged variable without the placeholder, a name collision.
+Every ambiguity is an error: an unknown window set, mass, region, category or box variable, an edge off
+the binning, a variable not histogrammed, a mass-tagged variable without the placeholder, a name
+collision.
 """
 
 import os
@@ -100,9 +111,21 @@ def bin_cut(bin_column, edges, low, high, what):
     return " && ".join(cuts) if cuts else "true"
 
 
+def box_cut(box, edges, what):
+    """The cut of a box ``{variable: (low, high)}``: every variable's ``bin_cut``, in the order of the
+    box, all required; ``"true"`` if none cuts anything."""
+    cuts = [
+        bin_cut(f"{var}_bin", edges[var], low, high, f"{what} {var}")
+        for var, (low, high) in box.items()
+    ]
+    cuts = [c for c in cuts if c != "true"]
+    return " && ".join(cuts) if cuts else "true"
+
+
 def load_window_sets(global_params, ana_path):
-    """``{name: {"variable", "parameter", "windows": {mass: {category: (low, high)}}}}`` of the
-    top-level ``windows`` block."""
+    """``{name: {"variables", "parameter", "region_name", "definitions",
+    "windows": {mass: {category: {variable: (low, high)}}}}}`` of the top-level ``windows`` block.
+    """
     cfg = global_params.get("windows") or {}
     if not isinstance(cfg, dict):
         raise WindowRegionError(
@@ -112,16 +135,32 @@ def load_window_sets(global_params, ana_path):
     for name, entry in cfg.items():
         if (
             not isinstance(entry, dict)
-            or "variable" not in entry
+            or "variables" not in entry
             or "definitions" not in entry
         ):
             raise WindowRegionError(
-                f"window set {name}: needs 'variable' and 'definitions'"
+                f"window set {name}: needs 'variables' and 'definitions'"
             )
-        unknown = set(entry) - {"variable", "definitions", "parameter", "region_name"}
+        unknown = set(entry) - {
+            "variables",
+            "definitions",
+            "parameter",
+            "region_name",
+        }
         if unknown:
             raise WindowRegionError(
                 f"window set {name}: unknown keys {sorted(unknown)}"
+            )
+        variables = entry["variables"]
+        if (
+            not isinstance(variables, list)
+            or not variables
+            or not all(isinstance(v, str) for v in variables)
+            or len(set(variables)) != len(variables)
+        ):
+            raise WindowRegionError(
+                f"window set {name}: 'variables' must be a non-empty list of distinct names, "
+                f"got {variables!r}"
             )
         path = entry["definitions"]
         if not os.path.isabs(path):
@@ -144,15 +183,30 @@ def load_window_sets(global_params, ana_path):
                     f"window set {name}: mass {mass} has no category windows"
                 )
             windows[int(mass)] = {}
-            for cat, bounds in per_cat.items():
-                if not isinstance(bounds, (list, tuple)) or len(bounds) != 2:
+            for cat, box in per_cat.items():
+                what = f"window set {name}: mass {mass} {cat}"
+                if not isinstance(box, dict) or not box:
                     raise WindowRegionError(
-                        f"window set {name}: mass {mass} {cat}: expected [low, high], got {bounds!r}"
+                        f"{what}: expected a box {{<variable>: [low, high], ...}}, got {box!r}"
                     )
-                windows[int(mass)][str(cat)] = (float(bounds[0]), float(bounds[1]))
+                unknown_vars = sorted(set(box) - set(variables))
+                if unknown_vars:
+                    raise WindowRegionError(
+                        f"{what}: {unknown_vars} not among the set's variables {variables}"
+                    )
+                windows[int(mass)][str(cat)] = {}
+                for var, bounds in box.items():
+                    if not isinstance(bounds, (list, tuple)) or len(bounds) != 2:
+                        raise WindowRegionError(
+                            f"{what} {var}: expected [low, high], got {bounds!r}"
+                        )
+                    windows[int(mass)][str(cat)][var] = (
+                        float(bounds[0]),
+                        float(bounds[1]),
+                    )
         parameter = entry.get("parameter", DEFAULT_PARAMETER)
         sets[name] = {
-            "variable": entry["variable"],
+            "variables": list(variables),
             "parameter": parameter,
             "region_name": entry.get(
                 "region_name", "{region}_{window}Win_m{" + parameter + "}"
@@ -218,13 +272,14 @@ def expand_window_regions(
             )
         wset = window_sets[set_name]
         parameter = wset["parameter"]
-        wvar = wset["variable"]
-        if wvar not in binned_components:
-            raise WindowRegionError(
-                f"{what}: the window variable {wvar} is not histogrammed by the flavour, so it has "
-                "no bin column to cut on"
-            )
-        edges = hist_edges(wvar)
+        edges = {}
+        for wvar in wset["variables"]:
+            if wvar not in binned_components:
+                raise WindowRegionError(
+                    f"{what}: the window variable {wvar} is not histogrammed by the flavour, so "
+                    "it has no bin column to cut on"
+                )
+            edges[wvar] = hist_edges(wvar)
 
         regions = entry["regions"]
         if not isinstance(regions, list) or not regions:
@@ -271,10 +326,8 @@ def expand_window_regions(
                         f"a configured category ({categories})"
                     )
             cuts = {
-                cat: bin_cut(
-                    f"{wvar}_bin", edges, low, high, f"{set_name} m={mass} {cat}"
-                )
-                for cat, (low, high) in per_cat.items()
+                cat: box_cut(box, edges, f"{set_name} m={mass} {cat}")
+                for cat, box in per_cat.items()
             }
             mass_vars = []
             for tmpl in var_templates:

@@ -17,15 +17,23 @@ from FLAF.Common import WindowRegions as WR  # noqa: E402
 
 # a 10 GeV grid from 200 to 400 and one bin below and above, as the HME grid starts
 HME_EDGES = [0.0] + [200.0 + 10.0 * i for i in range(21)] + [500.0]
+# 5 GeV bins from 0 to 100, then one to 200
+LL_EDGES = [5.0 * i for i in range(21)] + [200.0]
+EDGES = {"DeepHME_mass": HME_EDGES, "ll_mass": LL_EDGES}
 
 DEFINITIONS = """
 windows:
-  300: { res2b: [ 250, 350 ], boosted: [ 0, 400 ] }
-  400: { res2b: [ 300, 500 ], boosted: [ 350, 500 ] }
+  300:
+    res2b: { DeepHME_mass: [ 250, 350 ] }
+    boosted: { DeepHME_mass: [ 0, 400 ] }
+  400:
+    res2b: { DeepHME_mass: [ 300, 500 ] }
+    boosted: { DeepHME_mass: [ 350, 500 ] }
 """
 
 FLAVOUR_VARS = [
     "DeepHME_mass",
+    "ll_mass",
     "DNN_M300_Signal",
     "DNN_M400_Signal",
     "lep1_pt",
@@ -42,9 +50,16 @@ class WindowRegionsTestBase(unittest.TestCase):
             f.write(DEFINITIONS)
         self.global_params = {
             "windows": {
-                "HME": {"variable": "DeepHME_mass", "definitions": "config/hme.yaml"}
+                "HME": {
+                    "variables": ["DeepHME_mass"],
+                    "definitions": "config/hme.yaml",
+                }
             }
         }
+
+    def write_definitions(self, text, name="hme.yaml"):
+        with open(os.path.join(self.tmp.name, "config", name), "w") as f:
+            f.write(text)
 
     def sets(self):
         return WR.load_window_sets(self.global_params, self.tmp.name)
@@ -58,7 +73,7 @@ class WindowRegionsTestBase(unittest.TestCase):
             ["res2b", "recovery", "boosted"],
             flavour_vars,
             names if active is None else set(active),
-            lambda var: HME_EDGES,
+            lambda var: EDGES[var],
         )
 
 
@@ -170,14 +185,36 @@ class Guards(WindowRegionsTestBase):
             )
 
     def test_edge_off_the_binning(self):
-        with open(os.path.join(self.tmp.name, "config", "hme.yaml"), "w") as f:
-            f.write("windows:\n  300: { res2b: [ 255, 350 ] }\n")
+        self.write_definitions(
+            "windows:\n  300: { res2b: { DeepHME_mass: [ 255, 350 ] } }\n"
+        )
         self.refused("255.0 is not a bin edge", masses=[300])
 
     def test_category_unknown(self):
-        with open(os.path.join(self.tmp.name, "config", "hme.yaml"), "w") as f:
-            f.write("windows:\n  300: { res3b: [ 250, 350 ] }\n")
+        self.write_definitions(
+            "windows:\n  300: { res3b: { DeepHME_mass: [ 250, 350 ] } }\n"
+        )
         self.refused("category 'res3b'", masses=[300])
+
+    def test_box_variable_not_in_the_set(self):
+        self.write_definitions("windows:\n  300: { res2b: { ll_mass: [ 10, 80 ] } }\n")
+        with self.assertRaisesRegex(
+            WR.WindowRegionError, "\\['ll_mass'\\] not among the set's variables"
+        ):
+            self.sets()
+
+    def test_a_window_is_a_box_not_a_list(self):
+        self.write_definitions("windows:\n  300: { res2b: [ 250, 350 ] }\n")
+        with self.assertRaisesRegex(WR.WindowRegionError, "expected a box"):
+            self.sets()
+
+    def test_the_old_single_variable_key_is_refused(self):
+        self.global_params["windows"]["HME"] = {
+            "variable": "DeepHME_mass",
+            "definitions": "config/hme.yaml",
+        }
+        with self.assertRaisesRegex(WR.WindowRegionError, "needs 'variables'"):
+            self.sets()
 
     def test_region_defined_twice(self):
         with self.assertRaisesRegex(WR.WindowRegionError, "defined twice"):
@@ -187,6 +224,82 @@ class Guards(WindowRegionsTestBase):
         self.global_params["windows"]["HME"]["definitions"] = "config/none.yaml"
         with self.assertRaisesRegex(WR.WindowRegionError, "not found"):
             self.sets()
+
+
+class MultiVariableWindows(WindowRegionsTestBase):
+    """A window set of two variables: every variable of a box is cut on, a variable left out of a
+    box is not, and the edges of each variable are checked against its own binning."""
+
+    def setUp(self):
+        super().setUp()
+        self.write_definitions(
+            """
+windows:
+  300:
+    res2b: { DeepHME_mass: [ 250, 350 ], ll_mass: [ 10, 80 ] }
+    recovery: { ll_mass: [ 0, 200 ] }
+    boosted: { DeepHME_mass: [ 260, 400 ] }
+""",
+            "hme_mll.yaml",
+        )
+        self.global_params["windows"]["HME_mll"] = {
+            "variables": ["DeepHME_mass", "ll_mass"],
+            "definitions": "config/hme_mll.yaml",
+        }
+
+    def regions(self):
+        return self.expand(
+            [
+                {
+                    "window": "HME_mll",
+                    "regions": ["SR"],
+                    "masses": [300],
+                    "vars": ["DNN_M{MX}_Signal"],
+                }
+            ]
+        )
+
+    def test_every_variable_of_the_box_is_cut_on(self):
+        (r,) = self.regions()
+        self.assertEqual(r["name"], "SR_HME_mllWin_m300")
+        # HME bins 6..15 and ll_mass 10..80 = bins 2..15
+        self.assertEqual(
+            r["cuts"]["res2b"],
+            "DeepHME_mass_bin >= 6 && DeepHME_mass_bin < 16 "
+            "&& ll_mass_bin >= 2 && ll_mass_bin < 16",
+        )
+        # a variable left out of the box is not cut on
+        self.assertEqual(
+            r["cuts"]["boosted"], "DeepHME_mass_bin >= 7 && DeepHME_mass_bin < 21"
+        )
+        # a box over the whole binning of its variable (flows included) cuts nothing
+        self.assertEqual(r["cuts"]["recovery"], "true")
+
+    def test_edges_are_checked_per_variable(self):
+        self.write_definitions(
+            "windows:\n  300: { res2b: { DeepHME_mass: [ 250, 350 ], ll_mass: [ 12, 80 ] } }\n",
+            "hme_mll.yaml",
+        )
+        with self.assertRaisesRegex(
+            WR.WindowRegionError, "HME_mll m=300 res2b ll_mass low edge: 12.0"
+        ):
+            self.regions()
+
+    def test_every_variable_of_the_set_must_be_histogrammed(self):
+        with self.assertRaisesRegex(
+            WR.WindowRegionError, "ll_mass is not histogrammed"
+        ):
+            self.expand(
+                [
+                    {
+                        "window": "HME_mll",
+                        "regions": ["SR"],
+                        "masses": [300],
+                        "vars": ["DNN_M{MX}_Signal"],
+                    }
+                ],
+                flavour_vars=["DeepHME_mass", "DNN_M300_Signal"],
+            )
 
 
 class JobBlocks(WindowRegionsTestBase):

@@ -15,17 +15,11 @@ from FLAF.Common.Setup import Setup
 from Corrections.CorrectionsCore import getScales
 from FLAF.Analysis.HistTupleProducer import DefineBinnedColumn
 from FLAF.Analysis.histFromNtupleBatch import cells_budget, fill_groups
-from FLAF.Common import SubRegions
+from FLAF.Common import HistBooking
 
 # Memory (MB) the histograms of one event loop may take, every thread slot's copy counted, unless
 # hist_from_ntuple_max_hist_memory_mb or --max-hist-memory-mb says otherwise.
 DEFAULT_MAX_HIST_MEMORY_MB = 1500
-
-# Sub-regions book only what a flavour lists, but a list can still be too wide (every variable in
-# every sub-region): a job refuses more (key, variable) pairs in sub-regions than this, unless
-# sub_regions_max_key_vars says otherwise (0 disables the check). 25 masses x 3 regions x 3
-# categories x 5 channels x 1 variable = 1125.
-DEFAULT_MAX_SUB_REGION_KEY_VARS = 5000
 
 _HIST_FILLER_H = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -137,54 +131,41 @@ def FillTree(
     rdf,
     tree_name,
     weights,
-    keys,
-    vars_to_process,
+    booking,
     var_models,
     var_files,
     max_cells,
-    sub_region_blocks=(),
 ):
     """Fill and write every (key, weight, variable) histogram of one tree, in event loops of at most
     ``max_cells`` cells, every thread slot's copy counted (include/HistFiller.h).
 
-    ``sub_region_blocks`` (Common/SubRegions.sub_region_blocks): further ``(keys, vars)`` blocks, each
-    key a ``(key_tuple, base_key_index, cut, columns)`` selecting the events of base key
-    ``base_key_index`` that pass ``cut``, which reads ``columns``. A block fills only its own variables
-    in its own keys, with a filler of its own; the blocks of a loop fill in the same pass over the tree.
-    Without blocks the loops are as before.
+    ``booking`` (Common/HistBooking.py): the blocks ``[(keys, variables, columns)]``, ``keys`` a list of
+    ``(key_tuple, filter)``. A block fills its variables in its keys, with a filler of its own; the
+    blocks of a loop fill in the same pass over the tree. ``columns`` are input columns the block's
+    filters read: one absent from the tree stops the job. Without a booking plugin there is one block,
+    every variable in every key, as before blocks existed.
     """
     columns = {str(c): str(rdf.GetColumnType(c)) for c in rdf.GetColumnNames()}
     for _, _, weight in weights:
         if IsVectorType(columns[weight]):
             raise RuntimeError(f"{tree_name}: weight column {weight} is a vector")
-    # a key filter must be a bool, as for RDataFrame's Filter (HistFillerKey refuses anything else)
-    pass_expr = (
-        "ROOT::RVec<char>{"
-        + ", ".join(f"analysis::HistFillerKey(({flt}))" for _, flt in keys)
-        + "}"
-    )
-    # blocks: (key tuples, pass column definition, variables); the base block's pass is _hf_pass
-    blocks = [([key_tuple for key_tuple, _ in keys], None, list(vars_to_process))]
-    for block_keys, block_vars in sub_region_blocks:
-        for key_tuple, _, cut, cut_columns in block_keys:
-            missing = [c for c in cut_columns if c not in columns]
-            if missing:
-                raise RuntimeError(
-                    f"{tree_name}: the cut '{cut}' of sub-region {key_tuple[1]} needs "
-                    f"{', '.join(missing)}, absent from the input histTuples: a bin-form cut needs "
-                    "its variables binned by the flavour, a C++ cut its variables in the flavour's "
-                    "fullResolution_variables, both when the histTuples were made"
-                )
+    # blocks: (key tuples, pass column definition, variables)
+    blocks = []
+    for block_keys, block_vars, block_columns in booking:
+        missing = [c for c in block_columns if c not in columns]
+        if missing:
+            raise RuntimeError(
+                f"{tree_name}: the keys {', '.join('/'.join(k) for k, _ in block_keys[:3])}"
+                f"{' ...' if len(block_keys) > 3 else ''} need {', '.join(missing)}, absent from "
+                "the input histTuples"
+            )
+        # a key filter must be a bool, as for RDataFrame's Filter (HistFillerKey refuses anything else)
         pass_def = (
             "ROOT::RVec<char>{"
-            + ", ".join(
-                f"static_cast<char>(_hf_pass[{index}] && "
-                f"analysis::HistFillerKey(({cut})))"
-                for _, index, cut, _ in block_keys
-            )
+            + ", ".join(f"analysis::HistFillerKey(({flt}))" for _, flt in block_keys)
             + "}"
         )
-        blocks.append(([k for k, _, _, _ in block_keys], pass_def, list(block_vars)))
+        blocks.append(([k for k, _ in block_keys], pass_def, list(block_vars)))
     # the unit of the memory budget: one variable of one block, in all the block's keys
     unit_cells = {}
     for b, (block_keys, _, block_vars) in enumerate(blocks):
@@ -199,17 +180,16 @@ def FillTree(
             "ROOT::RVec<double>{"
             + ", ".join(f"static_cast<double>({w})" for _, _, w in group_weights)
             + "}",
-        ).Define("_hf_pass", pass_expr)
+        )
         fillers = []  # (filler, key tuples, variables), one per block in this loop
         filled_cols = []
         for b, (block_keys, pass_def, _) in enumerate(blocks):
             group_vars = [var for unit_block, var in group_units if unit_block == b]
             if not group_vars:
                 continue
-            suffix = "" if b == 0 else f"_w{b}"
+            suffix = "" if b == 0 else f"_b{b}"
             pass_col = f"_hf_pass{suffix}"
-            if pass_def is not None:
-                loop = loop.Define(pass_col, pass_def)
+            loop = loop.Define(pass_col, pass_def)
             scalar_cols, vector_cols = [], []
             filler = ROOT.analysis.HistFiller()
             for var in group_vars:
@@ -536,36 +516,21 @@ if __name__ == "__main__":
             for cut_name in cut_names
         ]
         var_models = {var: VarModel(hist_cfg_dict, var) for var in vars_to_process}
-        n_hists = len(vars_to_process) * len(keys) * sum(map(len, tree_fills.values()))
-        # Sub-regions (Common/SubRegions.py): each fills only its own variables, in its own keys.
-        sub_region_blocks = SubRegions.sub_region_blocks(
-            keys, setup.sub_regions, vars_to_process
-        )
-        if sub_region_blocks:
-            n_sub_pairs = SubRegions.count_sub_region_pairs(sub_region_blocks)
-            n_sub_hists = n_sub_pairs * sum(map(len, tree_fills.values()))
-            max_sub_pairs = int(
-                setup.global_params.get(
-                    "sub_regions_max_key_vars", DEFAULT_MAX_SUB_REGION_KEY_VARS
-                )
+        # What to fill in which keys (Common/HistBooking.py): the analysis' booking plugin, else
+        # every variable in every key.
+        if setup.hist_booking is not None:
+            booking = HistBooking.plugin_blocks(
+                setup.hist_booking, setup, keys, vars_to_process
             )
-            print(
-                f"Sub-regions: {len(sub_region_blocks)} blocks, "
-                f"{sum(len(k) for k, _ in sub_region_blocks)} keys, {n_sub_pairs} "
-                f"(key, variable) pairs, {n_sub_hists} histograms",
-                flush=True,
-            )
-            if 0 < max_sub_pairs < n_sub_pairs:
-                raise RuntimeError(
-                    f"The sub-regions book {n_sub_pairs} (key, variable) pairs in this job, "
-                    f"above sub_regions_max_key_vars = {max_sub_pairs}: check the flavour's "
-                    "sub_regions (masses, regions, vars), or raise the limit on purpose"
-                )
-            n_hists += n_sub_hists
+        else:
+            booking = HistBooking.default_blocks(keys, vars_to_process)
+        n_units = sum(map(len, tree_fills.values()))
+        n_hists = HistBooking.count_pairs(booking) * n_units
         print(
-            f"Filling {n_hists} histograms ({len(vars_to_process)} vars × {len(keys)} keys × "
-            f"{sum(map(len, tree_fills.values()))} unc/scales) from {len(tree_fills)} trees, "
-            f"max hist memory {max_memory_mb:g} MB per event loop (every thread slot's copy)",
+            f"Filling {n_hists} histograms ({len(booking)} booking block(s), "
+            f"{HistBooking.count_pairs(booking)} (key, variable) pairs × {n_units} unc/scales) "
+            f"from {len(tree_fills)} trees, max hist memory {max_memory_mb:g} MB per event loop "
+            "(every thread slot's copy)",
             flush=True,
         )
 
@@ -609,12 +574,10 @@ if __name__ == "__main__":
                 all_trees[tree_name],
                 tree_name,
                 weights,
-                keys,
-                vars_to_process,
+                booking,
                 var_models,
                 var_files,
                 max_cells,
-                sub_region_blocks,
             )
 
         # A snapshot not already run by its tree's first fill loop runs here.

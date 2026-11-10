@@ -210,74 +210,42 @@ batching: a configuration that still sets it is refused.
 - **Parameters:** `--variables` (string; restrict which variables), `--n-files-per-job` (int,
   default `20`; input files processed per branch).
 
-#### Regions of a flavour
-The regions histogrammed belong to the histTuple flavour: `histTuple_flavors.<flavor>.regions`, a
-list of region names (boolean columns of the histTuples), or a region → cut mapping. A flavour
-without `regions` uses the list the global parameter `custom_regions` names (e.g. `QCDRegions`), as
-before; both at once is an error. `Setup` resolves them once and publishes them as
-`histTuple_regions` in the global parameters, which the analysis' `createKeyFilterDict`, the plot
-settings and `HistPlotTask` read.
+#### Booking plugin
+By default every variable of a job is filled in every selection key (channel, region, category[, …])
+of the analysis' `createKeyFilterDict` (and the global `further_cuts`), and the regions are the list
+the global parameter `custom_regions` names (e.g. `QCDRegions`).
 
-#### Sub-regions
-A resonance search keeps, for each mass hypothesis, only the events in a mass-dependent part of a
-region, e.g. the reconstructed mass near the hypothesis, with a different cut per category. Instead of
-histogramming the full 2D (discriminant × mass) distribution and cutting it later, a histTuple flavour
-can ask for **sub-regions**: copies of some of its regions restricted by such a cut for one mass,
-holding only the variables listed for them
-([`Common/SubRegions.py`](https://github.com/cms-flaf/FLAF/blob/main/Common/SubRegions.py)).
+An analysis can take over both with a plugin module named in its `global.yaml`
+([`Common/HistBooking.py`](https://github.com/cms-flaf/FLAF/blob/main/Common/HistBooking.py)):
 
 ```yaml
-histTuple_flavors:
-  Signal_Extraction_DL_window:
-    regions: [ SR, TT_CR, DY_CR ]
-    sub_regions:
-      - name: HMESub                               # -> SR_HMESub_m300
-        cuts: config/sub_regions/hme_DL_v2610.yaml  # the cut per mass and category
-        regions: [ SR, TT_CR, DY_CR ]               # base regions among the flavour's regions
-        masses: all                                 # or a list of masses of the cuts file
-        vars: [ "DNN_M{MX}_Signal" ]                # {MX} -> the sub-region's own mass
-        # parameter: MX                             # optional: the placeholder name (default MX)
-        # region_name: "{region}_{name}_m{MX}"      # optional: the region name pattern (this default)
+hist_booking_module: Analysis.hist_booking
 ```
 
-The cuts file maps mass → category → cut, each cut in one of two forms, mixed freely:
+The module defines two functions:
 
-```yaml
-cuts:
-  300:
-    # bin form: per variable one [low, high] or a list of them (OR'ed); the variables are AND'ed
-    res2b:    { DeepHME_mass: [ 250, 400 ] }
-    recovery: { DeepHME_mass: [ [ 250, 400 ], [ 500, 600 ] ], ll_mass: [ 12, 80 ] }
-    # C++ form: an expression on full-resolution variables ({MX} is replaced by the mass)
-    boosted:  "DeepHME_mass >= 260 && DeepHME_mass < 470"
-```
+- `regions(setup)`: the regions of the analysis, a list (or a region → cut mapping). FLAF publishes
+  them as the global parameter `histTuple_regions` in place of the `custom_regions` list: the
+  analysis' `createKeyFilterDict`, the `histTuple_selectors` and the plot settings read them.
+- `booking(setup, keys, variables)`: the booking of a HistFromNtupleProducer job. `keys` are the
+  job's selection keys `[(key_tuple, filter)]` and `variables` its variables; it returns a list of
+  blocks
 
-- **Bin form:** the cut is made on each variable's stored bin index (`<var>_bin`), so each variable
-  must be a binned variable of the flavour and every edge a bin edge of its binning. An interval from
-  the first edge takes the underflow too, one to the last edge the overflow, so a sub-region
-  histogram is exactly the slice of the full histogram.
-- **C++ form:** the expression is used as written. Every variable it names must be in the flavour's
-  `fullResolution_variables` (stored raw in the histTuples); nothing is added to them automatically,
-  so a variable that is not there stops the configuration with an error. Function names (`abs(`),
-  namespaced names (`std::abs`), numeric literals and `true`/`false` are not variables; a function's
-  arguments are.
+  ```python
+  {"keys": [(key_tuple, filter), ...],    # or {key_tuple: filter}
+   "variables": [variable, ...],          # filled in every key of the block
+   "columns": [column, ...]}              # optional: the input columns the filters read
+  ```
 
-Each entry and mass gives the regions `<region>_<name>_m<mass>`, e.g. `SR_HMESub_m300`, written like
-any region (`<channel>/SR_HMESub_m300/<category>/<histogram>`). Their keys are the base keys of the
-listed regions whose category the cuts file has a cut for, with the cut added.
+  A block's keys are its own: a plugin can book a variable in some keys only, leave keys out, or add
+  keys of its own, e.g. a region restricted by a further cut (`(channel, "SR_HMESub_m300", category)`
+  with the base key's filter and the cut). In the event loop each block has a filler of its own, all
+  filled in the same pass over the tree.
 
-- **Only listed variables are booked.** A sub-region holds only its entry's variables, which must
-  already be variables of the flavour; `{MX}` ties a mass-dependent variable to its own sub-region.
-  In the event loop, each sub-region has a filler of its own (`FillTree` blocks), filled in the same
-  pass over the tree as the base regions; without sub-regions the loops are unchanged.
-- **Every ambiguity is an error:** an unknown region, mass or category, a bin-form variable that is
-  not binned or an edge that is not a bin edge, a C++ variable not at full resolution, a variable the
-  flavour does not histogram, a variable that names a mass of the cuts file without the placeholder,
-  a region name made twice. A job whose input histTuples lack a column a cut needs stops before
-  filling.
-- **A cap against too-wide lists:** a job refuses more sub-region (key, variable) pairs than
-  `sub_regions_max_key_vars` (default `5000`; `0` disables the check). HH_bbWW's 25 masses × 3
-  regions × 3 categories × 5 channels × 1 variable is 1125.
+FLAF checks the blocks: every variable of the job is booked in at least one block, no (key, variable)
+twice, only the job's variables, and a job whose input histTuples lack a column a block declares stops
+before filling. Without `hist_booking_module` the booking is one block, every variable in every key,
+as before.
 
 #### Signal trees
 Optionally, the job also keeps the **per-event rows** behind the histograms of the signal
@@ -472,7 +440,7 @@ must agree on them.
   `histograms.yaml` (a blinded variable hides the data in the other regions only). Data is shown
   only where it is plotted at all: `plot_wantData_<var>: false` in `global.yaml` or the task's
   `--customisations` (default `true`) removes it from every plot of `<var>`. The value must be a YAML list: written without brackets
-  it is one string, which is an error. A name that is not one of the analysis' regions (the flavour's `regions`, or the list
+  it is one string, which is an error. A name that is not one of the analysis' regions (the booking plugin's regions, or the list
   `custom_regions` names, e.g. `QCDRegions`) is warned about, and that region stays blinded.
 - **`plot_process_groups`** (list of `{name, processes, color}`): sums processes into one legend
   entry each. Background groups are stacked in list order from the bottom; signal groups become one

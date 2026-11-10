@@ -11,6 +11,7 @@ from FLAF.RunKit.law_wlcg import WLCGFileSystem
 from FLAF.RunKit.pathCacheClient import ServerUnavailable, checked_server_address
 from FLAF.RunKit.run_tools import on_batch_node
 from FLAF.Common.Utilities import create_processor_instances
+from FLAF.Common import HistBooking
 
 
 def resolve_user_custom_path(user_custom):
@@ -605,15 +606,8 @@ class Setup:
 
         self.histTuple_flavor = self.global_params["histTuple_flavor"]
         print(f"Using histTuple flavor {self.histTuple_flavor}")
-        # The regions histogrammed: the flavour's `regions`, else the list `custom_regions` names.
-        # Published in global_params (histTuple_regions) for the analysis' createKeyFilterDict and
-        # the plotting, which read the global parameters.
-        self.histTuple_regions = self._resolve_regions(
-            self.global_params["histTuple_flavors"][self.histTuple_flavor]
-        )
-        self.global_params["histTuple_regions"] = self.histTuple_regions
-        # Sub-regions (Common/SubRegions.py): expanded on first use, see sub_regions.
-        self.sub_regions_ = None
+        # The analysis' histogram booking plugin (hist_booking_module, Common/HistBooking.py), if any.
+        self.hist_booking_ = HistBooking.load_plugin(self.global_params)
         self.histTuple_plot_vars = list(
             self.global_params["histTuple_flavors"][self.histTuple_flavor]["variables"]
         )
@@ -806,6 +800,12 @@ class Setup:
         self.anaTupleFiles = {}
         self.processors_cache = {}
         self.fs_rucio_ = None
+        # The regions of the selection keys and the histTuple selection: the booking plugin's
+        # regions(setup), else the list `custom_regions` names. Published in global_params
+        # (histTuple_regions) for the analysis' createKeyFilterDict, histTuple_selectors and the
+        # plotting, which read the global parameters. Last, so that a plugin sees a complete setup.
+        self.histTuple_regions = self._resolve_regions()
+        self.global_params["histTuple_regions"] = self.histTuple_regions
 
     def process_parent(self, process_name):
         """The process that process_name belongs to (listed meta-process or group), or None."""
@@ -1007,76 +1007,21 @@ class Setup:
             )
         return self.hists_
 
-    def _resolve_regions(self, flavour_cfg):
-        """The flavour's `regions` (a list, or a region -> cut mapping), else the value of the global
-        parameter `custom_regions` names; both at once is an error."""
+    def _resolve_regions(self):
+        """The booking plugin's ``regions(setup)``, else the value of the global parameter
+        `custom_regions` names (a list, or a region -> cut mapping)."""
+        if self.hist_booking_ is not None:
+            return HistBooking.plugin_regions(self.hist_booking_, self)
         custom_name = self.global_params.get("custom_regions")
-        regions = flavour_cfg.get("regions") if flavour_cfg else None
-        if regions is not None:
-            if custom_name:
-                raise RuntimeError(
-                    f"histTuple flavor {self.histTuple_flavor} sets `regions`, and `custom_regions` "
-                    f"({custom_name}) is set too: the regions belong to one place; remove "
-                    "`custom_regions`"
-                )
-            if not isinstance(regions, (list, dict)) or not regions:
-                raise RuntimeError(
-                    f"histTuple flavor {self.histTuple_flavor}: `regions` must be a non-empty list "
-                    f"or region -> cut mapping, got {regions!r}"
-                )
-            return regions.copy()
         if not custom_name:
             return []
         regions = self.global_params.get(custom_name)
         return regions.copy() if isinstance(regions, (list, dict)) else []
 
-    def histogrammed_regions(self):
-        """The names of the regions histogrammed (the keys of a region -> cut mapping)."""
-        return list(self.histTuple_regions)
-
-    def histogrammed_categories(self):
-        categories = list(self.global_params.get("categories") or [])
-        custom_name = self.global_params.get("custom_categories")
-        if custom_name:
-            categories += list(self.global_params.get(custom_name) or [])
-        return categories
-
     @property
-    def sub_regions(self):
-        """The sub-regions of the histTuple flavour (Common/SubRegions.py), a list of
-        ``{"name", "sub_region", "base_region", "mass", "vars", "cuts", "columns"}``; empty without
-        any.
-        """
-        if self.sub_regions_ is None:
-            from FLAF.Common import SubRegions
-
-            flavour_cfg = self.global_params["histTuple_flavors"][self.histTuple_flavor]
-            if not flavour_cfg.get("sub_regions"):
-                self.sub_regions_ = []
-                return self.sub_regions_
-            from FLAF.Common.HistHelper import findBinEntry
-
-            def hist_edges(var):
-                entry = self.hists[findBinEntry(self.hists, var)]
-                if "x_bins" not in entry:
-                    raise SubRegions.SubRegionError(
-                        f"sub-region cut variable {var} has no x_bins in histograms.yaml"
-                    )
-                return SubRegions.axis_edges(entry["x_bins"])
-
-            self.sub_regions_ = SubRegions.expand_sub_regions(
-                self.histTuple_flavor,
-                flavour_cfg,
-                self.ana_path,
-                self.histogrammed_regions(),
-                self.histogrammed_categories(),
-                {
-                    v["name"] if isinstance(v, dict) else v
-                    for v in self.histTuple_plot_vars
-                },
-                hist_edges,
-            )
-        return self.sub_regions_
+    def hist_booking(self):
+        """The analysis' histogram booking plugin module (hist_booking_module), or None."""
+        return self.hist_booking_
 
     @staticmethod
     def getGlobal(

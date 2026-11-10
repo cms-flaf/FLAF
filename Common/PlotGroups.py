@@ -26,12 +26,15 @@ def plot_settings(global_params):
                 "config/global.yaml or a user_custom, for all of them"
             )
         settings[key] = values[eras[0]]
-    # the regions histogrammed: custom_regions names the global list of them (QCDRegions),
-    # or a mapping of region to cut (H_mumu), which counts by its keys as HistPlotTask does
+    # the regions histogrammed, as Setup resolves them (histTuple_regions: the histTuple flavour's
+    # `regions`, else the global list custom_regions names), or a mapping of region to cut (H_mumu),
+    # which counts by its keys as HistPlotTask does
     regions = []
     for era in eras:
         params = global_params[era]
-        era_regions = params.get(params.get("custom_regions") or "")
+        era_regions = params.get("histTuple_regions")
+        if era_regions is None:
+            era_regions = params.get(params.get("custom_regions") or "")
         if isinstance(era_regions, dict):
             era_regions = list(era_regions)
         if isinstance(era_regions, list):

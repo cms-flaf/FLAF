@@ -210,69 +210,73 @@ batching: a configuration that still sets it is refused.
 - **Parameters:** `--variables` (string; restrict which variables), `--n-files-per-job` (int,
   default `20`; input files processed per branch).
 
-#### Window regions
-A resonance search keeps, for each mass hypothesis, only the events whose reconstructed mass is in a
-window around it, a different window per category. Instead of histogramming the full 2D
-(discriminant × mass) distribution and cutting it later, a histTuple flavour can ask for **window
-regions**: copies of some of its regions restricted to the window of one mass, holding only the
-variables listed for them
-([`Common/WindowRegions.py`](https://github.com/cms-flaf/FLAF/blob/main/Common/WindowRegions.py)).
+#### Regions of a flavour
+The regions histogrammed belong to the histTuple flavour: `histTuple_flavors.<flavor>.regions`, a
+list of region names (boolean columns of the histTuples), or a region → cut mapping. A flavour
+without `regions` uses the list the global parameter `custom_regions` names (e.g. `QCDRegions`), as
+before; both at once is an error. `Setup` resolves them once and publishes them as
+`histTuple_regions` in the global parameters, which the analysis' `createKeyFilterDict`, the plot
+settings and `HistPlotTask` read.
 
-A window is a **box** in one or more variables. The window sets are defined once, at the top level of
-`global.yaml`, each its variables and a file of boxes per mass and category:
-
-```yaml
-windows:
-  HME:
-    variables: [ DeepHME_mass ]                  # variables the flavour histograms
-    definitions: config/windows/hme_DL_v2610.yaml
-    # parameter: MX                              # optional: the placeholder name (default MX)
-    # region_name: "{region}_{window}Win_m{MX}"  # optional: the region name pattern (this default)
-```
-
-```yaml
-# the definitions file: per mass and category, a [low, high] per variable of the set
-windows:
-  300:
-    res2b: { DeepHME_mass: [ 250, 400 ] }
-    boosted: { DeepHME_mass: [ 260, 470 ] }
-```
-
-A set of several variables (`variables: [ DeepHME_mass, ll_mass ]`) cuts on all of a box's variables
-at once, e.g. `res2b: { DeepHME_mass: [ 250, 400 ], ll_mass: [ 12, 80 ] }`; a variable left out of a
-box is not cut on in that category.
-
-A flavour lists what to histogram in which windows:
+#### Sub-regions
+A resonance search keeps, for each mass hypothesis, only the events in a mass-dependent part of a
+region, e.g. the reconstructed mass near the hypothesis, with a different cut per category. Instead of
+histogramming the full 2D (discriminant × mass) distribution and cutting it later, a histTuple flavour
+can ask for **sub-regions**: copies of some of its regions restricted by such a cut for one mass,
+holding only the variables listed for them
+([`Common/SubRegions.py`](https://github.com/cms-flaf/FLAF/blob/main/Common/SubRegions.py)).
 
 ```yaml
 histTuple_flavors:
   Signal_Extraction_DL_window:
-    window_regions:
-      - window: HME
-        regions: [ SR, TT_CR, DY_CR ]     # base regions among those histogrammed
-        masses: all                       # or a list of masses of the definitions file
-        vars: [ "DNN_M{MX}_Signal" ]      # {MX} -> the window's own mass
+    regions: [ SR, TT_CR, DY_CR ]
+    sub_regions:
+      - name: HMESub                               # -> SR_HMESub_m300
+        cuts: config/sub_regions/hme_DL_v2610.yaml  # the cut per mass and category
+        regions: [ SR, TT_CR, DY_CR ]               # base regions among the flavour's regions
+        masses: all                                 # or a list of masses of the cuts file
+        vars: [ "DNN_M{MX}_Signal" ]                # {MX} -> the sub-region's own mass
+        # parameter: MX                             # optional: the placeholder name (default MX)
+        # region_name: "{region}_{name}_m{MX}"      # optional: the region name pattern (this default)
 ```
 
-Each entry and mass gives the regions `<region>_<window>Win_m<mass>`, e.g. `SR_HMEWin_m300`, written
-like any region (`<channel>/SR_HMEWin_m300/<category>/<histogram>`). Their keys are the base keys
-of the listed regions whose category the definitions file has a box for, with the cut
-`low <= variable < high` added for every variable of the box. The cuts are made on the variables'
-stored bin indices, so the histTuples need nothing beyond the variables' bin columns, and every
-window edge must be a bin edge of its variable. A window starting at the first edge of a binning
-takes the underflow too, and one ending at the last edge the overflow, so a window histogram is
-exactly the window slice of the full histogram.
+The cuts file maps mass → category → cut, each cut in one of two forms, mixed freely:
 
-- **Only listed variables are booked.** A window region holds only its entry's variables, which must
-  already be variables of the flavour; `{MX}` ties a mass-dependent variable to its own window.
-  In the event loop, each window region has a filler of its own (`FillTree` blocks), filled in the
-  same pass over the tree as the base regions; without window regions the loops are unchanged.
-- **Every ambiguity is an error:** an unknown window set, mass, region or category, a box variable
-  the set does not declare, a window edge that is not a bin edge, a variable the flavour does not
-  histogram, a variable that names a mass of the window set without the placeholder, a region name
-  made twice.
-- **A cap against too-wide lists:** a job refuses more window (key, variable) pairs than
-  `window_regions_max_key_vars` (default `5000`; `0` disables the check). HH_bbWW's 25 masses × 3
+```yaml
+cuts:
+  300:
+    # bin form: per variable one [low, high] or a list of them (OR'ed); the variables are AND'ed
+    res2b:    { DeepHME_mass: [ 250, 400 ] }
+    recovery: { DeepHME_mass: [ [ 250, 400 ], [ 500, 600 ] ], ll_mass: [ 12, 80 ] }
+    # C++ form: an expression on full-resolution variables ({MX} is replaced by the mass)
+    boosted:  "DeepHME_mass >= 260 && DeepHME_mass < 470"
+```
+
+- **Bin form:** the cut is made on each variable's stored bin index (`<var>_bin`), so each variable
+  must be a binned variable of the flavour and every edge a bin edge of its binning. An interval from
+  the first edge takes the underflow too, one to the last edge the overflow, so a sub-region
+  histogram is exactly the slice of the full histogram.
+- **C++ form:** the expression is used as written. Every variable it names must be in the flavour's
+  `fullResolution_variables` (stored raw in the histTuples); nothing is added to them automatically,
+  so a variable that is not there stops the configuration with an error. Function names (`abs(`),
+  namespaced names (`std::abs`), numeric literals and `true`/`false` are not variables; a function's
+  arguments are.
+
+Each entry and mass gives the regions `<region>_<name>_m<mass>`, e.g. `SR_HMESub_m300`, written like
+any region (`<channel>/SR_HMESub_m300/<category>/<histogram>`). Their keys are the base keys of the
+listed regions whose category the cuts file has a cut for, with the cut added.
+
+- **Only listed variables are booked.** A sub-region holds only its entry's variables, which must
+  already be variables of the flavour; `{MX}` ties a mass-dependent variable to its own sub-region.
+  In the event loop, each sub-region has a filler of its own (`FillTree` blocks), filled in the same
+  pass over the tree as the base regions; without sub-regions the loops are unchanged.
+- **Every ambiguity is an error:** an unknown region, mass or category, a bin-form variable that is
+  not binned or an edge that is not a bin edge, a C++ variable not at full resolution, a variable the
+  flavour does not histogram, a variable that names a mass of the cuts file without the placeholder,
+  a region name made twice. A job whose input histTuples lack a column a cut needs stops before
+  filling.
+- **A cap against too-wide lists:** a job refuses more sub-region (key, variable) pairs than
+  `sub_regions_max_key_vars` (default `5000`; `0` disables the check). HH_bbWW's 25 masses × 3
   regions × 3 categories × 5 channels × 1 variable is 1125.
 
 #### Signal trees
@@ -468,7 +472,7 @@ must agree on them.
   `histograms.yaml` (a blinded variable hides the data in the other regions only). Data is shown
   only where it is plotted at all: `plot_wantData_<var>: false` in `global.yaml` or the task's
   `--customisations` (default `true`) removes it from every plot of `<var>`. The value must be a YAML list: written without brackets
-  it is one string, which is an error. A name that is not one of the analysis' regions (the list
+  it is one string, which is an error. A name that is not one of the analysis' regions (the flavour's `regions`, or the list
   `custom_regions` names, e.g. `QCDRegions`) is warned about, and that region stays blinded.
 - **`plot_process_groups`** (list of `{name, processes, color}`): sums processes into one legend
   entry each. Background groups are stacked in list order from the bottom; signal groups become one

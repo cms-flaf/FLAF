@@ -567,34 +567,40 @@ class FillTreeMatchesRDataFrame(unittest.TestCase):
         self.check(80)
 
 
-class FillTreeWindowBlocks(FillTreeMatchesRDataFrame):
-    """FillTree with window blocks (Common/WindowRegions.py): a block fills only its own variables, in keys
-    that are a base key and a cut on a stored bin index. Every window histogram must be the RDataFrame
-    histogram of the base key's selection and the cut, the base histograms stay as without blocks, and a
-    window region holds nothing else."""
+class FillTreeSubRegionBlocks(FillTreeMatchesRDataFrame):
+    """FillTree with sub-region blocks (Common/SubRegions.py): a block fills only its own variables, in
+    keys that are a base key and a cut, a bin-form cut on a stored bin index or a C++ cut on a raw
+    column. Every sub-region histogram must be the RDataFrame histogram of the base key's selection and
+    the cut, the base histograms stay as without blocks, and a sub-region holds nothing else. The C++ cut
+    on the raw q and the bin-form cut of the same interval fill the same histograms."""
 
-    # (window region, base key index, cut): q's bins 1-2, and from the first edge (underflow included)
-    WINDOWS = [
-        ("SR_qWin_a", 0, "q_bin >= 1 && q_bin < 3"),
-        ("SR_qWin_a", 1, "q_bin >= 1 && q_bin < 3"),
-        ("SR_qWin_b", 1, "q_bin < 2"),
+    # (sub-region, base key index, cut, columns): q's bins 1-2 = 0 <= q < 2, from the first edge
+    # (underflow included), and the C++ form of the first on the raw q
+    SUBS = [
+        ("SR_qSub_a", 0, "q_bin >= 1 && q_bin < 3", ["q_bin"]),
+        ("SR_qSub_a", 1, "q_bin >= 1 && q_bin < 3", ["q_bin"]),
+        ("SR_qSub_b", 1, "q_bin < 2", ["q_bin"]),
+        ("SR_qSub_c", 0, "q >= 0 && q < 2", ["q"]),
     ]
 
-    def window_blocks(self, keys):
+    def sub_region_blocks(self, keys, subs=None):
         blocks = {}
-        for region, index, cut in self.WINDOWS:
+        for region, index, cut, columns in subs or self.SUBS:
             key_tuple = keys[index][0]
             new_key = (key_tuple[0], region) + tuple(key_tuple[2:])
-            blocks.setdefault(region, []).append((new_key, index, cut))
+            blocks.setdefault(region, []).append((new_key, index, cut, columns))
         return [(block_keys, ["p"]) for block_keys in blocks.values()]
 
-    def run_fill(self, max_cells):
-        keys = [
+    def keys(self):
+        return [
             (key + (self.CUT_NAME,), f"{flt} && {self.CUT_NAME}")
             for key, flt in self.KEYS
         ]
+
+    def run_fill(self, max_cells):
+        keys = self.keys()
         var_models = self.models()
-        out = ROOT.TMemFile("fill_tree_window_test.root", "RECREATE")
+        out = ROOT.TMemFile("fill_tree_sub_region_test.root", "RECREATE")
         var_files = {var: out.mkdir(var) for var in var_models}
         for tree_name, shift, weights in (
             ("Events", 0.0, self.WEIGHTS),
@@ -609,7 +615,7 @@ class FillTreeWindowBlocks(FillTreeMatchesRDataFrame):
                 var_models,
                 var_files,
                 max_cells,
-                self.window_blocks(keys),
+                self.sub_region_blocks(keys),
             )
         return out, keys
 
@@ -620,8 +626,8 @@ class FillTreeWindowBlocks(FillTreeMatchesRDataFrame):
         fills = [("Events", u, s, w) for u, s, w in self.WEIGHTS]
         fills.append(("Events__ShapeB__Up", "ShapeB", "Up", "weight_Central"))
         refs = []
-        for block_keys, _ in self.window_blocks(keys):
-            for key, index, cut in block_keys:
+        for block_keys, _ in self.sub_region_blocks(keys):
+            for key, index, cut, _ in block_keys:
                 flt = f"({keys[index][1]}) && ({cut})"
                 for tree, unc, scale, weight in fills:
                     name = "p" if unc == "Central" else f"p_{unc}_{scale}"
@@ -636,25 +642,53 @@ class FillTreeWindowBlocks(FillTreeMatchesRDataFrame):
             self.assertEqual(cells(got), cells(ref), path)
             self.assertEqual(got.GetEntries(), ref.GetEntries(), path)
             self.assertGreater(ref.GetEntries(), 0, path)
-        # the window regions hold only their variable, and only the histograms above
-        for key, _, _ in [
-            k for block_keys, _ in self.window_blocks(keys) for k in block_keys
+        # the C++ cut on the raw q and the bin-form cut of the same interval: the same histograms
+        for unc, scale, _ in self.WEIGHTS:
+            name = "p" if unc == "Central" else f"p_{unc}_{scale}"
+            a = out.Get(f"p/ch1/SR_qSub_a/{self.CUT_NAME}/{name}")
+            c = out.Get(f"p/ch1/SR_qSub_c/{self.CUT_NAME}/{name}")
+            self.assertEqual(cells(a), cells(c), name)
+            self.assertEqual(a.GetEntries(), c.GetEntries(), name)
+        # the sub-regions hold only their variable, and only the histograms above
+        for key, _, _, _ in [
+            k for block_keys, _ in self.sub_region_blocks(keys) for k in block_keys
         ]:
             self.assertFalse(out.Get(f"pq/{'/'.join(key)}"), key)
         n_written = sum(
             len(out.Get(f"p/{'/'.join(key)}").GetListOfKeys())
-            for block_keys, _ in self.window_blocks(keys)
-            for key, _, _ in block_keys
+            for block_keys, _ in self.sub_region_blocks(keys)
+            for key, _, _, _ in block_keys
         )
         self.assertEqual(n_written, len(refs))
         out.Close()
 
-    def test_a_window_block_shares_the_loop(self):
+    def test_a_sub_region_block_shares_the_loop(self):
         # every (block, variable) unit fits one loop
         self.check(0)
 
-    def test_window_blocks_over_several_loops(self):
+    def test_sub_region_blocks_over_several_loops(self):
         self.check(80)
+
+    def test_a_missing_cut_column_stops_the_job(self):
+        keys = self.keys()
+        var_models = self.models()
+        out = ROOT.TMemFile("fill_tree_sub_region_missing.root", "RECREATE")
+        var_files = {var: out.mkdir(var) for var in var_models}
+        with self.assertRaisesRegex(
+            RuntimeError, "sub-region SR_qSub_d needs r, absent from the input"
+        ):
+            self.producer.FillTree(
+                self.tree(0.0),
+                "Events",
+                self.WEIGHTS,
+                keys,
+                list(var_models),
+                var_models,
+                var_files,
+                0,
+                self.sub_region_blocks(keys, [("SR_qSub_d", 0, "r > 0", ["r"])]),
+            )
+        out.Close()
 
 
 if __name__ == "__main__":

@@ -1598,11 +1598,14 @@ class HistPlotTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
         if isinstance(categories, str):
             categories = categories.split(",")
 
+        # the regions as Setup resolves them (the histTuple flavour's `regions`, else the list
+        # custom_regions names); a customisation of the custom_regions list still replaces it
         custom_region_name = self.global_param("custom_regions")
-
-        custom_regions = customisation_dict.get(
-            custom_region_name, self.global_param(custom_region_name)
+        custom_regions = (
+            customisation_dict.get(custom_region_name) if custom_region_name else None
         )
+        if custom_regions is None:
+            custom_regions = self.global_param("histTuple_regions") or []
 
         for ch in channels:
             for cat in categories:

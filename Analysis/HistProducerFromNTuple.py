@@ -15,17 +15,17 @@ from FLAF.Common.Setup import Setup
 from Corrections.CorrectionsCore import getScales
 from FLAF.Analysis.HistTupleProducer import DefineBinnedColumn
 from FLAF.Analysis.histFromNtupleBatch import cells_budget, fill_groups
-from FLAF.Common import WindowRegions
+from FLAF.Common import SubRegions
 
 # Memory (MB) the histograms of one event loop may take, every thread slot's copy counted, unless
 # hist_from_ntuple_max_hist_memory_mb or --max-hist-memory-mb says otherwise.
 DEFAULT_MAX_HIST_MEMORY_MB = 1500
 
-# Window regions book only what a flavour lists, but a list can still be too wide (every variable in
-# every window): a job refuses more (key, variable) pairs in window regions than this, unless
-# window_regions_max_key_vars says otherwise (0 disables the check). 25 masses x 3 regions x 3
+# Sub-regions book only what a flavour lists, but a list can still be too wide (every variable in
+# every sub-region): a job refuses more (key, variable) pairs in sub-regions than this, unless
+# sub_regions_max_key_vars says otherwise (0 disables the check). 25 masses x 3 regions x 3
 # categories x 5 channels x 1 variable = 1125.
-DEFAULT_MAX_WINDOW_KEY_VARS = 5000
+DEFAULT_MAX_SUB_REGION_KEY_VARS = 5000
 
 _HIST_FILLER_H = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -142,15 +142,16 @@ def FillTree(
     var_models,
     var_files,
     max_cells,
-    window_blocks=(),
+    sub_region_blocks=(),
 ):
     """Fill and write every (key, weight, variable) histogram of one tree, in event loops of at most
     ``max_cells`` cells, every thread slot's copy counted (include/HistFiller.h).
 
-    ``window_blocks`` (Common/WindowRegions.window_blocks): further ``(keys, vars)`` blocks, each key a
-    ``(key_tuple, base_key_index, cut)`` selecting the events of base key ``base_key_index`` that pass
-    ``cut``. A block fills only its own variables in its own keys, with a filler of its own; the blocks
-    of a loop fill in the same pass over the tree. Without blocks the loops are as before.
+    ``sub_region_blocks`` (Common/SubRegions.sub_region_blocks): further ``(keys, vars)`` blocks, each
+    key a ``(key_tuple, base_key_index, cut, columns)`` selecting the events of base key
+    ``base_key_index`` that pass ``cut``, which reads ``columns``. A block fills only its own variables
+    in its own keys, with a filler of its own; the blocks of a loop fill in the same pass over the tree.
+    Without blocks the loops are as before.
     """
     columns = {str(c): str(rdf.GetColumnType(c)) for c in rdf.GetColumnNames()}
     for _, _, weight in weights:
@@ -164,24 +165,26 @@ def FillTree(
     )
     # blocks: (key tuples, pass column definition, variables); the base block's pass is _hf_pass
     blocks = [([key_tuple for key_tuple, _ in keys], None, list(vars_to_process))]
-    for block_keys, block_vars in window_blocks:
-        for _, _, cut in block_keys:
-            for col in re.findall(r"\b(\w+_bin)\b", cut):
-                if col not in columns:
-                    raise RuntimeError(
-                        f"{tree_name}: window cut '{cut}' needs the bin column {col}, absent from "
-                        "the input: the window variable must be histogrammed by the flavour"
-                    )
+    for block_keys, block_vars in sub_region_blocks:
+        for key_tuple, _, cut, cut_columns in block_keys:
+            missing = [c for c in cut_columns if c not in columns]
+            if missing:
+                raise RuntimeError(
+                    f"{tree_name}: the cut '{cut}' of sub-region {key_tuple[1]} needs "
+                    f"{', '.join(missing)}, absent from the input histTuples: a bin-form cut needs "
+                    "its variables binned by the flavour, a C++ cut its variables in the flavour's "
+                    "fullResolution_variables, both when the histTuples were made"
+                )
         pass_def = (
             "ROOT::RVec<char>{"
             + ", ".join(
                 f"static_cast<char>(_hf_pass[{index}] && "
                 f"analysis::HistFillerKey(({cut})))"
-                for _, index, cut in block_keys
+                for _, index, cut, _ in block_keys
             )
             + "}"
         )
-        blocks.append(([k for k, _, _ in block_keys], pass_def, list(block_vars)))
+        blocks.append(([k for k, _, _, _ in block_keys], pass_def, list(block_vars)))
     # the unit of the memory budget: one variable of one block, in all the block's keys
     unit_cells = {}
     for b, (block_keys, _, block_vars) in enumerate(blocks):
@@ -534,32 +537,31 @@ if __name__ == "__main__":
         ]
         var_models = {var: VarModel(hist_cfg_dict, var) for var in vars_to_process}
         n_hists = len(vars_to_process) * len(keys) * sum(map(len, tree_fills.values()))
-        # Window regions (Common/WindowRegions.py): each fills only its own variables, in its own keys.
-        window_blocks = WindowRegions.window_blocks(
-            keys, setup.window_regions, vars_to_process
+        # Sub-regions (Common/SubRegions.py): each fills only its own variables, in its own keys.
+        sub_region_blocks = SubRegions.sub_region_blocks(
+            keys, setup.sub_regions, vars_to_process
         )
-        if window_blocks:
-            n_window_pairs = WindowRegions.count_window_hists(window_blocks, 1)
-            n_window_hists = n_window_pairs * sum(map(len, tree_fills.values()))
-            max_window_pairs = int(
+        if sub_region_blocks:
+            n_sub_pairs = SubRegions.count_sub_region_pairs(sub_region_blocks)
+            n_sub_hists = n_sub_pairs * sum(map(len, tree_fills.values()))
+            max_sub_pairs = int(
                 setup.global_params.get(
-                    "window_regions_max_key_vars", DEFAULT_MAX_WINDOW_KEY_VARS
+                    "sub_regions_max_key_vars", DEFAULT_MAX_SUB_REGION_KEY_VARS
                 )
             )
             print(
-                f"Window regions: {len(window_blocks)} blocks, "
-                f"{sum(len(k) for k, _ in window_blocks)} keys, {n_window_pairs} "
-                f"(key, variable) pairs, {n_window_hists} histograms",
+                f"Sub-regions: {len(sub_region_blocks)} blocks, "
+                f"{sum(len(k) for k, _ in sub_region_blocks)} keys, {n_sub_pairs} "
+                f"(key, variable) pairs, {n_sub_hists} histograms",
                 flush=True,
             )
-            if 0 < max_window_pairs < n_window_pairs:
+            if 0 < max_sub_pairs < n_sub_pairs:
                 raise RuntimeError(
-                    f"The window regions book {n_window_pairs} (key, variable) pairs in this "
-                    f"job, above window_regions_max_key_vars = {max_window_pairs}: check the "
-                    "flavour's window_regions (masses, regions, vars), or raise the limit on "
-                    "purpose"
+                    f"The sub-regions book {n_sub_pairs} (key, variable) pairs in this job, "
+                    f"above sub_regions_max_key_vars = {max_sub_pairs}: check the flavour's "
+                    "sub_regions (masses, regions, vars), or raise the limit on purpose"
                 )
-            n_hists += n_window_hists
+            n_hists += n_sub_hists
         print(
             f"Filling {n_hists} histograms ({len(vars_to_process)} vars × {len(keys)} keys × "
             f"{sum(map(len, tree_fills.values()))} unc/scales) from {len(tree_fills)} trees, "
@@ -612,7 +614,7 @@ if __name__ == "__main__":
                 var_models,
                 var_files,
                 max_cells,
-                window_blocks,
+                sub_region_blocks,
             )
 
         # A snapshot not already run by its tree's first fill loop runs here.

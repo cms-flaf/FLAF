@@ -211,41 +211,22 @@ batching: a configuration that still sets it is refused.
   default `20`; input files processed per branch).
 
 #### Booking plugin
-By default every variable of a job is filled in every selection key (channel, region, category[, …])
-of the analysis' `createKeyFilterDict` (and the global `further_cuts`), and the regions are the list
-the global parameter `custom_regions` names (e.g. `QCDRegions`).
+By default every variable of a job is filled in every selection key of the analysis'
+`createKeyFilterDict` (and the global `further_cuts`). An analysis can decide this itself with a module
+named in its `global.yaml` (`hist_booking_module: Analysis.hist_booking`,
+[`Common/HistBooking.py`](https://github.com/cms-flaf/FLAF/blob/main/Common/HistBooking.py)) that
+defines
 
-An analysis can take over both with a plugin module named in its `global.yaml`
-([`Common/HistBooking.py`](https://github.com/cms-flaf/FLAF/blob/main/Common/HistBooking.py)):
+- `regions(setup)`: the analysis' regions; they fill the list `custom_regions` names, so everything
+  reading that list (the analysis' `createKeyFilterDict`, `histTuple_selectors`, the plots) gets them;
+- `booking(setup, keys, variables)`: for a job's selection keys `[(key_tuple, filter)]` and variables,
+  the blocks to fill, `{"keys": [(key_tuple, filter)], "variables": [...], "columns": [...]}`
+  (`columns` optional: input columns the filters read). A block's keys are its own, e.g. a region
+  restricted by a further cut (`(channel, "SR_HMESub_m300", category)`, the base key's filter and the
+  cut). Each block has a filler of its own, all filled in the same pass over the tree.
 
-```yaml
-hist_booking_module: Analysis.hist_booking
-```
-
-The module defines two functions:
-
-- `regions(setup)`: the regions of the analysis, a list (or a region → cut mapping). FLAF publishes
-  them as the global parameter `histTuple_regions` in place of the `custom_regions` list: the
-  analysis' `createKeyFilterDict`, the `histTuple_selectors` and the plot settings read them.
-- `booking(setup, keys, variables)`: the booking of a HistFromNtupleProducer job. `keys` are the
-  job's selection keys `[(key_tuple, filter)]` and `variables` its variables; it returns a list of
-  blocks
-
-  ```python
-  {"keys": [(key_tuple, filter), ...],    # or {key_tuple: filter}
-   "variables": [variable, ...],          # filled in every key of the block
-   "columns": [column, ...]}              # optional: the input columns the filters read
-  ```
-
-  A block's keys are its own: a plugin can book a variable in some keys only, leave keys out, or add
-  keys of its own, e.g. a region restricted by a further cut (`(channel, "SR_HMESub_m300", category)`
-  with the base key's filter and the cut). In the event loop each block has a filler of its own, all
-  filled in the same pass over the tree.
-
-FLAF checks the blocks: every variable of the job is booked in at least one block, no (key, variable)
-twice, only the job's variables, and a job whose input histTuples lack a column a block declares stops
-before filling. Without `hist_booking_module` the booking is one block, every variable in every key,
-as before.
+FLAF checks that every variable of the job is booked, no (key, variable) twice, and that the input has
+the declared columns. Without `hist_booking_module` nothing changes.
 
 #### Signal trees
 Optionally, the job also keeps the **per-event rows** behind the histograms of the signal

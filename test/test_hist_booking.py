@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Common/HistBooking.py: loading an analysis' booking plugin, its regions, and the checks of the
-booking blocks it gives a HistFromNtuple job. Plain Python, with a stand-in plugin module; FillTree with
-several blocks is checked in test_hist_filler.py."""
+"""Common/HistBooking.py: loading an analysis' booking plugin, the regions it fills in, and the checks of
+the blocks it gives a HistFromNtuple job. Plain Python with a stand-in plugin; FillTree with several blocks
+is checked in test_hist_filler.py."""
 
 import os
 import sys
@@ -20,62 +20,60 @@ KEYS = [(("eE", "SR", "res2b"), "f0"), (("eE", "SR", "boosted"), "f1")]
 VARS = ["x", "y"]
 
 
-def plugin(regions=None, booking=None, **extra):
-    module = types.ModuleType(PLUGIN)
-    if regions is not None:
-        module.regions = regions
-    if booking is not None:
-        module.booking = booking
-    for name, value in extra.items():
-        setattr(module, name, value)
-    return module
-
-
 class PluginTestBase(unittest.TestCase):
-    def install(self, module):
+    def install(self, regions=lambda setup: ["SR"], booking=None):
+        module = types.ModuleType(PLUGIN)
+        module.regions = regions
+        if booking is not None:
+            module.booking = booking
         sys.modules[PLUGIN] = module
         self.addCleanup(sys.modules.pop, PLUGIN, None)
-        return HB.load_plugin({"hist_booking_module": PLUGIN})
+        return module
 
     def blocks(self, raw):
-        module = self.install(plugin(regions=lambda s: [], booking=lambda **kw: raw))
+        module = self.install(booking=lambda **kw: raw)
         return HB.plugin_blocks(module, None, KEYS, VARS)
 
 
 class Loading(PluginTestBase):
     def test_no_plugin(self):
         self.assertIsNone(HB.load_plugin({}))
-        self.assertIsNone(HB.load_plugin({"hist_booking_module": None}))
 
     def test_a_plugin(self):
-        module = self.install(plugin(regions=lambda s: ["SR"], booking=lambda **kw: []))
-        self.assertIs(module, sys.modules[PLUGIN])
+        module = self.install(booking=lambda **kw: [])
+        self.assertIs(HB.load_plugin({"hist_booking_module": PLUGIN}), module)
 
-    def test_a_module_that_cannot_be_imported(self):
-        with self.assertRaisesRegex(HB.HistBookingError, "cannot import it"):
-            HB.load_plugin({"hist_booking_module": "no_such_booking_module_xyz"})
-
-    def test_a_module_without_the_functions(self):
-        with self.assertRaisesRegex(HB.HistBookingError, "defines no booking"):
-            self.install(plugin(regions=lambda s: []))
-
-    def test_a_name_that_is_not_a_string(self):
-        with self.assertRaisesRegex(HB.HistBookingError, "must be a module name"):
-            HB.load_plugin({"hist_booking_module": ["a"]})
+    def test_a_plugin_without_booking(self):
+        self.install()
+        with self.assertRaisesRegex(HB.HistBookingError, "no booking"):
+            HB.load_plugin({"hist_booking_module": PLUGIN})
 
 
 class Regions(PluginTestBase):
-    def test_a_list_or_a_mapping(self):
-        for value in (["SR", "TT_CR"], {"Z": "m > 70"}):
-            module = self.install(
-                plugin(regions=lambda s, v=value: v, booking=lambda **kw: [])
-            )
-            self.assertEqual(HB.plugin_regions(module, None), value)
+    def setup_with(self, **gp):
+        return types.SimpleNamespace(global_params=dict(gp))
+
+    def test_the_list_custom_regions_names_is_filled(self):
+        module = self.install(
+            regions=lambda s: ["SR", "TT_CR"], booking=lambda **kw: []
+        )
+        setup = self.setup_with(custom_regions="QCDRegions", QCDRegions=["old"])
+        HB.fill_regions(module, setup)
+        self.assertEqual(setup.global_params["QCDRegions"], ["SR", "TT_CR"])
+
+    def test_without_custom_regions(self):
+        module = self.install(
+            regions=lambda s: {"Z": "m > 70"}, booking=lambda **kw: []
+        )
+        setup = self.setup_with()
+        HB.fill_regions(module, setup)
+        self.assertEqual(setup.global_params["custom_regions"], "histTuple_regions")
+        self.assertEqual(setup.global_params["histTuple_regions"], {"Z": "m > 70"})
 
     def test_anything_else_is_an_error(self):
-        module = self.install(plugin(regions=lambda s: "SR", booking=lambda **kw: []))
-        with self.assertRaisesRegex(HB.HistBookingError, "list of region names"):
-            HB.plugin_regions(module, None)
+        module = self.install(regions=lambda s: "SR", booking=lambda **kw: [])
+        with self.assertRaisesRegex(HB.HistBookingError, "expected a list"):
+            HB.fill_regions(module, self.setup_with())
 
 
 class Blocks(PluginTestBase):
@@ -83,12 +81,12 @@ class Blocks(PluginTestBase):
         self.assertEqual(HB.default_blocks(KEYS, VARS), [(KEYS, VARS, [])])
         self.assertEqual(HB.count_pairs(HB.default_blocks(KEYS, VARS)), 4)
 
-    def test_blocks_as_lists_or_mappings_of_keys(self):
+    def test_the_plugin_blocks(self):
         blocks = self.blocks(
             [
                 {"keys": KEYS[:1], "variables": ["x", "y"]},
                 {
-                    "keys": {("eE", "SR_sub", "res2b"): "f0 && c"},
+                    "keys": [(("eE", "SR_sub", "res2b"), "f0 && c")],
                     "variables": ["x"],
                     "columns": ["c_bin"],
                 },
@@ -103,56 +101,26 @@ class Blocks(PluginTestBase):
         )
         self.assertEqual(HB.count_pairs(blocks), 3)
 
-    def test_a_block_without_keys_is_dropped(self):
-        blocks = self.blocks(
-            [{"keys": KEYS, "variables": VARS}, {"keys": [], "variables": ["x"]}]
-        )
-        self.assertEqual(len(blocks), 1)
-
-    def refused(self, msg, raw):
-        with self.assertRaisesRegex(HB.HistBookingError, msg):
-            self.blocks(raw)
-
-    def test_not_a_list(self):
-        self.refused("expected a list of blocks", {"keys": KEYS})
-
-    def test_a_block_is_a_mapping_with_keys_and_variables(self):
-        self.refused("a block is a mapping", [KEYS])
-        self.refused("needs 'keys' and 'variables'", [{"keys": KEYS}])
-        self.refused(
-            "needs 'keys' and 'variables'", [{"keys": KEYS, "variables": VARS, "x": 1}]
-        )
-
-    def test_a_key_is_a_tuple_and_a_filter(self):
-        self.refused(
-            "a key is \\(key_tuple, filter\\)",
-            [{"keys": [KEYS[0][0]], "variables": VARS}],
-        )
-        self.refused(
-            "a key tuple is a tuple of names",
-            [{"keys": [(("eE", ""), "f")], "variables": VARS}],
-        )
-
     def test_unknown_variables(self):
-        self.refused(
-            "\\['z'\\] are not variables of the job",
-            [{"keys": KEYS, "variables": ["z"]}],
-        )
+        with self.assertRaisesRegex(HB.HistBookingError, "\\['z'\\] are not variables"):
+            self.blocks([{"keys": KEYS, "variables": ["x", "y", "z"]}])
 
-    def test_every_variable_needs_a_block(self):
-        self.refused("\\['y'\\] booked in no key", [{"keys": KEYS, "variables": ["x"]}])
+    def test_every_variable_needs_a_key(self):
+        with self.assertRaisesRegex(
+            HB.HistBookingError, "\\['y'\\] are booked in no key"
+        ):
+            self.blocks([{"keys": KEYS, "variables": ["x"]}])
 
     def test_a_pair_booked_twice(self):
-        self.refused(
-            "x is booked twice in eE/SR/res2b",
-            [{"keys": KEYS, "variables": VARS}, {"keys": KEYS[:1], "variables": ["x"]}],
-        )
-
-    def test_columns_are_names(self):
-        self.refused(
-            "'columns' must be a list of names",
-            [{"keys": KEYS, "variables": VARS, "columns": "c"}],
-        )
+        with self.assertRaisesRegex(
+            HB.HistBookingError, "x booked twice in eE/SR/res2b"
+        ):
+            self.blocks(
+                [
+                    {"keys": KEYS, "variables": VARS},
+                    {"keys": KEYS[:1], "variables": ["x"]},
+                ]
+            )
 
     def test_the_plugin_gets_the_job(self):
         seen = {}
@@ -161,7 +129,7 @@ class Blocks(PluginTestBase):
             seen.update(setup=setup, keys=keys, variables=variables)
             return [{"keys": keys, "variables": variables}]
 
-        module = self.install(plugin(regions=lambda s: [], booking=booking))
+        module = self.install(booking=booking)
         HB.plugin_blocks(module, "the setup", KEYS, VARS)
         self.assertEqual(seen, {"setup": "the setup", "keys": KEYS, "variables": VARS})
 

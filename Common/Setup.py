@@ -607,7 +607,7 @@ class Setup:
         self.histTuple_flavor = self.global_params["histTuple_flavor"]
         print(f"Using histTuple flavor {self.histTuple_flavor}")
         # The analysis' histogram booking plugin (hist_booking_module, Common/HistBooking.py), if any.
-        self.hist_booking_ = HistBooking.load_plugin(self.global_params)
+        self.hist_booking = HistBooking.load_plugin(self.global_params)
         self.histTuple_plot_vars = list(
             self.global_params["histTuple_flavors"][self.histTuple_flavor]["variables"]
         )
@@ -800,12 +800,10 @@ class Setup:
         self.anaTupleFiles = {}
         self.processors_cache = {}
         self.fs_rucio_ = None
-        # The regions of the selection keys and the histTuple selection: the booking plugin's
-        # regions(setup), else the list `custom_regions` names. Published in global_params
-        # (histTuple_regions) for the analysis' createKeyFilterDict, histTuple_selectors and the
-        # plotting, which read the global parameters. Last, so that a plugin sees a complete setup.
-        self.histTuple_regions = self._resolve_regions()
-        self.global_params["histTuple_regions"] = self.histTuple_regions
+        # A booking plugin gives the regions: they fill the list `custom_regions` names, which the
+        # analysis and FLAF read as before. Last, so that the plugin sees a complete setup.
+        if self.hist_booking is not None:
+            HistBooking.fill_regions(self.hist_booking, self)
 
     def process_parent(self, process_name):
         """The process that process_name belongs to (listed meta-process or group), or None."""
@@ -1006,22 +1004,6 @@ class Setup:
                 "histograms", self.config_path_order, ["plot/histograms.yaml"]
             )
         return self.hists_
-
-    def _resolve_regions(self):
-        """The booking plugin's ``regions(setup)``, else the value of the global parameter
-        `custom_regions` names (a list, or a region -> cut mapping)."""
-        if self.hist_booking_ is not None:
-            return HistBooking.plugin_regions(self.hist_booking_, self)
-        custom_name = self.global_params.get("custom_regions")
-        if not custom_name:
-            return []
-        regions = self.global_params.get(custom_name)
-        return regions.copy() if isinstance(regions, (list, dict)) else []
-
-    @property
-    def hist_booking(self):
-        """The analysis' histogram booking plugin module (hist_booking_module), or None."""
-        return self.hist_booking_
 
     @staticmethod
     def getGlobal(

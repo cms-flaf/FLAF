@@ -73,6 +73,20 @@ Each of these has caused a production incident. They are ordered by how much dam
   dependency producer). Flag a helper that derives a task from whatever task it is handed
   (`sub_era_task`, `_anaTuple_outputs`, `InputFileTask.WF_complete`) where it can be handed one of
   its target's own family.
+- **A branch task carries no selection: `Task.modify_param_values` gives every task with
+  `branch != -1` `branches=()`.** law's `req()` copies `branches` from the requesting task, and a
+  branch task that kept a selection was a task of its own whose workflow held a full copy of the
+  stage's branch map (`cached_branch_map`, reduced in place, which does not shrink the dict): the
+  per-file requirements of the Run3_2024 AnaTuple submission, one such workflow each, ran the
+  driver out of memory. A per-branch
+  requirement is therefore `X.req(self, branch=b)`, the very task law's `get_branch_tasks()`
+  makes; all of them share the stage's one workflow and branch map. A workflow requirement
+  (`branch=-1`, or one made in a workflow) names `branches=` (`()` or a selection), or it inherits
+  the requester's selection, in the requester's numbering. Flag a workflow requirement without
+  `branches=`, a `modify_param_values` override that does not return through `super()`, and
+  branch-level code (`requires`/`output`/`run`) that reads its own `branches` or its workflow's
+  branch map, branch tasks or proxy: the first workflow to create a branch instance owns it.
+  `test/test_branch_requirement_workflow.py` guards both halves.
 - **`@law.dynamic_workflow_condition` objects are shared with subclasses.** A subclass that
   decorates with the *parent's* `workflow_condition.output` mutates the shared object and
   corrupts the parent task. It must `.copy()` first. Review the **parent** task too — the damage

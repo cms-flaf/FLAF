@@ -111,6 +111,11 @@ rules:
   passes `_skip_task_excludes=True` for the same task or `_skip_task_excludes=False` for a separate
   one with its own defaults; `Task.req` refuses it otherwise
   ([HTCondor options](workflow/arguments.md#htcondor-options-on-every-workflow-task)).
+- **A per-branch requirement names only its branch**: `X.req(self, branch=b)`, without
+  `branches=`. Every branch task carries `branches=()` (`Task.modify_param_values`), so the
+  requirements of all branches share the required stage's one workflow and branch map. A
+  requirement of a workflow names its selection, `branches=()` or `branches=tuple(...)`, because
+  `req()` copies the requester's otherwise.
 - **A producer that reads AnaTuples checks the era of their events:** `Utilities.book_era_check(df, era)`
   before the event loop and `Utilities.check_era(count, era, what)` after it, as `AnaTupleMergeTask`,
   `HistTupleProducerTask` and `AnalysisCacheTask` do.

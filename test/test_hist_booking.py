@@ -122,6 +122,19 @@ class Blocks(PluginTestBase):
                 ]
             )
 
+    def test_malformed_blocks(self):
+        for raw in (
+            [{"variables": VARS}],
+            [{"keys": KEYS}],
+            [{"keys": [("eE", "SR", "res2b")], "variables": VARS}],
+            ["not a block"],
+        ):
+            with self.subTest(raw=raw):
+                with self.assertRaisesRegex(
+                    HB.HistBookingError, f"{PLUGIN}.booking: expected blocks"
+                ):
+                    self.blocks(raw)
+
     def test_the_plugin_gets_the_job(self):
         seen = {}
 

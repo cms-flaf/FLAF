@@ -217,8 +217,9 @@ named in its `global.yaml` (`hist_booking_module: Analysis.hist_booking`,
 [`Common/HistBooking.py`](https://github.com/cms-flaf/FLAF/blob/main/Common/HistBooking.py)) that
 defines
 
-- `regions(setup)`: the analysis' regions; they fill the list `custom_regions` names, so everything
-  reading that list (the analysis' `createKeyFilterDict`, `histTuple_selectors`, the plots) gets them;
+- `regions(setup)`: the analysis' regions, a list of names or a `{region: cut}` mapping (as H→μμ's
+  `custom_regions` entry); they fill the entry `custom_regions` names, so everything reading it (the
+  analysis' `createKeyFilterDict`, `histTuple_selectors`, the plots) gets them;
 - `booking(setup, keys, variables)`: for a job's selection keys `[(key_tuple, filter)]` and variables,
   the blocks to fill, `{"keys": [(key_tuple, filter)], "variables": [...], "columns": [...]}`
   (`columns` optional: input columns the filters read). A block's keys are its own, e.g. a region

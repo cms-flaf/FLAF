@@ -78,15 +78,24 @@ Each of these has caused a production incident. They are ordered by how much dam
   branch task that kept a selection was a task of its own whose workflow held a full copy of the
   stage's branch map (`cached_branch_map`, reduced in place, which does not shrink the dict): the
   per-file requirements of the Run3_2024 AnaTuple submission, one such workflow each, ran the
-  driver out of memory. A per-branch
-  requirement is therefore `X.req(self, branch=b)`, the very task law's `get_branch_tasks()`
-  makes; all of them share the stage's one workflow and branch map. A workflow requirement
+  driver out of memory. A per-branch requirement is therefore `X.req(self, branch=b)`, a branch
+  task of the stage's one workflow: the task law's `get_branch_tasks()` makes, unless an
+  `__init__` rewrites a significant parameter after luigi keyed the task (`AnalysisCacheTask` does
+  with `n_cpus`). All of them share that workflow and its branch map. A workflow requirement
   (`branch=-1`, or one made in a workflow) names `branches=` (`()` or a selection), or it inherits
-  the requester's selection, in the requester's numbering. Flag a workflow requirement without
-  `branches=`, a `modify_param_values` override that does not return through `super()`, and
-  branch-level code (`requires`/`output`/`run`) that reads its own `branches` or its workflow's
-  branch map, branch tasks or proxy: the first workflow to create a branch instance owns it.
-  `test/test_branch_requirement_workflow.py` guards both halves.
+  the requester's selection, in the requester's numbering. Flag:
+  - a workflow requirement without `branches=`, unless both stages number their branches the same
+    way and the inheritance is meant (`AnaTupleFileListTask` → `AnaTupleFileListBuilderTask`);
+  - a `modify_param_values` override that does not return through `super()`;
+  - branch-level code (`requires`/`output`/`run`) that reads its own `branches`, or anything of
+    its workflow beyond its own entry (`branch_data`): the rest of the branch map, the branch
+    tasks or the proxy. The first workflow to create a branch instance owns it, and that can be a
+    workflow over a selection: law's job-file builders create branch 0 from the submitting
+    workflow (`as_branch()`).
+
+  `test/test_branch_requirement_workflow.py` guards the reset and the explicit `branches=()` of
+  the pre-gate workflow requirements of the Builder, `AnalysisCacheTask` and
+  `HistTupleProducerTask`.
 - **`@law.dynamic_workflow_condition` objects are shared with subclasses.** A subclass that
   decorates with the *parent's* `workflow_condition.output` mutates the shared object and
   corrupts the parent task. It must `.copy()` first. Review the **parent** task too — the damage

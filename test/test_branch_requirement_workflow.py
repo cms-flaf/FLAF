@@ -27,7 +27,8 @@ over the scratch analysis of test_era_requires with a few hundred input files:
   constructor and from the command line (`--branch 1 --branches 1`, and a selection that does not
   hold the branch is ignored); a workflow keeps its selection;
 * a workflow requirement names its `branches` (law's `req()` copies the requester's): before
-  their gates hold, the Builder and AnalysisCacheTask over a selection require whole workflows.
+  their gates hold, the Builder, AnalysisCacheTask and HistTupleProducerTask over a selection
+  require whole workflows.
 """
 
 import json
@@ -267,11 +268,14 @@ class WorkflowRequirementsBeforeTheGate(base._Scratch):
 
     def assert_whole(self, reqs, keys):
         self.assertLessEqual(set(keys), set(reqs))
-        tasks = [task for key in keys for task in luigi.task.flatten(reqs[key])]
-        self.assertTrue(tasks)
-        for task in tasks:
-            self.assertTrue(task.is_workflow())
-            self.assertEqual(task.branches, ())
+        for key in keys:
+            tasks = luigi.task.flatten(reqs[key])
+            self.assertTrue(tasks, key)
+            for task in tasks:
+                self.assertTrue(task.is_workflow())
+                # what its task_id is made of: law resets `branches` of a workflow over a
+                # selection in place once its branch map is built
+                self.assertEqual(significant(task)["branches"], "", key)
 
     def test_the_workflow_requirements_before_the_gate(self):
         builder = ana_prod.AnaTupleFileListBuilderTask(
@@ -289,6 +293,13 @@ class WorkflowRequirementsBeforeTheGate(base._Scratch):
         )
         self.assert_whole(
             cache.workflow_requires(),
+            ["AnaTupleFileListTask", "AnaTupleMergeTask", "AnalysisCacheTask"],
+        )
+        producer = analysis.HistTupleProducerTask(
+            version=self.version, era=ERA, workflow="htcondor", branches=(1,)
+        )
+        self.assert_whole(
+            producer.workflow_requires(),
             ["AnaTupleFileListTask", "AnaTupleMergeTask", "AnalysisCacheTask"],
         )
 

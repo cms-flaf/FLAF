@@ -115,7 +115,9 @@ rules:
   `branches=`. Every branch task carries `branches=()` (`Task.modify_param_values`), so the
   requirements of all branches share the required stage's one workflow and branch map. A
   requirement of a workflow names its selection, `branches=()` or `branches=tuple(...)`, because
-  `req()` copies the requester's otherwise.
+  `req()` copies the requester's otherwise. Leave it out only when both stages number their
+  branches the same way and the requester's selection is meant, as `AnaTupleFileListTask` does
+  with `AnaTupleFileListBuilderTask`.
 - **A producer that reads AnaTuples checks the era of their events:** `Utilities.book_era_check(df, era)`
   before the event loop and `Utilities.check_era(count, era, what)` after it, as `AnaTupleMergeTask`,
   `HistTupleProducerTask` and `AnalysisCacheTask` do.

@@ -11,6 +11,7 @@ from FLAF.RunKit.law_wlcg import WLCGFileSystem
 from FLAF.RunKit.pathCacheClient import ServerUnavailable, checked_server_address
 from FLAF.RunKit.run_tools import on_batch_node
 from FLAF.Common.Utilities import create_processor_instances
+from FLAF.Common import HistBooking
 
 
 def resolve_user_custom_path(user_custom):
@@ -605,6 +606,8 @@ class Setup:
 
         self.histTuple_flavor = self.global_params["histTuple_flavor"]
         print(f"Using histTuple flavor {self.histTuple_flavor}")
+        # The analysis' histogram booking plugin (hist_booking_module, Common/HistBooking.py), if any.
+        self.hist_booking = HistBooking.load_plugin(self.global_params)
         self.histTuple_plot_vars = list(
             self.global_params["histTuple_flavors"][self.histTuple_flavor]["variables"]
         )
@@ -797,6 +800,10 @@ class Setup:
         self.anaTupleFiles = {}
         self.processors_cache = {}
         self.fs_rucio_ = None
+        # A booking plugin gives the regions: they fill the list `custom_regions` names, which the
+        # analysis and FLAF read as before. Last, so that the plugin sees a complete setup.
+        if self.hist_booking is not None:
+            HistBooking.fill_regions(self.hist_booking, self)
 
     def process_parent(self, process_name):
         """The process that process_name belongs to (listed meta-process or group), or None."""

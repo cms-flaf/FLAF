@@ -210,6 +210,25 @@ batching: a configuration that still sets it is refused.
 - **Parameters:** `--variables` (string; restrict which variables), `--n-files-per-job` (int,
   default `20`; input files processed per branch).
 
+#### Booking plugin
+By default every variable of a job is filled in every selection key of the analysis'
+`createKeyFilterDict` (and the global `further_cuts`). An analysis can decide this itself with a module
+named in its `global.yaml` (`hist_booking_module: Analysis.hist_booking`,
+[`Common/HistBooking.py`](https://github.com/cms-flaf/FLAF/blob/main/Common/HistBooking.py)) that
+defines
+
+- `regions(setup)`: the analysis' regions, a list of names or a `{region: cut}` mapping (as H→μμ's
+  `custom_regions` entry); they fill the entry `custom_regions` names, so everything reading it (the
+  analysis' `createKeyFilterDict`, `histTuple_selectors`, the plots) gets them;
+- `booking(setup, keys, variables)`: for a job's selection keys `[(key_tuple, filter)]` and variables,
+  the blocks to fill, `{"keys": [(key_tuple, filter)], "variables": [...], "columns": [...]}`
+  (`columns` optional: input columns the filters read). A block's keys are its own, e.g. a region
+  restricted by a further cut (`(channel, "SR_HMESub_m300", category)`, the base key's filter and the
+  cut). Each block has a filler of its own, all filled in the same pass over the tree.
+
+FLAF checks that every variable of the job is booked, no (key, variable) twice, and that the input has
+the declared columns. Without `hist_booking_module` nothing changes.
+
 #### Signal trees
 Optionally, the job also keeps the **per-event rows** behind the histograms of the signal
 datasets, for a per-event reweighting (e.g. an ELReweighter) downstream. It is configured in
@@ -403,7 +422,7 @@ must agree on them.
   `histograms.yaml` (a blinded variable hides the data in the other regions only). Data is shown
   only where it is plotted at all: `plot_wantData_<var>: false` in `global.yaml` or the task's
   `--customisations` (default `true`) removes it from every plot of `<var>`. The value must be a YAML list: written without brackets
-  it is one string, which is an error. A name that is not one of the analysis' regions (the list
+  it is one string, which is an error. A name that is not one of the analysis' regions (the booking plugin's regions, or the list
   `custom_regions` names, e.g. `QCDRegions`) is warned about, and that region stays blinded.
 - **`plot_process_groups`** (list of `{name, processes, color}`): sums processes into one legend
   entry each. Background groups are stacked in list order from the bottom; signal groups become one

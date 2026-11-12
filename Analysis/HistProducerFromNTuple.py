@@ -15,6 +15,7 @@ from FLAF.Common.Setup import Setup
 from Corrections.CorrectionsCore import getScales
 from FLAF.Analysis.HistTupleProducer import DefineBinnedColumn
 from FLAF.Analysis.histFromNtupleBatch import cells_budget, fill_groups
+from FLAF.Common import HistBooking
 
 # Memory (MB) the histograms of one event loop may take, every thread slot's copy counted, unless
 # hist_from_ntuple_max_hist_memory_mb or --max-hist-memory-mb says otherwise.
@@ -130,102 +131,149 @@ def FillTree(
     rdf,
     tree_name,
     weights,
-    keys,
-    vars_to_process,
+    booking,
     var_models,
     var_files,
     max_cells,
 ):
     """Fill and write every (key, weight, variable) histogram of one tree, in event loops of at most
-    ``max_cells`` cells, every thread slot's copy counted (include/HistFiller.h)."""
+    ``max_cells`` cells, every thread slot's copy counted (include/HistFiller.h).
+
+    ``booking`` (Common/HistBooking.py): the blocks ``[(keys, variables, columns)]``, ``keys`` a list of
+    ``(key_tuple, filter)``. A block fills its variables in its keys, with a filler of its own; the
+    blocks of a loop fill in the same pass over the tree. ``columns`` are input columns the block's
+    filters read: one absent from the tree stops the job. Without a booking plugin there is one block,
+    every variable in every key, as before blocks existed.
+    """
     columns = {str(c): str(rdf.GetColumnType(c)) for c in rdf.GetColumnNames()}
     for _, _, weight in weights:
         if IsVectorType(columns[weight]):
             raise RuntimeError(f"{tree_name}: weight column {weight} is a vector")
-    # a key filter must be a bool, as for RDataFrame's Filter (HistFillerKey refuses anything else)
-    pass_expr = (
-        "ROOT::RVec<char>{"
-        + ", ".join(f"analysis::HistFillerKey(({flt}))" for _, flt in keys)
-        + "}"
-    )
-    var_cells = {var: ModelCells(var_models[var][0]) for var in vars_to_process}
-    n_slots = rdf.GetNSlots()  # each fills its own copy of a loop's histograms
-    groups = fill_groups(var_cells, len(keys), len(weights), max_cells, n_slots)
-    for group_vars, (w_first, w_end) in groups:
-        group_weights = weights[w_first:w_end]
-        scalar_cols, vector_cols = [], []
-        filler = ROOT.analysis.HistFiller()
-        for var in group_vars:
-            model, bin_cols = var_models[var]
-            is_vector, index = [], []
-            for col in bin_cols:
-                col_type = columns[col]
-                if not IsBinColumnType(col_type):
-                    raise RuntimeError(
-                        f"{tree_name}: bin column {col} is {col_type}; a bin column holds "
-                        f"integers that fit an int ({', '.join(sorted(BIN_COLUMN_TYPES))})"
-                    )
-                cols = vector_cols if IsVectorType(col_type) else scalar_cols
-                if col not in cols:
-                    cols.append(col)
-                is_vector.append(1 if cols is vector_cols else 0)
-                index.append(cols.index(col))
-            filler.AddVariable(ModelBins(model), is_vector, index)
-        filler.Allocate(len(keys), len(group_weights), n_slots)
-        address = ROOT.addressof(filler)
-        loop = (
-            rdf.Define(
-                "_hf_scalar_bins",
-                "ROOT::RVec<int>{"
-                + ", ".join(f"static_cast<int>({c})" for c in scalar_cols)
-                + "}",
+    # blocks: (key tuples, pass column definition, variables)
+    blocks = []
+    for block_keys, block_vars, block_columns in booking:
+        missing = [c for c in block_columns if c not in columns]
+        if missing:
+            raise RuntimeError(
+                f"{tree_name}: the keys {', '.join('/'.join(k) for k, _ in block_keys[:3])}"
+                f"{' ...' if len(block_keys) > 3 else ''} need {', '.join(missing)}, absent from "
+                "the input histTuples"
             )
-            .Define(
-                "_hf_vector_bins",
-                "ROOT::RVec<ROOT::RVec<int>>{"
-                + ", ".join(f"analysis::HistFillerBins({c})" for c in vector_cols)
-                + "}",
-            )
-            .Define(
-                "_hf_weights",
-                "ROOT::RVec<double>{"
-                + ", ".join(f"static_cast<double>({w})" for _, _, w in group_weights)
-                + "}",
-            )
-            .Define("_hf_pass", pass_expr)
-            .Define(
-                "_hf_filled",
-                f"analysis::HistFillerFill({address}, rdfslot_, _hf_pass, "
-                "_hf_scalar_bins, _hf_vector_bins, _hf_weights)",
-            )
+        # a key filter must be a bool, as for RDataFrame's Filter (HistFillerKey refuses anything else)
+        pass_def = (
+            "ROOT::RVec<char>{"
+            + ", ".join(f"analysis::HistFillerKey(({flt}))" for _, flt in block_keys)
+            + "}"
         )
+        blocks.append(([k for k, _ in block_keys], pass_def, list(block_vars)))
+    # the unit of the memory budget: one variable of one block, in all the block's keys
+    unit_cells = {}
+    for b, (block_keys, _, block_vars) in enumerate(blocks):
+        for var in block_vars:
+            unit_cells[(b, var)] = ModelCells(var_models[var][0]) * len(block_keys)
+    n_slots = rdf.GetNSlots()  # each fills its own copy of a loop's histograms
+    groups = fill_groups(unit_cells, 1, len(weights), max_cells, n_slots)
+    for group_units, (w_first, w_end) in groups:
+        group_weights = weights[w_first:w_end]
+        loop = rdf.Define(
+            "_hf_weights",
+            "ROOT::RVec<double>{"
+            + ", ".join(f"static_cast<double>({w})" for _, _, w in group_weights)
+            + "}",
+        )
+        fillers = []  # (filler, key tuples, variables), one per block in this loop
+        filled_cols = []
+        for b, (block_keys, pass_def, _) in enumerate(blocks):
+            group_vars = [var for unit_block, var in group_units if unit_block == b]
+            if not group_vars:
+                continue
+            suffix = "" if b == 0 else f"_b{b}"
+            pass_col = f"_hf_pass{suffix}"
+            loop = loop.Define(pass_col, pass_def)
+            scalar_cols, vector_cols = [], []
+            filler = ROOT.analysis.HistFiller()
+            for var in group_vars:
+                model, bin_cols = var_models[var]
+                is_vector, index = [], []
+                for col in bin_cols:
+                    col_type = columns[col]
+                    if not IsBinColumnType(col_type):
+                        raise RuntimeError(
+                            f"{tree_name}: bin column {col} is {col_type}; a bin column holds "
+                            f"integers that fit an int ({', '.join(sorted(BIN_COLUMN_TYPES))})"
+                        )
+                    cols = vector_cols if IsVectorType(col_type) else scalar_cols
+                    if col not in cols:
+                        cols.append(col)
+                    is_vector.append(1 if cols is vector_cols else 0)
+                    index.append(cols.index(col))
+                filler.AddVariable(ModelBins(model), is_vector, index)
+            filler.Allocate(len(block_keys), len(group_weights), n_slots)
+            address = ROOT.addressof(filler)
+            loop = (
+                loop.Define(
+                    f"_hf_scalar_bins{suffix}",
+                    "ROOT::RVec<int>{"
+                    + ", ".join(f"static_cast<int>({c})" for c in scalar_cols)
+                    + "}",
+                )
+                .Define(
+                    f"_hf_vector_bins{suffix}",
+                    "ROOT::RVec<ROOT::RVec<int>>{"
+                    + ", ".join(f"analysis::HistFillerBins({c})" for c in vector_cols)
+                    + "}",
+                )
+                .Define(
+                    f"_hf_filled{suffix}",
+                    f"analysis::HistFillerFill({address}, rdfslot_, {pass_col}, "
+                    f"_hf_scalar_bins{suffix}, _hf_vector_bins{suffix}, _hf_weights)",
+                )
+            )
+            fillers.append((filler, block_keys, group_vars))
+            filled_cols.append(f"_hf_filled{suffix}")
+        if len(filled_cols) == 1:
+            sum_col = filled_cols[0]
+        else:
+            # every block's fill must run; an event counts once if it is in any key
+            sum_col = "_hf_filled_any"
+            loop = loop.Define(
+                sum_col,
+                "static_cast<int>("
+                + " || ".join(f"({c} != 0)" for c in filled_cols)
+                + ")",
+            )
         t_start = time.time()
-        n_filled = loop.Sum("_hf_filled").GetValue()
+        n_filled = loop.Sum(sum_col).GetValue()
         t_loop = time.time() - t_start
 
-        hists = ROOT.std.vector["TH1*"]()
-        dirs = ROOT.std.vector["TDirectory*"]()
-        names = ROOT.std.vector["std::string"]()
-        keep_alive = []
-        for var in group_vars:
-            hist = var_models[var][0].GetHistogram()
-            keep_alive.append(hist)
-            hists.push_back(hist)
-            for key_tuple, _ in keys:
-                dirs.push_back(Utilities.mkdir(var_files[var], "/".join(key_tuple)))
-            for unc, scale, _ in group_weights:
-                names.push_back(var if unc == "Central" else f"{var}_{unc}_{scale}")
-        filler.Write(hists, dirs, names)
-        filler.Release()
+        n_cells = 0
+        n_hists = 0
+        for filler, block_keys, group_vars in fillers:
+            hists = ROOT.std.vector["TH1*"]()
+            dirs = ROOT.std.vector["TDirectory*"]()
+            names = ROOT.std.vector["std::string"]()
+            keep_alive = []
+            for var in group_vars:
+                hist = var_models[var][0].GetHistogram()
+                keep_alive.append(hist)
+                hists.push_back(hist)
+                for key_tuple in block_keys:
+                    dirs.push_back(Utilities.mkdir(var_files[var], "/".join(key_tuple)))
+                for unc, scale, _ in group_weights:
+                    names.push_back(var if unc == "Central" else f"{var}_{unc}_{scale}")
+            filler.Write(hists, dirs, names)
+            n_cells += filler.NumberOfCells()
+            n_hists += len(group_vars) * len(block_keys) * len(group_weights)
+            filler.Release()
         print(
-            f"{tree_name}: {len(group_vars)} vars × {len(keys)} keys × "
-            f"{len(group_weights)} weights, {filler.NumberOfCells()} cells × {n_slots} thread "
-            f"slot(s) (~{filler.NumberOfCells() * n_slots * 16 / 1e6:.0f} MB), "
+            f"{tree_name}: {len(fillers)} block(s), {len(group_units)} (block, var) units, "
+            f"{len(group_weights)} weights, {n_hists} hists, {n_cells} cells × {n_slots} thread "
+            f"slot(s) (~{n_cells * n_slots * 16 / 1e6:.0f} MB), "
             f"{n_filled:.0f} events in a key; "
             f"loop {t_loop:.1f} s, write {time.time() - t_start - t_loop:.1f} s",
             flush=True,
         )
-        del filler
+        del fillers
 
 
 def BookSignalTreeSnapshots(
@@ -468,11 +516,21 @@ if __name__ == "__main__":
             for cut_name in cut_names
         ]
         var_models = {var: VarModel(hist_cfg_dict, var) for var in vars_to_process}
-        n_hists = len(vars_to_process) * len(keys) * sum(map(len, tree_fills.values()))
+        # What to fill in which keys (Common/HistBooking.py): the analysis' booking plugin, else
+        # every variable in every key.
+        if setup.hist_booking is not None:
+            booking = HistBooking.plugin_blocks(
+                setup.hist_booking, setup, keys, vars_to_process
+            )
+        else:
+            booking = HistBooking.default_blocks(keys, vars_to_process)
+        n_units = sum(map(len, tree_fills.values()))
+        n_hists = HistBooking.count_pairs(booking) * n_units
         print(
-            f"Filling {n_hists} histograms ({len(vars_to_process)} vars × {len(keys)} keys × "
-            f"{sum(map(len, tree_fills.values()))} unc/scales) from {len(tree_fills)} trees, "
-            f"max hist memory {max_memory_mb:g} MB per event loop (every thread slot's copy)",
+            f"Filling {n_hists} histograms ({len(booking)} booking block(s), "
+            f"{HistBooking.count_pairs(booking)} (key, variable) pairs × {n_units} unc/scales) "
+            f"from {len(tree_fills)} trees, max hist memory {max_memory_mb:g} MB per event loop "
+            "(every thread slot's copy)",
             flush=True,
         )
 
@@ -516,8 +574,7 @@ if __name__ == "__main__":
                 all_trees[tree_name],
                 tree_name,
                 weights,
-                keys,
-                vars_to_process,
+                booking,
                 var_models,
                 var_files,
                 max_cells,

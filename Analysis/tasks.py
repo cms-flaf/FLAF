@@ -280,7 +280,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
                 max_runtime=AnaTupleMergeTask.max_runtime._default,
                 n_cpus=AnaTupleMergeTask.n_cpus._default,
                 branch=prod_br,
-                branches=(prod_br,),
                 customisations=self.customisations,
             )
         }
@@ -292,7 +291,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
                         self,
                         max_runtime=AnalysisCacheTask.max_runtime._default,
                         branch=self.branch,
-                        branches=(self.branch,),
                         customisations=self.customisations,
                         producer_to_run=producer_name,
                     )
@@ -1249,7 +1247,6 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
             br_idx: AnaTupleMergeTask.req(
                 self,
                 branch=prod_br,
-                branches=(),
                 max_runtime=AnaTupleMergeTask.max_runtime._default,
                 n_cpus=AnaTupleMergeTask.n_cpus._default,
             )
@@ -1270,7 +1267,6 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                     br_idx: AnalysisCacheTask.req(
                         self,
                         branch=br_idx,
-                        branches=(),
                         customisations=self.customisations,
                         producer_to_run=dependency,
                         _skip_task_excludes=False,
@@ -1293,7 +1289,6 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                 self,
                 branch=prod_br,
                 max_runtime=AnaTupleMergeTask.max_runtime._default,
-                branches=(),
             )
         }
         anaCaches = {}

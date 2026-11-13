@@ -529,7 +529,14 @@ class Task(law.Task):
         # before the instance exists, so that it is the very task of the list of the eras
         if params.get("era") and not cls.allow_meta_era:
             params["era"] = _expand_meta_era(params["era"])
-        return super(Task, cls).modify_param_values(params)
+        params = super(Task, cls).modify_param_values(params)
+        # A branch task is the same task whatever `branches` it carries (law leaves it out of
+        # its own branch tasks and of a branch's command line). Kept, an inherited or passed
+        # selection makes each requirement a distinct task whose workflow holds a full-size
+        # copy of the branch map: the Run3_2024 AnaTuple submission ran out of memory on that.
+        if params.get("branch", -1) != -1 and params.get("branches"):
+            params["branches"] = ()
+        return params
 
     @classmethod
     def modify_param_args(cls, params, args, kwargs):

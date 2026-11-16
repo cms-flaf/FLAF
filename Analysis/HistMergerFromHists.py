@@ -308,6 +308,31 @@ if __name__ == "__main__":
         for key in [k for k in hists if k[1][0] in member_uncs]:
             write_hist(process, key, hists.pop(key))
 
+    def to_write(dataset_type, key):
+        """Whether the final output gets this summed histogram (the selection of the last loop)."""
+        _, (uncName, uncScale) = key
+        if uncName not in unc_sources:
+            return False
+        if uncName != "Central":
+            return dataset_type != "data" and uncScale != "Central"
+        return uncScale == "Central"
+
+    # The data-driven QCD estimate of hh_bbtautau needs every process at once after the loop. Without
+    # it nothing reads a process again once its last input is summed, so the process is written and
+    # freed there: the memory then holds one process, not all of them (a variable without
+    # signal_params is filled for every signal sample, ~250 processes).
+    keep_all_processes = analysis_import == "Analysis.hh_bbtautau" and estimateQCD
+
+    def write_process(process):
+        if process == data_process_name:
+            # as before: the nominal data histogram is also written under every variation name
+            alias_data_variations(all_hists_dict, data_process_name, unc_sources)
+        hists = all_hists_dict.get(process, {})
+        for key in list(hists):
+            hist = hists.pop(key)
+            if to_write(process, key):
+                write_hist(process, key, hist)
+
     for i, (dataset_name, inFile_path) in enumerate(inputs):
         dataset_type = process_of(dataset_name)
         if not os.path.exists(inFile_path):
@@ -315,7 +340,10 @@ if __name__ == "__main__":
                 f"input file for dataset {dataset_name} (with path= {inFile_path}) does not exist, skipping"
             )
             if last_input_of[dataset_type] == i:
-                write_members(dataset_type)
+                if keep_all_processes:
+                    write_members(dataset_type)
+                else:
+                    write_process(dataset_type)
             continue
 
         print(dataset_type)
@@ -343,9 +371,13 @@ if __name__ == "__main__":
             )
         del all_items
         if last_input_of[dataset_type] == i:
-            write_members(dataset_type)
+            if keep_all_processes:
+                write_members(dataset_type)
+            else:
+                write_process(dataset_type)
     signal_tree_files = signal_tree_inputs(chunk_has_trees)
-    alias_data_variations(all_hists_dict, data_process_name, unc_sources)
+    if keep_all_processes:
+        alias_data_variations(all_hists_dict, data_process_name, unc_sources)
 
     # here there should be the custom applications - e.g. GetBTagWeightDict, AddQCDInHistDict, etc.
     # analysis.ApplyMergeCustomisations() # --> here go the QCD and bTag functions

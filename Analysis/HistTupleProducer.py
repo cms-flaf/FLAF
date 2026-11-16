@@ -86,7 +86,7 @@ def createHistTuple(
     histTupleDef.analysis_setup(setup)
     isData = dataset_name == "data"
 
-    # the flavour's variables plus those the booking plugin needs for its cuts (histtuple_columns)
+    # the flavour's variables plus those the booking plugin needs for its cuts (required_columns)
     binned_variables = HistBooking.histtuple_binned_vars(setup)
     fullres_variables = HistBooking.histtuple_fullres_vars(setup)
 

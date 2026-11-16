@@ -325,7 +325,8 @@ if __name__ == "__main__":
 
     def write_process(process):
         if process == data_process_name:
-            # as before: the nominal data histogram is also written under every variation name
+            # as before: the nominal data histogram is aliased under every variation name (to_write
+            # skips the aliases of the process "data", as the final write loop did)
             alias_data_variations(all_hists_dict, data_process_name, unc_sources)
         hists = all_hists_dict.get(process, {})
         for key in list(hists):

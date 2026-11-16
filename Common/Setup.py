@@ -660,7 +660,7 @@ class Setup:
             plotvar_dict[var_name] = var
 
         fullresvar_dict = {}
-        for var in self.histTuple_plot_vars:
+        for var in self.histTuple_fullres_vars:
             var_name = var["name"] if isinstance(var, dict) else var
             if var_name in fullresvar_dict:
                 raise RuntimeError(
@@ -804,9 +804,9 @@ class Setup:
         # analysis and FLAF read as before. Last, so that the plugin sees a complete setup.
         if self.hist_booking is not None:
             HistBooking.fill_regions(self.hist_booking, self)
-        # Variables the booking's filters need in the histTuples beyond the flavour's lists (optional
-        # plugin function histtuple_columns): stored there, never histogrammed.
-        HistBooking.add_histtuple_columns(self.hist_booking, self)
+        # The variables the booking plugin's cuts read (required_columns): stored in the histTuples,
+        # and their AnalysisCache producers required, whether the flavour plots them or not.
+        HistBooking.add_required_columns(self.hist_booking, self)
 
     def process_parent(self, process_name):
         """The process that process_name belongs to (listed meta-process or group), or None."""

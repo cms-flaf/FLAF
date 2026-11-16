@@ -147,5 +147,72 @@ class Blocks(PluginTestBase):
         self.assertEqual(seen, {"setup": "the setup", "keys": KEYS, "variables": VARS})
 
 
+class HistTupleColumns(PluginTestBase):
+    """The optional histtuple_columns(setup): extra histTuple columns, not histogrammed."""
+
+    def setup_with(self):
+        return types.SimpleNamespace(
+            histTuple_plot_vars=["x", {"name": "x_vs_y", "vars": ["x", "y"]}],
+            histTuple_fullres_vars=["f"],
+            histTuple_vars=["x", "x_vs_y"],
+        )
+
+    def add(self, columns):
+        module = self.install(booking=lambda **kw: [])
+        if columns is not None:
+            module.histtuple_columns = lambda setup: columns
+        setup = self.setup_with()
+        HB.add_histtuple_columns(module, setup)
+        return setup
+
+    def test_without_the_function_nothing_changes(self):
+        no_plugin = self.setup_with()
+        HB.add_histtuple_columns(None, no_plugin)
+        for name, setup in (("no function", self.add(None)), ("no plugin", no_plugin)):
+            with self.subTest(name):
+                self.assertEqual(setup.histTuple_vars, ["x", "x_vs_y"])
+                self.assertEqual(HB.histtuple_binned_vars(setup), ["x", "y"])
+                self.assertEqual(HB.histtuple_fullres_vars(setup), ["f"])
+
+    def test_extra_binned_and_fullres_columns(self):
+        setup = self.add({"binned": ["h", "x"], "fullResolution": ["g", "f"]})
+        # histTuple_vars decides the AnalysisCache producers the HistTuple task requires
+        self.assertEqual(setup.histTuple_vars, ["x", "x_vs_y", "h", "g", "f"])
+        self.assertEqual(HB.histtuple_binned_vars(setup), ["x", "y", "h"])
+        self.assertEqual(HB.histtuple_fullres_vars(setup), ["f", "g"])
+        # what is histogrammed is untouched
+        self.assertEqual(
+            setup.histTuple_plot_vars, ["x", {"name": "x_vs_y", "vars": ["x", "y"]}]
+        )
+
+    def test_one_kind_only(self):
+        setup = self.add({"binned": ["h"]})
+        self.assertEqual(HB.histtuple_binned_vars(setup), ["x", "y", "h"])
+        self.assertEqual(HB.histtuple_fullres_vars(setup), ["f"])
+        self.assertEqual(self.add({}).histTuple_vars, ["x", "x_vs_y"])
+
+    def test_the_plugin_gets_the_setup(self):
+        seen = []
+        module = self.install(booking=lambda **kw: [])
+        module.histtuple_columns = lambda setup: seen.append(setup) or {}
+        setup = self.setup_with()
+        HB.add_histtuple_columns(module, setup)
+        self.assertEqual(seen, [setup])
+
+    def test_malformed(self):
+        for columns in (
+            ["h"],
+            {"bin": ["h"]},
+            {"binned": "h"},
+            {"binned": [1]},
+            {"fullResolution": [""]},
+        ):
+            with self.subTest(columns=columns):
+                with self.assertRaisesRegex(
+                    HB.HistBookingError, f"{PLUGIN}.histtuple_columns"
+                ):
+                    self.add(columns)
+
+
 if __name__ == "__main__":
     unittest.main()

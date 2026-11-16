@@ -804,6 +804,9 @@ class Setup:
         # analysis and FLAF read as before. Last, so that the plugin sees a complete setup.
         if self.hist_booking is not None:
             HistBooking.fill_regions(self.hist_booking, self)
+        # Variables the booking's filters need in the histTuples beyond the flavour's lists (optional
+        # plugin function histtuple_columns): stored there, never histogrammed.
+        HistBooking.add_histtuple_columns(self.hist_booking, self)
 
     def process_parent(self, process_name):
         """The process that process_name belongs to (listed meta-process or group), or None."""

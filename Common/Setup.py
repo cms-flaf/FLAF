@@ -1054,6 +1054,24 @@ class Setup:
             return self.anaTupleFiles[dataset_name]
 
 
+def merge_data_process(setup):
+    """The process the data histograms are merged into (the data datasets are not in the
+    datasets configuration)."""
+    data_processes = setup.phys_model.processes(process_type="data")
+    if len(data_processes) > 0:
+        return setup.phys_model.base_processes(data_processes[0])[0]
+    return "data"
+
+
+def merge_process_of(setup, dataset_name):
+    """The process a dataset's histograms are merged into: its base process's parent."""
+    if dataset_name == "data":
+        base_process_name = merge_data_process(setup)
+    else:
+        base_process_name = setup.datasets[dataset_name]["process_name"]
+    return setup.base_processes[base_process_name]["parent_process"]
+
+
 if __name__ == "__main__":
     import argparse
 

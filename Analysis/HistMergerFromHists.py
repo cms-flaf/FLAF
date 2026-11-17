@@ -3,6 +3,7 @@ import sys
 import os
 import time
 import importlib
+import json
 
 if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
@@ -140,13 +141,361 @@ def GetBTagWeightDict(
     return all_hists_dict_1D
 
 
+# 209 = LZMA level 9, the standard compression for merged histogram files
+MERGED_COMPRESSION = 209
+
+
+class MergeContext:
+    """What every merge step of one variable needs from the configuration.
+
+    The merge runs one process at a time (merge_process: the inputs of one process are summed
+    and written into the output, then freed), followed by one post-processing step over the
+    merged file (postprocess: the data-driven estimates, which need every process). Memory and
+    local disk then hold one process at a time, whatever the number of processes.
+    """
+
+    def __init__(self, args):
+        self.setup = Setup.Setup(
+            os.environ["ANALYSIS_PATH"],
+            args.era,
+            args.LAWrunVersion,
+            user_custom_file=args.user_custom,
+        )
+        setup = self.setup
+        global_cfg_dict = setup.global_params
+        unc_cfg_dict = setup.weights_config
+        self.var = args.var
+        self.analysis_import = global_cfg_dict["analysis_import"]
+        importlib.import_module(f"{self.analysis_import}")
+        self.estimateQCD = global_cfg_dict.get("plot_wantQCD", False)
+
+        # Regions def: can be extended to a list of names, e.g. QCD regions + other control
+        # regions
+        regions_name = global_cfg_dict.get("regions", None)
+        self.regions = []
+        if regions_name:
+            self.regions = list(global_cfg_dict.get(regions_name, []))
+            if not self.regions:
+                print("No custom regions found")
+        self.categories = list(global_cfg_dict["categories"])
+
+        setup.global_params["channels_to_consider"] = (
+            args.channels.split(",")
+            if args.channels
+            else setup.global_params["channelSelection"]
+        )
+        self.channels = setup.global_params["channels_to_consider"]
+
+        # Uncertainties
+        uncNameTypes = GetUncNameTypes(unc_cfg_dict)
+        self.scales = list(global_cfg_dict["scales"])
+        self.unc_sources = [s.strip() for s in args.uncSources.split(",") if s.strip()]
+        unknown_sources = [
+            s for s in self.unc_sources if s != "Central" and s not in uncNameTypes
+        ]
+        if unknown_sources:
+            raise ValueError(
+                f"Unknown uncertainty source(s): {', '.join(unknown_sources)}"
+            )
+        self.unc_cfg_dict = unc_cfg_dict
+        self.all_unc_dict = unc_cfg_dict["norm"].copy()
+        self.all_unc_dict.update(unc_cfg_dict["shape"])
+        # The members of a theory uncertainty (PDF, QCD scale) are known from the corrections
+        # configuration. Every member is kept in the output; reducing them to Up/Down is left
+        # to the datacard step.
+        from Corrections.Corrections import Corrections
+
+        Corrections.registerConfiguredSourceScales(global_cfg_dict)
+        self.member_uncs = [
+            s
+            for s in self.unc_sources
+            if s != "Central"
+            and TheoryUncertainties.has_members(getScales(s), self.scales)
+        ]
+
+        # Datasets. Data isn't in the datasets configuration: it is added here to keep the
+        # format.
+        self.data_process_name = Setup.merge_data_process(setup)
+        data_processes = setup.phys_model.processes(process_type="data")
+        # the physics-model name of the data process, as the QCD estimate knows it
+        self.qcd_data_process = data_processes[0] if data_processes else None
+
+        # file structure: channel - region - category - <process>[_<variation>]
+
+    def process_of(self, dataset_name):
+        return Setup.merge_process_of(self.setup, dataset_name)
+
+    def hist_name(self, dataset_type, key):
+        """<process>[_<variation>]: the name of a summed histogram in the output."""
+        _, (uncName, uncScale) = key
+        if uncName == "Central":
+            return dataset_type
+        return (
+            dataset_type
+            + "_"
+            + TheoryUncertainties.format_name(
+                self.all_unc_dict[uncName], uncScale, dataset_type
+            )
+        )
+
+    def to_write(self, dataset_type, key):
+        """Whether the output gets this summed histogram: the requested sources, data only
+        nominal, a variation only with its variations."""
+        _, (uncName, uncScale) = key
+        if uncName not in self.unc_sources:
+            return False
+        if uncName != "Central":
+            return dataset_type != "data" and uncScale != "Central"
+        return uncScale == "Central"
+
+    def write_hist(self, out_file, dataset_type, key, hist):
+        """Write one summed histogram as <process>[_<variation>] into its directory."""
+        key_dir = key[0]
+        hist_name = self.hist_name(dataset_type, key)
+        dir_ptr = Utilities.mkdir(out_file, "/".join(key_dir))
+        hist.SetTitle(hist_name)
+        hist.SetName(hist_name)
+        dir_ptr.WriteTObject(hist, hist_name, "Overwrite")
+
+    def tree_variations(self):
+        """{tree name in the chunks: name in the output}: a shape variation takes the name
+        its histograms have."""
+        variations = {"Central": "Central"}
+        for uncName in self.unc_sources:
+            if uncName in self.unc_cfg_dict["shape"].keys():
+                for uncScale in self.scales:
+                    variations[f"{uncName}_{uncScale}"] = self.all_unc_dict[uncName][
+                        "name"
+                    ].format(uncScale)
+        return variations
+
+    def needs_postprocess(self):
+        """Whether a step after the merge needs every process: the data-driven QCD estimate
+        of hh_bbtautau."""
+        return self.analysis_import == "Analysis.hh_bbtautau" and self.estimateQCD
+
+
+def open_merged(path):
+    """The merged output, created by the first process and updated by the next ones."""
+    out_file = ROOT.TFile(path, "UPDATE", "", MERGED_COMPRESSION)
+    if not out_file or out_file.IsZombie():
+        raise RuntimeError(f"cannot open {path} for update")
+    return out_file
+
+
+def merge_process(ctx, process, inputs, out_file):
+    """Sum the inputs [(dataset_name, path)] of one process and write the result into the
+    open ``out_file``: the histograms of the requested sources (theory members included) and
+    the concatenated signal trees. Nothing of the process is kept in memory afterwards.
+    """
+    hists = {}
+    chunks = []
+    for dataset_name, inFile_path in inputs:
+        if ctx.process_of(dataset_name) != process:
+            raise RuntimeError(
+                f"input {inFile_path} of dataset {dataset_name} is of process "
+                f"{ctx.process_of(dataset_name)}, not {process}"
+            )
+        if not os.path.exists(inFile_path):
+            print(
+                f"input file for dataset {dataset_name} (with path= {inFile_path}) does not exist, skipping"
+            )
+            continue
+        print(process)
+        with ROOT.TFile.Open(inFile_path, "READ") as inFile:
+            # check that the file is ok
+            if inFile.IsZombie():
+                raise RuntimeError(f"{inFile_path} is zombie")
+            if not checkFile(inFile, ctx.channels, ctx.regions, ctx.categories):
+                raise RuntimeError(f"{dataset_name} has void file")
+            all_items = get_all_items_recursive(inFile)
+            all_hists = {process: hists}
+            fill_hists(
+                all_items,
+                all_hists,
+                process,
+                ctx.var,
+                ctx.unc_sources,
+                ctx.data_process_name,
+            )
+            has_trees = bool(inFile.GetDirectory(SIGNAL_TREES_DIR))
+            chunks.append((dataset_name, inFile_path, has_trees))
+        del all_items
+
+    if process == ctx.data_process_name:
+        # the nominal data histogram also under every variation name (written for a data
+        # process not called "data")
+        alias_data_variations({process: hists}, process, ctx.unc_sources)
+    for key in list(hists):
+        hist = hists.pop(key)
+        if ctx.to_write(process, key):
+            ctx.write_hist(out_file, process, key, hist)
+
+    # the signal trees of the chunks, concatenated, one variation at a time
+    for tree_process, paths in signal_tree_inputs({process: chunks}).items():
+        out_dir = Utilities.mkdir(out_file, f"{SIGNAL_TREES_DIR}/{tree_process}")
+        in_files = [ROOT.TFile.Open(path, "READ") for path in paths]
+        for tree_name, variation in ctx.tree_variations().items():
+            trees = [
+                in_file.Get(f"{SIGNAL_TREES_DIR}/{tree_name}") for in_file in in_files
+            ]
+            if not all(trees):
+                raise RuntimeError(
+                    f"{SIGNAL_TREES_DIR}/{tree_name} missing in a file of {tree_process}"
+                )
+            concat_trees(out_dir, variation, trees)
+        for in_file in in_files:
+            in_file.Close()
+
+
+def _read_hist(out_file, key, name):
+    """A histogram of the merged file, detached from it and owned by Python (it is freed
+    when dropped), or None."""
+    hist = out_file.Get("/".join(key + (name,)))
+    if not hist:
+        return None
+    hist.SetDirectory(ROOT.nullptr)
+    ROOT.SetOwnership(hist, True)
+    return hist
+
+
+def _hist_dirs(directory, path=()):
+    """The (channel, region, category) directories of the merged file, signal trees left
+    out."""
+    dirs = []
+    for key in directory.GetListOfKeys():
+        if not ROOT.TClass.GetClass(key.GetClassName()).InheritsFrom(
+            ROOT.TDirectory.Class()
+        ):
+            continue
+        name = key.GetName()
+        if not path and name == SIGNAL_TREES_DIR:
+            continue
+        sub = directory.GetDirectory(name)
+        if len(path) == 2:
+            dirs.append(path + (name,))
+        else:
+            dirs.extend(_hist_dirs(sub, path + (name,)))
+    return dirs
+
+
+def postprocess(ctx, processes, out_file):
+    """The steps after the merge that need every process, run on the merged file: the
+    data-driven QCD estimate of hh_bbtautau. Each uncertainty source is estimated with only
+    its histograms (and the nominal ones) read back, then written and freed.
+
+    ``processes``: the merged processes, in merge order (the order the estimate subtracts
+    them in, as when every process was held in memory)."""
+    if not ctx.needs_postprocess():
+        return
+    if ctx.qcd_data_process is None:
+        return
+    from Analysis.QCD_estimation import AddQCDInHistDict
+
+    key_dirs = _hist_dirs(out_file)
+    for unc_source in ctx.unc_sources:
+        # the members of a theory uncertainty: no QCD variation
+        if unc_source in ctx.member_uncs:
+            continue
+        if unc_source == "Central":
+            unc_keys = [("Central", "Central")]
+        else:
+            unc_keys = [(unc_source, scale) for scale in ctx.scales]
+        all_hists_dict = {}
+        for process in processes:
+            # data: the nominal histogram, aliased under the variations below, as when it
+            # was merged
+            keys_of_process = (
+                [("Central", "Central")]
+                if process == ctx.data_process_name
+                else unc_keys
+            )
+            hists = {}
+            for key_dir in key_dirs:
+                for unc_key in keys_of_process:
+                    key = (key_dir, unc_key)
+                    hist = _read_hist(out_file, key_dir, ctx.hist_name(process, key))
+                    if hist is not None:
+                        hists[key] = hist
+            if hists:
+                all_hists_dict[process] = hists
+        if ctx.data_process_name in all_hists_dict:
+            alias_data_variations(
+                all_hists_dict, ctx.data_process_name, ctx.unc_sources
+            )
+        if ctx.qcd_data_process not in all_hists_dict:
+            return
+        # the processes the estimate subtracts: every merged one, "QCD" not among them
+        dataset_types = list(all_hists_dict.keys())
+        AddQCDInHistDict(
+            ctx.var,
+            all_hists_dict,
+            ctx.channels,
+            ctx.categories,
+            unc_source,
+            dataset_types,
+            ctx.scales,
+            data_process_name=ctx.qcd_data_process,
+            wantNegativeContributions=False,
+        )
+        for key, hist in all_hists_dict.get("QCD", {}).items():
+            if ctx.to_write("QCD", key):
+                ctx.write_hist(out_file, "QCD", key, hist)
+        del all_hists_dict
+
+
+# Acknowledgement lines of --stream on stdout: "@@HistMerger merged <process>" once a process is
+# in the output (its inputs can be deleted), "@@HistMerger postprocessed" after the last step.
+STREAM_ACK = "@@HistMerger"
+
+
+def stream(ctx, out_path, lines):
+    """Merge into ``out_path`` (created) what ``lines`` asks for, one JSON message per line:
+    {"process": <name>, "inputs": [[dataset_name, path], ...]} merges one process,
+    {"postprocess": [dataset_name, ...]} runs the steps that need every process (the datasets
+    in the merge order). Each step is acknowledged on stdout once written. The output stays
+    open in between, and the configuration is read once, whatever the number of processes.
+    """
+    if os.path.exists(out_path):
+        os.remove(out_path)
+    out_file = open_merged(out_path)
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        message = json.loads(line)
+        if "process" in message:
+            process = message["process"]
+            merge_process(
+                ctx, process, [tuple(item) for item in message["inputs"]], out_file
+            )
+            print(f"{STREAM_ACK} merged {process}", flush=True)
+        elif "postprocess" in message:
+            processes = list(
+                dict.fromkeys(ctx.process_of(name) for name in message["postprocess"])
+            )
+            postprocess(ctx, processes, out_file)
+            print(f"{STREAM_ACK} postprocessed", flush=True)
+        else:
+            raise ValueError(f"unknown message: {line}")
+    out_file.Close()
+
+
 if __name__ == "__main__":
     import argparse
-    import yaml
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("inFiles", nargs="+", type=str)
-    parser.add_argument("--dataset_names", required=True, type=str)
+    parser = argparse.ArgumentParser(
+        description="Merge the split histograms of one variable, one process at a time, then "
+        "run the steps that need every process on the merged file: over the inputs given, or "
+        "(--stream) over the processes sent on stdin as they are downloaded."
+    )
+    parser.add_argument("inFiles", nargs="*", type=str)
+    parser.add_argument(
+        "--dataset_names",
+        type=str,
+        default="",
+        help="the datasets of the inputs, in their order (not with --stream)",
+    )
     parser.add_argument("--var", required=True, type=str)
     parser.add_argument("--outFile", required=True, type=str)
     parser.add_argument("--era", required=True, type=str)
@@ -160,307 +509,41 @@ if __name__ == "__main__":
     parser.add_argument("--channels", required=False, type=str, default="")
     parser.add_argument("--LAWrunVersion", required=True, type=str)
     parser.add_argument("--user-custom", type=str, default=None)
-
+    parser.add_argument(
+        "--stream",
+        action="store_true",
+        help="read the steps from stdin, one JSON message per line (see stream())",
+    )
     args = parser.parse_args()
+
     startTime = time.time()
-
-    setup = Setup.Setup(
-        os.environ["ANALYSIS_PATH"],
-        args.era,
-        args.LAWrunVersion,
-        user_custom_file=args.user_custom,
-    )
-
-    global_cfg_dict = setup.global_params
-    unc_cfg_dict = setup.weights_config
-
-    analysis_import = global_cfg_dict["analysis_import"]
-    analysis = importlib.import_module(f"{analysis_import}")
-    estimateQCD = global_cfg_dict.get("plot_wantQCD", False)
-
-    # ----> this part is analysis dependent. Need to be put in proper place <-----
-
-    # boosted categories and QCD regions --> e.g. for hmm no boosted categories and no QCD regions but muMu mass regions
-    # instead, better to define custom categories/regions
-    # boosted_categories = list(
-    #     global_cfg_dict.get("boosted_categories", [])
-    # )  # list(global_cfg_dict['boosted_categories'])
-    # Controlregions = list(global_cfg_dict['ControlRegions']) #Later maybe we want to separate Controls from QCDs
-
-    # Regions def
-    regions_name = global_cfg_dict.get(
-        "regions", None
-    )  # can be extended to list of names, if for example adding QCD regions + other control regions
-    regions = []
-    if regions_name:
-        regions = list(global_cfg_dict.get(regions_name, []))
-        if not regions:
-            print("No custom regions found")
-
-    # Categories def
-    categories = list(global_cfg_dict["categories"])
-    # custom_categories_name = global_cfg_dict.get(
-    #     "custom_categories", None
-    # )  # can be extended to list of names
-    # custom_categories = []
-    # if custom_categories_name:
-    #     custom_categories = list(global_cfg_dict.get(custom_categories_name, []))
-    #     if not custom_categories:
-    #         print("No custom categories found")
-    all_categories = categories  # + custom_categories
-
-    # Channels def
-    setup.global_params["channels_to_consider"] = (
-        args.channels.split(",")
-        if args.channels
-        else setup.global_params["channelSelection"]
-    )
-    channels = setup.global_params["channels_to_consider"]
-
-    # Variables exception def
-    custom_variables = global_cfg_dict.get(
-        "var_only_custom", {}
-    )  # e.g. var only boosted. Will be constructed as:
-    # { "cat == boosted" : [particleNet.. ], "cat != boosted" : [b1_.. ]  }
-    # replacing this part:
-    # if args.var.startswith("b1") or args.var.startswith("b2"):
-    #     all_categories = categories
-
-    # Uncertainties
-    uncNameTypes = GetUncNameTypes(unc_cfg_dict)
-    scales = list(global_cfg_dict["scales"])
-    unc_sources = [s.strip() for s in args.uncSources.split(",") if s.strip()]
-    unknown_sources = [
-        s for s in unc_sources if s != "Central" and s not in uncNameTypes
-    ]
-    if unknown_sources:
-        raise ValueError(f"Unknown uncertainty source(s): {', '.join(unknown_sources)}")
-    all_unc_dict = unc_cfg_dict["norm"].copy()
-    all_unc_dict.update(unc_cfg_dict["shape"])
-    # The members of a theory uncertainty (PDF, QCD scale) are known from the corrections
-    # configuration. Every member is kept in the output; reducing them to Up/Down is left to
-    # the datacard step.
-    from Corrections.Corrections import Corrections
-
-    Corrections.registerConfiguredSourceScales(global_cfg_dict)
-    member_uncs = [
-        s
-        for s in unc_sources
-        if s != "Central" and TheoryUncertainties.has_members(getScales(s), scales)
-    ]
-    # Uncertainties exception
-    unc_exception = global_cfg_dict.get(
-        "unc_exception", {}
-    )  # e.g. boosted categories with unc list to not consider
-    # { "cat == boosted" : [JER, JES] }
-    # unc_to_not_consider_boosted = list(
-    #     global_cfg_dict.get("unc_to_not_consider_boosted", [])
-    # )
-
-    # file structure : channel - region - category - varName_unc (if not central, else only varName)
-
-    # Datasets
-    dataset_cfg_dict = setup.datasets
-    data_process_name = "data"
-    data_processes = setup.phys_model.processes(process_type="data")
-    if len(data_processes) > 0:
-        data_base_processes = setup.phys_model.base_processes(data_processes[0])
-        data_process_name = data_base_processes[0]
-    dataset_cfg_dict["data"] = {
-        "process_name": data_process_name
-    }  # Data isn't actually in config dict, but just add it here to keep working format
-    # print(dataset_cfg_dict)
-
-    all_hists_dict = {}
-    chunk_has_trees = {}
-
-    def process_of(dataset_name):
-        base_process_name = dataset_cfg_dict[dataset_name]["process_name"]
-        return setup.base_processes[base_process_name]["parent_process"]
-
-    # 209 = LZMA level 9, the standard compression for merged histogram files
-    outFile = ROOT.TFile(args.outFile, "RECREATE", "", 209)
-
-    def write_hist(dataset_type, key, hist):
-        """Write one summed histogram as <process>[_<variation>] into its directory."""
-        key_dir, (uncName, uncScale) = key
-        hist_name = dataset_type
-        if uncName != "Central":
-            hist_name += "_" + TheoryUncertainties.format_name(
-                all_unc_dict[uncName], uncScale, dataset_type
-            )
-        dir_ptr = Utilities.mkdir(outFile, "/".join(key_dir))
-        hist.SetTitle(hist_name)
-        hist.SetName(hist_name)
-        dir_ptr.WriteTObject(hist, hist_name, "Overwrite")
-
-    # The datasets of a process are read one after the other. Once its last dataset is summed,
-    # its theory-uncertainty members are final (nothing below uses them): they are written and
-    # freed, so that only one process holds its members at a time (~0.4 GB per process for a
-    # 2D DNN_m*_vs_HME, 15 processes per variable).
-    inputs = list(zip(args.dataset_names.split(","), args.inFiles))
-    process_order = list(dict.fromkeys(process_of(name) for name, _ in inputs))
-    inputs.sort(key=lambda item: process_order.index(process_of(item[0])))
-    last_input_of = {process_of(name): i for i, (name, _) in enumerate(inputs)}
-
-    def write_members(process):
-        hists = all_hists_dict.get(process, {})
-        for key in [k for k in hists if k[1][0] in member_uncs]:
-            write_hist(process, key, hists.pop(key))
-
-    def to_write(dataset_type, key):
-        """Whether the final output gets this summed histogram (the selection of the last loop)."""
-        _, (uncName, uncScale) = key
-        if uncName not in unc_sources:
-            return False
-        if uncName != "Central":
-            return dataset_type != "data" and uncScale != "Central"
-        return uncScale == "Central"
-
-    # The data-driven QCD estimate of hh_bbtautau needs every process at once after the loop. Without
-    # it nothing reads a process again once its last input is summed, so the process is written and
-    # freed there: the memory then holds one process, not all of them (a variable without
-    # signal_params is filled for every signal sample, ~250 processes).
-    keep_all_processes = analysis_import == "Analysis.hh_bbtautau" and estimateQCD
-
-    def write_process(process):
-        if process == data_process_name:
-            # as before: the nominal data histogram is aliased under every variation name (to_write
-            # skips the aliases of the process "data", as the final write loop did)
-            alias_data_variations(all_hists_dict, data_process_name, unc_sources)
-        hists = all_hists_dict.get(process, {})
-        for key in list(hists):
-            hist = hists.pop(key)
-            if to_write(process, key):
-                write_hist(process, key, hist)
-
-    for i, (dataset_name, inFile_path) in enumerate(inputs):
-        dataset_type = process_of(dataset_name)
-        if not os.path.exists(inFile_path):
-            print(
-                f"input file for dataset {dataset_name} (with path= {inFile_path}) does not exist, skipping"
-            )
-            if last_input_of[dataset_type] == i:
-                if keep_all_processes:
-                    write_members(dataset_type)
-                else:
-                    write_process(dataset_type)
-            continue
-
-        print(dataset_type)
-        if dataset_type not in all_hists_dict.keys():
-            all_hists_dict[dataset_type] = {}
-
-        with ROOT.TFile.Open(inFile_path, "READ") as inFile:
-            # check that the file is ok
-            if inFile.IsZombie():
-                raise RuntimeError(f"{inFile_path} is zombie")
-            if not checkFile(inFile, channels, regions, all_categories):
-                raise RuntimeError(f"{dataset_name} has void file")
-            all_items = get_all_items_recursive(inFile)
-            fill_hists(
-                all_items,
-                all_hists_dict,
-                dataset_type,
-                args.var,
-                unc_sources,
-                data_process_name,
-            )
-            has_trees = bool(inFile.GetDirectory(SIGNAL_TREES_DIR))
-            chunk_has_trees.setdefault(dataset_type, []).append(
-                (dataset_name, inFile_path, has_trees)
-            )
-        del all_items
-        if last_input_of[dataset_type] == i:
-            if keep_all_processes:
-                write_members(dataset_type)
-            else:
-                write_process(dataset_type)
-    signal_tree_files = signal_tree_inputs(chunk_has_trees)
-    if keep_all_processes:
-        alias_data_variations(all_hists_dict, data_process_name, unc_sources)
-
-    # here there should be the custom applications - e.g. GetBTagWeightDict, AddQCDInHistDict, etc.
-    # analysis.ApplyMergeCustomisations() # --> here go the QCD and bTag functions
-    """
-    if global_cfg_dict["ApplyBweight"] == True:
-        all_hists_dict_1D = GetBTagWeightDict(
-            args.var, all_hists_dict, categories, boosted_categories, boosted_variables
-        )
+    ctx = MergeContext(args)
+    if args.stream:
+        if args.inFiles or args.dataset_names:
+            parser.error("--stream takes its inputs from stdin")
+        stream(ctx, args.outFile, sys.stdin)
     else:
-        all_hists_dict_1D = all_hists_dict
-    """
-    if len(data_processes) > 0:
-        data_processes = data_processes[0]
-    if not data_processes:
-        data_processes = None
-    if (
-        analysis_import == "Analysis.hh_bbtautau"
-        and estimateQCD
-        and data_processes != None
-        and data_processes in all_hists_dict.keys()
-    ):
-        from Analysis.QCD_estimation import AddQCDInHistDict
-
-        fixNegativeContributions = False
-        # Snapshot the sample list before the loop: AddQCDInHistDict adds a "QCD" entry
-        # to all_hists_dict, which must not appear in all_samples_list for later sources.
-        dataset_types = list(all_hists_dict.keys())
-        for unc_source in unc_sources:
-            # the members of a theory uncertainty are already written: no QCD variation
-            if unc_source in member_uncs:
-                continue
-            error_on_qcdnorm, error_on_qcdnorm_varied = AddQCDInHistDict(
-                args.var,
-                all_hists_dict,
-                channels,
-                all_categories,
-                unc_source,
-                dataset_types,
-                scales,
-                data_process_name=data_processes,
-                wantNegativeContributions=False,
+        dataset_names = args.dataset_names.split(",") if args.dataset_names else []
+        if not args.inFiles or len(dataset_names) != len(args.inFiles):
+            parser.error(
+                f"{len(args.inFiles)} input files for {len(dataset_names)} datasets"
             )
+        inputs = list(zip(dataset_names, args.inFiles))
+        process_order = list(
+            dict.fromkeys(ctx.process_of(name) for name in dataset_names)
+        )
+        if os.path.exists(args.outFile):
+            os.remove(args.outFile)
+        out_file = open_merged(args.outFile)
+        for process in process_order:
+            merge_process(
+                ctx,
+                process,
+                [item for item in inputs if ctx.process_of(item[0]) == process],
+                out_file,
+            )
+        postprocess(ctx, process_order, out_file)
+        out_file.Close()
 
-    for dataset_type in all_hists_dict.keys():
-        for key in all_hists_dict[dataset_type].keys():
-            key_dir, (uncName, uncScale) = key
-            # here there can be some custom requirements - e.g. regions / categories to not merge, datasets to ignore
-            if uncName not in unc_sources:
-                continue
-            if uncName != "Central":
-                if dataset_type == "data":
-                    continue
-                if uncScale == "Central":
-                    continue
-            elif uncScale != "Central":
-                continue
-            write_hist(dataset_type, key, all_hists_dict[dataset_type][key])
-
-    # The signal trees of the chunks, concatenated per process, one variation at a time;
-    # a shape variation takes the name its histograms have.
-    tree_variations = {"Central": "Central"}
-    for uncName in unc_sources:
-        if uncName in unc_cfg_dict["shape"].keys():
-            for uncScale in scales:
-                tree_variations[f"{uncName}_{uncScale}"] = all_unc_dict[uncName][
-                    "name"
-                ].format(uncScale)
-    for dataset_type, paths in signal_tree_files.items():
-        out_dir = Utilities.mkdir(outFile, f"{SIGNAL_TREES_DIR}/{dataset_type}")
-        in_files = [ROOT.TFile.Open(path, "READ") for path in paths]
-        for tree_name, variation in tree_variations.items():
-            trees = [
-                in_file.Get(f"{SIGNAL_TREES_DIR}/{tree_name}") for in_file in in_files
-            ]
-            if not all(trees):
-                raise RuntimeError(
-                    f"{SIGNAL_TREES_DIR}/{tree_name} missing in a file of {dataset_type}"
-                )
-            concat_trees(out_dir, variation, trees)
-        for in_file in in_files:
-            in_file.Close()
-    outFile.Close()
     executionTime = time.time() - startTime
-
     print("Execution time in seconds: " + str(executionTime))

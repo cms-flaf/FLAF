@@ -374,6 +374,8 @@ load_flaf_env() {
         install_inference "$env_file" $node_os $cmb_os $FLAF_COMBINE_VERSION || flaf_env_refused=1
         export PYTHONPATH="$HH_INFERENCE_PATH:$PYTHONPATH"
         source $HH_INFERENCE_PATH/.setups/flaf.sh
+        # dhi's remote tasks (htcondor jobs) read DHI_BASE, which only its own setup.sh sets
+        export DHI_BASE="$HH_INFERENCE_PATH"
       fi
     fi
   fi

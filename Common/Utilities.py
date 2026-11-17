@@ -258,7 +258,22 @@ def CreateDataFrame(
         tree.AddFriend(cacheTree, cacheName)
         cacheTrees[cacheName] = cacheTree
     if centralTree is not None:
-        tree.AddFriend(centralTree, central)
+        # Friend a clean instance of the central tree, read through its own TFile handle. The
+        # centralTree object passed in carries the central caches as friends under their plain
+        # names, and ROOT resolves "<cache>.<column>" through the friends of a friend before the
+        # shifted tree's own "<cache>" friend: friending that object would make every cache column
+        # of a shifted tree read the central cache (cms-flaf/FLAF#402). The central cache columns
+        # stay reachable as "<cache>__<central>.<column>" below.
+        central_file_name = centralTree.GetCurrentFile().GetName()
+        clean_key = f"__clean_central__:{central_file_name}"
+        if clean_key not in files:
+            files[clean_key] = ROOT.TFile.Open(central_file_name)
+        clean_central = files[clean_key].Get(centralTree.GetName())
+        if clean_central is None or not clean_central:
+            raise RuntimeError(
+                f"ERROR: central tree {centralTree.GetName()} not found in file {central_file_name}"
+            )
+        tree.AddFriend(clean_central, central)
     if centralCaches is not None:
         for cacheName, cacheTree in centralCaches.items():
             tree.AddFriend(cacheTree, f"{cacheName}__{central}")

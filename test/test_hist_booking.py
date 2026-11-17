@@ -21,11 +21,18 @@ VARS = ["x", "y"]
 
 
 class PluginTestBase(unittest.TestCase):
-    def install(self, regions=lambda setup: ["SR"], booking=None):
+    def install(
+        self,
+        regions=lambda setup: ["SR"],
+        booking=None,
+        required_columns=lambda setup: {},
+    ):
         module = types.ModuleType(PLUGIN)
         module.regions = regions
         if booking is not None:
             module.booking = booking
+        if required_columns is not None:
+            module.required_columns = required_columns
         sys.modules[PLUGIN] = module
         self.addCleanup(sys.modules.pop, PLUGIN, None)
         return module
@@ -46,6 +53,12 @@ class Loading(PluginTestBase):
     def test_a_plugin_without_booking(self):
         self.install()
         with self.assertRaisesRegex(HB.HistBookingError, "no booking"):
+            HB.load_plugin({"hist_booking_module": PLUGIN})
+
+    def test_a_plugin_without_required_columns(self):
+        # the columns its cuts read must be declared: without them the histTuples could lack them
+        self.install(booking=lambda **kw: [], required_columns=None)
+        with self.assertRaisesRegex(HB.HistBookingError, "no required_columns"):
             HB.load_plugin({"hist_booking_module": PLUGIN})
 
 
@@ -145,6 +158,77 @@ class Blocks(PluginTestBase):
         module = self.install(booking=booking)
         HB.plugin_blocks(module, "the setup", KEYS, VARS)
         self.assertEqual(seen, {"setup": "the setup", "keys": KEYS, "variables": VARS})
+
+
+class RequiredColumns(PluginTestBase):
+    """required_columns(setup): the columns the plugin's cuts read, stored in the histTuples (and their
+    cache producers required) but not histogrammed."""
+
+    def setup_with(self):
+        return types.SimpleNamespace(
+            histTuple_plot_vars=["x", {"name": "x_vs_y", "vars": ["x", "y"]}],
+            histTuple_fullres_vars=["f"],
+            histTuple_vars=["x", "x_vs_y"],
+        )
+
+    def add(self, columns):
+        module = self.install(
+            booking=lambda **kw: [], required_columns=lambda setup: columns
+        )
+        setup = self.setup_with()
+        HB.add_required_columns(module, setup)
+        return setup
+
+    def test_no_plugin_or_no_columns_change_nothing(self):
+        no_plugin = self.setup_with()
+        HB.add_required_columns(None, no_plugin)
+        for name, setup in (("no columns", self.add({})), ("no plugin", no_plugin)):
+            with self.subTest(name):
+                self.assertEqual(setup.histTuple_vars, ["x", "x_vs_y"])
+                self.assertEqual(HB.histtuple_binned_vars(setup), ["x", "y"])
+                self.assertEqual(HB.histtuple_fullres_vars(setup), ["f"])
+
+    def test_extra_binned_and_fullres_columns(self):
+        setup = self.add({"binned": ["h", "x"], "fullResolution": ["g", "f"]})
+        # histTuple_vars decides the AnalysisCache producers the HistTuple task requires
+        self.assertEqual(setup.histTuple_vars, ["x", "x_vs_y", "h", "g", "f"])
+        self.assertEqual(HB.histtuple_binned_vars(setup), ["x", "y", "h"])
+        self.assertEqual(HB.histtuple_fullres_vars(setup), ["f", "g"])
+        # what is histogrammed is untouched
+        self.assertEqual(
+            setup.histTuple_plot_vars, ["x", {"name": "x_vs_y", "vars": ["x", "y"]}]
+        )
+
+    def test_one_kind_only(self):
+        setup = self.add({"binned": ["h"]})
+        self.assertEqual(HB.histtuple_binned_vars(setup), ["x", "y", "h"])
+        self.assertEqual(HB.histtuple_fullres_vars(setup), ["f"])
+        self.assertEqual(self.add({}).histTuple_vars, ["x", "x_vs_y"])
+
+    def test_the_plugin_gets_the_setup(self):
+        seen = []
+        module = self.install(
+            booking=lambda **kw: [],
+            required_columns=lambda setup: seen.append(setup) or {},
+        )
+        setup = self.setup_with()
+        HB.add_required_columns(module, setup)
+        self.assertEqual(seen, [setup])
+
+    def test_malformed(self):
+        for columns in (
+            None,
+            ["h"],
+            {"bin": ["h"]},
+            {"binned": "h"},
+            {"binned": [1]},
+            {"fullResolution": [""]},
+        ):
+            with self.subTest(columns=columns):
+                with self.assertRaisesRegex(
+                    HB.HistBookingError, f"{PLUGIN}.required_columns"
+                ):
+                    self.add(columns)
 
 
 if __name__ == "__main__":

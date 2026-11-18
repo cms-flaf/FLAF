@@ -21,6 +21,7 @@ from unittest import mock
 import test_era_requires as base  # noqa: E402
 
 import FLAF.Common.Setup as flaf_setup  # noqa: E402
+import FLAF.RunKit.law_gfal as law_gfal  # noqa: E402
 
 analysis = base.analysis
 ERA = base.ERA_A
@@ -133,8 +134,11 @@ class StorageKeys(base._Scratch):
 
     def test_remote_stores(self):
         hists = [f"{REMOTE}/hists", "root://other.example//store/user/flaf/hists"]
-        # no path-cache server: the filesystems are built and never listed
-        with mock.patch.object(flaf_setup, "local_path_cache_server", lambda: None):
+        # no path-cache server and no grid proxy (a CI runner has neither): the filesystems
+        # are built and never listed
+        with mock.patch.object(
+            flaf_setup, "local_path_cache_server", lambda: None
+        ), mock.patch.object(law_gfal, "get_voms_proxy_info", lambda: {"path": None}):
             self.configure(HistTuple=f"{REMOTE}/tuples", Hists=hists)
             task = self.task(analysis.HistMergerTask)
             self.assertEqual(task.fs_HistTuple.base, [f"{REMOTE}/tuples"])

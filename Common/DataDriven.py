@@ -17,7 +17,8 @@ after every process is merged, on the merged file of one variable of one era, wh
 merged and the merge is not restricted to a subset of the processes or datasets. The estimator
 returns ``{((channel, region, category), (unc, scale)): hist}``: for the variations of the
 current source, and, at the nominal pass, Up/Down of its own nuisances, named by their template:
-``{}`` is Up/Down, and ``{channel}``, ``{region}``, ``{category}`` and ``{era}`` are the fields of
+``{}`` is Up/Down and comes last (the era sum and the plots recognise a variation by its name's
+ending), and ``{channel}``, ``{region}``, ``{category}`` and ``{era}`` are the fields of
 the histogram (to decorrelate a nuisance, e.g. a statistical one per channel and category). They
 are written as that process, so the era sum, the plots and the datacards treat it as any other
 background. This module does not import ROOT: Setup validates the declarations.
@@ -57,26 +58,32 @@ def validate_data_driven(process_name, process, process_type):
         )
     nuisances = cfg.get("nuisances", {})
     if not isinstance(nuisances, dict) or not all(
-        isinstance(k, str) and _template_ok(v) for k, v in nuisances.items()
+        isinstance(k, str) and k != "Central" and _template_ok(v)
+        for k, v in nuisances.items()
     ):
         raise RuntimeError(
-            f"{where}: 'nuisances' must map a source to a histogram-name template with one "
-            f"'{{}}' (Up/Down) and optionally the fields {list(TEMPLATE_FIELDS)}, got "
-            f"{nuisances!r}"
+            f"{where}: 'nuisances' must map a source (not 'Central') to a histogram-name "
+            f"template ending with '{{}}' (Up/Down), optionally with the fields "
+            f"{list(TEMPLATE_FIELDS)}, got {nuisances!r}"
         )
     return cfg
 
 
 def _template_ok(template):
+    """One bare '{}', at the end, and otherwise only the bare fields of TEMPLATE_FIELDS."""
     if not isinstance(template, str):
         return False
     try:
-        fields = [
-            f for _, f, _, _ in string.Formatter().parse(template) if f is not None
-        ]
+        segments = list(string.Formatter().parse(template))
     except ValueError:
         return False
-    return fields.count("") == 1 and all(f in ("",) + TEMPLATE_FIELDS for f in fields)
+    fields = [(f, spec, conv) for _, f, spec, conv in segments if f is not None]
+    if not segments or segments[-1][1] != "" or segments[-1][2:] != ("", None):
+        return False
+    return [f for f, _, _ in fields].count("") == 1 and all(
+        f in ("",) + TEMPLATE_FIELDS and spec == "" and conv is None
+        for f, spec, conv in fields
+    )
 
 
 def load_estimator(path):

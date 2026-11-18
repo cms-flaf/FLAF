@@ -127,13 +127,17 @@ model's merged simulated backgrounds and signals, the merged (channel, region, c
 directories and a reader of the merged histograms (`get`/`require`, each a copy). The estimator
 returns `{((channel, region, category), (unc, scale)): hist}` for the variations of that source,
 and at the nominal pass also Up/Down of its declared `nuisances`, written as
-`<process>_<template>`: `{}` is Up/Down, and `{channel}`, `{region}`, `{category}` and `{era}` are
-the histogram's own fields, to decorrelate a nuisance (e.g. `Fakes_CMS_bbww_fakes_stat_e_boosted_Up`). The histograms are written as that
+`<process>_<template>`: `{}` is Up/Down and must come last (the era sum and the plots recognise a
+variation by its name's ending), and `{channel}`, `{region}`, `{category}` and `{era}` are the
+histogram's own fields, to decorrelate a nuisance (e.g. `Fakes_CMS_bbww_fakes_stat_e_boosted_Up`).
+They are written only when the merge has uncertainty sources besides `Central`. The histograms are written as that
 process, so the meta-era sum, the plots and the datacards treat it as any other background; the
 plots draw it where it was estimated. There is no estimate when data was not merged, nor when the
 merge is restricted to some processes or datasets (`--process`, `--dataset`): it would subtract
-only part of the simulation. A data-driven process must be a background, without `datasets` or
-`sub_processes`, with a `color`; `Common/DataDriven.py` checks the declaration.
+only part of the simulation. A data-driven process must be a background listed in the model itself
+(not as a `sub_process` of a group), without `datasets` or `sub_processes`, with a `color`;
+`Common/DataDriven.py` and `Setup` check the declaration, and the merge imports the estimators
+before it starts.
 
 ### `TestModel` vs the production model
 

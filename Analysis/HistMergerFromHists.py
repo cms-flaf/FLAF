@@ -229,6 +229,13 @@ class MergeContext:
         self.data_driven = (
             {} if args.no_data_driven else dict(setup.data_driven_processes)
         )
+        # imported now: a wrong estimator fails before the merge, not after it
+        self.estimators = {
+            process: load_estimator(cfg["estimator"])
+            for process, cfg in self.data_driven.items()
+        }
+        # the estimators' own nuisances, as the uncertainty sources: only with variations
+        self.write_nuisances = any(s != "Central" for s in self.unc_sources)
         self.model_backgrounds = setup.phys_model.processes(process_type="backgrounds")
         self.model_signals = setup.phys_model.processes(process_type="signals")
         weights_sources = set(unc_cfg_dict["norm"]) | set(unc_cfg_dict["shape"])
@@ -595,7 +602,7 @@ def _run_estimators(ctx, processes, out_file, key_dirs):
                 signals=signals,
                 reader=reader,
             )
-            result = load_estimator(cfg["estimator"])(est)
+            result = ctx.estimators[process](est)
             nuisances = est.nuisances
             for (key_dir, (unc, scale)), hist in result.items():
                 key = (tuple(key_dir), (unc, scale))
@@ -603,6 +610,8 @@ def _run_estimators(ctx, processes, out_file, key_dirs):
                     if ctx.to_write(process, key):
                         ctx.write_hist(out_file, process, key, hist)
                 elif unc in nuisances and est.nominal_pass and scale in ctx.scales:
+                    if not ctx.write_nuisances:
+                        continue
                     name = nuisance_hist_name(
                         process, nuisances[unc], scale, key[0], ctx.setup.era
                     )

@@ -735,6 +735,11 @@ class Setup:
         for process_name in self.phys_model.processes():
             for b_process_name in self.phys_model.base_processes(process_name):
                 b_process = processes[b_process_name]
+                if b_process_name != process_name and "data_driven" in b_process:
+                    raise RuntimeError(
+                        f"process '{b_process_name}': a data-driven process is listed in the "
+                        f"physics model itself, not as a sub_process of '{process_name}'"
+                    )
                 b_process["parent_process"] = process_name
                 self.base_processes[b_process_name] = b_process
                 self.parent_processes[process_name] = processes[process_name]

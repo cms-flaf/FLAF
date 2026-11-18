@@ -39,12 +39,10 @@ for key in keyList:
             bin_number = hist.GetBin(x_bin_number, y_bin_number)
             bin_content = hist.GetBinContent(bin_number)
             if bin_content == 0:
-                print(
-                    f""" key = {key},
+                print(f""" key = {key},
                     bin_number = {bin_number}, bin_content = {bin_content},
                     bin_center_X = {hist.GetXaxis().GetBinCenter(x_bin_number)},
-                    bin_center_y = {hist.GetYaxis().GetBinCenter(y_bin_number)}"""
-                )
+                    bin_center_y = {hist.GetYaxis().GetBinCenter(y_bin_number)}""")
 prefix = "jet_pt_eta"
 jet_flavors = [0, 4, 5]
 wps = ["Loose", "Medium", "Tight"]
@@ -65,8 +63,7 @@ for jet_fl in jet_flavors:
                 eff = num / den
                 rel_cl_size = (c_up - c_low) / (2 * eff)
                 if rel_cl_size > 0.01:
-                    print(
-                        f""" key_num = {key_num},
+                    print(f""" key_num = {key_num},
                           key_den={key_den},
                           bin_number = {bin_number},
                           bin_content_num = {hist_num.GetBinContent(bin_number)},
@@ -76,5 +73,4 @@ for jet_fl in jet_flavors:
                           c_low = {c_low},
                           c_up = {c_up},
                           eff = {eff}
-                          rel_cl_size={rel_cl_size}"""
-                    )
+                          rel_cl_size={rel_cl_size}""")

@@ -289,6 +289,11 @@ class TestMergeInSteps(unittest.TestCase):
         ctx = context()
         ctx.estimateQCD = False
         ctx.data_driven = {"Fakes": FAKES}
+        # the estimator of the stand-in module run_estimate installs
+        ctx.estimators = {
+            "Fakes": lambda est: sys.modules["Analysis.test_fakes"].estimate(est)
+        }
+        ctx.write_nuisances = True
         return ctx
 
     def test_data_driven_estimate_per_source(self):
@@ -324,6 +329,15 @@ class TestMergeInSteps(unittest.TestCase):
             )
             # only where the estimator writes
             self.assertNotIn(f"{ch}/CR/res2b/Fakes", merged)
+
+    def test_no_nuisances_without_variations(self):
+        ctx = self.data_driven_context()
+        ctx.write_nuisances = False  # a merge of Central only
+        self.merge(ctx)
+        self.run_estimate(ctx, fakes_module([]))
+        merged = read(self.out)
+        self.assertIn("eE/SR/res2b/Fakes", merged)
+        self.assertFalse([k for k in merged if "FakesStat" in k])
 
     def test_no_estimate_without_data(self):
         ctx = self.data_driven_context()

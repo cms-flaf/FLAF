@@ -73,8 +73,9 @@ parallel. What a branch *is* depends on the task:
   merges **one process at a time**: it downloads that process's split histograms, sums them into
   the merged file and deletes them (the next process downloads meanwhile), so its memory and local
   disk hold one process however many there are. The steps that need every process — the
-  data-driven QCD estimate of HH→bb̄ττ — run once all are merged, on the merged file, one
-  uncertainty source at a time.
+  data-driven QCD estimate of HH→bb̄ττ and the estimators of the
+  [data-driven processes](../configuration/processes-and-models.md#data-driven-processes) of the
+  physics model — run once all are merged, on the merged file, one uncertainty source at a time.
 
 Two arguments control workflows:
 

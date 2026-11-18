@@ -12,6 +12,7 @@ from FLAF.RunKit.pathCacheClient import ServerUnavailable, checked_server_addres
 from FLAF.RunKit.run_tools import on_batch_node
 from FLAF.Common.Utilities import create_processor_instances
 from FLAF.Common import HistBooking
+from FLAF.Common.DataDriven import validate_data_driven
 
 
 def resolve_user_custom_path(user_custom):
@@ -719,6 +720,16 @@ class Setup:
                 f"keep {pattern}" for pattern in expanded_selection
             ]
             self.phys_model.select_processes(filters)
+        # processes estimated from the merged histograms of the others (Common/DataDriven.py)
+        self.data_driven_processes = {
+            process_name: validate_data_driven(
+                process_name,
+                processes[process_name],
+                self.phys_model.process_type(process_name),
+            )
+            for process_name in self.phys_model.processes()
+            if "data_driven" in processes[process_name]
+        }
         self.base_processes = {}
         self.parent_processes = {}
         for process_name in self.phys_model.processes():

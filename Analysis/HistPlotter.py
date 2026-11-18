@@ -310,6 +310,17 @@ if __name__ == "__main__":
                 "plot_color": "kGray+2",
             }
 
+        # the data-driven processes of the physics model (Common/DataDriven.py): no datasets,
+        # their histograms are estimated in the merge
+        for process_name in setup.data_driven_processes:
+            process = setup.parent_processes[process_name]
+            all_datasets_dict[process_name] = {
+                "process_name": process_name,
+                "process_group": "backgrounds",
+                "plot_name": process.get("name", process_name),
+                "plot_color": process["color"],
+            }
+
         for era_setup, dataset_name in (
             (era_setup, dataset_name)
             for era_setup in setups.values()
@@ -432,6 +443,9 @@ if __name__ == "__main__":
             # name, and an entry left with nothing is not drawn (drop_empty_entries).
             where = f"{args.inFile}:{channel}/{custom_region}/{category}"
             if dataset_histname not in dir_1.GetListOfKeys():
+                # a data-driven process is estimated in some regions only
+                if dataset_process_name in setup.data_driven_processes:
+                    continue
                 process = (
                     ""
                     if dataset_histname == dataset_process_name

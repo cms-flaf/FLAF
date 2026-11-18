@@ -1119,6 +1119,13 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
             ]
             if self.user_custom:
                 cmd.extend(["--user-custom", self.user_custom])
+            if self.customisations:
+                cmd.extend(["--customisations", self.customisations])
+            if self.model:
+                cmd.extend(["--model", self.model])
+            if len(self.process) > 0 or len(self.dataset) > 0:
+                # a subset of the simulation: a data-driven estimate would subtract part of it
+                cmd.append("--no-data-driven")
             print(f"HistMergerTask: {' '.join(cmd)}")
             stream_merge(
                 cmd, list(inputs_by_process.items()), localize_process, datasets

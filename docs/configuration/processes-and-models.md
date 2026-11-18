@@ -103,6 +103,38 @@ and every listed process must be defined in the era's processes configuration. W
 by `phys_model` — the analysis's `config/global.yaml` sets the production model, your
 [`user_custom.yaml`](user-custom.md) usually overrides it, and `--model` overrides both.
 
+### Data-driven processes
+
+A background estimated from the other processes' histograms (data minus simulation in control
+regions, transfer factors, ...) is a process without datasets, with a `data_driven:` block naming
+the analysis function that computes it, listed among the model's `backgrounds` like any other:
+
+```yaml
+Fakes:
+  name: Fakes
+  color: kGray+1
+  data_driven:
+    estimator: Analysis.SL_fakes.estimate   # <module>.<function>, imported from the analysis
+    nuisances:                              # optional: the estimator's own uncertainty sources
+      FakesStat: CMS_bbww_fakes_stat_{channel}_{category}_{}   # source: histogram-name template
+    tt_process: TT                          # any other key: a parameter of the estimator
+```
+
+`HistMergerTask` computes it at the end of the merge of each variable and era, once every process
+is merged, on the merged file, one uncertainty source at a time: it calls the estimator with a
+context giving the variable, the era, the current source's variations, the data process, the
+model's merged simulated backgrounds and signals, the merged (channel, region, category)
+directories and a reader of the merged histograms (`get`/`require`, each a copy). The estimator
+returns `{((channel, region, category), (unc, scale)): hist}` for the variations of that source,
+and at the nominal pass also Up/Down of its declared `nuisances`, written as
+`<process>_<template>`: `{}` is Up/Down, and `{channel}`, `{region}`, `{category}` and `{era}` are
+the histogram's own fields, to decorrelate a nuisance (e.g. `Fakes_CMS_bbww_fakes_stat_e_boosted_Up`). The histograms are written as that
+process, so the meta-era sum, the plots and the datacards treat it as any other background; the
+plots draw it where it was estimated. There is no estimate when data was not merged, nor when the
+merge is restricted to some processes or datasets (`--process`, `--dataset`): it would subtract
+only part of the simulation. A data-driven process must be a background, without `datasets` or
+`sub_processes`, with a `color`; `Common/DataDriven.py` checks the declaration.
+
 ### `TestModel` vs the production model
 
 - **`TestModel`** — a deliberately small set of processes, so the whole pipeline runs fast

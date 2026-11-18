@@ -227,7 +227,7 @@ eras of a group must be known eras and its name must not be one, or a `--era` na
 the reason. A meta-era has no configuration of its own: its tasks read the configuration of its
 eras, and a setting they read once (the location each filesystem resolves to through its
 fallbacks, the plot settings of `HistPlotTask`, the `scales`) must be the same in all of them, or
-construction stops with `EraDependentValueError`
+the task stops with `EraDependentValueError` when it reads the setting
 as in [Settings that must agree](#settings-that-must-agree-between-the-eras). Its paths, job file
 and logs are under the meta-era's name, so they never collide with those of its eras.
 

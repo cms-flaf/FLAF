@@ -7,17 +7,20 @@ filesystem** — a `fs_*` key, normally set in [`user_custom.yaml`](../configura
 ## Named filesystems (`fs_*`)
 
 Each output type has a filesystem name. You only have to set `fs_default`; the others fall back to
-it when unset, so a one-line configuration is enough to get going.
+it when unset (`fs_Hists` first to `fs_HistTuple`), so a one-line configuration is enough to get
+going.
 
 | Key | Used for |
 |---|---|
 | `fs_default` | The fallback for every key below. **The one key you must set** — a task fails with *No default file system defined* without it. It also directly holds the code bundles, the staged job logs and the bundle jobs' worker files. |
 | `fs_anaTuple` | Everything of the AnaTuple production: the per-input-file anaTuples and their reports, the merge plans and reports of `AnaTupleFileListBuilderTask`, the cost probes of `AnaTupleCostProbeTask`, and the merged anaTuples. |
-| `fs_HistTuple` | histTuples (ntuples with analysis observables), the per-chunk and the merged **histograms**, and the `PreHistTupleProductionTask` markers. |
+| `fs_HistTuple` | histTuples (ntuples with analysis observables) and the `PreHistTupleProductionTask` markers. |
+| `fs_Hists` | The per-chunk and the merged **histograms** (`HistFromNtupleProducerTask`, `HistMergerTask`, and the `.merged` markers of `remove_merged_inputs`). Unset ⇒ `fs_HistTuple`'s location (then `fs_default`'s), so the histograms stay beside the histTuples unless this key is set. |
+| `fs_StatInference` | The statistical-inference products of the `StatInference` law chain: datacards, preprocessed shapes, fit results and their plots (limits, pulls and impacts). Unset ⇒ `fs_default`. One location for all the eras of a run, like `fs_default`. |
 | `fs_anaCacheTuple` | The analysis caches (`AnalysisCacheTask`) and their aggregations (`AnalysisCacheAggregationTask`). |
 | `fs_plots` | Plot outputs (`HistPlotTask`). |
 | `fs_nanoAOD` | An **input** location: where NanoAOD is read from for datasets that are not taken from Rucio — see [Where the inputs come from](#where-the-inputs-come-from). |
-| `fs_histograms`, `fs_anaCache`, `fs_nnCacheTuple` | Resolved like the others, but no FLAF task writes to them. `fs_histograms` is used by some analysis studies (e.g. the HH→bb̄WW DNN tasks). |
+| `fs_histograms`, `fs_anaCache`, `fs_nnCacheTuple` | Resolved like the others, but no FLAF task writes to them. `fs_histograms` is used by some analysis studies (e.g. the HH→bb̄WW DNN tasks); it is not where FLAF's histograms go (that is `fs_Hists`). |
 
 Official datasets are not reached through a `fs_*` key: FLAF resolves them with a built-in
 Rucio filesystem, and there is no `fs_rucio` setting.
@@ -25,13 +28,17 @@ Rucio filesystem, and there is no `fs_rucio` setting.
 ```mermaid
 flowchart TD
     AP["AnaTuples_split, AnaTupleFileList,<br/>AnaTupleCost, AnaTuples"] --> FA["fs_anaTuple"]
-    HT["HistTuples, Hists_split,<br/>Hists_merged, PreHistTupleProduction"] --> FH["fs_HistTuple"]
+    HT["HistTuples,<br/>PreHistTupleProduction"] --> FH["fs_HistTuple"]
+    HS["Hists_split,<br/>Hists_merged"] --> FHS["fs_Hists"]
     AC["AnalysisCache,<br/>AnalysisCacheAggregation"] --> FC["fs_anaCacheTuple"]
     PL["Plots"] --> FP["fs_plots"]
+    SI["Datacards, limits,<br/>pulls & impacts"] --> FS["fs_StatInference"]
     FA -.->|if unset| FD["fs_default<br/>(also: bundles, logs, worker_files)"]
+    FHS -.->|if unset| FH
     FH -.->|if unset| FD
     FC -.->|if unset| FD
     FP -.->|if unset| FD
+    FS -.->|if unset| FD
 ```
 
 !!! tip "Start with just `fs_default`"
@@ -51,8 +58,8 @@ by the era (paths below are relative to `<version>/`):
 | `AnaTupleCost/<nano version>/` | `AnaTupleCostProbeTask` (no era: probes are shared by the eras) | `fs_anaTuple` |
 | `AnaTuples/<era>/<dataset>/` | `AnaTupleMergeTask` | `fs_anaTuple` |
 | `HistTuples/<era>/<dataset>/` | `HistTupleProducerTask` | `fs_HistTuple` |
-| `Hists_split/<era>/<variable>/<dataset>/` | `HistFromNtupleProducerTask` | `fs_HistTuple` |
-| `Hists_merged/<era>/<variable>/` | `HistMergerTask` | `fs_HistTuple` |
+| `Hists_split/<era>/<variable>/<dataset>/` | `HistFromNtupleProducerTask` | `fs_Hists` |
+| `Hists_merged/<era>/<variable>/` | `HistMergerTask` | `fs_Hists` |
 | `PreHistTupleProduction/<era>/<dataset>/` | `PreHistTupleProductionTask` (one `.done` marker per anaTuple file) | `fs_HistTuple` |
 | `AnalysisCache/<producer>/<era>/`, `AnalysisCacheAggregation/<producer>/<era>/` | `AnalysisCacheTask`, `AnalysisCacheAggregationTask` | `fs_anaCacheTuple` |
 | `Plots/<era>/<variable>/…` | `HistPlotTask` | `fs_plots` |
@@ -62,10 +69,12 @@ by the era (paths below are relative to `<version>/`):
 
 A run over [several eras](eras.md#running-several-eras) writes the same paths: every product above
 that carries an era sits where a run over that era alone puts it, so no path holds the set of
-eras or a branch number. The output filesystems `fs_anaTuple`, `fs_HistTuple`, `fs_anaCacheTuple` and
-`fs_plots` may differ between the eras of such a run (for instance through
-`config/<era>/user_custom.yaml`); `fs_default` has to be the same
-([user_custom.yaml](../configuration/user-custom.md#several-eras-in-one-run)).
+eras or a branch number. The output filesystems `fs_anaTuple`, `fs_HistTuple`, `fs_Hists`,
+`fs_anaCacheTuple` and `fs_plots` may differ between the eras of such a run (for instance through
+`config/<era>/user_custom.yaml`); `fs_default` and `fs_StatInference` have to be the same
+([user_custom.yaml](../configuration/user-custom.md#several-eras-in-one-run)). A
+[meta-era](eras.md#meta-eras) is one era of its own: the location its sub-eras resolve a key to
+(through the fallbacks above) has to be the same in each of them.
 
 Bundle naming matters when something they pack changes: only flavours with `hashed: true` (in
 the analyses: `core`) get a new name, and an existing unhashed bundle (e.g. `soft`, `cmssw`) is

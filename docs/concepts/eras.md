@@ -275,14 +275,14 @@ A run over several eras reads some settings once, for all its eras. They must be
 era of the run, or constructing the task stops with `EraDependentValueError` naming the key and
 each era's value:
 
-- `fs_default`;
+- `fs_default` and `fs_StatInference` (the latter only where it is read, by the `StatInference` tasks);
 - `crab` (the whole block) and `runTokenServer`;
 - `anaTuple_scheduling` and `use_cmssw_env_AnaTupleProduction`;
 - of each entry of `payload_producers`: `n_cpus`, `max_runtime`, `crab_memory`, `save_as` and
   `cmssw_env`.
 
 Everything else may differ per era: the datasets and processes, the corrections, the bundles and
-the output filesystems `fs_anaTuple`, `fs_HistTuple`, `fs_anaCacheTuple` and `fs_plots` (for
+the output filesystems `fs_anaTuple`, `fs_HistTuple`, `fs_Hists`, `fs_anaCacheTuple` and `fs_plots` (for
 instance in `config/<era>/user_custom.yaml`, see
 [`user_custom.yaml`](../configuration/user-custom.md#several-eras-in-one-run)).
 

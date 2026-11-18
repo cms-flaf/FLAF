@@ -902,6 +902,21 @@ class Setup:
             verbose=verbose,
         )
 
+    # A filesystem that is not configured falls back to another one, and every chain ends at
+    # fs_default: the histograms are kept beside the histTuples unless fs_Hists says otherwise.
+    FS_FALLBACKS = {"Hists": "HistTuple"}
+
+    def fs_setting(self, fs_name):
+        """The configured value fs_<fs_name> resolves to: its own, else its fallback's (then
+        fs_default's); None if nothing is set."""
+        while True:
+            key = f"fs_{fs_name}"
+            if key in self.global_params:
+                return self.global_params[key]
+            if fs_name == "default":
+                return None
+            fs_name = self.FS_FALLBACKS.get(fs_name, "default")
+
     def get_fs(self, fs_name, custom_paths=None):
         fs_instance = None
 
@@ -934,7 +949,7 @@ class Setup:
                         f"No default file system defined in global_params or via custom_paths. "
                         f'Please define "fs_default" in your configuration or provide a custom_paths for "default".'
                     )
-                fs_instance = self.get_fs("default")
+                fs_instance = self.get_fs(self.FS_FALLBACKS.get(fs_name, "default"))
 
             # if nothing works, nothing works
             if fs_instance is None:

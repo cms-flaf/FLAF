@@ -48,6 +48,8 @@ default and fail with a `KeyError` when they are missing. For H→μμ also add
 |---|---|---|
 | `fs_default` | string or list | **Required.** Default storage for all outputs. The fallback for every other `fs_*`. See [Storage](../concepts/storage.md). The same in every era of a [run over several eras](#several-eras-in-one-run). |
 | `fs_anaTuple`, `fs_HistTuple`, `fs_anaCacheTuple`, `fs_plots`, … | string/list | Optional per-output-type storage. Unset ⇒ uses `fs_default`. |
+| `fs_Hists` | string/list | Optional: the per-chunk and merged histograms. Unset ⇒ uses `fs_HistTuple` (then `fs_default`). |
+| `fs_StatInference` | string/list | Optional: the products of the `StatInference` law chain (datacards, fit results and their plots). Unset ⇒ uses `fs_default`. The same in every era of a run over several eras. |
 | `phys_model` | string | Which [physics model](processes-and-models.md) to run: `TestModel` (small, for testing/CI) or the analysis's production model (e.g. `BaseModel`). |
 | `analysis_config_area` | string | **Required by `HistPlotTask`.** The analysis config directory, relative to the checkout — normally `config`; the plotter reads its `global.yaml` from there. |
 | `compute_unc_variations` | bool | Whether to compute systematic (up/down) variations during production. |
@@ -115,14 +117,14 @@ passed with `--user-custom` is read for every era. A few settings are used once 
 so they have to be the same in every era, or constructing the task stops with
 `EraDependentValueError` naming the key and each era's value:
 
-- `fs_default`;
+- `fs_default` and `fs_StatInference` (the latter only where it is read, by the `StatInference` tasks);
 - `crab` (the whole block) and `runTokenServer`;
 - `anaTuple_scheduling` and `use_cmssw_env_AnaTupleProduction`;
 - for each entry of `payload_producers`: `n_cpus`, `max_runtime`, `crab_memory`, `save_as` and
   `cmssw_env`.
 
 Everything else may differ per era: datasets, processes, corrections, bundles and the output
-filesystems `fs_anaTuple`, `fs_HistTuple`, `fs_anaCacheTuple` and `fs_plots`. To send one era's
+filesystems `fs_anaTuple`, `fs_HistTuple`, `fs_Hists`, `fs_anaCacheTuple` and `fs_plots`. To send one era's
 AnaTuples elsewhere, set that key in the era's file:
 
 ```yaml

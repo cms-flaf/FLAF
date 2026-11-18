@@ -69,37 +69,43 @@ class Declaration(unittest.TestCase):
             ("<module>.<function>", with_changes(estimator="estimate"), "backgrounds"),
             ("<module>.<function>", with_changes(estimator="a."), "backgrounds"),
             ("<module>.<function>", with_changes(estimator=3), "backgrounds"),
-            ("ending with '{}'", with_changes(nuisances={"S": "stat"}), "backgrounds"),
+            ("ending with '_{}'", with_changes(nuisances={"S": "stat"}), "backgrounds"),
             (
-                "ending with '{}'",
+                "ending with '_{}'",
                 with_changes(nuisances={"S": "s_{}_{}"}),
                 "backgrounds",
             ),
-            ("ending with '{}'", with_changes(nuisances=["S"]), "backgrounds"),
+            ("ending with '_{}'", with_changes(nuisances=["S"]), "backgrounds"),
+            ("ending with '_{}'", with_changes(nuisances={"S": "s{}"}), "backgrounds"),
+            ("ending with '_{}'", with_changes(nuisances={"S": "{}"}), "backgrounds"),
             (
-                "ending with '{}'",
+                "ending with '_{}'",
                 with_changes(nuisances={"S": "s_{mass}_{}"}),
                 "backgrounds",
             ),
-            ("ending with '{}'", with_changes(nuisances={"S": "s_{0}"}), "backgrounds"),
-            ("ending with '{}'", with_changes(nuisances={"S": "s_{"}), "backgrounds"),
             (
-                "ending with '{}'",
+                "ending with '_{}'",
+                with_changes(nuisances={"S": "s_{0}"}),
+                "backgrounds",
+            ),
+            ("ending with '_{}'", with_changes(nuisances={"S": "s_{"}), "backgrounds"),
+            (
+                "ending with '_{}'",
                 with_changes(nuisances={"S": "s_{}_{era}"}),
                 "backgrounds",
             ),
             (
-                "ending with '{}'",
+                "ending with '_{}'",
                 with_changes(nuisances={"S": "s_{}_x"}),
                 "backgrounds",
             ),
             (
-                "ending with '{}'",
+                "ending with '_{}'",
                 with_changes(nuisances={"S": "s_{:>3}"}),
                 "backgrounds",
             ),
             (
-                "ending with '{}'",
+                "ending with '_{}'",
                 with_changes(nuisances={"S": "s_{era!r}_{}"}),
                 "backgrounds",
             ),
@@ -193,11 +199,17 @@ class InSetup(unittest.TestCase):
         self.assertEqual(selected.data_driven_processes, {})
 
     def test_a_data_driven_sub_process_is_refused(self):
+        model = "M:\n  backgrounds: [ TT, Other ]\n"
         processes = SETUP_PROCESSES + "Other:\n  sub_processes: [ Fakes ]\n"
         with self.assertRaisesRegex(RuntimeError, "not as a sub_process of 'Other'"):
-            self.make_setup(
-                processes=processes, model="M:\n  backgrounds: [ TT, Other ]\n"
-            )
+            self.make_setup(processes=processes, model=model)
+        # a data-driven group deeper down
+        nested = SETUP_PROCESSES.replace("Fakes:", "Mid:").replace(
+            "  data_driven:", "  sub_processes: [ TT2 ]\n  data_driven:"
+        )
+        nested += "TT2:\n  datasets: [ TTto2L2Nu ]\nOther:\n  sub_processes: [ Mid ]\n"
+        with self.assertRaisesRegex(RuntimeError, "not as a sub_process of 'Other'"):
+            self.make_setup(processes=nested, model=model)
 
     def test_a_bad_declaration_stops_the_setup(self):
         with self.assertRaisesRegex(RuntimeError, "is a background"):

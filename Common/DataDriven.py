@@ -17,8 +17,8 @@ after every process is merged, on the merged file of one variable of one era, wh
 merged and the merge is not restricted to a subset of the processes or datasets. The estimator
 returns ``{((channel, region, category), (unc, scale)): hist}``: for the variations of the
 current source, and, at the nominal pass, Up/Down of its own nuisances, named by their template:
-``{}`` is Up/Down and comes last (the era sum and the plots recognise a variation by its name's
-ending), and ``{channel}``, ``{region}``, ``{category}`` and ``{era}`` are the fields of
+``_{}`` at its end is _Up/_Down (the era sum recognises a variation by its name's ending, the
+datacards address <process>_<source>_<Up/Down>), and ``{channel}``, ``{region}``, ``{category}`` and ``{era}`` are the fields of
 the histogram (to decorrelate a nuisance, e.g. a statistical one per channel and category). They
 are written as that process, so the era sum, the plots and the datacards treat it as any other
 background. This module does not import ROOT: Setup validates the declarations.
@@ -63,14 +63,15 @@ def validate_data_driven(process_name, process, process_type):
     ):
         raise RuntimeError(
             f"{where}: 'nuisances' must map a source (not 'Central') to a histogram-name "
-            f"template ending with '{{}}' (Up/Down), optionally with the fields "
+            f"template ending with '_{{}}' (Up/Down), optionally with the fields "
             f"{list(TEMPLATE_FIELDS)}, got {nuisances!r}"
         )
     return cfg
 
 
 def _template_ok(template):
-    """One bare '{}', at the end, and otherwise only the bare fields of TEMPLATE_FIELDS."""
+    """One bare '{}', at the end after an underscore, and otherwise only the bare fields of
+    TEMPLATE_FIELDS."""
     if not isinstance(template, str):
         return False
     try:
@@ -79,6 +80,8 @@ def _template_ok(template):
         return False
     fields = [(f, spec, conv) for _, f, spec, conv in segments if f is not None]
     if not segments or segments[-1][1] != "" or segments[-1][2:] != ("", None):
+        return False
+    if not segments[-1][0].endswith("_"):
         return False
     return [f for f, _, _ in fields].count("") == 1 and all(
         f in ("",) + TEMPLATE_FIELDS and spec == "" and conv is None

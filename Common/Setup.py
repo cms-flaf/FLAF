@@ -684,6 +684,11 @@ class Setup:
                     msg = f"Process '{p_name}' defined in physics model '{phys_model_name}' not found in processes configuration."
                 raise RuntimeError(msg)
             process = processes[p_name]
+            if parent_name is not None and "data_driven" in process:
+                raise RuntimeError(
+                    f"process '{p_name}': a data-driven process is listed in the physics "
+                    f"model itself, not as a sub_process of '{parent_name}'"
+                )
             if "sub_processes" in process:
                 if "datasets" in process:
                     raise RuntimeError(
@@ -735,11 +740,6 @@ class Setup:
         for process_name in self.phys_model.processes():
             for b_process_name in self.phys_model.base_processes(process_name):
                 b_process = processes[b_process_name]
-                if b_process_name != process_name and "data_driven" in b_process:
-                    raise RuntimeError(
-                        f"process '{b_process_name}': a data-driven process is listed in the "
-                        f"physics model itself, not as a sub_process of '{process_name}'"
-                    )
                 b_process["parent_process"] = process_name
                 self.base_processes[b_process_name] = b_process
                 self.parent_processes[process_name] = processes[process_name]

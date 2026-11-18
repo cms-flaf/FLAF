@@ -411,6 +411,10 @@ Each of these has caused a production incident. They are ordered by how much dam
   task's.
 - `EstimateContext.get` returns copies: an estimator never changes the merged histograms of other
   processes or of the next estimator.
+- A nuisance template ends with `_{}`: `SumEraFiles` recognises a variation by its name's ending
+  (a template with `{}` elsewhere was summed as a central histogram over a meta-era) and the
+  datacards address `<process>_<source>_<Up/Down>`. A data-driven process is listed in the physics
+  model itself, never as a `sub_process` of a group (Setup raises; it would be silently skipped).
 
 ### Concurrency
 

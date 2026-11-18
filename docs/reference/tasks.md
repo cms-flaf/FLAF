@@ -381,8 +381,8 @@ per variable, skipping variables configured with `plot_task: false`).
 
 - **Parameter:** `--variables` (string; restrict which variables).
 - **Data-driven processes** of the physics model are drawn as backgrounds, with the name and
-  colour of their processes.yaml entry, in the regions where they were estimated (a message says
-  where one is missing).
+  colour of their processes.yaml entry, in the regions where they were estimated (a message names
+  the first region where one is missing).
 - **`plot_wantSignals`** (`global.yaml` or `--customisations`, default `true`): `false` draws no
   signal on any plot. Signals are never drawn in the `plot_control_regions` (below).
 - **Meta-era** (`--era Run3_22_23`): plots the sum `HistMergerTask` makes over the meta-era, into

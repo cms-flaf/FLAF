@@ -332,7 +332,10 @@ class TestMergeInSteps(unittest.TestCase):
 
     def test_no_nuisances_without_variations(self):
         ctx = self.data_driven_context()
-        ctx.write_nuisances = False  # a merge of Central only
+        ctx.unc_sources = [
+            "Central"
+        ]  # a merge of Central only (MergeContextInit below)
+        ctx.write_nuisances = False
         self.merge(ctx)
         self.run_estimate(ctx, fakes_module([]))
         merged = read(self.out)
@@ -403,6 +406,79 @@ class TestMergeInSteps(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "is of process DY, not TT"):
             HM.merge_process(context(), "TT", self.inputs["DY"], f)
         f.Close()
+
+
+class MergeContextInit(unittest.TestCase):
+    """MergeContext's own __init__ (not the hand-made context above), with the Setup and the
+    corrections registry replaced: what it derives for the data-driven processes."""
+
+    def make(self, data_driven=None, unc_sources="Central", no_data_driven=False):
+        models = {"data": ["data_obs"], "backgrounds": ["TT", "DY"], "signals": []}
+        setup = types.SimpleNamespace(
+            global_params={
+                "analysis_import": "FLAF",
+                "categories": CATEGORIES,
+                "channelSelection": CHANNELS,
+                "scales": ["Up", "Down"],
+            },
+            weights_config={"norm": {}, "shape": {UNC: {"name": UNC + "_{}"}}},
+            data_driven_processes=data_driven or {},
+            phys_model=types.SimpleNamespace(
+                processes=lambda process_type=None: models[process_type]
+            ),
+            era="Run3_2022",
+        )
+        args = types.SimpleNamespace(
+            era="Run3_2022",
+            LAWrunVersion="v",
+            model="",
+            customisations="",
+            user_custom=None,
+            var=VAR,
+            uncSources=unc_sources,
+            channels="",
+            no_data_driven=no_data_driven,
+        )
+        corrections = (
+            "Corrections.Corrections.Corrections.registerConfiguredSourceScales"
+        )
+        with mock.patch.object(
+            HM.Setup, "Setup", lambda *a, **k: setup
+        ), mock.patch.object(
+            HM.Setup, "merge_data_process", lambda s: "data_obs"
+        ), mock.patch(
+            corrections, lambda g: None
+        ), mock.patch.object(
+            HM, "getScales", lambda s: ["Up", "Down"]
+        ), mock.patch.dict(
+            os.environ, {"ANALYSIS_PATH": "/none"}
+        ):
+            return HM.MergeContext(args)
+
+    GOOD = {"Fakes": {"estimator": "os.path.join", "nuisances": {"S": "s_{}"}}}
+
+    def test_estimators_imported_at_init(self):
+        ctx = self.make(self.GOOD)
+        self.assertEqual(ctx.data_driven, self.GOOD)
+        self.assertIs(ctx.estimators["Fakes"], os.path.join)
+        with self.assertRaises(ImportError):
+            self.make({"Fakes": {"estimator": "no_such_module_here.estimate"}})
+
+    def test_nuisances_only_with_variations(self):
+        self.assertFalse(self.make(self.GOOD).write_nuisances)
+        self.assertTrue(
+            self.make(self.GOOD, unc_sources=f"Central,{UNC}").write_nuisances
+        )
+
+    def test_no_data_driven_for_a_subset(self):
+        ctx = self.make(self.GOOD, no_data_driven=True)
+        self.assertEqual((ctx.data_driven, ctx.estimators), ({}, {}))
+        self.assertFalse(ctx.needs_postprocess())
+
+    def test_a_nuisance_named_as_a_weights_source_is_refused(self):
+        clash = {"Fakes": {"estimator": "os.path.join", "nuisances": {UNC: "s_{}"}}}
+        with self.assertRaisesRegex(RuntimeError, "are weights.yaml sources"):
+            self.make(clash)
 
 
 if __name__ == "__main__":

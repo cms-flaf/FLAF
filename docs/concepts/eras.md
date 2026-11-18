@@ -225,8 +225,9 @@ A meta-era beside any other era is refused, the group's own eras included:
 `--era Run3_2022,Run3_22_23: Run3_22_23 is a meta-era, the sum of …, and is run on its own`. The
 eras of a group must be known eras and its name must not be one, or a `--era` naming it stops with
 the reason. A meta-era has no configuration of its own: its tasks read the configuration of its
-eras, and a setting they read once (the filesystems, the plot settings of `HistPlotTask`, the
-`scales`) must be the same in all of them, or construction stops with `EraDependentValueError`
+eras, and a setting they read once (the location each filesystem resolves to through its
+fallbacks, the plot settings of `HistPlotTask`, the `scales`) must be the same in all of them, or
+construction stops with `EraDependentValueError`
 as in [Settings that must agree](#settings-that-must-agree-between-the-eras). Its paths, job file
 and logs are under the meta-era's name, so they never collide with those of its eras.
 

@@ -477,8 +477,9 @@ environment.
   (limits together with the `HistPlotTask` plots of their input histograms). The chain reads the
   `Hists_merged` files of `--hists-version` (default: `--version`) as external inputs and never
   schedules their production — only `ResonantLimitsAndHistPlotTask`, through `HistPlotTask`,
-  does. Its products (datacards, preprocessed shapes, fit results and plots) are written to
-  `fs_StatInference`, which falls back to `fs_default`. Eras, masses and variables come from the datacard configuration named by
+  does. Its datacards, preprocessed shapes and limit and pulls-and-impacts plots are written to
+  `fs_StatInference`, which falls back to `fs_default`; the limit values (`limits.npz`,
+  `era_limits/`) stay under the analysis `data/` directory. Eras, masses and variables come from the datacard configuration named by
   `StatInference.config` in `global.yaml`. `CreateDatacardsTask` and `PreprocessShapesTask` are
   one workflow each, with one branch per card of the configuration's `eras:`, and `--era` must
   hold every real era behind those cards

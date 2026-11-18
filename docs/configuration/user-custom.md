@@ -49,7 +49,7 @@ default and fail with a `KeyError` when they are missing. For H→μμ also add
 | `fs_default` | string or list | **Required.** Default storage for all outputs. The fallback for every other `fs_*`. See [Storage](../concepts/storage.md). The same in every era of a [run over several eras](#several-eras-in-one-run). |
 | `fs_anaTuple`, `fs_HistTuple`, `fs_anaCacheTuple`, `fs_plots`, … | string/list | Optional per-output-type storage. Unset ⇒ uses `fs_default`. |
 | `fs_Hists` | string/list | Optional: the per-chunk and merged histograms. Unset ⇒ uses `fs_HistTuple` (then `fs_default`). |
-| `fs_StatInference` | string/list | Optional: the products of the `StatInference` law chain (datacards, fit results and their plots). Unset ⇒ uses `fs_default`. The same in every era of a run over several eras. |
+| `fs_StatInference` | string/list | Optional: what the `StatInference` law chain stores remotely (datacards, preprocessed shapes, limit and pulls-and-impacts plots; the limit values stay under `data/`). Unset ⇒ uses `fs_default`. The same in every era of a run over several eras. |
 | `phys_model` | string | Which [physics model](processes-and-models.md) to run: `TestModel` (small, for testing/CI) or the analysis's production model (e.g. `BaseModel`). |
 | `analysis_config_area` | string | **Required by `HistPlotTask`.** The analysis config directory, relative to the checkout — normally `config`; the plotter reads its `global.yaml` from there. |
 | `compute_unc_variations` | bool | Whether to compute systematic (up/down) variations during production. |

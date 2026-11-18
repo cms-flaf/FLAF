@@ -8,17 +8,23 @@ FLAF classes over the scratch analysis of test_era_requires, with its merge plan
 - fs_HistTuple alone: the histograms stay beside the HistTuples, as before fs_Hists;
 - fs_Hists: only the histograms move; the HistTuples and the plots stay where they were;
 - fs_Hists without fs_HistTuple: the HistTuples stay on fs_default;
-- fs_StatInference: its own; unset, fs_default's instance; it moves nothing else.
+- fs_StatInference: its own; unset, fs_default's instance; it moves nothing else;
+- remote stores, in the forms the docs offer (a URL, a list of URLs): every target is on the
+  filesystem instance of its key.
 """
 
 import os
 import unittest
+from unittest import mock
 
 # a sibling, by its bare name (`test.<module>` would be CPython's own test package)
 import test_era_requires as base  # noqa: E402
 
+import FLAF.Common.Setup as flaf_setup  # noqa: E402
+
 analysis = base.analysis
 ERA = base.ERA_A
+REMOTE = "davs://storage.example:1094/store/user/flaf"
 
 
 class StorageKeys(base._Scratch):
@@ -27,8 +33,16 @@ class StorageKeys(base._Scratch):
         self.store = os.path.join(self.tmp, "store")
 
     def configure(self, **keys):
-        """fs_<key>: <scratch>/<value> for each keyword, in the era's own global.yaml."""
-        paths = {key: os.path.join(self.tmp, value) for key, value in keys.items()}
+        """fs_<key>: <value> for each keyword, in the era's own global.yaml: a URL or a list
+        as given, any other value a directory under the scratch directory."""
+        paths = {
+            key: (
+                value
+                if isinstance(value, list) or "://" in value
+                else os.path.join(self.tmp, value)
+            )
+            for key, value in keys.items()
+        }
         base.write(
             os.path.join(self.ana, "config", ERA, "global.yaml"),
             "".join(f"fs_{key}: {path}\n" for key, path in paths.items()),
@@ -116,6 +130,26 @@ class StorageKeys(base._Scratch):
         task = self.task(analysis.HistMergerTask)
         self.assertEqual(task.fs_StatInference.base, paths["StatInference"])
         self.assertEqual(task.fs_default.base, self.store)
+
+    def test_remote_stores(self):
+        hists = [f"{REMOTE}/hists", "root://other.example//store/user/flaf/hists"]
+        # no path-cache server: the filesystems are built and never listed
+        with mock.patch.object(flaf_setup, "local_path_cache_server", lambda: None):
+            self.configure(HistTuple=f"{REMOTE}/tuples", Hists=hists)
+            task = self.task(analysis.HistMergerTask)
+            self.assertEqual(task.fs_HistTuple.base, [f"{REMOTE}/tuples"])
+            self.assertEqual(task.fs_Hists.base, hists)
+            for target in self.hist_tuples() + self.pre_hist_tuple_markers():
+                self.assertIs(target.fs, task.fs_HistTuple)
+                self.assertTrue(target.uri().startswith(f"{REMOTE}/tuples/"))
+            for target in (
+                self.split_hists() + self.merged_markers() + self.merged_hists()
+            ):
+                self.assertIs(target.fs, task.fs_Hists)
+                # one of the list's bases, chosen per call
+                uri = target.uri()
+                self.assertTrue(any(uri.startswith(f"{b}/") for b in hists), uri)
+            self.assertIs(task.fs_StatInference, task.fs_default)
 
     def test_the_resolved_settings(self):
         paths = self.configure(HistTuple="tuples")

@@ -1196,8 +1196,9 @@ class Task(law.Task):
 
     @property
     def fs_StatInference(self):
-        """The statistical-inference products (datacards, fit results, their plots): one for
-        all eras of a task, like fs_default, which it falls back to."""
+        """What the StatInference chain stores remotely (datacards, preprocessed shapes,
+        limit and impact plots): one for all eras of a task, like fs_default, which it falls
+        back to."""
         self.common(lambda setup: setup.fs_setting("StatInference"), "fs_StatInference")
         return self.setup_for(self.sub_eras[0]).get_fs("StatInference")
 

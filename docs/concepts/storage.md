@@ -16,7 +16,7 @@ going.
 | `fs_anaTuple` | Everything of the AnaTuple production: the per-input-file anaTuples and their reports, the merge plans and reports of `AnaTupleFileListBuilderTask`, the cost probes of `AnaTupleCostProbeTask`, and the merged anaTuples. |
 | `fs_HistTuple` | histTuples (ntuples with analysis observables) and the `PreHistTupleProductionTask` markers. |
 | `fs_Hists` | The per-chunk and the merged **histograms** (`HistFromNtupleProducerTask`, `HistMergerTask`, and the `.merged` markers of `remove_merged_inputs`). Unset ⇒ `fs_HistTuple`'s location (then `fs_default`'s), so the histograms stay beside the histTuples unless this key is set. |
-| `fs_StatInference` | The statistical-inference products of the `StatInference` law chain: datacards, preprocessed shapes, fit results and their plots (limits, pulls and impacts). Unset ⇒ `fs_default`. One location for all the eras of a run, like `fs_default`. |
+| `fs_StatInference` | What the `StatInference` law chain stores remotely: the datacards (`Datacards/`), the preprocessed shapes (`Hists_preprocessed/`) and the limit and pulls-and-impacts plots (`LimitPlots/`, `ImpactPlots/`). The limit values themselves (`limits.npz`, `era_limits/`) and the local copy of the datacards that Combine reads stay under the analysis `data/` directory, and the chain's job logs on `fs_default`. Unset ⇒ `fs_default`. One location for all the eras of a run, like `fs_default`. |
 | `fs_anaCacheTuple` | The analysis caches (`AnalysisCacheTask`) and their aggregations (`AnalysisCacheAggregationTask`). |
 | `fs_plots` | Plot outputs (`HistPlotTask`). |
 | `fs_nanoAOD` | An **input** location: where NanoAOD is read from for datasets that are not taken from Rucio — see [Where the inputs come from](#where-the-inputs-come-from). |
@@ -32,7 +32,7 @@ flowchart TD
     HS["Hists_split,<br/>Hists_merged"] --> FHS["fs_Hists"]
     AC["AnalysisCache,<br/>AnalysisCacheAggregation"] --> FC["fs_anaCacheTuple"]
     PL["Plots"] --> FP["fs_plots"]
-    SI["Datacards, limits,<br/>pulls & impacts"] --> FS["fs_StatInference"]
+    SI["Datacards, limit and<br/>pulls & impacts plots"] --> FS["fs_StatInference"]
     FA -.->|if unset| FD["fs_default<br/>(also: bundles, logs, worker_files)"]
     FHS -.->|if unset| FH
     FH -.->|if unset| FD
@@ -45,6 +45,11 @@ flowchart TD
     Set `fs_default` to your personal storage and leave the rest unset. Everything then lands in
     one place, namespaced by `--version` and era. Split outputs across sites later, when you need
     to (e.g. point `fs_anaTuple` at a Tier-2/Tier-3 with lots of space).
+
+!!! warning "A key set later moves the outputs, not the files"
+    Outputs are looked up where the keys point now. Setting or changing a key (for instance
+    `fs_Hists`) for a `--version` that already has products elsewhere makes the tasks produce them
+    again at the new location; copy the existing files there first to keep them.
 
 ## How outputs are laid out
 

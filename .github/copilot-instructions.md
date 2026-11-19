@@ -305,7 +305,7 @@ Each of these has caused a production incident. They are ordered by how much dam
     `EraDependentValueError` and `BranchSelectionError` must not subclass `AttributeError`, which
     `getattr(task, name, default)` and `hasattr` would swallow. A setting a run reads once for all its
     eras goes through `common(getter, what)`, which raises when the eras disagree (`fs_default`,
-    `crab`, `runTokenServer`, `anaTuple_scheduling`,
+    `fs_StatInference`, `crab`, `runTokenServer`, `anaTuple_scheduling`,
     `use_cmssw_env_AnaTupleProduction`, a producer's `n_cpus`/`max_runtime`/`crab_memory`/`save_as`/
     `cmssw_env`); a new run-wide reader without it silently takes one era's value.
   - **A stage's requirements live in `stage_workflow_requires()`; `workflow_requires()` is the
@@ -459,6 +459,12 @@ Each of these has caused a production incident. They are ordered by how much dam
 
 ## Configuration invariants
 
+- **A storage key falls back along `Setup.FS_FALLBACKS`, then to `fs_default`.** `fs_Hists` (split
+  and merged histograms) falls back to `fs_HistTuple`, so a configuration that sets neither new key
+  writes where it did before. Who writes a product and who reads it must name the same key: the
+  merged histograms are read by `StatInference` (`MergedHists`) through `get_fs("Hists")`, and any
+  other reader must do the same, never `fs_HistTuple`. A meta-era compares what its sub-eras resolve
+  a key to (`Setup.fs_setting`), not the literal setting.
 - `config_path_order` layers four directories (`FLAF/config`, `FLAF/config/<era>`, `config`,
   `config/<era>`; for `global.yaml` each directory's `user_custom.yaml` joins in, and
   `--user-custom` comes last). The files are **concatenated as text and parsed once**, so a

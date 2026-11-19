@@ -731,7 +731,7 @@ class HistFromNtupleProducerTask(
                 dataset_name,
                 f"chunk_{chunk_id}.root",
             )
-            outputs[var_name] = self.remote_target(output_path, fs=self.fs_HistTuple)
+            outputs[var_name] = self.remote_target(output_path, fs=self.fs_Hists)
         return outputs
 
     def complete(self):
@@ -882,9 +882,7 @@ class MergedHistsTask(Task, law.ExternalTask):
     variable = luigi.Parameter()
 
     def output(self):
-        return _merged_hists_target(
-            self, self.only_era, self.variable, self.fs_HistTuple
-        )
+        return _merged_hists_target(self, self.only_era, self.variable, self.fs_Hists)
 
 
 class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
@@ -1020,7 +1018,7 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     @workflow_condition.output
     def output(self):
         var_name, br_indices, datasets = self.branch_data
-        return _merged_hists_target(self, self.only_era, var_name, self.fs_HistTuple)
+        return _merged_hists_target(self, self.only_era, var_name, self.fs_Hists)
 
     def run(self):
         self._refuse_inline_on_worker()

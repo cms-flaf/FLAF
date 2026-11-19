@@ -177,7 +177,7 @@ Fills **histograms** of the requested variables from the histTuples, with the Up
 variations when `compute_unc_histograms` is true (from the histTuple flavour, else `global.yaml` /
 `user_custom.yaml`; default `false`). **Branches over (dataset, file-chunk):** each job reads its
 chunk of input files and fills every active variable, one output file per variable under
-`<version>/Hists_split/<era>/<variable>/<dataset>/`. Large datasets are parallelized by splitting
+`<version>/Hists_split/<era>/<variable>/<dataset>/` on `fs_Hists`. Large datasets are parallelized by splitting
 their files into chunks.
 
 Every tree (the central one and each shape variation) is read in **one event loop** that fills
@@ -270,7 +270,7 @@ job, each of their files gets the same trees, with the columns of all of them.
 
 ### `HistMergerTask`
 Merges the per-chunk histograms into per-process histograms ready for plotting and fitting,
-one file per variable at `<version>/Hists_merged/<era>/<variable>/<variable>.root`. Each branch
+one file per variable at `<version>/Hists_merged/<era>/<variable>/<variable>.root` on `fs_Hists`. Each branch
 (one per variable) merges **all uncertainty sources in a single pass**: every input file is read
 once and all histograms are written directly to the final output file. The uncertainty sources
 are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era's
@@ -319,7 +319,7 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
 ### `MergedHistsTask`
 An **external** task: the merged histograms of one variable of one era, at `HistMergerTask`'s
 output path (`<version>/Hists_merged/<era>/<variable>/<variable>.root` on that era's
-`fs_HistTuple`). It produces nothing; it is what a branch of `HistMergerTask` over a meta-era
+`fs_Hists`). It produces nothing; it is what a branch of `HistMergerTask` over a meta-era
 requires of each era, so that the branch checks the eras' merged files without building their
 `HistMergerTask` branch maps (`HistMergerTask` over the eras is the requirement of the workflow,
 which makes them).
@@ -477,7 +477,9 @@ environment.
   (limits together with the `HistPlotTask` plots of their input histograms). The chain reads the
   `Hists_merged` files of `--hists-version` (default: `--version`) as external inputs and never
   schedules their production — only `ResonantLimitsAndHistPlotTask`, through `HistPlotTask`,
-  does. Eras, masses and variables come from the datacard configuration named by
+  does. Its datacards, preprocessed shapes and limit and pulls-and-impacts plots are written to
+  `fs_StatInference`, which falls back to `fs_default`; the limit values (`limits.npz`,
+  `era_limits/`) stay under the analysis `data/` directory. Eras, masses and variables come from the datacard configuration named by
   `StatInference.config` in `global.yaml`. `CreateDatacardsTask` and `PreprocessShapesTask` are
   one workflow each, with one branch per card of the configuration's `eras:`, and `--era` must
   hold every real era behind those cards

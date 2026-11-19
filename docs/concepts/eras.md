@@ -225,8 +225,9 @@ A meta-era beside any other era is refused, the group's own eras included:
 `--era Run3_2022,Run3_22_23: Run3_22_23 is a meta-era, the sum of …, and is run on its own`. The
 eras of a group must be known eras and its name must not be one, or a `--era` naming it stops with
 the reason. A meta-era has no configuration of its own: its tasks read the configuration of its
-eras, and a setting they read once (the filesystems, the plot settings of `HistPlotTask`, the
-`scales`) must be the same in all of them, or construction stops with `EraDependentValueError`
+eras, and a setting they read once (the location each filesystem resolves to through its
+fallbacks, the plot settings of `HistPlotTask`, the `scales`) must be the same in all of them, or
+the task stops with `EraDependentValueError` when it reads the setting
 as in [Settings that must agree](#settings-that-must-agree-between-the-eras). Its paths, job file
 and logs are under the meta-era's name, so they never collide with those of its eras.
 
@@ -275,14 +276,14 @@ A run over several eras reads some settings once, for all its eras. They must be
 era of the run, or constructing the task stops with `EraDependentValueError` naming the key and
 each era's value:
 
-- `fs_default`;
+- `fs_default` and `fs_StatInference` (the latter only where it is read, by the `StatInference` tasks);
 - `crab` (the whole block) and `runTokenServer`;
 - `anaTuple_scheduling` and `use_cmssw_env_AnaTupleProduction`;
 - of each entry of `payload_producers`: `n_cpus`, `max_runtime`, `crab_memory`, `save_as` and
   `cmssw_env`.
 
 Everything else may differ per era: the datasets and processes, the corrections, the bundles and
-the output filesystems `fs_anaTuple`, `fs_HistTuple`, `fs_anaCacheTuple` and `fs_plots` (for
+the output filesystems `fs_anaTuple`, `fs_HistTuple`, `fs_Hists`, `fs_anaCacheTuple` and `fs_plots` (for
 instance in `config/<era>/user_custom.yaml`, see
 [`user_custom.yaml`](../configuration/user-custom.md#several-eras-in-one-run)).
 

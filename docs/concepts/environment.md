@@ -5,7 +5,8 @@ explains what that environment contains, the variables it sets, and the few shar
 
 ## What `env.sh` sets up
 
-The analysis `env.sh` sets `ANALYSIS_PATH` (and, for the HH analyses, `HH_INFERENCE_PATH`),
+The analysis `env.sh` sets `ANALYSIS_PATH` (and, for the HH analyses, `HH_INFERENCE_PATH`
+and, where the analysis has the `cws` submodule, `HH_CWS_PATH`),
 defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, which:
 
 1. **Activates `flaf_env`** — a Python virtual environment built from the CVMFS `LCG_110a` stack
@@ -31,6 +32,10 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
    changes, the next `source env.sh` checks out the new version in the CMSSW area and rebuilds it
    with `scram`, and rebuilds the standalone one. The `dhi` setup, `inference/.setups/flaf.sh`, is
    written again at the same time, so edits made to it by hand do not survive a version change.
+   When `HH_CWS_PATH` is set and its `cws/` package is checked out, the
+   [CWS](https://gitlab.cern.ch/cms-analysis/general/cws) setup `cws/.setups/flaf.sh` (the
+   `CWS_*` variables that `cws/setup.sh` would set) is written and sourced the same way, on the
+   same standalone Combine; see [`cwsEnv`](#cwsenv-running-cws-tasks).
 4. **Sets up grid access** — points `X509_USER_PROXY` at `data/voms.proxy` (unless it is already
    set) and initialises Rucio, pinned to the version in `FLAF_RUCIO_VERSION` (default `39.2.0`).
    It also sets `GFAL_PYTHONBIN=/usr/bin/python3` (unless already set), so that the system
@@ -39,7 +44,7 @@ defaults `FLAF_PATH` to its `FLAF/` submodule, then hands off to `FLAF/env.sh`, 
    `/usr/bin/python: No such file or directory`. Where `/usr/bin/python3` cannot import them
    either, `env.sh` prints a warning instead. Inside a law batch job it does neither; FLAF runs its
    own `gfal-*` calls with an environment of their own.
-5. **Defines the `cmsEnv` helper** (see below).
+5. **Defines the `cmsEnv` helper** (see below), and `cwsEnv` where CWS is set up.
 
 !!! note "First source is slow, the rest are fast"
     The CMSSW and Combine builds happen only on the first `source env.sh`. After that it is a
@@ -122,6 +127,21 @@ cmsEnv /bin/zsh         # an interactive CMSSW subshell
 ```
 
 You will see it most often around statistical-inference commands that call `combine`.
+
+## `cwsEnv`: running CWS tasks
+
+Most CWS tasks have the same names as the `dhi` ones, so the two cannot be indexed under one law
+config. `cwsEnv` runs a command with `LAW_HOME` and `LAW_CONFIG_FILE` pointed at CWS's own
+(`cws/.law`, `cws/law.cfg`), and with the law that CWS pins (its `modules/law` submodule, a fork of
+law 0.1.12 that the CWS tasks are written for) ahead of the law 0.1.21 of `flaf_env`, and with
+`hydra-core` 1.3.2, which CWS's analysis configs need. `run_tools/mk_cws_env.sh` installs that in
+`cws/data/software/site-packages` rather than in `flaf_env`, because it needs the antlr4 runtime
+4.9 and `LCG_110a` carries 4.13. Plain `law` stays on the analysis config:
+
+```sh
+cwsEnv law index --verbose
+cwsEnv cws run --analysis CONFIG --task-config ENTRY
+```
 
 ## Developing shared submodules
 

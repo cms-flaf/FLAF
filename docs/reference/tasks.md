@@ -308,6 +308,10 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
 
   Over a meta-era, a member is summed like any variation: an era without it enters with its
   central histogram of the process.
+- **Data-driven processes:** once every process is merged, the estimators of the physics model's
+  [data-driven processes](../configuration/processes-and-models.md#data-driven-processes) run on
+  the merged file, one uncertainty source at a time, and their histograms are written as those
+  processes; not with `--process` or `--dataset`, nor without merged data.
 - **Meta-era** (`--era Run3_22_23`, a group of `era_groups:`): one branch per variable that every
   era of the group merges. It requires `HistMergerTask` over the eras and sums, bin by bin, their
   merged files of the variable (read through [`MergedHistsTask`](#mergedhiststask)) into
@@ -376,6 +380,9 @@ Produces the final **plots** via the [PlotKit](https://github.com/cms-flaf/PlotK
 per variable, skipping variables configured with `plot_task: false`).
 
 - **Parameter:** `--variables` (string; restrict which variables).
+- **Data-driven processes** of the physics model are drawn as backgrounds, with the name and
+  colour of their processes.yaml entry, in the regions where they were estimated (a message names
+  the first region where one is missing).
 - **`plot_wantSignals`** (`global.yaml` or `--customisations`, default `true`): `false` draws no
   signal on any plot. Signals are never drawn in the `plot_control_regions` (below).
 - **Meta-era** (`--era Run3_22_23`): plots the sum `HistMergerTask` makes over the meta-era, into

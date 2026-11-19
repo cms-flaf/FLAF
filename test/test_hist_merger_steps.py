@@ -102,7 +102,48 @@ def context():
     ctx.analysis_import = "Analysis.hh_bbtautau"
     ctx.estimateQCD = True
     ctx.process_of = PROCESS_OF.__getitem__
+    ctx.data_driven = {}
+    ctx.model_backgrounds = ["DY", "TT", "Fakes"]
+    ctx.model_signals = []
+    ctx.setup = types.SimpleNamespace(era="Run3_2022")
     return ctx
+
+
+FAKES = {
+    "estimator": "Analysis.test_fakes.estimate",
+    "nuisances": {"FakesStat": "FakesStat_{channel}_{}"},
+}
+
+
+def fakes_module(calls, extra=None):
+    """A stand-in estimator: Fakes in SR = data - simulation in CR, for every variation of
+    the source; at the nominal pass also FakesStat Up/Down = 1.1 / 0.9 x the nominal."""
+
+    def estimate(ctx):
+        calls.append(
+            (ctx.unc_source, list(ctx.variations), list(ctx.mc_backgrounds), ctx.era)
+        )
+        out = {}
+        for ch in ctx.channels:
+            for cat in ctx.categories:
+                src = (ch, "CR", cat)
+                for unc, scale in ctx.variations:
+                    h = ctx.require(ctx.data_process, src, unc, scale)
+                    for p in ctx.mc_backgrounds:
+                        h.Add(ctx.require(p, src, unc, scale), -1)
+                    out[((ch, "SR", cat), (unc, scale))] = h
+                    if ctx.nominal_pass:
+                        for name, factor in (("Up", 1.1), ("Down", 0.9)):
+                            v = h.Clone()
+                            v.Scale(factor)
+                            out[((ch, "SR", cat), ("FakesStat", name))] = v
+        if extra:
+            extra(ctx, out)
+        return out
+
+    module = types.ModuleType("Analysis.test_fakes")
+    module.estimate = estimate
+    return module
 
 
 def read(path):
@@ -238,11 +279,206 @@ class TestMergeInSteps(unittest.TestCase):
         f.Close()
         self.assertEqual(read(self.out), before)
 
+    def run_estimate(self, ctx, module, processes=None):
+        with mock.patch.dict(sys.modules, {"Analysis.test_fakes": module}):
+            f = HM.open_merged(self.out)
+            HM.postprocess(ctx, processes or list(self.inputs), f)
+            f.Close()
+
+    def data_driven_context(self):
+        ctx = context()
+        ctx.estimateQCD = False
+        ctx.data_driven = {"Fakes": FAKES}
+        # the estimator of the stand-in module run_estimate installs
+        ctx.estimators = {
+            "Fakes": lambda est: sys.modules["Analysis.test_fakes"].estimate(est)
+        }
+        ctx.write_nuisances = True
+        return ctx
+
+    def test_data_driven_estimate_per_source(self):
+        ctx = self.data_driven_context()
+        self.merge(ctx)
+        calls = []
+        self.run_estimate(ctx, fakes_module(calls))
+        # once per source, the MC backgrounds in model order, merged ones only
+        self.assertEqual(
+            calls,
+            [
+                ("Central", [("Central", "Central")], ["DY", "TT"], "Run3_2022"),
+                (UNC, [(UNC, "Up"), (UNC, "Down")], ["DY", "TT"], "Run3_2022"),
+            ],
+        )
+        merged = read(self.out)
+        for ch in CHANNELS:
+            data = np.array(self.expected_sum("data_obs", ch, "CR", "Central"))
+            for scale, suffix in (("Central", ""), ("Up", f"_{UNC}_Up")):
+                mc = sum(
+                    np.array(self.expected_sum(p, ch, "CR", scale))
+                    for p in ("TT", "DY")
+                )
+                self.assertEqual(
+                    merged[f"{ch}/SR/res2b/Fakes{suffix}"], list(data - mc)
+                )
+            nominal = np.array(merged[f"{ch}/SR/res2b/Fakes"])
+            self.assertEqual(
+                merged[f"{ch}/SR/res2b/Fakes_FakesStat_{ch}_Up"], list(nominal * 1.1)
+            )
+            self.assertEqual(
+                merged[f"{ch}/SR/res2b/Fakes_FakesStat_{ch}_Down"], list(nominal * 0.9)
+            )
+            # only where the estimator writes
+            self.assertNotIn(f"{ch}/CR/res2b/Fakes", merged)
+
+    def test_no_nuisances_without_variations(self):
+        ctx = self.data_driven_context()
+        ctx.unc_sources = [
+            "Central"
+        ]  # a merge of Central only (MergeContextInit below)
+        ctx.write_nuisances = False
+        self.merge(ctx)
+        self.run_estimate(ctx, fakes_module([]))
+        merged = read(self.out)
+        self.assertIn("eE/SR/res2b/Fakes", merged)
+        self.assertFalse([k for k in merged if "FakesStat" in k])
+
+    def test_no_estimate_without_data(self):
+        ctx = self.data_driven_context()
+        self.merge(ctx)
+        calls = []
+        self.run_estimate(ctx, fakes_module(calls), processes=["TT", "DY"])
+        self.assertEqual(calls, [])
+        self.assertNotIn("eE/SR/res2b/Fakes", read(self.out))
+
+    def test_no_estimate_for_a_subset(self):
+        # --no-data-driven: MergeContext leaves data_driven empty
+        ctx = self.data_driven_context()
+        ctx.data_driven = {}
+        self.merge(ctx)
+        before = read(self.out)
+        calls = []
+        self.run_estimate(ctx, fakes_module(calls))
+        self.assertEqual((calls, read(self.out)), ([], before))
+
+    def test_estimator_cannot_read_another_source(self):
+        ctx = self.data_driven_context()
+        self.merge(ctx)
+
+        def read_up_at_nominal(est, out):
+            if est.nominal_pass:
+                est.get("TT", ("eE", "CR", "res2b"), UNC, "Up")
+
+        with self.assertRaisesRegex(KeyError, "not a variation of the source Central"):
+            self.run_estimate(ctx, fakes_module([], read_up_at_nominal))
+
+    def test_undeclared_or_misplaced_variations_are_refused(self):
+        def undeclared(est, out):
+            out[(("eE", "SR", "res2b"), ("Other", "Up"))] = next(iter(out.values()))
+
+        def nuisance_off_nominal(est, out):
+            if not est.nominal_pass:
+                h = next(iter(out.values()))
+                out[(("eE", "SR", "res2b"), ("FakesStat", "Up"))] = h
+
+        for extra in (undeclared, nuisance_off_nominal):
+            with self.subTest(extra=extra.__name__):
+                ctx = self.data_driven_context()
+                self.merge(ctx)
+                with self.assertRaisesRegex(
+                    RuntimeError, "it may return the variations"
+                ):
+                    self.run_estimate(ctx, fakes_module([], extra))
+
+    def test_returned_copies_do_not_change_the_merged_file(self):
+        ctx = self.data_driven_context()
+        self.merge(ctx)
+        before = read(self.out)
+
+        def scale_reads(est, out):
+            est.get("TT", ("eE", "CR", "res2b")).Scale(10)
+
+        self.run_estimate(ctx, fakes_module([], scale_reads))
+        after = read(self.out)
+        self.assertEqual(after["eE/CR/res2b/TT"], before["eE/CR/res2b/TT"])
+
     def test_an_input_of_another_process_is_refused(self):
         f = HM.open_merged(self.out)
         with self.assertRaisesRegex(RuntimeError, "is of process DY, not TT"):
             HM.merge_process(context(), "TT", self.inputs["DY"], f)
         f.Close()
+
+
+class MergeContextInit(unittest.TestCase):
+    """MergeContext's own __init__ (not the hand-made context above), with the Setup and the
+    corrections registry replaced: what it derives for the data-driven processes."""
+
+    def make(self, data_driven=None, unc_sources="Central", no_data_driven=False):
+        models = {"data": ["data_obs"], "backgrounds": ["TT", "DY"], "signals": []}
+        setup = types.SimpleNamespace(
+            global_params={
+                "analysis_import": "FLAF",
+                "categories": CATEGORIES,
+                "channelSelection": CHANNELS,
+                "scales": ["Up", "Down"],
+            },
+            weights_config={"norm": {}, "shape": {UNC: {"name": UNC + "_{}"}}},
+            data_driven_processes=data_driven or {},
+            phys_model=types.SimpleNamespace(
+                processes=lambda process_type=None: models[process_type]
+            ),
+            era="Run3_2022",
+        )
+        args = types.SimpleNamespace(
+            era="Run3_2022",
+            LAWrunVersion="v",
+            model="",
+            customisations="",
+            user_custom=None,
+            var=VAR,
+            uncSources=unc_sources,
+            channels="",
+            no_data_driven=no_data_driven,
+        )
+        corrections = (
+            "Corrections.Corrections.Corrections.registerConfiguredSourceScales"
+        )
+        with mock.patch.object(
+            HM.Setup, "Setup", lambda *a, **k: setup
+        ), mock.patch.object(
+            HM.Setup, "merge_data_process", lambda s: "data_obs"
+        ), mock.patch(
+            corrections, lambda g: None
+        ), mock.patch.object(
+            HM, "getScales", lambda s: ["Up", "Down"]
+        ), mock.patch.dict(
+            os.environ, {"ANALYSIS_PATH": "/none"}
+        ):
+            return HM.MergeContext(args)
+
+    GOOD = {"Fakes": {"estimator": "os.path.join", "nuisances": {"S": "s_{}"}}}
+
+    def test_estimators_imported_at_init(self):
+        ctx = self.make(self.GOOD)
+        self.assertEqual(ctx.data_driven, self.GOOD)
+        self.assertIs(ctx.estimators["Fakes"], os.path.join)
+        with self.assertRaises(ImportError):
+            self.make({"Fakes": {"estimator": "no_such_module_here.estimate"}})
+
+    def test_nuisances_only_with_variations(self):
+        self.assertFalse(self.make(self.GOOD).write_nuisances)
+        self.assertTrue(
+            self.make(self.GOOD, unc_sources=f"Central,{UNC}").write_nuisances
+        )
+
+    def test_no_data_driven_for_a_subset(self):
+        ctx = self.make(self.GOOD, no_data_driven=True)
+        self.assertEqual((ctx.data_driven, ctx.estimators), ({}, {}))
+        self.assertFalse(ctx.needs_postprocess())
+
+    def test_a_nuisance_named_as_a_weights_source_is_refused(self):
+        clash = {"Fakes": {"estimator": "os.path.join", "nuisances": {UNC: "s_{}"}}}
+        with self.assertRaisesRegex(RuntimeError, "are weights.yaml sources"):
+            self.make(clash)
 
 
 if __name__ == "__main__":

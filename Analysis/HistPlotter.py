@@ -281,6 +281,7 @@ if __name__ == "__main__":
     keys = args.all_keys.split(",")
     outFiles = args.all_outFiles.split(",")
     print(f"Running HistPlot for var {args.var} making {len(outFiles)} plots")
+    not_estimated = set()  # data-driven processes reported missing in this file
     for key, outFile in zip(keys, outFiles):
         print(f"Plotting key {key}")
         channel, category, custom_region = key.split(":")
@@ -308,6 +309,17 @@ if __name__ == "__main__":
                 "process_group": "backgrounds",
                 "plot_name": "QCD",
                 "plot_color": "kGray+2",
+            }
+
+        # the data-driven processes of the physics model (Common/DataDriven.py): no datasets,
+        # their histograms are estimated in the merge
+        for process_name in setup.data_driven_processes:
+            process = setup.parent_processes[process_name]
+            all_datasets_dict[process_name] = {
+                "process_name": process_name,
+                "process_group": "backgrounds",
+                "plot_name": process.get("name", process_name),
+                "plot_color": process["color"],
             }
 
         for era_setup, dataset_name in (
@@ -432,6 +444,16 @@ if __name__ == "__main__":
             # name, and an entry left with nothing is not drawn (drop_empty_entries).
             where = f"{args.inFile}:{channel}/{custom_region}/{category}"
             if dataset_histname not in dir_1.GetListOfKeys():
+                # a data-driven process is estimated in some regions only: said once per file
+                if dataset_process_name in setup.data_driven_processes:
+                    if dataset_process_name not in not_estimated:
+                        not_estimated.add(dataset_process_name)
+                        print(
+                            f"{dataset_process_name} is not in {where} (not estimated "
+                            "there): not drawn, nor in the other regions without it",
+                            file=sys.stderr,
+                        )
+                    continue
                 process = (
                     ""
                     if dataset_histname == dataset_process_name

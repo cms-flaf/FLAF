@@ -12,6 +12,7 @@ import FLAF.Common.Utilities as Utilities
 import FLAF.Common.Setup as Setup
 import FLAF.Common.TheoryUncertainties as TheoryUncertainties
 from FLAF.Common.HistHelper import *
+from FLAF.Common.DataDriven import load_estimator, nuisance_hist_name
 from Corrections.CorrectionsCore import getScales
 
 
@@ -159,6 +160,8 @@ class MergeContext:
             os.environ["ANALYSIS_PATH"],
             args.era,
             args.LAWrunVersion,
+            custom_model_selection=args.model or None,
+            customisations=args.customisations or None,
             user_custom_file=args.user_custom,
         )
         setup = self.setup
@@ -220,6 +223,29 @@ class MergeContext:
         # the physics-model name of the data process, as the QCD estimate knows it
         self.qcd_data_process = data_processes[0] if data_processes else None
 
+        # Data-driven processes (Common/DataDriven.py), estimated in postprocess. A merge of a
+        # subset of the processes or datasets (--no-data-driven) gets no estimate: it would
+        # subtract only part of the simulation.
+        self.data_driven = (
+            {} if args.no_data_driven else dict(setup.data_driven_processes)
+        )
+        # imported now: a wrong estimator fails before the merge, not after it
+        self.estimators = {
+            process: load_estimator(cfg["estimator"])
+            for process, cfg in self.data_driven.items()
+        }
+        # the estimators' own nuisances, as the uncertainty sources: only with variations
+        self.write_nuisances = any(s != "Central" for s in self.unc_sources)
+        self.model_backgrounds = setup.phys_model.processes(process_type="backgrounds")
+        self.model_signals = setup.phys_model.processes(process_type="signals")
+        weights_sources = set(unc_cfg_dict["norm"]) | set(unc_cfg_dict["shape"])
+        for process, cfg in self.data_driven.items():
+            clash = sorted(set(cfg.get("nuisances", {})) & weights_sources)
+            if clash:
+                raise RuntimeError(
+                    f"{process}: data_driven.nuisances {clash} are weights.yaml sources"
+                )
+
         # file structure: channel - region - category - <process>[_<variation>]
 
     def process_of(self, dataset_name):
@@ -269,10 +295,13 @@ class MergeContext:
                     ].format(uncScale)
         return variations
 
-    def needs_postprocess(self):
-        """Whether a step after the merge needs every process: the data-driven QCD estimate
-        of hh_bbtautau."""
+    def wants_qcd(self):
+        """The data-driven QCD estimate of hh_bbtautau (plot_wantQCD)."""
         return self.analysis_import == "Analysis.hh_bbtautau" and self.estimateQCD
+
+    def needs_postprocess(self):
+        """Whether a step after the merge needs every process: a data-driven estimate."""
+        return self.wants_qcd() or bool(self.data_driven)
 
 
 def open_merged(path):
@@ -381,18 +410,27 @@ def _hist_dirs(directory, path=()):
 
 def postprocess(ctx, processes, out_file):
     """The steps after the merge that need every process, run on the merged file: the
-    data-driven QCD estimate of hh_bbtautau. Each uncertainty source is estimated with only
-    its histograms (and the nominal ones) read back, then written and freed.
+    data-driven QCD estimate of hh_bbtautau, then the estimators of the data-driven processes
+    of the physics model. Each uncertainty source is estimated with only its histograms (and
+    the nominal ones) read back, then written and freed.
 
     ``processes``: the merged processes, in merge order (the order the estimate subtracts
     them in, as when every process was held in memory)."""
     if not ctx.needs_postprocess():
         return
+    key_dirs = _hist_dirs(out_file)
+    if ctx.wants_qcd():
+        _estimate_qcd(ctx, processes, out_file, key_dirs)
+    if ctx.data_driven:
+        _run_estimators(ctx, processes, out_file, key_dirs)
+
+
+def _estimate_qcd(ctx, processes, out_file, key_dirs):
+    """The data-driven QCD estimate of hh_bbtautau."""
     if ctx.qcd_data_process is None:
         return
     from Analysis.QCD_estimation import AddQCDInHistDict
 
-    key_dirs = _hist_dirs(out_file)
     for unc_source in ctx.unc_sources:
         # the members of a theory uncertainty: no QCD variation
         if unc_source in ctx.member_uncs:
@@ -442,6 +480,154 @@ def postprocess(ctx, processes, out_file):
             if ctx.to_write("QCD", key):
                 ctx.write_hist(out_file, "QCD", key, hist)
         del all_hists_dict
+
+
+class EstimateContext:
+    """What a data-driven estimator sees: the merged histograms of one variable of one era, for
+    one uncertainty source. ``variations``: the (unc, scale) pairs of that source the estimate
+    is made for; the nominal histograms are readable at every pass. Data is merged nominal
+    only and is returned for every variation, so a variation of an estimate is data minus the
+    varied simulation. Every histogram returned is a new copy, owned by the caller."""
+
+    def __init__(
+        self,
+        *,
+        merge,
+        process,
+        config,
+        unc_source,
+        variations,
+        key_dirs,
+        mc_backgrounds,
+        signals,
+        reader,
+    ):
+        self.process = process
+        self.config = config
+        self.var = merge.var
+        self.era = merge.setup.era
+        self.setup = merge.setup
+        self.channels = merge.channels
+        self.categories = merge.categories
+        self.scales = merge.scales
+        self.unc_source = unc_source
+        self.variations = variations
+        self.key_dirs = key_dirs
+        self.data_process = merge.data_process_name
+        self.mc_backgrounds = mc_backgrounds
+        self.signals = signals
+        self._reader = reader
+
+    @property
+    def nuisances(self):
+        """{source: histogram-name template} of the estimator's own uncertainty sources."""
+        return self.config.get("nuisances", {})
+
+    @property
+    def nominal_pass(self):
+        """Whether this is the nominal pass, where the estimator's own nuisances are made."""
+        return self.unc_source == "Central"
+
+    def get(self, process, key_dir, unc="Central", scale="Central"):
+        """A copy of the merged histogram of ``process`` at ``key_dir`` (channel, region,
+        category), or None if the process has none there."""
+        if (unc, scale) != ("Central", "Central") and (
+            unc,
+            scale,
+        ) not in self.variations:
+            raise KeyError(
+                f"{self.process}: ({unc}, {scale}) is not a variation of the source "
+                f"{self.unc_source} this estimate is made for"
+            )
+        if process == self.data_process:
+            unc, scale = "Central", "Central"
+        hist = self._reader(process, tuple(key_dir), unc, scale)
+        if hist is None:
+            return None
+        copy = hist.Clone()
+        copy.SetDirectory(ROOT.nullptr)
+        ROOT.SetOwnership(copy, True)
+        return copy
+
+    def require(self, process, key_dir, unc="Central", scale="Central"):
+        """As get(), but a missing histogram is an error."""
+        hist = self.get(process, key_dir, unc, scale)
+        if hist is None:
+            raise KeyError(
+                f"{self.process}: {process} has no {self.var} histogram at {key_dir} "
+                f"({unc}, {scale})"
+            )
+        return hist
+
+
+def _run_estimators(ctx, processes, out_file, key_dirs):
+    """The estimates of the data-driven processes of the physics model, in its order, one
+    uncertainty source at a time, written into the merged file."""
+    if ctx.data_process_name not in processes:
+        print(
+            f"No data merged for {ctx.var}: the data-driven processes "
+            f"{', '.join(ctx.data_driven)} are not estimated"
+        )
+        return
+    mc_backgrounds = [
+        p for p in ctx.model_backgrounds if p in processes and p not in ctx.data_driven
+    ]
+    signals = [p for p in ctx.model_signals if p in processes]
+    for unc_source in ctx.unc_sources:
+        # the members of a theory uncertainty (PDF, QCD scale): no data-driven variation
+        if unc_source in ctx.member_uncs:
+            continue
+        if unc_source == "Central":
+            variations = [("Central", "Central")]
+        else:
+            variations = [(unc_source, scale) for scale in ctx.scales]
+        cache = {}
+
+        def reader(process, key_dir, unc, scale):
+            k = (process, key_dir, unc, scale)
+            if k not in cache:
+                key = (key_dir, (unc, scale))
+                cache[k] = _read_hist(out_file, key_dir, ctx.hist_name(process, key))
+            return cache[k]
+
+        for process, cfg in ctx.data_driven.items():
+            est = EstimateContext(
+                merge=ctx,
+                process=process,
+                config=cfg,
+                unc_source=unc_source,
+                variations=variations,
+                key_dirs=key_dirs,
+                mc_backgrounds=mc_backgrounds,
+                signals=signals,
+                reader=reader,
+            )
+            result = ctx.estimators[process](est)
+            nuisances = est.nuisances
+            for (key_dir, (unc, scale)), hist in result.items():
+                key = (tuple(key_dir), (unc, scale))
+                if (unc, scale) in variations:
+                    if ctx.to_write(process, key):
+                        ctx.write_hist(out_file, process, key, hist)
+                elif unc in nuisances and est.nominal_pass and scale in ctx.scales:
+                    if not ctx.write_nuisances:
+                        continue
+                    name = nuisance_hist_name(
+                        process, nuisances[unc], scale, key[0], ctx.setup.era
+                    )
+                    dir_ptr = Utilities.mkdir(out_file, "/".join(key[0]))
+                    hist.SetTitle(name)
+                    hist.SetName(name)
+                    dir_ptr.WriteTObject(hist, name, "Overwrite")
+                else:
+                    raise RuntimeError(
+                        f"{process}: the estimator returned ({unc}, {scale}) at {key[0]} at "
+                        f"the pass of {unc_source}; it may return the variations of that "
+                        "source and, at the nominal pass, Up/Down of its declared nuisances "
+                        f"{sorted(nuisances)}"
+                    )
+            del result
+        cache.clear()
 
 
 # Acknowledgement lines of --stream on stdout: "@@HistMerger merged <process>" once a process is
@@ -509,6 +695,18 @@ if __name__ == "__main__":
     parser.add_argument("--channels", required=False, type=str, default="")
     parser.add_argument("--LAWrunVersion", required=True, type=str)
     parser.add_argument("--user-custom", type=str, default=None)
+    parser.add_argument("--customisations", type=str, default="")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="",
+        help="the physics model, if not the default one",
+    )
+    parser.add_argument(
+        "--no-data-driven",
+        action="store_true",
+        help="no data-driven estimate (a merge of a subset of the processes or datasets)",
+    )
     parser.add_argument(
         "--stream",
         action="store_true",

@@ -397,6 +397,25 @@ Each of these has caused a production incident. They are ordered by how much dam
   says `era: <era>`) and raises when any later layer, `user_custom` file or customisation changes
   `era`. `ERA_IDS` mirrors the C++ `Period` enum; `test/test_era_process_state.py` compares them.
 
+### Data-driven processes (`Common/DataDriven.py`, `Analysis/HistMergerFromHists.py`)
+
+- A data-driven process (processes.yaml `data_driven:`, no datasets, a model background) is
+  estimated in the merge's `postprocess`, after every process is in the merged file, **one
+  uncertainty source at a time**: the estimator may read only the nominal histograms and the
+  current source's variations (`EstimateContext.get` refuses others), so memory stays at all
+  processes × one source as #400 designed. It returns that source's variations and, at the nominal
+  pass only, Up/Down of its declared `nuisances`; anything else raises.
+- No estimate without merged data, nor for a merge restricted with `--process`/`--dataset`
+  (`--no-data-driven`): it would subtract part of the simulation only. The merger gets the task's
+  `--model` and `--customisations` so its physics model (which processes are subtracted) is the
+  task's.
+- `EstimateContext.get` returns copies: an estimator never changes the merged histograms of other
+  processes or of the next estimator.
+- A nuisance template ends with `_{}`: `SumEraFiles` recognises a variation by its name's ending
+  (a template with `{}` elsewhere was summed as a central histogram over a meta-era) and the
+  datacards address `<process>_<source>_<Up/Down>`. A data-driven process is listed in the physics
+  model itself, never as a `sub_process` of a group (Setup raises; it would be silently skipped).
+
 ### Concurrency
 
 - **Producers must not write bare-relative temp files.** CWD is shared between branches under

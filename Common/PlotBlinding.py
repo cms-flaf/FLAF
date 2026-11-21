@@ -60,13 +60,13 @@ def _windows(ranges, where, allow_empty=False):
 def blind_windows(var, entry_name, entry, region=None):
     """The blinding windows of variable `var` in `region` as a list of (lo, hi): the
     blind_ranges of its histograms.yaml entry (`entry`, under the key `entry_name`, which may
-    be a pattern), or [] without it. In the per-region form every pattern's windows are checked
+    be a pattern), or [] without it. In the per-region form every key's windows are checked
     and the region must match exactly one pattern (full match), or none when the key "*" gives
-    the windows of the other regions. Raises on a key starting with
-    "blind" that is not one of BLIND_KEYS, on blind_ranges that are not one window or a list of
-    windows of two numbers lo < hi (per region: or []), on a per-region form without a region,
-    with an invalid pattern, or with a region matching more than one pattern, or none without "*", and on
-    blind_ranges for a variable of more than one dimension, whose plotted x axis is not the
+    the windows of the other regions. Raises on a key starting with "blind" that is not one of
+    BLIND_KEYS; on blind_ranges that are not one window or a list of windows of two numbers
+    lo < hi (in the per-region form also []); on a per-region form without a region, with an
+    invalid pattern, or with a region matching more than one pattern, or none without "*"; and
+    on blind_ranges for a variable of more than one dimension, whose plotted x axis is not the
     variable's."""
     where = f"histograms.yaml entry {entry_name!r}"
     if entry_name != var:
@@ -132,7 +132,8 @@ def blind_windows(var, entry_name, entry, region=None):
                 if matched
                 else "no blind_ranges pattern"
             )
-            + f" (patterns: {list(per_pattern)}); it must match exactly one"
+            + f' (patterns: {list(per_pattern)}); it must match exactly one (a key "*" '
+            "gives the windows of the regions no pattern matches)"
         )
     return per_pattern[matched[0]][1]
 

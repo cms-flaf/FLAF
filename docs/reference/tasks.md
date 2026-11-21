@@ -398,11 +398,15 @@ per variable, skipping variables configured with `plot_task: false`).
   `hi` is shown — and so is a bin into which the rebinning (`x_rebin`) or the overflow merge
   moves events of a stored bin that overlaps a window. `blind_ranges` is for 1D variables only.
   Per region, `blind_ranges` is a mapping from region patterns to windows: each pattern is a
-  regular expression matched against the whole region name, each plotted region must match
-  exactly one of them — or none, if the key `"*"` gives the windows of the regions no pattern
-  matches (without it, a region that matches no pattern is an error, as is one that matches
-  several, not a region without blinding) — and `[]` hides nothing in the regions of its key;
-  every key's windows are checked whichever regions are plotted.
+  regular expression matched against the whole region name, and each plotted region must match
+  exactly one of them, or none if the key `"*"` (quoted: a bare `*` is a YAML alias) gives the
+  windows of the regions no pattern matches. A region that matches several patterns is an error,
+  and so is one that matches none when there is no `"*"` — never a region without blinding.
+  Inside the mapping `[]` hides nothing in the regions of its key (a top-level `blind_ranges: []`
+  is an error); every key's windows are checked whichever regions are plotted. The plotted
+  regions include those of the datacard shape plots that StatInference's `CreateDatacardsTask`
+  draws with HistPlotter (the datacard input regions, without data): a per-region entry must
+  cover them too.
   Any other key starting with `blind` (in any letter case) on a variable, and any such key in
   `data_hist` of `cms_stacked.yaml` or `<era>.yaml`, is an error, so that a key no code reads
   cannot pass for blinding.

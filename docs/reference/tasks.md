@@ -397,6 +397,11 @@ per variable, skipping variables configured with `plot_task: false`).
   than a point — partly overlapping bins included, while a bin that ends at `lo` or starts at
   `hi` is shown — and so is a bin into which the rebinning (`x_rebin`) or the overflow merge
   moves events of a stored bin that overlaps a window. `blind_ranges` is for 1D variables only.
+  Per region, `blind_ranges` is a mapping from region patterns to windows: each pattern is a
+  regular expression matched against the whole region name, each plotted region must match
+  exactly one of them (a region that matches none or several is an error, not a region without
+  blinding), and `[]` hides nothing in the regions of its pattern; every pattern's windows are
+  checked whichever regions are plotted.
   Any other key starting with `blind` (in any letter case) on a variable, and any such key in
   `data_hist` of `cms_stacked.yaml` or `<era>.yaml`, is an error, so that a key no code reads
   cannot pass for blinding.
@@ -405,6 +410,12 @@ per variable, skipping variables configured with `plot_task: false`).
   m_mumu(_.*)?:
     x_bins: "1500|0:300"
     blind_ranges: [ 115, 135 ]          # or [ [ 115, 120 ], [ 130, 135 ] ]
+  DNN_score:
+    x_bins: "20|0:1"
+    blind_ranges:                       # per region
+      SR_window: [ 0.6, 1 ]
+      SR_side(L|H)[12]: [ 0.8, 1 ]
+      CR_.*: [ ]                        # nothing hidden
   ```
 
 Plot styling comes from the analysis `config/plot/*.yaml` files (`cms_stacked.yaml`,

@@ -5,19 +5,23 @@ A variable's entry in config/plot/histograms.yaml takes two blinding keys:
 - ``blind: true``: no data on the plots of the variable outside the control regions
   (``plot_control_regions`` in global.yaml);
 - ``blind_ranges``: no data point inside windows of the x axis, given as one window ``[lo, hi]``
-  or a list of windows ``[[lo, hi], ...]``, in every region.
+  or a list of windows ``[[lo, hi], ...]``, in every region; or, per region, a mapping
+  ``{<region pattern>: <windows>}`` whose patterns are full-match regular expressions, where each
+  plotted region must match exactly one pattern and ``[]`` hides nothing in the regions of its
+  pattern.
 
 Any other key starting with "blind", and a blinding key in the page-level data style
 (``data_hist``), raises: a key that no code reads must never pass for blinding.
 """
 
 import math
+import re
 
 BLIND_KEYS = ("blind", "blind_ranges")
 
 _RANGES_FORM = (
     "blind_ranges takes one window [lo, hi] or a list of windows [[lo, hi], ...], "
-    "with numbers lo < hi"
+    "with numbers lo < hi, or a mapping {<region pattern>: <windows>}"
 )
 
 
@@ -29,11 +33,35 @@ def _is_blind_key(key):
     return isinstance(key, str) and key.lower().startswith("blind")
 
 
-def blind_windows(var, entry_name, entry):
-    """The blinding windows of variable `var` as a list of (lo, hi): the blind_ranges of its
-    histograms.yaml entry (`entry`, under the key `entry_name`, which may be a pattern), or []
-    without it. Raises on a key starting with "blind" that is not one of BLIND_KEYS, on
-    blind_ranges that are not one window or a list of windows of two numbers lo < hi, and on
+def _windows(ranges, where, allow_empty=False):
+    if allow_empty and isinstance(ranges, list) and not ranges:
+        return []
+    if isinstance(ranges, list) and ranges and all(_is_number(x) for x in ranges):
+        windows = [ranges]
+    elif (
+        isinstance(ranges, list) and ranges and all(isinstance(w, list) for w in ranges)
+    ):
+        windows = ranges
+    else:
+        raise ValueError(f"{where}: blind_ranges = {ranges!r}; {_RANGES_FORM}")
+    for window in windows:
+        if (
+            len(window) != 2
+            or not all(_is_number(x) for x in window)
+            or not window[0] < window[1]
+        ):
+            raise ValueError(f"{where}: blind_ranges window {window!r}; {_RANGES_FORM}")
+    return [(float(lo), float(hi)) for lo, hi in windows]
+
+
+def blind_windows(var, entry_name, entry, region=None):
+    """The blinding windows of variable `var` in `region` as a list of (lo, hi): the
+    blind_ranges of its histograms.yaml entry (`entry`, under the key `entry_name`, which may
+    be a pattern), or [] without it. In the per-region form every pattern's windows are checked
+    and the region must match exactly one pattern (full match). Raises on a key starting with
+    "blind" that is not one of BLIND_KEYS, on blind_ranges that are not one window or a list of
+    windows of two numbers lo < hi (per region: or []), on a per-region form without a region,
+    with an invalid pattern, or with a region matching no pattern or more than one, and on
     blind_ranges for a variable of more than one dimension, whose plotted x axis is not the
     variable's."""
     where = f"histograms.yaml entry {entry_name!r}"
@@ -54,22 +82,42 @@ def blind_windows(var, entry_name, entry):
             "dimension"
         )
     ranges = entry["blind_ranges"]
-    if isinstance(ranges, list) and ranges and all(_is_number(x) for x in ranges):
-        windows = [ranges]
-    elif (
-        isinstance(ranges, list) and ranges and all(isinstance(w, list) for w in ranges)
-    ):
-        windows = ranges
-    else:
-        raise ValueError(f"{where}: blind_ranges = {ranges!r}; {_RANGES_FORM}")
-    for window in windows:
-        if (
-            len(window) != 2
-            or not all(_is_number(x) for x in window)
-            or not window[0] < window[1]
-        ):
-            raise ValueError(f"{where}: blind_ranges window {window!r}; {_RANGES_FORM}")
-    return [(float(lo), float(hi)) for lo, hi in windows]
+    if not isinstance(ranges, dict):
+        return _windows(ranges, where)
+    if not ranges:
+        raise ValueError(f"{where}: blind_ranges = {{}}; {_RANGES_FORM}")
+    per_pattern = {}
+    for pattern, pattern_ranges in ranges.items():
+        if not isinstance(pattern, str):
+            raise ValueError(
+                f"{where}: blind_ranges region pattern {pattern!r} is not a string"
+            )
+        try:
+            compiled = re.compile(pattern)
+        except re.error as err:
+            raise ValueError(
+                f"{where}: blind_ranges region pattern {pattern!r}: {err}"
+            ) from None
+        per_pattern[pattern] = (
+            compiled,
+            _windows(pattern_ranges, f"{where}, region {pattern!r}", allow_empty=True),
+        )
+    if region is None:
+        raise ValueError(
+            f"{where}: blind_ranges is given per region, and no region was given"
+        )
+    matched = [p for p, (rx, _) in per_pattern.items() if rx.fullmatch(region)]
+    if len(matched) != 1:
+        raise ValueError(
+            f"{where}: region {region!r} matches "
+            + (
+                f"the blind_ranges patterns {matched}"
+                if matched
+                else "no blind_ranges pattern"
+            )
+            + f" (patterns: {list(per_pattern)}); it must match exactly one"
+        )
+    return per_pattern[matched[0]][1]
 
 
 def check_data_style(page_cfgs):

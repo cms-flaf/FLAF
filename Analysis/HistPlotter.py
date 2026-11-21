@@ -373,7 +373,7 @@ if __name__ == "__main__":
         }
         var_entry = findBinEntry(hist_cfg_dict, args.var)
         blind_windows = PlotBlinding.blind_windows(
-            args.var, var_entry, hist_cfg_dict[var_entry]
+            args.var, var_entry, hist_cfg_dict[var_entry], custom_region
         )
 
         # A blinded variable hides the data outside the control regions only. Without data

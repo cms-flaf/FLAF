@@ -205,6 +205,73 @@ class BlindWindowsTest(unittest.TestCase):
         )
 
 
+class BlindWindowsPerRegionTest(unittest.TestCase):
+    ENTRY = {
+        "blind_ranges": {
+            "SR_SL_HMESub_m400": [-1.5, 23.5],
+            "SR_SL_HMESB(L1|L2)_m400": [[0.0, 2.0], [3.0, 23.5]],
+            "SR_SL_HMESBH[12]_m400": [],
+            "CR_.*": [10, 23.5],
+        }
+    }
+
+    def windows(self, region, entry=None):
+        return blind_windows("v", "v", entry or self.ENTRY, region)
+
+    def test_each_region_gets_its_pattern(self):
+        self.assertEqual(self.windows("SR_SL_HMESub_m400"), [(-1.5, 23.5)])
+        self.assertEqual(self.windows("SR_SL_HMESBL2_m400"), [(0.0, 2.0), (3.0, 23.5)])
+        self.assertEqual(self.windows("CR_SL_TT_HMESub_m400"), [(10.0, 23.5)])
+
+    def test_empty_list_hides_nothing(self):
+        self.assertEqual(self.windows("SR_SL_HMESBH1_m400"), [])
+
+    def test_full_match_only(self):
+        # a pattern matching a part of the region name does not match it
+        for region in ("SR_SL_HMESub_m4000", "xSR_SL_HMESub_m400", "SR_SL_HMESub"):
+            with self.subTest(region=region):
+                with self.assertRaisesRegex(ValueError, "no blind_ranges pattern"):
+                    self.windows(region)
+
+    def test_two_matching_patterns_raise(self):
+        entry = {"blind_ranges": {"SR_.*": [1, 2], ".*_m400": [3, 4]}}
+        with self.assertRaisesRegex(ValueError, "exactly one"):
+            self.windows("SR_SL_HMESub_m400", entry)
+        self.assertEqual(self.windows("CR_SL_m400", entry), [(3.0, 4.0)])
+
+    def test_no_region_raises(self):
+        with self.assertRaisesRegex(ValueError, "no region"):
+            blind_windows("v", "v", self.ENTRY)
+
+    def test_every_pattern_is_checked(self):
+        # an invalid entry raises even where the plotted region matches a valid one
+        for bad in (
+            {"SR": [1, 2], "CR": [2, 1]},
+            {"SR": [1, 2], "CR": None},
+            {"SR": [1, 2], "CR": [[]]},
+            {"SR": [1, 2], "CR(": [3, 4]},
+            {"SR": [1, 2], 7: [3, 4]},
+            {},
+        ):
+            with self.subTest(bad=bad):
+                with self.assertRaisesRegex(ValueError, "blind_ranges"):
+                    blind_windows("v", "v", {"blind_ranges": bad}, "SR")
+
+    def test_list_form_ignores_the_region(self):
+        entry = {"blind_ranges": [1, 2]}
+        for region in (None, "SR", "anything"):
+            with self.subTest(region=region):
+                self.assertEqual(blind_windows("v", "v", entry, region), [(1.0, 2.0)])
+
+    def test_unknown_key_and_dimension_checks_still_apply(self):
+        with self.assertRaisesRegex(ValueError, "no code reads"):
+            blind_windows("v", "v", {"blind_range": {"SR": [1, 2]}}, "SR")
+        with self.assertRaisesRegex(ValueError, "not supported"):
+            blind_windows(
+                "v", "v", {"var_list": ["a", "b"], "blind_ranges": {"SR": [1, 2]}}, "SR"
+            )
+
+
 class CheckDataStyleTest(unittest.TestCase):
     def test_data_hist_blind_raises(self):
         for key in ("blind", "blind_ranges", "Blind"):

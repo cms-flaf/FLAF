@@ -7,8 +7,8 @@ A variable's entry in config/plot/histograms.yaml takes two blinding keys:
 - ``blind_ranges``: no data point inside windows of the x axis, given as one window ``[lo, hi]``
   or a list of windows ``[[lo, hi], ...]``, in every region; or, per region, a mapping
   ``{<region pattern>: <windows>}`` whose patterns are full-match regular expressions, where each
-  plotted region must match exactly one pattern and ``[]`` hides nothing in the regions of its
-  pattern.
+  plotted region must match exactly one pattern, or none if the key ``"*"`` gives the windows of
+  the regions no pattern matches, and ``[]`` hides nothing in the regions of its key.
 
 Any other key starting with "blind", and a blinding key in the page-level data style
 (``data_hist``), raises: a key that no code reads must never pass for blinding.
@@ -18,6 +18,9 @@ import math
 import re
 
 BLIND_KEYS = ("blind", "blind_ranges")
+# the key of the per-region blind_ranges that holds the windows of the regions no pattern matches
+# (not a regular expression: "*" alone does not compile)
+OTHER_REGIONS = "*"
 
 _RANGES_FORM = (
     "blind_ranges takes one window [lo, hi] or a list of windows [[lo, hi], ...], "
@@ -58,10 +61,11 @@ def blind_windows(var, entry_name, entry, region=None):
     """The blinding windows of variable `var` in `region` as a list of (lo, hi): the
     blind_ranges of its histograms.yaml entry (`entry`, under the key `entry_name`, which may
     be a pattern), or [] without it. In the per-region form every pattern's windows are checked
-    and the region must match exactly one pattern (full match). Raises on a key starting with
+    and the region must match exactly one pattern (full match), or none when the key "*" gives
+    the windows of the other regions. Raises on a key starting with
     "blind" that is not one of BLIND_KEYS, on blind_ranges that are not one window or a list of
     windows of two numbers lo < hi (per region: or []), on a per-region form without a region,
-    with an invalid pattern, or with a region matching no pattern or more than one, and on
+    with an invalid pattern, or with a region matching more than one pattern, or none without "*", and on
     blind_ranges for a variable of more than one dimension, whose plotted x axis is not the
     variable's."""
     where = f"histograms.yaml entry {entry_name!r}"
@@ -88,6 +92,8 @@ def blind_windows(var, entry_name, entry, region=None):
         raise ValueError(f"{where}: blind_ranges = {{}}; {_RANGES_FORM}")
     per_pattern = {}
     for pattern, pattern_ranges in ranges.items():
+        if pattern == OTHER_REGIONS:
+            continue
         if not isinstance(pattern, str):
             raise ValueError(
                 f"{where}: blind_ranges region pattern {pattern!r} is not a string"
@@ -106,7 +112,18 @@ def blind_windows(var, entry_name, entry, region=None):
         raise ValueError(
             f"{where}: blind_ranges is given per region, and no region was given"
         )
+    other = (
+        _windows(
+            ranges[OTHER_REGIONS],
+            f"{where}, region {OTHER_REGIONS!r}",
+            allow_empty=True,
+        )
+        if OTHER_REGIONS in ranges
+        else None
+    )
     matched = [p for p, (rx, _) in per_pattern.items() if rx.fullmatch(region)]
+    if not matched and other is not None:
+        return other
     if len(matched) != 1:
         raise ValueError(
             f"{where}: region {region!r} matches "

@@ -519,7 +519,8 @@ Each of these has caused a production incident. They are ordered by how much dam
   (NaN content and error) every data bin it overlaps and every bin the rebinning or the overflow
   merge fills from a stored bin it overlaps, in every region, control regions included — or, in the
   per-region form `{<region pattern>: <windows>}`, in the regions of the one full-match pattern each
-  plotted region must match (none or several raise; `[]` hides nothing there). A change that lifts a
+  plotted region must match (several raise; none raises unless the key `"*"` gives the other
+  regions' windows; `[]` hides nothing there). A change that lifts a
   window in some region, lets a region fall through to no pattern silently, or draws a hidden bin as
   a marker at zero, shows blinded data.
 - `HistProducerFromNTuple` fills through `include/HistFiller.h`, one event loop per tree (or per

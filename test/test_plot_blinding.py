@@ -257,6 +257,25 @@ class BlindWindowsPerRegionTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "blind_ranges"):
                     blind_windows("v", "v", {"blind_ranges": bad}, "SR")
 
+    def test_other_regions_key(self):
+        entry = {"blind_ranges": {"SR_.*": [1, 2], "*": [5, 6]}}
+        self.assertEqual(self.windows("SR_x", entry), [(1.0, 2.0)])
+        # "*" only where no pattern matches, and [] there hides nothing
+        self.assertEqual(self.windows("CR_x", entry), [(5.0, 6.0)])
+        entry = {"blind_ranges": {"SR_.*": [1, 2], "*": []}}
+        self.assertEqual(self.windows("CR_x", entry), [])
+        # two matching patterns still raise with "*" present
+        entry = {"blind_ranges": {"SR_.*": [1, 2], ".*_x": [3, 4], "*": [5, 6]}}
+        with self.assertRaisesRegex(ValueError, "exactly one"):
+            self.windows("SR_x", entry)
+        # its windows are checked like the others
+        with self.assertRaisesRegex(ValueError, "blind_ranges"):
+            self.windows("SR_x", {"blind_ranges": {"SR_.*": [1, 2], "*": [6, 5]}})
+        # alone it serves every region
+        self.assertEqual(
+            self.windows("any", {"blind_ranges": {"*": [7, 8]}}), [(7.0, 8.0)]
+        )
+
     def test_list_form_ignores_the_region(self):
         entry = {"blind_ranges": [1, 2]}
         for region in (None, "SR", "anything"):

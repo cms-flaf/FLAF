@@ -95,13 +95,16 @@ def _merged_hists_target(task, era, var_name, fs):
 
 
 def _variable_applies_to_dataset(setup, var_name, dataset_name):
-    """True unless the variable sets `signal_params` and the dataset matches none of its entries.
+    """True unless the variable sets `signal_params` and the dataset matches none of its entries,
+    and always for a physics model with `apply_signal_params: false`.
 
     A dataset matches an entry if, for every key of the entry, it lacks the key or has that value.
     """
     # HistHelper imports ROOT, so not at module level.
     from FLAF.Common.HistHelper import findBinEntry
 
+    if not setup.phys_model.apply_signal_params:
+        return True
     entries = setup.hists[findBinEntry(setup.hists, var_name)].get("signal_params")
     if entries is None:
         return True

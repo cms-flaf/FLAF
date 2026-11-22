@@ -281,7 +281,9 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
   `signal_params: [ { mass: <M>, spin: <S> }, ... ]` is produced by `HistFromNtupleProducerTask`
   and merged here only for datasets matching at least one entry. A dataset matches an entry if,
   for every key of the entry, it lacks that key or has that value, so backgrounds always match.
-  Any dataset key can be listed; a single dict is a one-entry list.
+  Any dataset key can be listed; a single dict is a one-entry list. A physics model with
+  `apply_signal_params: false` fills every variable for every dataset (see
+  [physics models](../configuration/processes-and-models.md)).
 - **Signal trees:** with [signal trees](#signal-trees) in the chunks, the chunks of each merged
   process are concatenated, one variation at a time, into
   `SignalTrees/<process>/<variation>` of the merged file, after the histograms. A shape

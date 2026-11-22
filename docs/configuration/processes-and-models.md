@@ -95,6 +95,7 @@ ModelName:
     - SignalProcessName
   data:
     - DataProcessName
+  apply_signal_params: true   # optional, default true
 ```
 
 A model is just a named partition of processes into the three roles, in
@@ -102,6 +103,16 @@ A model is just a named partition of processes into the three roles, in
 and every listed process must be defined in the era's processes configuration. Which model a run uses is set
 by `phys_model` — the analysis's `config/global.yaml` sets the production model, your
 [`user_custom.yaml`](user-custom.md) usually overrides it, and `--model` overrides both.
+
+`apply_signal_params: false` fills every variable for every dataset of the model, whatever the
+`signal_params` of its `histograms.yaml` entry (see
+[HistMergerTask](../reference/tasks.md#histmergertask)): a model for studies that need, say, the signals of all
+mass points in a variable meant for one of them. It changes what is filled, so such a model gets
+its own `--version` and histogram storage and is never the model of the analysis results; the
+histTuples of a production are reused with `--HistTupleProducerTask-version <its version>` (a new
+`--version` rather than the production's own, whose local law job files the two runs would share).
+Only FLAF's dataset filter is lifted: a booking plugin that reads `signal_params` itself (for
+example to put a mass's variable in that mass's sub-regions only) keeps its own assignment.
 
 ### Data-driven processes
 

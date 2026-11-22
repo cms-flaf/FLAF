@@ -191,7 +191,7 @@ class Config:
 
 class PhysicsModel:
     allowed_process_types = set(["backgrounds", "signals", "data"])
-    other_attributes = set(["name"])
+    other_attributes = set(["name", "apply_signal_params"])
 
     def __init__(self, name, model_dict):
         self.name = name
@@ -203,6 +203,13 @@ class PhysicsModel:
         if len(extra_keys) > 0:
             raise RuntimeError(
                 f"Physics model '{name}' contains invalid process types: {extra_keys}"
+            )
+        # false: every variable is filled for every dataset, whatever its signal_params
+        self.apply_signal_params = model_dict.get("apply_signal_params", True)
+        if not isinstance(self.apply_signal_params, bool):
+            raise RuntimeError(
+                f"Physics model '{name}': apply_signal_params must be true or false, got "
+                f"{self.apply_signal_params!r}"
             )
         self._processes = {}
         for key in PhysicsModel.allowed_process_types:

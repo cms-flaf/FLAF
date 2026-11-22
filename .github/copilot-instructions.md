@@ -513,6 +513,10 @@ Each of these has caused a production incident. They are ordered by how much dam
   lists; analysis code should decide by that entry, not by substrings of process names. Within the
   groups the model reaches, a process may belong to one group only. The `parent_process` key on a
   base process is different: the model process after expansion, which histograms are merged under.
+- `signal_params` of a `histograms.yaml` entry restricts the datasets a variable is filled for
+  (`Analysis/tasks.py` `_variable_applies_to_dataset`), except for a physics model with
+  `apply_signal_params: false` (default true), which fills every variable for every dataset — a
+  study model, never the model of the analysis results; the key must be a boolean.
 - Plot blinding (`Common/PlotBlinding.py`, applied by `Analysis/HistPlotter.py`): a variable's
   `histograms.yaml` entry takes `blind` and `blind_ranges` only; any other key starting with
   `blind`, and a blinding key in the page-level `data_hist`, raises. A `blind_ranges` window hides

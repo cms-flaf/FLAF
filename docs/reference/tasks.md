@@ -281,7 +281,9 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
   `signal_params: [ { mass: <M>, spin: <S> }, ... ]` is produced by `HistFromNtupleProducerTask`
   and merged here only for datasets matching at least one entry. A dataset matches an entry if,
   for every key of the entry, it lacks that key or has that value, so backgrounds always match.
-  Any dataset key can be listed; a single dict is a one-entry list.
+  Any dataset key can be listed; a single dict is a one-entry list. A physics model with
+  `apply_signal_params: false` fills every variable for every dataset (see
+  [physics models](../configuration/processes-and-models.md)).
 - **Signal trees:** with [signal trees](#signal-trees) in the chunks, the chunks of each merged
   process are concatenated, one variation at a time, into
   `SignalTrees/<process>/<variation>` of the merged file, after the histograms. A shape
@@ -392,19 +394,45 @@ per variable, skipping variables configured with `plot_task: false`).
 - **Blinding** (per variable, in `config/plot/histograms.yaml`): `blind: true` shows no data on
   the plots of the variable outside the `plot_control_regions` (below). `blind_ranges` hides
   the data points inside windows of its x axis,
-  in the plot and in the ratio panel, in every region, control regions included: one window
+  in the plot and in the ratio panel, in every plot, control regions included: one window
   `[lo, hi]` or a list of them, `[[lo, hi], ...]`, with numbers `lo < hi`. A bin is hidden when it overlaps a window by more
   than a point — partly overlapping bins included, while a bin that ends at `lo` or starts at
   `hi` is shown — and so is a bin into which the rebinning (`x_rebin`) or the overflow merge
   moves events of a stored bin that overlaps a window. `blind_ranges` is for 1D variables only.
+  Per plot, `blind_ranges` is a mapping by channel, category and region, read like `x_rebin`
+  (below): its values are windows, and `[]` hides nothing in those plots (a top-level
+  `blind_ranges: []` is an error). A plot that reaches a level with no matching key and no
+  `other` is an error — never a plot without blinding — and every value is checked whichever plots
+  are made.
+  The plots include the datacard shape plots that StatInference's `CreateDatacardsTask` draws
+  with HistPlotter (the datacard input channels, categories and regions, without data): the
+  mapping must cover them too.
   Any other key starting with `blind` (in any letter case) on a variable, and any such key in
   `data_hist` of `cms_stacked.yaml` or `<era>.yaml`, is an error, so that a key no code reads
   cannot pass for blinding.
+- **Settings per channel, category and region** (`x_rebin` and `blind_ranges` of a
+  `histograms.yaml` entry, `Common/PlotKeys.py`): a value is the same for every plot; a mapping has
+  channel, category or region names as keys, in any order and nesting, and `other` for the plots
+  no key names. At each level the first of the plot's channel, category and region that is a key
+  is followed, or else `other`, which is searched in the same way; a level with neither is an
+  error, also below a key that matched (there is no fallback to another key or to an outer
+  `other`). Keys are names, not patterns.
 
   ```yaml
   m_mumu(_.*)?:
     x_bins: "1500|0:300"
     blind_ranges: [ 115, 135 ]          # or [ [ 115, 120 ], [ 130, 135 ] ]
+  DNN_score:
+    x_bins: "20|0:1"
+    x_rebin:
+      boosted: [ 0, 0.5, 0.8, 1 ]       # a category, in every channel and region
+      other: [ 0, 0.2, 0.4, 0.6, 0.8, 1 ]
+    blind_ranges:                       # per plot
+      SR_window:                        # a region
+        e: { res2b: [ 0.6, 1 ], other: [ 0.7, 1 ] }
+        other: [ 0.6, 1 ]
+      CR_TT: [ ]                        # nothing hidden
+      other: [ 0.8, 1 ]                 # every other plot
   ```
 
 Plot styling comes from the analysis `config/plot/*.yaml` files (`cms_stacked.yaml`,

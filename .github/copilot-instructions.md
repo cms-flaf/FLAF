@@ -513,13 +513,21 @@ Each of these has caused a production incident. They are ordered by how much dam
   lists; analysis code should decide by that entry, not by substrings of process names. Within the
   groups the model reaches, a process may belong to one group only. The `parent_process` key on a
   base process is different: the model process after expansion, which histograms are merged under.
+- `signal_params` of a `histograms.yaml` entry restricts the datasets a variable is filled for
+  (`Analysis/tasks.py` `_variable_applies_to_dataset`), except for a physics model with
+  `apply_signal_params: false` (default true), which fills every variable for every dataset — a
+  study model, never the model of the analysis results; the key must be a boolean.
 - Plot blinding (`Common/PlotBlinding.py`, applied by `Analysis/HistPlotter.py`): a variable's
   `histograms.yaml` entry takes `blind` and `blind_ranges` only; any other key starting with
   `blind`, and a blinding key in the page-level `data_hist`, raises. A `blind_ranges` window hides
   (NaN content and error) every data bin it overlaps and every bin the rebinning or the overflow
-  merge fills from a stored bin it overlaps, in every region, control regions included. A change
-  that lifts a window in some region, or draws a hidden bin as a marker at zero, shows blinded
-  data.
+  merge fills from a stored bin it overlaps, in every plot, control regions included — or, in the
+  mapping form, in the plots its channel/category/region keys resolve to (`Common/PlotKeys.py`, the
+  resolver `x_rebin` uses too: names, not patterns; `other` per level; a level with no matching
+  key and no `other` raises, with no fallback to another key or an outer `other`; `[]` hides
+  nothing there). A change that lifts a window in some
+  plot, lets a plot resolve to no value silently, or draws a hidden bin as a marker at zero, shows
+  blinded data.
 - `HistProducerFromNTuple` fills through `include/HistFiller.h`, one event loop per tree (or per
   budget group), with one copy of its arrays per RDataFrame slot, summed in slot order by `Write`;
   `hist_from_ntuple_max_hist_memory_mb` counts every copy. Key filters are `bool`

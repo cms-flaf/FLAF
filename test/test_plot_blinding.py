@@ -205,6 +205,138 @@ class BlindWindowsTest(unittest.TestCase):
         )
 
 
+class BlindWindowsPerPlotTest(unittest.TestCase):
+    """blind_ranges by channel, category and region, resolved as x_rebin (Common/PlotKeys.py)."""
+
+    ENTRY = {
+        "blind_ranges": {
+            "SR_SL_HMESub_m400": {
+                "e": {
+                    "res2b": [-2.5, 23.5],
+                    "boosted": [1.0, 23.5],
+                    "other": [-3.0, 23.5],
+                },
+                "mu": [[0.0, 2.0], [3.0, 23.5]],
+                "other": [-23.5, 23.5],
+            },
+            "SR_SL_HMESBH1_m400": [],
+            "CR_SL_TT": [],
+            "other": [-1.5, 23.5],
+        }
+    }
+
+    def windows(self, channel=None, category=None, region=None, entry=None):
+        return blind_windows(
+            "v",
+            "v",
+            entry or self.ENTRY,
+            channel=channel,
+            category=category,
+            region=region,
+        )
+
+    def test_each_plot_gets_its_value(self):
+        self.assertEqual(
+            self.windows("e", "res2b", "SR_SL_HMESub_m400"), [(-2.5, 23.5)]
+        )
+        self.assertEqual(
+            self.windows("e", "boosted", "SR_SL_HMESub_m400"), [(1.0, 23.5)]
+        )
+        self.assertEqual(
+            self.windows("mu", "boosted", "SR_SL_HMESub_m400"),
+            [(0.0, 2.0), (3.0, 23.5)],
+        )
+
+    def test_other_at_each_level(self):
+        # a category the channel does not name: "other" of the channel
+        self.assertEqual(
+            self.windows("e", "recovery", "SR_SL_HMESub_m400"), [(-3.0, 23.5)]
+        )
+        # a channel the region does not name: "other" of the region
+        self.assertEqual(
+            self.windows("ee", "res2b", "SR_SL_HMESub_m400"), [(-23.5, 23.5)]
+        )
+        # a region no key names: the top-level "other"
+        self.assertEqual(self.windows("e", "res2b", "SR_DL"), [(-1.5, 23.5)])
+
+    def test_no_fallback_to_an_outer_other(self):
+        # a level with no matching key and no "other" raises, below a key that matched too
+        entry = {"blind_ranges": {"SR": {"e": {"res2b": [1, 2]}}, "other": [5, 6]}}
+        with self.assertRaisesRegex(ValueError, "at SR/e: no key matches"):
+            self.windows("e", "boosted", "SR", entry)
+        with self.assertRaisesRegex(ValueError, "at SR: no key matches"):
+            self.windows("mu", "res2b", "SR", entry)
+        self.assertEqual(self.windows("mu", "res2b", "CR", entry), [(5.0, 6.0)])
+
+    def test_empty_list_hides_nothing(self):
+        self.assertEqual(self.windows("e", "res2b", "SR_SL_HMESBH1_m400"), [])
+        self.assertEqual(self.windows("mu", "boosted", "CR_SL_TT"), [])
+
+    def test_exact_names_only(self):
+        # keys are names, not patterns: a longer or shorter name is another plot
+        entry = {"blind_ranges": {"SR_SL_HMESub_m400": [1, 2], "SR_.*": [3, 4]}}
+        for region in ("SR_SL_HMESub_m4000", "SR_SL_HMESub", "SR_x"):
+            with self.subTest(region=region):
+                with self.assertRaisesRegex(ValueError, "no value"):
+                    self.windows("e", "res2b", region, entry)
+
+    def test_no_value_raises(self):
+        # a plot no key reaches, at a level without "other", is never a plot without blinding
+        entry = {"blind_ranges": {"SR": {"e": [1, 2]}}}
+        with self.assertRaisesRegex(ValueError, "no value"):
+            self.windows("mu", "res2b", "SR", entry)
+        with self.assertRaisesRegex(ValueError, "no value"):
+            self.windows("e", "res2b", "CR", entry)
+        with self.assertRaisesRegex(ValueError, "no value"):
+            blind_windows("v", "v", entry)
+
+    def test_keys_in_any_order(self):
+        entry = {
+            "blind_ranges": {"e": {"SR": [1, 2], "other": [3, 4]}, "other": [5, 6]}
+        }
+        self.assertEqual(self.windows("e", "res2b", "SR", entry), [(1.0, 2.0)])
+        self.assertEqual(self.windows("e", "res2b", "CR", entry), [(3.0, 4.0)])
+        self.assertEqual(self.windows("mu", "res2b", "SR", entry), [(5.0, 6.0)])
+
+    def test_every_value_is_checked(self):
+        # an invalid value raises even where the plot resolves to a valid one
+        for bad in (
+            {"SR": [1, 2], "CR": [2, 1]},
+            {"SR": [1, 2], "CR": None},
+            {"SR": [1, 2], "CR": [[]]},
+            {"SR": [1, 2], "CR": {}},
+            {"SR": [1, 2], "CR": {"e": [3]}},
+            {"SR": [1, 2], 7: [3, 4]},
+            {"SR": [1, 2], "other": [6, 5]},
+            {},
+        ):
+            with self.subTest(bad=bad):
+                with self.assertRaisesRegex(ValueError, "blind_ranges"):
+                    self.windows("e", "res2b", "SR", {"blind_ranges": bad})
+
+    def test_list_form_ignores_the_plot(self):
+        entry = {"blind_ranges": [1, 2]}
+        for keys in ((None, None, None), ("e", "res2b", "SR"), ("x", "y", "z")):
+            with self.subTest(keys=keys):
+                self.assertEqual(self.windows(*keys, entry=entry), [(1.0, 2.0)])
+
+    def test_keyword_only(self):
+        # a positional region would be taken for a channel
+        with self.assertRaises(TypeError):
+            blind_windows("v", "v", self.ENTRY, "SR_SL_HMESub_m400")
+
+    def test_unknown_key_and_dimension_checks_still_apply(self):
+        with self.assertRaisesRegex(ValueError, "no code reads"):
+            blind_windows("v", "v", {"blind_range": {"SR": [1, 2]}}, region="SR")
+        with self.assertRaisesRegex(ValueError, "not supported"):
+            blind_windows(
+                "v",
+                "v",
+                {"var_list": ["a", "b"], "blind_ranges": {"SR": [1, 2]}},
+                region="SR",
+            )
+
+
 class CheckDataStyleTest(unittest.TestCase):
     def test_data_hist_blind_raises(self):
         for key in ("blind", "blind_ranges", "Blind"):

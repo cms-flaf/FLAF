@@ -10,6 +10,7 @@ if __name__ == "__main__":
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
 import FLAF.Common.PlotBlinding as PlotBlinding
+import FLAF.Common.PlotKeys as PlotKeys
 import FLAF.Common.TheoryUncertainties as TheoryUncertainties
 from FLAF.Common.PlotGroups import (
     GroupProcesses,
@@ -152,37 +153,9 @@ def findNewBins(hist_cfg_dict, var, **keys):
             raise RuntimeError(f'bins definition not found for "{var}"')
         return cfg["x_bins"]
 
-    x_rebin = cfg["x_rebin"]
-
-    if isinstance(x_rebin, list):
-        return x_rebin
-
-    def recursive_search(d, remaining_keys):
-        if isinstance(d, list):
-            return d
-        if not remaining_keys and isinstance(d, dict) and "other" in d:
-            return d["other"]
-        if not isinstance(d, dict):
-            return None
-
-        for k_name, k_value in remaining_keys.items():
-            if k_value in d:
-                found = recursive_search(
-                    d[k_value],
-                    {kk: vv for kk, vv in remaining_keys.items() if kk != k_name},
-                )
-                if found is not None:
-                    return found
-
-        if "other" in d:
-            return d["other"]
-        raise RuntimeError(f'Unable to find correct rebin for "{var}"')
-
-    result = recursive_search(x_rebin, {k: v for k, v in keys.items() if v is not None})
-
-    if result is None:
-        raise RuntimeError(f'Unable to find correct rebin for "{var}"')
-    return result
+    return PlotKeys.resolve(
+        cfg["x_rebin"], f'histograms.yaml x_rebin of "{var}"', **keys
+    )
 
 
 if __name__ == "__main__":
@@ -373,7 +346,12 @@ if __name__ == "__main__":
         }
         var_entry = findBinEntry(hist_cfg_dict, args.var)
         blind_windows = PlotBlinding.blind_windows(
-            args.var, var_entry, hist_cfg_dict[var_entry]
+            args.var,
+            var_entry,
+            hist_cfg_dict[var_entry],
+            channel=channel,
+            category=category,
+            region=custom_region,
         )
 
         # A blinded variable hides the data outside the control regions only. Without data

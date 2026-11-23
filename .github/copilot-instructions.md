@@ -521,12 +521,13 @@ Each of these has caused a production incident. They are ordered by how much dam
   `histograms.yaml` entry takes `blind` and `blind_ranges` only; any other key starting with
   `blind`, and a blinding key in the page-level `data_hist`, raises. A `blind_ranges` window hides
   (NaN content and error) every data bin it overlaps and every bin the rebinning or the overflow
-  merge fills from a stored bin it overlaps, in every region, control regions included — or, in the
-  per-region form `{<region pattern>: <windows>}`, in the regions of the one full-match pattern each
-  plotted region must match (several raise; none raises unless the key `"*"` gives the other
-  regions' windows; `[]` hides nothing there). A change that lifts a
-  window in some region, lets a region fall through to no pattern silently, or draws a hidden bin as
-  a marker at zero, shows blinded data.
+  merge fills from a stored bin it overlaps, in every plot, control regions included — or, in the
+  mapping form, in the plots its channel/category/region keys resolve to (`Common/PlotKeys.py`, the
+  resolver `x_rebin` uses too: names, not patterns; `other` per level; a level with no matching
+  key and no `other` raises, with no fallback to another key or an outer `other`; `[]` hides
+  nothing there). A change that lifts a window in some
+  plot, lets a plot resolve to no value silently, or draws a hidden bin as a marker at zero, shows
+  blinded data.
 - `HistProducerFromNTuple` fills through `include/HistFiller.h`, one event loop per tree (or per
   budget group), with one copy of its arrays per RDataFrame slot, summed in slot order by `Write`;
   `hist_from_ntuple_max_hist_memory_mb` counts every copy. Key filters are `bool`

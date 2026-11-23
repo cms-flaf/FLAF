@@ -5,26 +5,25 @@ A variable's entry in config/plot/histograms.yaml takes two blinding keys:
 - ``blind: true``: no data on the plots of the variable outside the control regions
   (``plot_control_regions`` in global.yaml);
 - ``blind_ranges``: no data point inside windows of the x axis, given as one window ``[lo, hi]``
-  or a list of windows ``[[lo, hi], ...]``, in every region; or, per region, a mapping
-  ``{<region pattern>: <windows>}`` whose patterns are full-match regular expressions, where each
-  plotted region must match exactly one pattern, or none if the key ``"*"`` gives the windows of
-  the regions no pattern matches, and ``[]`` hides nothing in the regions of its key.
+  or a list of windows ``[[lo, hi], ...]``, in every plot; or a mapping by channel, category and
+  region with ``other`` for the plots no key names, resolved as ``x_rebin`` is (Common/PlotKeys.py),
+  whose values are windows or ``[]`` (nothing hidden in those plots); a plot that reaches a level
+  with no matching key and no ``other`` is an error, never a plot without blinding.
 
 Any other key starting with "blind", and a blinding key in the page-level data style
 (``data_hist``), raises: a key that no code reads must never pass for blinding.
 """
 
 import math
-import re
+
+from FLAF.Common import PlotKeys
 
 BLIND_KEYS = ("blind", "blind_ranges")
-# the key of the per-region blind_ranges that holds the windows of the regions no pattern matches
-# (not a regular expression: "*" alone does not compile)
-OTHER_REGIONS = "*"
 
 _RANGES_FORM = (
     "blind_ranges takes one window [lo, hi] or a list of windows [[lo, hi], ...], "
-    "with numbers lo < hi, or a mapping {<region pattern>: <windows>}"
+    "with numbers lo < hi, or a mapping by channel, category and region (as x_rebin) "
+    f'with "{PlotKeys.OTHER}" for the other plots, whose values are windows or []'
 )
 
 
@@ -57,17 +56,16 @@ def _windows(ranges, where, allow_empty=False):
     return [(float(lo), float(hi)) for lo, hi in windows]
 
 
-def blind_windows(var, entry_name, entry, region=None):
-    """The blinding windows of variable `var` in `region` as a list of (lo, hi): the
-    blind_ranges of its histograms.yaml entry (`entry`, under the key `entry_name`, which may
-    be a pattern), or [] without it. In the per-region form every key's windows are checked
-    and the region must match exactly one pattern (full match), or none when the key "*" gives
-    the windows of the other regions. Raises on a key starting with "blind" that is not one of
-    BLIND_KEYS; on blind_ranges that are not one window or a list of windows of two numbers
-    lo < hi (in the per-region form also []); on a per-region form without a region, with an
-    invalid pattern, or with a region matching more than one pattern, or none without "*"; and
-    on blind_ranges for a variable of more than one dimension, whose plotted x axis is not the
-    variable's."""
+def blind_windows(var, entry_name, entry, *, channel=None, category=None, region=None):
+    """The blinding windows of variable `var` in the plot of `channel`, `category` and `region` as
+    a list of (lo, hi): the blind_ranges of its histograms.yaml entry (`entry`, under the key
+    `entry_name`, which may be a pattern), or [] without it. In the mapping form every value is
+    checked, whichever plots are made, and the plot's value is resolved as x_rebin's
+    (Common/PlotKeys.py). Raises on a key starting with "blind" that is not one of BLIND_KEYS; on
+    blind_ranges that are not one window or a list of windows of two numbers lo < hi (in the
+    mapping form also []); on a mapping that is empty, has a key that is not a string, or gives
+    the plot no value; and on blind_ranges for a variable of more than one dimension, whose
+    plotted x axis is not the variable's."""
     where = f"histograms.yaml entry {entry_name!r}"
     if entry_name != var:
         where += f" (variable {var})"
@@ -88,54 +86,22 @@ def blind_windows(var, entry_name, entry, region=None):
     ranges = entry["blind_ranges"]
     if not isinstance(ranges, dict):
         return _windows(ranges, where)
-    if not ranges:
-        raise ValueError(f"{where}: blind_ranges = {{}}; {_RANGES_FORM}")
-    per_pattern = {}
-    for pattern, pattern_ranges in ranges.items():
-        if pattern == OTHER_REGIONS:
-            continue
-        if not isinstance(pattern, str):
-            raise ValueError(
-                f"{where}: blind_ranges region pattern {pattern!r} is not a string"
-            )
-        try:
-            compiled = re.compile(pattern)
-        except re.error as err:
-            raise ValueError(
-                f"{where}: blind_ranges region pattern {pattern!r}: {err}"
-            ) from None
-        per_pattern[pattern] = (
-            compiled,
-            _windows(pattern_ranges, f"{where}, region {pattern!r}", allow_empty=True),
-        )
-    if region is None:
-        raise ValueError(
-            f"{where}: blind_ranges is given per region, and no region was given"
-        )
-    other = (
-        _windows(
-            ranges[OTHER_REGIONS],
-            f"{where}, region {OTHER_REGIONS!r}",
-            allow_empty=True,
-        )
-        if OTHER_REGIONS in ranges
-        else None
+    for path, value in PlotKeys.leaves(ranges):
+        at = f"{where}, blind_ranges {'/'.join(map(str, path)) or '{}'}"
+        if isinstance(value, dict):
+            raise ValueError(f"{at}: an empty mapping; {_RANGES_FORM}")
+        bad = [key for key in path if not isinstance(key, str)]
+        if bad:
+            raise ValueError(f"{at}: the key {bad[0]!r} is not a string")
+        _windows(value, at, allow_empty=True)
+    found = PlotKeys.resolve(
+        ranges,
+        f"{where}, blind_ranges",
+        channel=channel,
+        category=category,
+        region=region,
     )
-    matched = [p for p, (rx, _) in per_pattern.items() if rx.fullmatch(region)]
-    if not matched and other is not None:
-        return other
-    if len(matched) != 1:
-        raise ValueError(
-            f"{where}: region {region!r} matches "
-            + (
-                f"the blind_ranges patterns {matched}"
-                if matched
-                else "no blind_ranges pattern"
-            )
-            + f' (patterns: {list(per_pattern)}); it must match exactly one (a key "*" '
-            "gives the windows of the regions no pattern matches)"
-        )
-    return per_pattern[matched[0]][1]
+    return _windows(found, f"{where}, blind_ranges", allow_empty=True)
 
 
 def check_data_style(page_cfgs):

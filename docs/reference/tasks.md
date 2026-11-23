@@ -394,24 +394,29 @@ per variable, skipping variables configured with `plot_task: false`).
 - **Blinding** (per variable, in `config/plot/histograms.yaml`): `blind: true` shows no data on
   the plots of the variable outside the `plot_control_regions` (below). `blind_ranges` hides
   the data points inside windows of its x axis,
-  in the plot and in the ratio panel, in every region, control regions included: one window
+  in the plot and in the ratio panel, in every plot, control regions included: one window
   `[lo, hi]` or a list of them, `[[lo, hi], ...]`, with numbers `lo < hi`. A bin is hidden when it overlaps a window by more
   than a point — partly overlapping bins included, while a bin that ends at `lo` or starts at
   `hi` is shown — and so is a bin into which the rebinning (`x_rebin`) or the overflow merge
   moves events of a stored bin that overlaps a window. `blind_ranges` is for 1D variables only.
-  Per region, `blind_ranges` is a mapping from region patterns to windows: each pattern is a
-  regular expression matched against the whole region name, and each plotted region must match
-  exactly one of them, or none if the key `"*"` (quoted: a bare `*` is a YAML alias) gives the
-  windows of the regions no pattern matches. A region that matches several patterns is an error,
-  and so is one that matches none when there is no `"*"` — never a region without blinding.
-  Inside the mapping `[]` hides nothing in the regions of its key (a top-level `blind_ranges: []`
-  is an error); every key's windows are checked whichever regions are plotted. The plotted
-  regions include those of the datacard shape plots that StatInference's `CreateDatacardsTask`
-  draws with HistPlotter (the datacard input regions, without data): a per-region entry must
-  cover them too.
+  Per plot, `blind_ranges` is a mapping by channel, category and region, read like `x_rebin`
+  (below): its values are windows, and `[]` hides nothing in those plots (a top-level
+  `blind_ranges: []` is an error). A plot that reaches a level with no matching key and no
+  `other` is an error — never a plot without blinding — and every value is checked whichever plots
+  are made.
+  The plots include the datacard shape plots that StatInference's `CreateDatacardsTask` draws
+  with HistPlotter (the datacard input channels, categories and regions, without data): the
+  mapping must cover them too.
   Any other key starting with `blind` (in any letter case) on a variable, and any such key in
   `data_hist` of `cms_stacked.yaml` or `<era>.yaml`, is an error, so that a key no code reads
   cannot pass for blinding.
+- **Settings per channel, category and region** (`x_rebin` and `blind_ranges` of a
+  `histograms.yaml` entry, `Common/PlotKeys.py`): a value is the same for every plot; a mapping has
+  channel, category or region names as keys, in any order and nesting, and `other` for the plots
+  no key names. At each level the first of the plot's channel, category and region that is a key
+  is followed, or else `other`, which is searched in the same way; a level with neither is an
+  error, also below a key that matched (there is no fallback to another key or to an outer
+  `other`). Keys are names, not patterns.
 
   ```yaml
   m_mumu(_.*)?:
@@ -419,11 +424,15 @@ per variable, skipping variables configured with `plot_task: false`).
     blind_ranges: [ 115, 135 ]          # or [ [ 115, 120 ], [ 130, 135 ] ]
   DNN_score:
     x_bins: "20|0:1"
-    blind_ranges:                       # per region
-      SR_window: [ 0.6, 1 ]
-      SR_side(L|H)[12]: [ 0.8, 1 ]
-      CR_.*: [ ]                        # nothing hidden
-      "*": [ 0.6, 1 ]                   # every other region
+    x_rebin:
+      boosted: [ 0, 0.5, 0.8, 1 ]       # a category, in every channel and region
+      other: [ 0, 0.2, 0.4, 0.6, 0.8, 1 ]
+    blind_ranges:                       # per plot
+      SR_window:                        # a region
+        e: { res2b: [ 0.6, 1 ], other: [ 0.7, 1 ] }
+        other: [ 0.6, 1 ]
+      CR_TT: [ ]                        # nothing hidden
+      other: [ 0.8, 1 ]                 # every other plot
   ```
 
 Plot styling comes from the analysis `config/plot/*.yaml` files (`cms_stacked.yaml`,

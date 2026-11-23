@@ -529,7 +529,14 @@ class Task(law.Task):
         # before the instance exists, so that it is the very task of the list of the eras
         if params.get("era") and not cls.allow_meta_era:
             params["era"] = _expand_meta_era(params["era"])
-        return super(Task, cls).modify_param_values(params)
+        params = super(Task, cls).modify_param_values(params)
+        # A branch task is the same task whatever `branches` it carries (law leaves it out of
+        # its own branch tasks and of a branch's command line). Kept, an inherited or passed
+        # selection makes each requirement a distinct task whose workflow holds a full-size
+        # copy of the branch map: the Run3_2024 AnaTuple submission ran out of memory on that.
+        if params.get("branch", -1) != -1 and params.get("branches"):
+            params["branches"] = ()
+        return params
 
     @classmethod
     def modify_param_args(cls, params, args, kwargs):
@@ -1162,9 +1169,7 @@ class Task(law.Task):
         sub-eras configure (construction does not check it: each stage reads its own).
         """
         if self.meta_era:
-            self.common(
-                lambda setup: setup.global_params.get(f"fs_{name}"), f"fs_{name}"
-            )
+            self.common(lambda setup: setup.fs_setting(name), f"fs_{name}")
             return self.setup_for(self.sub_eras[0]).get_fs(name)
         return self.setup.get_fs(name)
 
@@ -1183,6 +1188,19 @@ class Task(law.Task):
     @property
     def fs_HistTuple(self):
         return self.era_fs("HistTuple")
+
+    @property
+    def fs_Hists(self):
+        """The per-chunk and merged histograms; unset, fs_HistTuple's."""
+        return self.era_fs("Hists")
+
+    @property
+    def fs_StatInference(self):
+        """What the StatInference chain stores remotely (datacards, preprocessed shapes,
+        limit and impact plots): one for all eras of a task, like fs_default, which it falls
+        back to."""
+        self.common(lambda setup: setup.fs_setting("StatInference"), "fs_StatInference")
+        return self.setup_for(self.sub_eras[0]).get_fs("StatInference")
 
     @property
     def fs_anaCacheTuple(self):

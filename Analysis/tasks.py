@@ -20,6 +20,8 @@ from FLAF.AnaProd.tasks import (
 )
 from FLAF.Common.Utilities import getCustomisationSplit, ServiceThread
 import FLAF.Common.TheoryUncertainties as TheoryUncertainties
+from FLAF.Common.Setup import merge_process_of
+from FLAF.Common.HistMergeStream import stream_merge
 
 # Process-local cache of the upstream AnaTupleMergeTask outputs, keyed like its branch map
 # (`Task._branch_map_cache_key`). HistTupleProducerTask.output() and
@@ -93,13 +95,16 @@ def _merged_hists_target(task, era, var_name, fs):
 
 
 def _variable_applies_to_dataset(setup, var_name, dataset_name):
-    """True unless the variable sets `signal_params` and the dataset matches none of its entries.
+    """True unless the variable sets `signal_params` and the dataset matches none of its entries,
+    and always for a physics model with `apply_signal_params: false`.
 
     A dataset matches an entry if, for every key of the entry, it lacks the key or has that value.
     """
     # HistHelper imports ROOT, so not at module level.
     from FLAF.Common.HistHelper import findBinEntry
 
+    if not setup.phys_model.apply_signal_params:
+        return True
     entries = setup.hists[findBinEntry(setup.hists, var_name)].get("signal_params")
     if entries is None:
         return True
@@ -280,7 +285,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
                 max_runtime=AnaTupleMergeTask.max_runtime._default,
                 n_cpus=AnaTupleMergeTask.n_cpus._default,
                 branch=prod_br,
-                branches=(prod_br,),
                 customisations=self.customisations,
             )
         }
@@ -292,7 +296,6 @@ class HistTupleProducerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkf
                         self,
                         max_runtime=AnalysisCacheTask.max_runtime._default,
                         branch=self.branch,
-                        branches=(self.branch,),
                         customisations=self.customisations,
                         producer_to_run=producer_name,
                     )
@@ -731,7 +734,7 @@ class HistFromNtupleProducerTask(
                 dataset_name,
                 f"chunk_{chunk_id}.root",
             )
-            outputs[var_name] = self.remote_target(output_path, fs=self.fs_HistTuple)
+            outputs[var_name] = self.remote_target(output_path, fs=self.fs_Hists)
         return outputs
 
     def complete(self):
@@ -882,9 +885,7 @@ class MergedHistsTask(Task, law.ExternalTask):
     variable = luigi.Parameter()
 
     def output(self):
-        return _merged_hists_target(
-            self, self.only_era, self.variable, self.fs_HistTuple
-        )
+        return _merged_hists_target(self, self.only_era, self.variable, self.fs_Hists)
 
 
 class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
@@ -1020,7 +1021,7 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
     @workflow_condition.output
     def output(self):
         var_name, br_indices, datasets = self.branch_data
-        return _merged_hists_target(self, self.only_era, var_name, self.fs_HistTuple)
+        return _merged_hists_target(self, self.only_era, var_name, self.fs_Hists)
 
     def run(self):
         self._refuse_inline_on_worker()
@@ -1060,61 +1061,76 @@ class HistMergerTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow):
             self._flaf_root(), "Analysis", "HistMergerFromHists.py"
         )
 
-        all_datasets = []
-        local_inputs = []
-        with contextlib.ExitStack() as stack:
-            # `datasets` is aligned with self.input() (both follow requires()/br_indices
-            # order); multiple file-chunks of the same dataset appear as repeated entries.
-            # Each input is a tiny remote histogram file, but every davs localize pays a fixed
-            # connection cost, so localizing the O(100s) of (dataset, chunk) inputs serially
-            # dominated the merge. Download them concurrently -- each in its own (thread-safe)
-            # ExitStack registered for cleanup; ThreadPoolExecutor.map preserves order so
-            # local_inputs stays aligned with all_datasets (mapped to process types below).
-            var_targets = [
+        # One process at a time (stream_merge): its inputs are downloaded, summed into the
+        # output by one merger process (HistMergerFromHists.py --stream) and deleted, so local
+        # disk and the merger's memory hold one process whatever the number of processes; the
+        # next process is downloaded while one is merged. Once every process is in the output,
+        # the steps that need all of them (data-driven estimates) run on the merged file.
+        #
+        # `datasets` is aligned with self.input() (both follow requires()/br_indices order);
+        # multiple file-chunks of the same dataset appear as repeated entries. Each input is a
+        # small remote histogram file, but every davs localize pays a fixed connection cost,
+        # so the inputs of a process are downloaded concurrently -- each in its own
+        # (thread-safe) ExitStack; ThreadPoolExecutor.map preserves their order.
+        inputs_by_process = {}
+        for inp, dataset_name in zip(self.input(), datasets):
+            process = merge_process_of(self.setup, dataset_name)
+            inputs_by_process.setdefault(process, []).append(
                 (inp[var_name], dataset_name)
-                for inp, dataset_name in zip(self.input(), datasets)
-            ]
-            max_dl = max(
-                1, int(self.global_params.get("max_simultaneous_downloads", 8))
             )
+        if not inputs_by_process:
+            raise RuntimeError(f"HistMergerTask: no input to merge for {var_name}")
+        max_dl = max(1, int(self.global_params.get("max_simultaneous_downloads", 8)))
 
-            def _localize(var_file):
-                file_stack = contextlib.ExitStack()
-                abspath = file_stack.enter_context(var_file.localize("r")).abspath
-                return abspath, file_stack
+        def _localize(var_file):
+            file_stack = contextlib.ExitStack()
+            abspath = file_stack.enter_context(var_file.localize("r")).abspath
+            return abspath, file_stack
 
+        def localize_process(items):
+            """The local copies [(dataset, path)] of one process's inputs, and the stack
+            that deletes them."""
+            stack = contextlib.ExitStack()
             with ThreadPoolExecutor(max_workers=max_dl) as executor:
-                localized = list(executor.map(lambda t: _localize(t[0]), var_targets))
-            for (var_file, dataset_name), (abspath, file_stack) in zip(
-                var_targets, localized
-            ):
+                localized = list(executor.map(lambda t: _localize(t[0]), items))
+            for _, file_stack in localized:
                 stack.callback(file_stack.close)
-                all_datasets.append(dataset_name)
-                local_inputs.append(abspath)
-            dataset_names = ",".join(smpl for smpl in all_datasets)
-            with self.output().localize("w") as outFile:
-                MergerProducer_cmd = [
-                    "python3",
-                    MergerProducer,
-                    "--outFile",
-                    outFile.abspath,
-                    "--var",
-                    var_name,
-                    "--dataset_names",
-                    dataset_names,
-                    "--uncSources",
-                    ",".join(uncNames),
-                    "--channels",
-                    channels,
-                    "--era",
-                    self.only_era,
-                    "--LAWrunVersion",
-                    self.version,
-                ]
-                if self.user_custom:
-                    MergerProducer_cmd.extend(["--user-custom", self.user_custom])
-                MergerProducer_cmd.extend(local_inputs)
-                ps_call(MergerProducer_cmd, verbose=1)
+            return stack, [
+                (dataset_name, abspath)
+                for (_, dataset_name), (abspath, _) in zip(items, localized)
+            ]
+
+        with self.output().localize("w") as outFile:
+            cmd = [
+                "python3",
+                MergerProducer,
+                "--stream",
+                "--outFile",
+                outFile.abspath,
+                "--var",
+                var_name,
+                "--uncSources",
+                ",".join(uncNames),
+                "--channels",
+                channels,
+                "--era",
+                self.only_era,
+                "--LAWrunVersion",
+                self.version,
+            ]
+            if self.user_custom:
+                cmd.extend(["--user-custom", self.user_custom])
+            if self.customisations:
+                cmd.extend(["--customisations", self.customisations])
+            if self.model:
+                cmd.extend(["--model", self.model])
+            if len(self.process) > 0 or len(self.dataset) > 0:
+                # a subset of the simulation: a data-driven estimate would subtract part of it
+                cmd.append("--no-data-driven")
+            print(f"HistMergerTask: {' '.join(cmd)}")
+            stream_merge(
+                cmd, list(inputs_by_process.items()), localize_process, datasets
+            )
 
         # The merged output is now written; the per-chunk split inputs for this variable are no
         # longer needed. When enabled (issue #229), remove them to save space, leaving a small
@@ -1249,7 +1265,6 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
             br_idx: AnaTupleMergeTask.req(
                 self,
                 branch=prod_br,
-                branches=(),
                 max_runtime=AnaTupleMergeTask.max_runtime._default,
                 n_cpus=AnaTupleMergeTask.n_cpus._default,
             )
@@ -1270,7 +1285,6 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                     br_idx: AnalysisCacheTask.req(
                         self,
                         branch=br_idx,
-                        branches=(),
                         customisations=self.customisations,
                         producer_to_run=dependency,
                         _skip_task_excludes=False,
@@ -1293,7 +1307,6 @@ class AnalysisCacheTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                 self,
                 branch=prod_br,
                 max_runtime=AnaTupleMergeTask.max_runtime._default,
-                branches=(),
             )
         }
         anaCaches = {}

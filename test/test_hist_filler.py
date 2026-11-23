@@ -479,12 +479,13 @@ class FillTreeMatchesRDataFrame(unittest.TestCase):
         var_models = self.models()
         out = ROOT.TMemFile("fill_tree_test.root", "RECREATE")
         var_files = {var: out.mkdir(var) for var in var_models}
+        # one block, every variable in every key: the booking without a plugin
+        booking = [(keys, list(var_models), [])]
         self.producer.FillTree(
             self.tree(0.0),
             "Events",
             self.WEIGHTS,
-            keys,
-            list(var_models),
+            booking,
             var_models,
             var_files,
             max_cells,
@@ -493,8 +494,7 @@ class FillTreeMatchesRDataFrame(unittest.TestCase):
             self.tree(0.37),
             "Events__ShapeB__Up",
             [("ShapeB", "Up", "weight_Central")],
-            keys,
-            list(var_models),
+            booking,
             var_models,
             var_files,
             max_cells,
@@ -565,6 +565,149 @@ class FillTreeMatchesRDataFrame(unittest.TestCase):
             [(["p"], (0, 3)), (["pq"], (0, 1)), (["pq"], (1, 2)), (["pq"], (2, 3))],
         )
         self.check(80)
+
+
+class FillTreeBookingBlocks(FillTreeMatchesRDataFrame):
+    """FillTree with several booking blocks (Common/HistBooking.py), as a booking plugin gives them: the
+    base block (every variable in every key) and blocks of keys of their own, a base key's filter and a
+    further cut, a cut on a stored bin index or a C++ cut on a raw column, each filling only its own
+    variables. Every block histogram must be the RDataFrame histogram of its filter, the base histograms
+    stay as with one block, and a block holds nothing else. The C++ cut on the raw q and the bin-index cut
+    of the same interval fill the same histograms."""
+
+    # (region, base key index, cut, columns): q's bins 1-2 = 0 <= q < 2, from the first edge
+    # (underflow included), and the C++ form of the first on the raw q
+    SUBS = [
+        ("SR_qSub_a", 0, "q_bin >= 1 && q_bin < 3", ["q_bin"]),
+        ("SR_qSub_a", 1, "q_bin >= 1 && q_bin < 3", ["q_bin"]),
+        ("SR_qSub_b", 1, "q_bin < 2", ["q_bin"]),
+        ("SR_qSub_c", 0, "q >= 0 && q < 2", ["q"]),
+    ]
+
+    def extra_blocks(self, keys, subs=None):
+        """One block per region of SUBS: its keys (a base key's filter and the cut), ["p"], columns."""
+        regions = {}
+        for region, index, cut, columns in subs or self.SUBS:
+            key_tuple = keys[index][0]
+            new_key = (key_tuple[0], region) + tuple(key_tuple[2:])
+            block_keys, block_columns = regions.setdefault(region, ([], set()))
+            block_keys.append((new_key, f"({keys[index][1]}) && ({cut})"))
+            block_columns.update(columns)
+        return [(k, ["p"], sorted(c)) for k, c in regions.values()]
+
+    def keys(self):
+        return [
+            (key + (self.CUT_NAME,), f"{flt} && {self.CUT_NAME}")
+            for key, flt in self.KEYS
+        ]
+
+    def booking(self, keys, var_models, subs=None):
+        return [(keys, list(var_models), [])] + self.extra_blocks(keys, subs)
+
+    def run_fill(self, max_cells):
+        keys = self.keys()
+        var_models = self.models()
+        out = ROOT.TMemFile("fill_tree_booking_test.root", "RECREATE")
+        var_files = {var: out.mkdir(var) for var in var_models}
+        for tree_name, shift, weights in (
+            ("Events", 0.0, self.WEIGHTS),
+            ("Events__ShapeB__Up", 0.37, [("ShapeB", "Up", "weight_Central")]),
+        ):
+            self.producer.FillTree(
+                self.tree(shift),
+                tree_name,
+                weights,
+                self.booking(keys, var_models),
+                var_models,
+                var_files,
+                max_cells,
+            )
+        return out, keys
+
+    def check(self, max_cells):
+        super().check(max_cells)  # the base histograms, as with one block
+        out, keys = self.run_fill(max_cells)
+        trees = {"Events": self.tree(0.0), "Events__ShapeB__Up": self.tree(0.37)}
+        fills = [("Events", u, s, w) for u, s, w in self.WEIGHTS]
+        fills.append(("Events__ShapeB__Up", "ShapeB", "Up", "weight_Central"))
+        refs = []
+        for block_keys, _, _ in self.extra_blocks(keys):
+            for key, flt in block_keys:
+                for tree, unc, scale, weight in fills:
+                    name = "p" if unc == "Central" else f"p_{unc}_{scale}"
+                    refs.append(
+                        (key, name, self.reference(trees[tree], flt, weight, "p"))
+                    )
+        for key, name, ref in refs:
+            path = f"p/{'/'.join(key)}/{name}"
+            got = out.Get(path)
+            self.assertTrue(got, path)
+            ref = ref.GetValue()
+            self.assertEqual(cells(got), cells(ref), path)
+            self.assertEqual(got.GetEntries(), ref.GetEntries(), path)
+            self.assertGreater(ref.GetEntries(), 0, path)
+        # the C++ cut on the raw q and the bin-index cut of the same interval: the same histograms
+        for unc, scale, _ in self.WEIGHTS:
+            name = "p" if unc == "Central" else f"p_{unc}_{scale}"
+            a = out.Get(f"p/ch1/SR_qSub_a/{self.CUT_NAME}/{name}")
+            c = out.Get(f"p/ch1/SR_qSub_c/{self.CUT_NAME}/{name}")
+            self.assertEqual(cells(a), cells(c), name)
+            self.assertEqual(a.GetEntries(), c.GetEntries(), name)
+        # the extra blocks hold only their variable, and only the histograms above
+        extra_keys = [
+            k for block_keys, _, _ in self.extra_blocks(keys) for k, _ in block_keys
+        ]
+        for key in extra_keys:
+            self.assertFalse(out.Get(f"pq/{'/'.join(key)}"), key)
+        n_written = sum(
+            len(out.Get(f"p/{'/'.join(key)}").GetListOfKeys()) for key in extra_keys
+        )
+        self.assertEqual(n_written, len(refs))
+        out.Close()
+
+    def test_blocks_share_the_loop(self):
+        # every (block, variable) unit fits one loop
+        self.check(0)
+
+    def test_blocks_over_several_loops(self):
+        self.check(80)
+
+    def test_a_booking_without_the_base_keys(self):
+        # extra blocks only: no histogram in the base keys
+        keys = self.keys()
+        var_models = self.models()
+        out = ROOT.TMemFile("fill_tree_booking_only_extra.root", "RECREATE")
+        var_files = {var: out.mkdir(var) for var in var_models}
+        self.producer.FillTree(
+            self.tree(0.0),
+            "Events",
+            self.WEIGHTS,
+            self.extra_blocks(keys),
+            var_models,
+            var_files,
+            0,
+        )
+        for key, _ in keys:
+            self.assertFalse(out.Get(f"p/{'/'.join(key)}"), key)
+        self.assertTrue(out.Get(f"p/ch1/SR_qSub_a/{self.CUT_NAME}/p"))
+        out.Close()
+
+    def test_a_missing_column_stops_the_job(self):
+        keys = self.keys()
+        var_models = self.models()
+        out = ROOT.TMemFile("fill_tree_booking_missing.root", "RECREATE")
+        var_files = {var: out.mkdir(var) for var in var_models}
+        with self.assertRaisesRegex(RuntimeError, "need r, absent from the input"):
+            self.producer.FillTree(
+                self.tree(0.0),
+                "Events",
+                self.WEIGHTS,
+                self.booking(keys, var_models, [("SR_qSub_d", 0, "r > 0", ["r"])]),
+                var_models,
+                var_files,
+                0,
+            )
+        out.Close()
 
 
 if __name__ == "__main__":

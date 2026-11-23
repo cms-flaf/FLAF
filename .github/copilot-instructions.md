@@ -73,6 +73,31 @@ Each of these has caused a production incident. They are ordered by how much dam
   dependency producer). Flag a helper that derives a task from whatever task it is handed
   (`sub_era_task`, `_anaTuple_outputs`, `InputFileTask.WF_complete`) where it can be handed one of
   its target's own family.
+- **A branch task carries no selection: `Task.modify_param_values` gives every task with
+  `branch != -1` `branches=()`.** law's `req()` copies `branches` from the requesting task, and a
+  branch task that kept a selection was a task of its own whose workflow held a full copy of the
+  stage's branch map (`cached_branch_map`, reduced in place, which does not shrink the dict): the
+  per-file requirements of the Run3_2024 AnaTuple submission, one such workflow each, ran the
+  driver out of memory. A per-branch requirement is therefore `X.req(self, branch=b)`, a branch
+  task of the stage's one workflow: the task law's `get_branch_tasks()` makes, unless an
+  `__init__` rewrites a significant parameter after luigi made its task_id (`AnalysisCacheTask`
+  does with `n_cpus`). All of them share that workflow and its branch map. A workflow requirement
+  (`branch=-1`, or one made in a workflow) names `branches=` (`()` or a selection), or it inherits
+  the requester's selection, in the requester's numbering. Flag:
+  - a workflow requirement without `branches=`, unless both stages number their branches the same
+    way and the inheritance is meant (`AnaTupleFileListTask` → `AnaTupleFileListBuilderTask`);
+  - a `modify_param_values` override that does not return through `super()`;
+  - branch-level code (`requires`/`output`/`run`) that reads its own `branches`, or anything of
+    its workflow beyond its own entry (`branch_data`): the rest of the branch map, the branch
+    tasks or the proxy. The first workflow to create a branch instance owns it, and that can be a
+    workflow over a selection: law's job-file builders create branch 0 from the submitting
+    workflow (`as_branch()`), also when its selection lacks branch 0, and that instance's
+    `branch_data` then raises `invalid branch` for every later requester in the process.
+
+  `test/test_branch_requirement_workflow.py` guards the reset and the explicit `branches=()` of
+  the workflow requirements that the Builder (before `InputFileTask.WF_complete`),
+  `AnalysisCacheTask` and `HistTupleProducerTask` (before `_anaTuple_plans_ready`) make over a
+  selection.
 - **`@law.dynamic_workflow_condition` objects are shared with subclasses.** A subclass that
   decorates with the *parent's* `workflow_condition.output` mutates the shared object and
   corrupts the parent task. It must `.copy()` first. Review the **parent** task too — the damage
@@ -280,7 +305,7 @@ Each of these has caused a production incident. They are ordered by how much dam
     `EraDependentValueError` and `BranchSelectionError` must not subclass `AttributeError`, which
     `getattr(task, name, default)` and `hasattr` would swallow. A setting a run reads once for all its
     eras goes through `common(getter, what)`, which raises when the eras disagree (`fs_default`,
-    `crab`, `runTokenServer`, `anaTuple_scheduling`,
+    `fs_StatInference`, `crab`, `runTokenServer`, `anaTuple_scheduling`,
     `use_cmssw_env_AnaTupleProduction`, a producer's `n_cpus`/`max_runtime`/`crab_memory`/`save_as`/
     `cmssw_env`); a new run-wide reader without it silently takes one era's value.
   - **A stage's requirements live in `stage_workflow_requires()`; `workflow_requires()` is the
@@ -372,6 +397,25 @@ Each of these has caused a production incident. They are ordered by how much dam
   says `era: <era>`) and raises when any later layer, `user_custom` file or customisation changes
   `era`. `ERA_IDS` mirrors the C++ `Period` enum; `test/test_era_process_state.py` compares them.
 
+### Data-driven processes (`Common/DataDriven.py`, `Analysis/HistMergerFromHists.py`)
+
+- A data-driven process (processes.yaml `data_driven:`, no datasets, a model background) is
+  estimated in the merge's `postprocess`, after every process is in the merged file, **one
+  uncertainty source at a time**: the estimator may read only the nominal histograms and the
+  current source's variations (`EstimateContext.get` refuses others), so memory stays at all
+  processes × one source as #400 designed. It returns that source's variations and, at the nominal
+  pass only, Up/Down of its declared `nuisances`; anything else raises.
+- No estimate without merged data, nor for a merge restricted with `--process`/`--dataset`
+  (`--no-data-driven`): it would subtract part of the simulation only. The merger gets the task's
+  `--model` and `--customisations` so its physics model (which processes are subtracted) is the
+  task's.
+- `EstimateContext.get` returns copies: an estimator never changes the merged histograms of other
+  processes or of the next estimator.
+- A nuisance template ends with `_{}`: `SumEraFiles` recognises a variation by its name's ending
+  (a template with `{}` elsewhere was summed as a central histogram over a meta-era) and the
+  datacards address `<process>_<source>_<Up/Down>`. A data-driven process is listed in the physics
+  model itself, never as a `sub_process` of a group (Setup raises; it would be silently skipped).
+
 ### Concurrency
 
 - **Producers must not write bare-relative temp files.** CWD is shared between branches under
@@ -434,6 +478,12 @@ Each of these has caused a production incident. They are ordered by how much dam
 
 ## Configuration invariants
 
+- **A storage key falls back along `Setup.FS_FALLBACKS`, then to `fs_default`.** `fs_Hists` (split
+  and merged histograms) falls back to `fs_HistTuple`, so a configuration that sets neither new key
+  writes where it did before. Who writes a product and who reads it must name the same key: the
+  merged histograms are read by `StatInference` (`MergedHists`) through `get_fs("Hists")`, and any
+  other reader must do the same, never `fs_HistTuple`. A meta-era compares what its sub-eras resolve
+  a key to (`Setup.fs_setting`), not the literal setting.
 - `config_path_order` layers four directories (`FLAF/config`, `FLAF/config/<era>`, `config`,
   `config/<era>`; for `global.yaml` each directory's `user_custom.yaml` joins in, and
   `--user-custom` comes last). The files are **concatenated as text and parsed once**, so a
@@ -463,13 +513,21 @@ Each of these has caused a production incident. They are ordered by how much dam
   lists; analysis code should decide by that entry, not by substrings of process names. Within the
   groups the model reaches, a process may belong to one group only. The `parent_process` key on a
   base process is different: the model process after expansion, which histograms are merged under.
+- `signal_params` of a `histograms.yaml` entry restricts the datasets a variable is filled for
+  (`Analysis/tasks.py` `_variable_applies_to_dataset`), except for a physics model with
+  `apply_signal_params: false` (default true), which fills every variable for every dataset — a
+  study model, never the model of the analysis results; the key must be a boolean.
 - Plot blinding (`Common/PlotBlinding.py`, applied by `Analysis/HistPlotter.py`): a variable's
   `histograms.yaml` entry takes `blind` and `blind_ranges` only; any other key starting with
   `blind`, and a blinding key in the page-level `data_hist`, raises. A `blind_ranges` window hides
   (NaN content and error) every data bin it overlaps and every bin the rebinning or the overflow
-  merge fills from a stored bin it overlaps, in every region, control regions included. A change
-  that lifts a window in some region, or draws a hidden bin as a marker at zero, shows blinded
-  data.
+  merge fills from a stored bin it overlaps, in every plot, control regions included — or, in the
+  mapping form, in the plots its channel/category/region keys resolve to (`Common/PlotKeys.py`, the
+  resolver `x_rebin` uses too: names, not patterns; `other` per level; a level with no matching
+  key and no `other` raises, with no fallback to another key or an outer `other`; `[]` hides
+  nothing there). A change that lifts a window in some
+  plot, lets a plot resolve to no value silently, or draws a hidden bin as a marker at zero, shows
+  blinded data.
 - `HistProducerFromNTuple` fills through `include/HistFiller.h`, one event loop per tree (or per
   budget group), with one copy of its arrays per RDataFrame slot, summed in slot order by `Write`;
   `hist_from_ntuple_max_hist_memory_mb` counts every copy. Key filters are `bool`

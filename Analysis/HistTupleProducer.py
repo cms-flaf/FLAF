@@ -7,6 +7,7 @@ if __name__ == "__main__":
     sys.path.append(os.environ["ANALYSIS_PATH"])
 
 import FLAF.Common.Utilities as Utilities
+import FLAF.Common.HistBooking as HistBooking
 from FLAF.Common.Setup import Setup
 from FLAF.RunKit.run_tools import hadd_parallel
 
@@ -85,8 +86,9 @@ def createHistTuple(
     histTupleDef.analysis_setup(setup)
     isData = dataset_name == "data"
 
-    binned_variables = setup.histTuple_plot_vars
-    fullres_variables = setup.histTuple_fullres_vars
+    # the flavour's variables plus those the booking plugin needs for its cuts (required_columns)
+    binned_variables = HistBooking.histtuple_binned_vars(setup)
+    fullres_variables = HistBooking.histtuple_fullres_vars(setup)
 
     norm_uncertainties = set()
     if setup.global_params["compute_rel_weights"]:
@@ -98,13 +100,7 @@ def createHistTuple(
     print("Scale uncertainties to consider:", scale_uncertainties)
 
     print("Defining binnings for variables")
-    flatten_vars = set()
-    for var in binned_variables:
-        if isinstance(var, dict) and "vars" in var:
-            for v in var["vars"]:
-                flatten_vars.add(v)
-        else:
-            flatten_vars.add(var)
+    flatten_vars = binned_variables
 
     for var in flatten_vars:
         DefineBinnedColumn(hist_cfg_dict, var)

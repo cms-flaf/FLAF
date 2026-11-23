@@ -344,9 +344,7 @@ class AnaTupleFileTask(
 
     def _input_file_info(self, dataset_name):
         input_file_list = (
-            InputFileTask.req(
-                self, branch=self.get_dataset_id(dataset_name), branches=()
-            )
+            InputFileTask.req(self, branch=self.get_dataset_id(dataset_name))
             .output()
             .abspath
         )
@@ -509,7 +507,7 @@ class AnaTupleFileTask(
         branches = {}
         for dataset_id, dataset_name in self.iter_datasets():
             input_file_list = (
-                InputFileTask.req(self, branch=dataset_id, branches=()).output().abspath
+                InputFileTask.req(self, branch=dataset_id).output().abspath
             )
             input_files = InputFileTask.load_input_files(
                 input_file_list, test=self.test > 0
@@ -695,9 +693,7 @@ class AnaTupleCostProbeTask(
         """(file name, metadata) of the file to time: the median-sized one when sizes are
         known, so a truncated first file does not distort events-per-byte."""
         input_file_list = (
-            InputFileTask.req(
-                self, branch=self.get_dataset_id(dataset_name), branches=()
-            )
+            InputFileTask.req(self, branch=self.get_dataset_id(dataset_name))
             .output()
             .abspath
         )
@@ -869,7 +865,6 @@ class AnaTupleFileListBuilderTask(
                 version=self.version,
                 max_runtime=AnaTupleFileTask.max_runtime._default,
                 branch=prod_br,
-                branches=(prod_br,),
             )
             for prod_br in tuple(branch_set)
         ]
@@ -1181,7 +1176,6 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                         version=self.version,
                         max_runtime=AnaTupleFileTask.max_runtime._default,
                         branch=prod_br,
-                        branches=(prod_br,),
                     )
                 )
 
@@ -1205,7 +1199,6 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
                             version=self.version,
                             max_runtime=AnaTupleFileListBuilderTask.max_runtime._default,
                             branch=builder_branch,
-                            branches=(builder_branch,),
                         )
                     )
 
@@ -1241,7 +1234,7 @@ class AnaTupleMergeTask(Task, HTCondorWorkflow, CrabWorkflow, law.LocalWorkflow)
             )
             this_dataset_dict = self.setup.getAnaTupleFileList(
                 dataset_name,
-                AnaTupleFileListTask.req(self, branch=ds_branch, branches=()).output(),
+                AnaTupleFileListTask.req(self, branch=ds_branch).output(),
             )
             for this_dict in this_dataset_dict:
                 input_file_list = this_dict["inputs"]

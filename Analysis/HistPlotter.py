@@ -10,6 +10,7 @@ if __name__ == "__main__":
 import FLAF.Common.Setup as Setup
 from FLAF.Common.HistHelper import *
 import FLAF.Common.PlotBlinding as PlotBlinding
+import FLAF.Common.PlotKeys as PlotKeys
 import FLAF.Common.TheoryUncertainties as TheoryUncertainties
 from FLAF.Common.PlotGroups import (
     GroupProcesses,
@@ -152,37 +153,9 @@ def findNewBins(hist_cfg_dict, var, **keys):
             raise RuntimeError(f'bins definition not found for "{var}"')
         return cfg["x_bins"]
 
-    x_rebin = cfg["x_rebin"]
-
-    if isinstance(x_rebin, list):
-        return x_rebin
-
-    def recursive_search(d, remaining_keys):
-        if isinstance(d, list):
-            return d
-        if not remaining_keys and isinstance(d, dict) and "other" in d:
-            return d["other"]
-        if not isinstance(d, dict):
-            return None
-
-        for k_name, k_value in remaining_keys.items():
-            if k_value in d:
-                found = recursive_search(
-                    d[k_value],
-                    {kk: vv for kk, vv in remaining_keys.items() if kk != k_name},
-                )
-                if found is not None:
-                    return found
-
-        if "other" in d:
-            return d["other"]
-        raise RuntimeError(f'Unable to find correct rebin for "{var}"')
-
-    result = recursive_search(x_rebin, {k: v for k, v in keys.items() if v is not None})
-
-    if result is None:
-        raise RuntimeError(f'Unable to find correct rebin for "{var}"')
-    return result
+    return PlotKeys.resolve(
+        cfg["x_rebin"], f'histograms.yaml x_rebin of "{var}"', **keys
+    )
 
 
 if __name__ == "__main__":
@@ -281,6 +254,7 @@ if __name__ == "__main__":
     keys = args.all_keys.split(",")
     outFiles = args.all_outFiles.split(",")
     print(f"Running HistPlot for var {args.var} making {len(outFiles)} plots")
+    not_estimated = set()  # data-driven processes reported missing in this file
     for key, outFile in zip(keys, outFiles):
         print(f"Plotting key {key}")
         channel, category, custom_region = key.split(":")
@@ -308,6 +282,17 @@ if __name__ == "__main__":
                 "process_group": "backgrounds",
                 "plot_name": "QCD",
                 "plot_color": "kGray+2",
+            }
+
+        # the data-driven processes of the physics model (Common/DataDriven.py): no datasets,
+        # their histograms are estimated in the merge
+        for process_name in setup.data_driven_processes:
+            process = setup.parent_processes[process_name]
+            all_datasets_dict[process_name] = {
+                "process_name": process_name,
+                "process_group": "backgrounds",
+                "plot_name": process.get("name", process_name),
+                "plot_color": process["color"],
             }
 
         for era_setup, dataset_name in (
@@ -361,7 +346,12 @@ if __name__ == "__main__":
         }
         var_entry = findBinEntry(hist_cfg_dict, args.var)
         blind_windows = PlotBlinding.blind_windows(
-            args.var, var_entry, hist_cfg_dict[var_entry]
+            args.var,
+            var_entry,
+            hist_cfg_dict[var_entry],
+            channel=channel,
+            category=category,
+            region=custom_region,
         )
 
         # A blinded variable hides the data outside the control regions only. Without data
@@ -432,6 +422,16 @@ if __name__ == "__main__":
             # name, and an entry left with nothing is not drawn (drop_empty_entries).
             where = f"{args.inFile}:{channel}/{custom_region}/{category}"
             if dataset_histname not in dir_1.GetListOfKeys():
+                # a data-driven process is estimated in some regions only: said once per file
+                if dataset_process_name in setup.data_driven_processes:
+                    if dataset_process_name not in not_estimated:
+                        not_estimated.add(dataset_process_name)
+                        print(
+                            f"{dataset_process_name} is not in {where} (not estimated "
+                            "there): not drawn, nor in the other regions without it",
+                            file=sys.stderr,
+                        )
+                    continue
                 process = (
                     ""
                     if dataset_histname == dataset_process_name

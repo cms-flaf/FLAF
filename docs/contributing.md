@@ -78,9 +78,9 @@ rules:
   and names built from it behave the same. Over several eras use `setup_for(era)`, `single(era)`
   (this stage over one era) or `common(getter, what)` for a setting that holds for all the eras,
   which raises `EraDependentValueError` when they disagree (the settings read this way are listed
-  in [Eras](concepts/eras.md#settings-that-must-agree-between-the-eras)). `fs_default` and
-  `cmssw_env` are readable on any task: the first is checked to agree when the task is
-  constructed, the second does not depend on the era.
+  in [Eras](concepts/eras.md#settings-that-must-agree-between-the-eras)). `fs_default`,
+  `fs_StatInference` and `cmssw_env` are readable on any task: the first is checked to agree when
+  the task is constructed, the second where it is read, the third does not depend on the era.
 - **Branch-level code runs on one era.** A branch of a run over several eras is the branch task of
   its era's own workflow, so `output()`, `run()`, a branch's `requires()` and the payload calls see
   one era and that era's own branch numbers.
@@ -111,6 +111,13 @@ rules:
   passes `_skip_task_excludes=True` for the same task or `_skip_task_excludes=False` for a separate
   one with its own defaults; `Task.req` refuses it otherwise
   ([HTCondor options](workflow/arguments.md#htcondor-options-on-every-workflow-task)).
+- **A per-branch requirement names only its branch**: `X.req(self, branch=b)`, without
+  `branches=`. Every branch task carries `branches=()` (`Task.modify_param_values`), so the
+  requirements of all branches share the required stage's one workflow and branch map. A
+  requirement of a workflow names its selection, `branches=()` or `branches=tuple(...)`, because
+  `req()` copies the requester's otherwise. Leave it out only when both stages number their
+  branches the same way and the requester's selection is meant, as `AnaTupleFileListTask` does
+  with `AnaTupleFileListBuilderTask`.
 - **A producer that reads AnaTuples checks the era of their events:** `Utilities.book_era_check(df, era)`
   before the event loop and `Utilities.check_era(count, era, what)` after it, as `AnaTupleMergeTask`,
   `HistTupleProducerTask` and `AnalysisCacheTask` do.

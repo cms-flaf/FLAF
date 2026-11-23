@@ -5,7 +5,10 @@ A variable's entry in config/plot/histograms.yaml takes two blinding keys:
 - ``blind: true``: no data on the plots of the variable outside the control regions
   (``plot_control_regions`` in global.yaml);
 - ``blind_ranges``: no data point inside windows of the x axis, given as one window ``[lo, hi]``
-  or a list of windows ``[[lo, hi], ...]``, in every region.
+  or a list of windows ``[[lo, hi], ...]``, in every plot; or a mapping by channel, category and
+  region with ``other`` for the plots no key names, resolved as ``x_rebin`` is (Common/PlotKeys.py),
+  whose values are windows or ``[]`` (nothing hidden in those plots); a plot that reaches a level
+  with no matching key and no ``other`` is an error, never a plot without blinding.
 
 Any other key starting with "blind", and a blinding key in the page-level data style
 (``data_hist``), raises: a key that no code reads must never pass for blinding.
@@ -13,11 +16,14 @@ Any other key starting with "blind", and a blinding key in the page-level data s
 
 import math
 
+from FLAF.Common import PlotKeys
+
 BLIND_KEYS = ("blind", "blind_ranges")
 
 _RANGES_FORM = (
     "blind_ranges takes one window [lo, hi] or a list of windows [[lo, hi], ...], "
-    "with numbers lo < hi"
+    "with numbers lo < hi, or a mapping by channel, category and region (as x_rebin) "
+    f'with "{PlotKeys.OTHER}" for the other plots, whose values are windows or []'
 )
 
 
@@ -29,13 +35,37 @@ def _is_blind_key(key):
     return isinstance(key, str) and key.lower().startswith("blind")
 
 
-def blind_windows(var, entry_name, entry):
-    """The blinding windows of variable `var` as a list of (lo, hi): the blind_ranges of its
-    histograms.yaml entry (`entry`, under the key `entry_name`, which may be a pattern), or []
-    without it. Raises on a key starting with "blind" that is not one of BLIND_KEYS, on
-    blind_ranges that are not one window or a list of windows of two numbers lo < hi, and on
-    blind_ranges for a variable of more than one dimension, whose plotted x axis is not the
-    variable's."""
+def _windows(ranges, where, allow_empty=False):
+    if allow_empty and isinstance(ranges, list) and not ranges:
+        return []
+    if isinstance(ranges, list) and ranges and all(_is_number(x) for x in ranges):
+        windows = [ranges]
+    elif (
+        isinstance(ranges, list) and ranges and all(isinstance(w, list) for w in ranges)
+    ):
+        windows = ranges
+    else:
+        raise ValueError(f"{where}: blind_ranges = {ranges!r}; {_RANGES_FORM}")
+    for window in windows:
+        if (
+            len(window) != 2
+            or not all(_is_number(x) for x in window)
+            or not window[0] < window[1]
+        ):
+            raise ValueError(f"{where}: blind_ranges window {window!r}; {_RANGES_FORM}")
+    return [(float(lo), float(hi)) for lo, hi in windows]
+
+
+def blind_windows(var, entry_name, entry, *, channel=None, category=None, region=None):
+    """The blinding windows of variable `var` in the plot of `channel`, `category` and `region` as
+    a list of (lo, hi): the blind_ranges of its histograms.yaml entry (`entry`, under the key
+    `entry_name`, which may be a pattern), or [] without it. In the mapping form every value is
+    checked, whichever plots are made, and the plot's value is resolved as x_rebin's
+    (Common/PlotKeys.py). Raises on a key starting with "blind" that is not one of BLIND_KEYS; on
+    blind_ranges that are not one window or a list of windows of two numbers lo < hi (in the
+    mapping form also []); on a mapping that is empty, has a key that is not a string, or gives
+    the plot no value; and on blind_ranges for a variable of more than one dimension, whose
+    plotted x axis is not the variable's."""
     where = f"histograms.yaml entry {entry_name!r}"
     if entry_name != var:
         where += f" (variable {var})"
@@ -54,22 +84,24 @@ def blind_windows(var, entry_name, entry):
             "dimension"
         )
     ranges = entry["blind_ranges"]
-    if isinstance(ranges, list) and ranges and all(_is_number(x) for x in ranges):
-        windows = [ranges]
-    elif (
-        isinstance(ranges, list) and ranges and all(isinstance(w, list) for w in ranges)
-    ):
-        windows = ranges
-    else:
-        raise ValueError(f"{where}: blind_ranges = {ranges!r}; {_RANGES_FORM}")
-    for window in windows:
-        if (
-            len(window) != 2
-            or not all(_is_number(x) for x in window)
-            or not window[0] < window[1]
-        ):
-            raise ValueError(f"{where}: blind_ranges window {window!r}; {_RANGES_FORM}")
-    return [(float(lo), float(hi)) for lo, hi in windows]
+    if not isinstance(ranges, dict):
+        return _windows(ranges, where)
+    for path, value in PlotKeys.leaves(ranges):
+        at = f"{where}, blind_ranges {'/'.join(map(str, path)) or '{}'}"
+        if isinstance(value, dict):
+            raise ValueError(f"{at}: an empty mapping; {_RANGES_FORM}")
+        bad = [key for key in path if not isinstance(key, str)]
+        if bad:
+            raise ValueError(f"{at}: the key {bad[0]!r} is not a string")
+        _windows(value, at, allow_empty=True)
+    found = PlotKeys.resolve(
+        ranges,
+        f"{where}, blind_ranges",
+        channel=channel,
+        category=category,
+        region=region,
+    )
+    return _windows(found, f"{where}, blind_ranges", allow_empty=True)
 
 
 def check_data_style(page_cfgs):

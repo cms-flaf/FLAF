@@ -11,6 +11,8 @@ from FLAF.RunKit.law_wlcg import WLCGFileSystem
 from FLAF.RunKit.pathCacheClient import ServerUnavailable, checked_server_address
 from FLAF.RunKit.run_tools import on_batch_node
 from FLAF.Common.Utilities import create_processor_instances
+from FLAF.Common import HistBooking
+from FLAF.Common.DataDriven import validate_data_driven
 
 
 def resolve_user_custom_path(user_custom):
@@ -189,7 +191,7 @@ class Config:
 
 class PhysicsModel:
     allowed_process_types = set(["backgrounds", "signals", "data"])
-    other_attributes = set(["name"])
+    other_attributes = set(["name", "apply_signal_params"])
 
     def __init__(self, name, model_dict):
         self.name = name
@@ -201,6 +203,13 @@ class PhysicsModel:
         if len(extra_keys) > 0:
             raise RuntimeError(
                 f"Physics model '{name}' contains invalid process types: {extra_keys}"
+            )
+        # false: every variable is filled for every dataset, whatever its signal_params
+        self.apply_signal_params = model_dict.get("apply_signal_params", True)
+        if not isinstance(self.apply_signal_params, bool):
+            raise RuntimeError(
+                f"Physics model '{name}': apply_signal_params must be true or false, got "
+                f"{self.apply_signal_params!r}"
             )
         self._processes = {}
         for key in PhysicsModel.allowed_process_types:
@@ -605,6 +614,8 @@ class Setup:
 
         self.histTuple_flavor = self.global_params["histTuple_flavor"]
         print(f"Using histTuple flavor {self.histTuple_flavor}")
+        # The analysis' histogram booking plugin (hist_booking_module, Common/HistBooking.py), if any.
+        self.hist_booking = HistBooking.load_plugin(self.global_params)
         self.histTuple_plot_vars = list(
             self.global_params["histTuple_flavors"][self.histTuple_flavor]["variables"]
         )
@@ -657,7 +668,7 @@ class Setup:
             plotvar_dict[var_name] = var
 
         fullresvar_dict = {}
-        for var in self.histTuple_plot_vars:
+        for var in self.histTuple_fullres_vars:
             var_name = var["name"] if isinstance(var, dict) else var
             if var_name in fullresvar_dict:
                 raise RuntimeError(
@@ -680,6 +691,11 @@ class Setup:
                     msg = f"Process '{p_name}' defined in physics model '{phys_model_name}' not found in processes configuration."
                 raise RuntimeError(msg)
             process = processes[p_name]
+            if parent_name is not None and "data_driven" in process:
+                raise RuntimeError(
+                    f"process '{p_name}': a data-driven process is listed in the physics "
+                    f"model itself, not as a sub_process of '{parent_name}'"
+                )
             if "sub_processes" in process:
                 if "datasets" in process:
                     raise RuntimeError(
@@ -716,6 +732,16 @@ class Setup:
                 f"keep {pattern}" for pattern in expanded_selection
             ]
             self.phys_model.select_processes(filters)
+        # processes estimated from the merged histograms of the others (Common/DataDriven.py)
+        self.data_driven_processes = {
+            process_name: validate_data_driven(
+                process_name,
+                processes[process_name],
+                self.phys_model.process_type(process_name),
+            )
+            for process_name in self.phys_model.processes()
+            if "data_driven" in processes[process_name]
+        }
         self.base_processes = {}
         self.parent_processes = {}
         for process_name in self.phys_model.processes():
@@ -797,6 +823,13 @@ class Setup:
         self.anaTupleFiles = {}
         self.processors_cache = {}
         self.fs_rucio_ = None
+        # A booking plugin gives the regions: they fill the list `custom_regions` names, which the
+        # analysis and FLAF read as before. Last, so that the plugin sees a complete setup.
+        if self.hist_booking is not None:
+            HistBooking.fill_regions(self.hist_booking, self)
+        # The variables the booking plugin's cuts read (required_columns): stored in the histTuples,
+        # and their AnalysisCache producers required, whether the flavour plots them or not.
+        HistBooking.add_required_columns(self.hist_booking, self)
 
     def process_parent(self, process_name):
         """The process that process_name belongs to (listed meta-process or group), or None."""
@@ -892,6 +925,21 @@ class Setup:
             verbose=verbose,
         )
 
+    # A filesystem that is not configured falls back to another one, and every chain ends at
+    # fs_default: the histograms are kept beside the histTuples unless fs_Hists says otherwise.
+    FS_FALLBACKS = {"Hists": "HistTuple"}
+
+    def fs_setting(self, fs_name):
+        """The configured value fs_<fs_name> resolves to: its own, else its fallback's (then
+        fs_default's); None if nothing is set."""
+        while True:
+            key = f"fs_{fs_name}"
+            if key in self.global_params:
+                return self.global_params[key]
+            if fs_name == "default":
+                return None
+            fs_name = self.FS_FALLBACKS.get(fs_name, "default")
+
     def get_fs(self, fs_name, custom_paths=None):
         fs_instance = None
 
@@ -924,7 +972,7 @@ class Setup:
                         f"No default file system defined in global_params or via custom_paths. "
                         f'Please define "fs_default" in your configuration or provide a custom_paths for "default".'
                     )
-                fs_instance = self.get_fs("default")
+                fs_instance = self.get_fs(self.FS_FALLBACKS.get(fs_name, "default"))
 
             # if nothing works, nothing works
             if fs_instance is None:
@@ -1042,6 +1090,24 @@ class Setup:
                     dataset_dict = json_dict
                     self.anaTupleFiles[dataset_name] = dataset_dict
             return self.anaTupleFiles[dataset_name]
+
+
+def merge_data_process(setup):
+    """The process the data histograms are merged into (the data datasets are not in the
+    datasets configuration)."""
+    data_processes = setup.phys_model.processes(process_type="data")
+    if len(data_processes) > 0:
+        return setup.phys_model.base_processes(data_processes[0])[0]
+    return "data"
+
+
+def merge_process_of(setup, dataset_name):
+    """The process a dataset's histograms are merged into: its base process's parent."""
+    if dataset_name == "data":
+        base_process_name = merge_data_process(setup)
+    else:
+        base_process_name = setup.datasets[dataset_name]["process_name"]
+    return setup.base_processes[base_process_name]["parent_process"]
 
 
 if __name__ == "__main__":

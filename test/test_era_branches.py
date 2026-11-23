@@ -14,7 +14,9 @@ dataset TTto2L2Nu):
   task over one era keeps today's values;
 - settings that a run over several eras uses once must agree between its eras: construction,
   the cost parameters, the HTCondor proxy and the producer resources refuse them otherwise,
-  naming the key and each era's value, while output file systems may differ per era;
+  naming the key and each era's value, while output file systems may differ per era
+  (fs_StatInference, one for all eras like fs_default, is refused where it is read; a meta-era
+  compares what each sub-era's file system resolves to through its fallbacks);
 - the dataset helpers raise on every call over two eras, in any order;
 - `EraScopeError` passes through the excepts of the HTCondor proxy that swallow other errors;
 - `--branches` encoding (one era: local numbers, and a number of no known era is beyond them;
@@ -535,6 +537,7 @@ PER_ERA_READS = {
     "fs_anaCache": lambda t: t.fs_anaCache,
     "fs_anaTuple": lambda t: t.fs_anaTuple,
     "fs_HistTuple": lambda t: t.fs_HistTuple,
+    "fs_Hists": lambda t: t.fs_Hists,
     "fs_anaCacheTuple": lambda t: t.fs_anaCacheTuple,
     "fs_nnCacheTuple": lambda t: t.fs_nnCacheTuple,
     "fs_histograms": lambda t: t.fs_histograms,
@@ -567,6 +570,7 @@ PER_ERA_PROPERTIES = [
     "fs_anaCache",
     "fs_anaTuple",
     "fs_HistTuple",
+    "fs_Hists",
     "fs_anaCacheTuple",
     "fs_nnCacheTuple",
     "fs_histograms",
@@ -807,7 +811,7 @@ class SettingsAgreement(_ScratchAnalysis):
         )
 
     def test_output_file_systems_may_differ(self):
-        for key in ("fs_HistTuple", "fs_anaTuple"):
+        for key in ("fs_HistTuple", "fs_Hists", "fs_anaTuple"):
             with self.subTest(key=key):
                 version = f"{self.version}_{key}"
                 other = os.path.join(self.tmp, f"{key}_b")
@@ -819,6 +823,28 @@ class SettingsAgreement(_ScratchAnalysis):
                 self.assertEqual(getattr(task.single(ERA_A), key).base, self.fs)
                 self.assertEqual(getattr(task.single(ERA_B), key).base, other)
                 ana_prod.AnaTupleFileTask(version=version, era=(ERA_A, ERA_B))
+
+    def test_a_differing_fs_StatInference_is_refused_where_it_is_read(self):
+        other = os.path.join(self.tmp, "inference_b")
+        self.era_config(ERA_B, f"fs_StatInference: {other}\n")
+        task = HelloWorldTask(version=self.version, era=(ERA_A, ERA_B))
+        with self.assertRaises(lc.EraDependentValueError) as caught:
+            task.fs_StatInference
+        self.assert_names(caught, "fs_StatInference", self.fs, other)
+        self.assertEqual(task.single(ERA_B).fs_StatInference.base, other)
+        self.assertIs(
+            task.single(ERA_A).fs_StatInference, task.single(ERA_A).fs_default
+        )
+
+    def test_an_equal_fs_StatInference_is_one_for_all_eras(self):
+        for era in (ERA_A, ERA_B):
+            self.era_config(era, f"fs_StatInference: {self.fs}_inference\n")
+        task = HelloWorldTask(version=self.version, era=(ERA_A, ERA_B))
+        self.assertEqual(task.fs_StatInference.base, f"{self.fs}_inference")
+        self.assertIs(
+            task.fs_StatInference, task.setup_for(ERA_A).get_fs("StatInference")
+        )
+        self.assertEqual(task.fs_default.base, self.fs)
 
     def test_differing_anatuple_scheduling_is_refused_where_it_is_read(self):
         self.era_config(ERA_B, "anaTuple_scheduling: {parallel_jobs: 10}\n")
@@ -1830,6 +1856,32 @@ class MetaEras(_ScratchAnalysis):
         self.assertEqual(
             task.era_fs("HistTuple"), task.setup_for(ERA_A).get_fs("HistTuple")
         )
+
+    def test_its_histograms_are_on_the_fs_Hists_its_eras_resolve_to(self):
+        """A meta-era compares what each sub-era's fs_Hists resolves to (its own setting,
+        else fs_HistTuple's, else fs_default's), not the literal keys."""
+        hists = os.path.join(self.tmp, "hists")
+        self.era_config(ERA_A, f"fs_HistTuple: {hists}\n")
+        self.era_config(ERA_B, f"fs_Hists: {hists}\n")
+        branch = analysis.HistMergerTask(
+            version=self.version, era=META, workflow="local", branch=1
+        )
+        self.assertEqual(branch.fs_Hists.base, hists)
+        self.assertTrue(branch.output().abspath.startswith(hists + os.sep))
+        for req in branch.requires().values():
+            self.assertTrue(req.output().abspath.startswith(hists + os.sep))
+        # the HistTuples of the sub-eras stay apart: fs_HistTuple is not the same in both
+        with self.assertRaises(lc.EraDependentValueError):
+            branch.fs_HistTuple
+
+    def test_differing_fs_Hists_are_refused(self):
+        self.era_config(ERA_A, f"fs_Hists: {self.tmp}/hists\n")
+        task = analysis.HistMergerTask(version=self.version, era=META, workflow="local")
+        with self.assertRaises(lc.EraDependentValueError) as caught:
+            task.fs_Hists
+        message = str(caught.exception)
+        for text in ("fs_Hists", f"{self.tmp}/hists", self.fs):
+            self.assertIn(text, message)
 
     def test_a_list_of_eras_stays_separate(self):
         task = analysis.HistMergerTask(version=self.version, era=f"{ERA_A},{ERA_B}")

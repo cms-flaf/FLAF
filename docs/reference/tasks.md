@@ -177,7 +177,7 @@ Fills **histograms** of the requested variables from the histTuples, with the Up
 variations when `compute_unc_histograms` is true (from the histTuple flavour, else `global.yaml` /
 `user_custom.yaml`; default `false`). **Branches over (dataset, file-chunk):** each job reads its
 chunk of input files and fills every active variable, one output file per variable under
-`<version>/Hists_split/<era>/<variable>/<dataset>/`. Large datasets are parallelized by splitting
+`<version>/Hists_split/<era>/<variable>/<dataset>/` on `fs_Hists`. Large datasets are parallelized by splitting
 their files into chunks.
 
 Every tree (the central one and each shape variation) is read in **one event loop** that fills
@@ -209,6 +209,25 @@ batching: a configuration that still sets it is refused.
 
 - **Parameters:** `--variables` (string; restrict which variables), `--n-files-per-job` (int,
   default `20`; input files processed per branch).
+
+#### Booking plugin
+By default every variable of a job is filled in every selection key of the analysis'
+`createKeyFilterDict` (and the global `further_cuts`). An analysis can decide this itself with a module
+named in its `global.yaml` (`hist_booking_module: Analysis.hist_booking`,
+[`Common/HistBooking.py`](https://github.com/cms-flaf/FLAF/blob/main/Common/HistBooking.py)) that
+defines
+
+- `regions(setup)`: the analysis' regions, a list of names or a `{region: cut}` mapping (as H→μμ's
+  `custom_regions` entry); they fill the entry `custom_regions` names, so everything reading it (the
+  analysis' `createKeyFilterDict`, `histTuple_selectors`, the plots) gets them;
+- `booking(setup, keys, variables)`: for a job's selection keys `[(key_tuple, filter)]` and variables,
+  the blocks to fill, `{"keys": [(key_tuple, filter)], "variables": [...], "columns": [...]}`
+  (`columns` optional: input columns the filters read). A block's keys are its own, e.g. a region
+  restricted by a further cut (`(channel, "SR_HMESub_m300", category)`, the base key's filter and the
+  cut). Each block has a filler of its own, all filled in the same pass over the tree.
+
+FLAF checks that every variable of the job is booked, no (key, variable) twice, and that the input has
+the declared columns. Without `hist_booking_module` nothing changes.
 
 #### Signal trees
 Optionally, the job also keeps the **per-event rows** behind the histograms of the signal
@@ -251,7 +270,7 @@ job, each of their files gets the same trees, with the columns of all of them.
 
 ### `HistMergerTask`
 Merges the per-chunk histograms into per-process histograms ready for plotting and fitting,
-one file per variable at `<version>/Hists_merged/<era>/<variable>/<variable>.root`. Each branch
+one file per variable at `<version>/Hists_merged/<era>/<variable>/<variable>.root` on `fs_Hists`. Each branch
 (one per variable) merges **all uncertainty sources in a single pass**: every input file is read
 once and all histograms are written directly to the final output file. The uncertainty sources
 are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era's
@@ -262,7 +281,9 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
   `signal_params: [ { mass: <M>, spin: <S> }, ... ]` is produced by `HistFromNtupleProducerTask`
   and merged here only for datasets matching at least one entry. A dataset matches an entry if,
   for every key of the entry, it lacks that key or has that value, so backgrounds always match.
-  Any dataset key can be listed; a single dict is a one-entry list.
+  Any dataset key can be listed; a single dict is a one-entry list. A physics model with
+  `apply_signal_params: false` fills every variable for every dataset (see
+  [physics models](../configuration/processes-and-models.md)).
 - **Signal trees:** with [signal trees](#signal-trees) in the chunks, the chunks of each merged
   process are concatenated, one variation at a time, into
   `SignalTrees/<process>/<variation>` of the merged file, after the histograms. A shape
@@ -289,6 +310,10 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
 
   Over a meta-era, a member is summed like any variation: an era without it enters with its
   central histogram of the process.
+- **Data-driven processes:** once every process is merged, the estimators of the physics model's
+  [data-driven processes](../configuration/processes-and-models.md#data-driven-processes) run on
+  the merged file, one uncertainty source at a time, and their histograms are written as those
+  processes; not with `--process` or `--dataset`, nor without merged data.
 - **Meta-era** (`--era Run3_22_23`, a group of `era_groups:`): one branch per variable that every
   era of the group merges. It requires `HistMergerTask` over the eras and sums, bin by bin, their
   merged files of the variable (read through [`MergedHistsTask`](#mergedhiststask)) into
@@ -300,7 +325,7 @@ are those of `weights.yaml` when `compute_unc_histograms` is true (minus the era
 ### `MergedHistsTask`
 An **external** task: the merged histograms of one variable of one era, at `HistMergerTask`'s
 output path (`<version>/Hists_merged/<era>/<variable>/<variable>.root` on that era's
-`fs_HistTuple`). It produces nothing; it is what a branch of `HistMergerTask` over a meta-era
+`fs_Hists`). It produces nothing; it is what a branch of `HistMergerTask` over a meta-era
 requires of each era, so that the branch checks the eras' merged files without building their
 `HistMergerTask` branch maps (`HistMergerTask` over the eras is the requirement of the workflow,
 which makes them).
@@ -357,6 +382,9 @@ Produces the final **plots** via the [PlotKit](https://github.com/cms-flaf/PlotK
 per variable, skipping variables configured with `plot_task: false`).
 
 - **Parameter:** `--variables` (string; restrict which variables).
+- **Data-driven processes** of the physics model are drawn as backgrounds, with the name and
+  colour of their processes.yaml entry, in the regions where they were estimated (a message names
+  the first region where one is missing).
 - **`plot_wantSignals`** (`global.yaml` or `--customisations`, default `true`): `false` draws no
   signal on any plot. Signals are never drawn in the `plot_control_regions` (below).
 - **Meta-era** (`--era Run3_22_23`): plots the sum `HistMergerTask` makes over the meta-era, into
@@ -366,19 +394,45 @@ per variable, skipping variables configured with `plot_task: false`).
 - **Blinding** (per variable, in `config/plot/histograms.yaml`): `blind: true` shows no data on
   the plots of the variable outside the `plot_control_regions` (below). `blind_ranges` hides
   the data points inside windows of its x axis,
-  in the plot and in the ratio panel, in every region, control regions included: one window
+  in the plot and in the ratio panel, in every plot, control regions included: one window
   `[lo, hi]` or a list of them, `[[lo, hi], ...]`, with numbers `lo < hi`. A bin is hidden when it overlaps a window by more
   than a point — partly overlapping bins included, while a bin that ends at `lo` or starts at
   `hi` is shown — and so is a bin into which the rebinning (`x_rebin`) or the overflow merge
   moves events of a stored bin that overlaps a window. `blind_ranges` is for 1D variables only.
+  Per plot, `blind_ranges` is a mapping by channel, category and region, read like `x_rebin`
+  (below): its values are windows, and `[]` hides nothing in those plots (a top-level
+  `blind_ranges: []` is an error). A plot that reaches a level with no matching key and no
+  `other` is an error — never a plot without blinding — and every value is checked whichever plots
+  are made.
+  The plots include the datacard shape plots that StatInference's `CreateDatacardsTask` draws
+  with HistPlotter (the datacard input channels, categories and regions, without data): the
+  mapping must cover them too.
   Any other key starting with `blind` (in any letter case) on a variable, and any such key in
   `data_hist` of `cms_stacked.yaml` or `<era>.yaml`, is an error, so that a key no code reads
   cannot pass for blinding.
+- **Settings per channel, category and region** (`x_rebin` and `blind_ranges` of a
+  `histograms.yaml` entry, `Common/PlotKeys.py`): a value is the same for every plot; a mapping has
+  channel, category or region names as keys, in any order and nesting, and `other` for the plots
+  no key names. At each level the first of the plot's channel, category and region that is a key
+  is followed, or else `other`, which is searched in the same way; a level with neither is an
+  error, also below a key that matched (there is no fallback to another key or to an outer
+  `other`). Keys are names, not patterns.
 
   ```yaml
   m_mumu(_.*)?:
     x_bins: "1500|0:300"
     blind_ranges: [ 115, 135 ]          # or [ [ 115, 120 ], [ 130, 135 ] ]
+  DNN_score:
+    x_bins: "20|0:1"
+    x_rebin:
+      boosted: [ 0, 0.5, 0.8, 1 ]       # a category, in every channel and region
+      other: [ 0, 0.2, 0.4, 0.6, 0.8, 1 ]
+    blind_ranges:                       # per plot
+      SR_window:                        # a region
+        e: { res2b: [ 0.6, 1 ], other: [ 0.7, 1 ] }
+        other: [ 0.6, 1 ]
+      CR_TT: [ ]                        # nothing hidden
+      other: [ 0.8, 1 ]                 # every other plot
   ```
 
 Plot styling comes from the analysis `config/plot/*.yaml` files (`cms_stacked.yaml`,
@@ -403,7 +457,7 @@ must agree on them.
   `histograms.yaml` (a blinded variable hides the data in the other regions only). Data is shown
   only where it is plotted at all: `plot_wantData_<var>: false` in `global.yaml` or the task's
   `--customisations` (default `true`) removes it from every plot of `<var>`. The value must be a YAML list: written without brackets
-  it is one string, which is an error. A name that is not one of the analysis' regions (the list
+  it is one string, which is an error. A name that is not one of the analysis' regions (the booking plugin's regions, or the list
   `custom_regions` names, e.g. `QCDRegions`) is warned about, and that region stays blinded.
 - **`plot_process_groups`** (list of `{name, processes, color}`): sums processes into one legend
   entry each. Background groups are stacked in list order from the bottom; signal groups become one
@@ -458,7 +512,9 @@ environment.
   (limits together with the `HistPlotTask` plots of their input histograms). The chain reads the
   `Hists_merged` files of `--hists-version` (default: `--version`) as external inputs and never
   schedules their production — only `ResonantLimitsAndHistPlotTask`, through `HistPlotTask`,
-  does. Eras, masses and variables come from the datacard configuration named by
+  does. Its datacards, preprocessed shapes and limit and pulls-and-impacts plots are written to
+  `fs_StatInference`, which falls back to `fs_default`; the limit values (`limits.npz`,
+  `era_limits/`) stay under the analysis `data/` directory. Eras, masses and variables come from the datacard configuration named by
   `StatInference.config` in `global.yaml`. `CreateDatacardsTask` and `PreprocessShapesTask` are
   one workflow each, with one branch per card of the configuration's `eras:`, and `--era` must
   hold every real era behind those cards

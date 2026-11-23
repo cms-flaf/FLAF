@@ -95,6 +95,7 @@ ModelName:
     - SignalProcessName
   data:
     - DataProcessName
+  apply_signal_params: true   # optional, default true
 ```
 
 A model is just a named partition of processes into the three roles, in
@@ -102,6 +103,54 @@ A model is just a named partition of processes into the three roles, in
 and every listed process must be defined in the era's processes configuration. Which model a run uses is set
 by `phys_model` — the analysis's `config/global.yaml` sets the production model, your
 [`user_custom.yaml`](user-custom.md) usually overrides it, and `--model` overrides both.
+
+`apply_signal_params: false` fills every variable for every dataset of the model, whatever the
+`signal_params` of its `histograms.yaml` entry (see
+[HistMergerTask](../reference/tasks.md#histmergertask)): a model for studies that need, say, the signals of all
+mass points in a variable meant for one of them. It changes what is filled, so such a model gets
+its own `--version` and histogram storage and is never the model of the analysis results; the
+histTuples of a production are reused with `--HistTupleProducerTask-version <its version>` (a new
+`--version` rather than the production's own, whose local law job files the two runs would share).
+Only FLAF's dataset filter is lifted: a booking plugin that reads `signal_params` itself (for
+example to put a mass's variable in that mass's sub-regions only) keeps its own assignment.
+
+### Data-driven processes
+
+A background estimated from the other processes' histograms (data minus simulation in control
+regions, transfer factors, ...) is a process without datasets, with a `data_driven:` block naming
+the analysis function that computes it, listed among the model's `backgrounds` like any other:
+
+```yaml
+Fakes:
+  name: Fakes
+  color: kGray+1
+  data_driven:
+    estimator: Analysis.SL_fakes.estimate   # <module>.<function>, imported from the analysis
+    nuisances:                              # optional: the estimator's own uncertainty sources
+      FakesStat: CMS_bbww_fakes_stat_{channel}_{category}_{}   # source: histogram-name template
+    tt_process: TT                          # any other key: a parameter of the estimator
+```
+
+`HistMergerTask` computes it at the end of the merge of each variable and era, once every process
+is merged, on the merged file, one uncertainty source at a time: it calls the estimator with a
+context giving the variable, the era, the current source's variations, the data process, the
+model's merged simulated backgrounds and signals, the merged (channel, region, category)
+directories and a reader of the merged histograms (`get`/`require`, each a copy). The estimator
+returns `{((channel, region, category), (unc, scale)): hist}` for the variations of that source,
+and at the nominal pass also Up/Down of its declared `nuisances`, written as
+`<process>_<template>`: the template ends with `_{}`, Up/Down (the meta-era sum recognises a
+variation by its name's ending, and the datacards address `<process>_<source>_<Up/Down>`), and
+`{channel}`, `{region}`, `{category}` and `{era}` are the histogram's own fields, to decorrelate a
+nuisance (e.g. `Fakes_CMS_bbww_fakes_stat_e_boosted_Up`). They are written only with
+`compute_unc_histograms`, and they are not in the plots' uncertainty band, which holds the
+`weights.yaml` sources only. The histograms are written as that
+process, so the meta-era sum, the plots and the datacards treat it as any other background; the
+plots draw it where it was estimated. There is no estimate when data was not merged, nor when the
+merge is restricted to some processes or datasets (`--process`, `--dataset`): it would subtract
+only part of the simulation. A data-driven process must be a background listed in the model itself
+(not as a `sub_process` of a group), without `datasets` or `sub_processes`, with a `color`;
+`Common/DataDriven.py` and `Setup` check the declaration, and the merge imports the estimators
+before it starts.
 
 ### `TestModel` vs the production model
 

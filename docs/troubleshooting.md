@@ -110,11 +110,14 @@ A `--branches` selection (`BranchSelectionError`) does not fit the numbering of 
 ## `… differs between the eras (…), but one run over several eras uses one value for all of them`
 `EraDependentValueError`: a setting that a run over several eras reads once differs between its
 eras. The message names the key and each era's value. Make it the same in every era, or run the
-eras separately. The settings are `fs_default`, the `crab` block, `runTokenServer`,
+eras separately. The settings are `fs_default`, `fs_StatInference`, the `crab` block, `runTokenServer`,
 `anaTuple_scheduling`,
 `use_cmssw_env_AnaTupleProduction` and, per `payload_producers` entry, `n_cpus`, `max_runtime`,
 `crab_memory`, `save_as` and `cmssw_env`; everything else, including `fs_anaTuple`, `fs_HistTuple`,
-`fs_anaCacheTuple` and `fs_plots`, may differ ([Eras](concepts/eras.md#settings-that-must-agree-between-the-eras)).
+`fs_Hists`, `fs_anaCacheTuple` and `fs_plots`, may differ ([Eras](concepts/eras.md#settings-that-must-agree-between-the-eras)).
+A [meta-era](concepts/eras.md#meta-eras) is the exception for those: `HistMergerTask` and
+`HistPlotTask` over one write a single location, so the one each sub-era resolves the key to must
+be the same.
 
 ## `a value of one era was read on a task over several eras`
 `EraScopeError`: code read a per-era value (the setup, an output path, the era name) on a task

@@ -133,10 +133,9 @@ You will see it most often around statistical-inference commands that call `comb
 Most CWS tasks have the same names as the `dhi` ones, so the two cannot be indexed under one law
 config. `cwsEnv` runs a command with `LAW_HOME` and `LAW_CONFIG_FILE` pointed at CWS's own
 (`cws/.law`, `cws/law.cfg`), and with the law that CWS pins (its `modules/law` submodule, a fork of
-law 0.1.12 that the CWS tasks are written for) ahead of the law 0.1.21 of `flaf_env`, and with
-`hydra-core` 1.3.2, which CWS's analysis configs need. `run_tools/mk_cws_env.sh` installs that in
-`cws/data/software/site-packages` rather than in `flaf_env`, because it needs the antlr4 runtime
-4.9 and `LCG_110a` carries 4.13. Plain `law` stays on the analysis config:
+law 0.1.12 that the CWS tasks are written for) ahead of the law 0.1.21 of `flaf_env`. The
+`hydra-core` 1.3.2 that CWS's analysis configs need is part of `flaf_env`, with the antlr4 runtime
+4.9 it requires in place of the 4.13 of `LCG_110a`. Plain `law` stays on the analysis config:
 
 ```sh
 cwsEnv law index --verbose

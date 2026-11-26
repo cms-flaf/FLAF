@@ -190,10 +190,6 @@ export CWS_CMSSW_VERSION="\$FLAF_CMSSW_VERSION"
 export CWS_SCRAM_ARCH="\$FLAF_CMSSW_ARCH"
 EOF
 
-  # The python packages that CWS needs beyond flaf_env, for cwsEnv alone (see mk_cws_env.sh).
-  source "$FLAF_ENVIRONMENT_PATH/bin/activate"
-  run_cmd "$FLAF_PATH/run_tools/mk_cws_env.sh" "$HH_CWS_PATH/data/software/site-packages"
-
   run_cmd mkdir -p "$HH_CWS_PATH/data"
   run_cmd touch "$installed_flag"
 }
@@ -280,9 +276,7 @@ install_cws() {
   local node_os=$2
   local target_os=$3
   local cmb_ver=$4
-  # the flag carries a hash of mk_cws_env.sh (of its pins), so changing it installs them again
-  local cws_env_script_hash="$(sha256sum < "$FLAF_PATH/run_tools/mk_cws_env.sh")"
-  local installed_flag="$HH_CWS_PATH/data/.installed_${cmb_ver}_${cws_env_script_hash:0:12}"
+  local installed_flag="$HH_CWS_PATH/data/.installed_$cmb_ver"
   install "$env_file" $node_os $target_os install_cws "$installed_flag" $cmb_ver "$installed_flag"
 }
 
@@ -489,10 +483,10 @@ load_flaf_env() {
   alias cmsEnv="env -i HOME=$HOME ANALYSIS_PATH=$ANALYSIS_PATH ANALYSIS_DATA_PATH=$ANALYSIS_DATA_PATH X509_USER_PROXY=$X509_USER_PROXY FLAF_CMSSW_BASE=$FLAF_CMSSW_BASE FLAF_CMSSW_ARCH=$FLAF_CMSSW_ARCH TF_ENABLE_ONEDNN_OPTS=$TF_ENABLE_ONEDNN_OPTS $FLAF_PATH/cmsEnv.sh"
   # cwsEnv runs a command (law, cws) against the law config and task index of CWS, with the law
   # that CWS pins (its modules/law submodule, a fork of law 0.1.12 that the CWS tasks are written
-  # for) in place of the one of flaf_env, and with the packages of run_tools/mk_cws_env.sh.
+  # for) in place of the one of flaf_env.
   # Single quotes: expanded when it is used.
   if [ -n "$CWS_BASE" ]; then
-    alias cwsEnv='env LAW_HOME="$CWS_BASE/.law" LAW_CONFIG_FILE="$CWS_BASE/law.cfg" PYTHONPATH="$CWS_BASE/modules/law:$CWS_SOFTWARE/site-packages:$PYTHONPATH" PATH="$CWS_BASE/modules/law/bin:$PATH"'
+    alias cwsEnv='env LAW_HOME="$CWS_BASE/.law" LAW_CONFIG_FILE="$CWS_BASE/law.cfg" PYTHONPATH="$CWS_BASE/modules/law:$PYTHONPATH" PATH="$CWS_BASE/modules/law/bin:$PATH"'
   fi
 
   ulimit -n 4096

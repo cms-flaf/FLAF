@@ -45,6 +45,10 @@ install() {
     run_cmd pip install cmsstyle==0.5.0  # optional PlotKit backend (ROOT/cmsstyle)
     # the LCG_110a mplhep 1.1.0 passes a 2-D y to the text of hep.cms.label
     run_cmd pip install mplhep==1.1.3
+    # hydra-core, for the analysis configs of CWS (cwsEnv). It needs the antlr4 runtime 4.9, so the
+    # 4.13 of LCG_110a is not linked in (create); its only user in the view is openqasm3, which
+    # ships a parser for 4.9 as well.
+    run_cmd pip install hydra-core==1.3.2 omegaconf==2.3.1 antlr4-python3-runtime==4.9.3
 }
 
 install_gh_cli() {
@@ -138,7 +142,7 @@ EOF
     link_all $gcc_base/bin $env_base/bin go gofmt
     link_all $lcg_base/lib $env_site ${py}
     link_all $lcg_base/lib $env_base/lib ${py}
-    link_all $lcg_site $env_site _distutils_hack distutils-precedence.pth pip pkg_resources setuptools black blackd blib2to3 pathspec graphviz py __pycache__ tenacity servicex paramiko mplhep $(dist_info_of $lcg_site black pathspec tenacity servicex paramiko mplhep)
+    link_all $lcg_site $env_site _distutils_hack distutils-precedence.pth pip pkg_resources setuptools black blackd blib2to3 pathspec graphviz py __pycache__ tenacity servicex paramiko mplhep antlr4 $(dist_info_of $lcg_site black pathspec tenacity servicex paramiko mplhep antlr4_python3_runtime)
     link_all $lcg_base/lib64 $env_site cairo cmake libonnx_proto.a libsvm.so.2 pkgconfig ThePEG libavh_olo.a libff.a libqcdloop.a ${py} libzip.so src
     link_all $gcc_base/lib $env_base/lib
     link_all $gcc_base/lib64 $env_base/lib
